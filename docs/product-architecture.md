@@ -8,7 +8,7 @@ Language: English · [简体中文](product-architecture.zh-CN.md). Both version
 
 **A browser package purpose-built for job seeking.**
 
-Job Browser brings existing job sites, AI tools, email, and calendars into one cohesive, polished workspace with a continuous job-seeking workflow. It does not aim to rebuild those tools.
+Job Browser brings existing job sites, AI tools, and email into one cohesive, polished workspace with a continuous job-seeking workflow. It does not aim to rebuild those tools.
 
 > The browser is the foundation. Job-seeking capabilities form the package.
 
@@ -21,16 +21,22 @@ The app opens to a simple grid of feature entry points, without a complex dashbo
 | | | |
 | --- | --- | --- |
 | Find Jobs | Tailor Resume | Interview Prep |
-| Applications | Calendar | My Profile |
+| Applications | Inbox | My Profile |
 | Browser | Ask AI | Settings |
 
 The rows represent three groups:
 
 - **Job-seeking actions:** Find Jobs → Tailor Resume → Interview Prep.
-- **Job-seeking management:** Applications → Calendar → My Profile.
+- **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
 Add new capabilities within existing entry points whenever possible, instead of continually adding Home buttons.
+
+### Initial Inbox
+
+Inbox is the entry point for job-seeking email. Its first version reuses user-configured webmail such as Gmail or Outlook. Users select an email provider and configure its web URL in Settings; entering `app://inbox` opens that URL inside the Browser Shell through the unified Navigation API. If no mailbox is configured, guide the user to email settings.
+
+Users sign in directly on the email website, with Electron Session maintaining the login session. The first version stores only the mailbox entry configuration, not email passwords, and does not require email APIs, message synchronization, an aggregated inbox, or local message entities. Reading and replying use the email website’s existing features.
 
 ## 3. Browser Shell
 
@@ -69,7 +75,7 @@ Internal features and internet pages are addressed through URLs.
 | `app://resume` | Tailor Resume |
 | `app://interview` | Interview Prep |
 | `app://applications` | Applications |
-| `app://calendar` | Calendar |
+| `app://inbox` | Inbox |
 | `app://profile` | My Profile |
 | `app://browser` | Browser |
 | `app://ai` | Ask AI |
@@ -149,10 +155,9 @@ These are conceptual data fields, not a finalized database schema:
 | Job | Company, Title, URL, Description, Created At |
 | Application | Job, Status, Applied At, Notes |
 | Resume | Name, File, Content, Created At |
-| Event | Application, Type, Date / Time, Notes |
-| Settings | Agent URL, API Key, Default Job Site, Browser Settings |
+| Settings | Agent URL, API Key, Default Job Site, Email Provider and Web URL, Browser Settings |
 
-An Application refers to a Job, and an Event can be associated with an Application. Resume records describe locally managed files and their content. Shared Context identifies the page and job currently in use alongside the user's profile and resume; it is not a separate copy of every record.
+An Application refers to a Job. Resume records describe locally managed files and their content. Shared Context identifies the page and job currently in use alongside the user's profile and resume; it is not a separate copy of every record.
 
 The initial storage approach is **SQLite + the local file system + Electron Session**:
 
@@ -173,6 +178,7 @@ The nine entry points are not nine independent systems. Features compose shared 
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
 | Applications | Job + Application |
+| Inbox | User-configured Webmail + Browser + Session |
 
 Navigation, context, AI access, and file handling should be reusable across these workflows.
 
@@ -211,7 +217,7 @@ These are logical layers, not four independent applications or a requirement to 
 | Page | Websites, AI, and internal features live within one browser environment. |
 | Context | The app knows the current page, job, profile, and resume. |
 | Action | Users Find, Tailor, Prepare, Save, Ask, and perform related operations. |
-| Data | Profile, Job, Application, Resume, and Event records persist the work. |
+| Data | Profile, Job, Application, and Resume records persist the work. |
 
 Use these primitives to guide feature design and avoid creating separate systems for overlapping workflows.
 
@@ -230,9 +236,9 @@ The first phase does not need to implement all nine features in full.
 
 Stage 1 establishes page hosting and navigation controls; Stage 3 completes the unified URL and history behavior. After the first resume-tailoring workflow, progressively fill out:
 
-**Find Jobs → Applications → Interview Prep → Calendar → Ask AI → Settings**
+**Find Jobs → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
-This is the order for expanding the full features. The minimal AI connection and configuration needed for Tailor Resume must be available by Stage 6.
+This is the order for expanding the full features. The minimal AI connection and configuration needed for Tailor Resume must be available by Stage 6; mailbox entry configuration must ship alongside Inbox.
 
 The foundation milestone is:
 
@@ -244,4 +250,4 @@ The repository's existing browser foundation is a starting point toward this mil
 
 Use this document as the reference for subsequent product design, interface design, and development planning. It supersedes the earlier product direction while keeping the current implementation documented separately.
 
-The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, database schemas, application statuses, and calendar integrations remain implementation decisions. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
+The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, database schemas, application statuses, and future deeper email integrations remain implementation decisions. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.

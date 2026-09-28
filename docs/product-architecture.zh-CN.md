@@ -8,7 +8,7 @@
 
 **一个为求职深度定制的 Browser Package。**
 
-Job Browser 将已有招聘网站、AI、邮箱和日历整合进统一、精美、连续的求职工作环境，不重新实现这些工具。
+Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连续的求职工作环境，不重新实现这些工具。
 
 > Browser 是底座，求职功能是 Package。
 
@@ -21,16 +21,22 @@ Job Browser 将已有招聘网站、AI、邮箱和日历整合进统一、精美
 | | | |
 | --- | --- | --- |
 | Find Jobs（找工作） | Tailor Resume（定制简历） | Interview Prep（面试准备） |
-| Applications（申请管理） | Calendar（日历） | My Profile（个人资料） |
+| Applications（申请管理） | Inbox（收件箱） | My Profile（个人资料） |
 | Browser（浏览器） | Ask AI（询问 AI） | Settings（设置） |
 
 三行分别对应：
 
 - **求职动作：** Find Jobs → Tailor Resume → Interview Prep。
-- **求职管理：** Applications → Calendar → My Profile。
+- **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
 新增能力时，优先放进现有入口，而不是不断增加首页按钮。
+
+### Inbox 初版
+
+Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等网页邮箱。用户在 Settings 选择邮箱类型并配置网页 URL；进入 `app://inbox` 后，通过统一 Navigation API 在 Browser Shell 中打开该 URL。未配置时，引导用户完成邮箱设置。
+
+用户直接在邮箱网站登录，登录状态由 Electron Session 管理。初版只保存邮箱入口配置，不保存邮箱密码，不要求邮箱 API 接入、邮件同步、聚合收件箱或本地邮件实体。阅读和回复邮件使用邮箱网站已有功能。
 
 ## 三、Browser Shell
 
@@ -69,7 +75,7 @@ Shell 提供以下全局能力：
 | `app://resume` | Tailor Resume |
 | `app://interview` | Interview Prep |
 | `app://applications` | Applications |
-| `app://calendar` | Calendar |
+| `app://inbox` | Inbox |
 | `app://profile` | My Profile |
 | `app://browser` | Browser |
 | `app://ai` | Ask AI |
@@ -149,10 +155,9 @@ MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部�
 | Job | 公司、职位名称、URL、职位描述、创建时间 |
 | Application | 关联职位、状态、申请时间、备注 |
 | Resume | 名称、文件、内容、创建时间 |
-| Event | 关联申请、类型、日期 / 时间、备注 |
-| Settings | Agent URL、API Key、默认招聘网站、浏览器设置 |
+| Settings | Agent URL、API Key、默认招聘网站、邮箱类型与网页 URL、浏览器设置 |
 
-Application 关联 Job，Event 可关联 Application。Resume 记录本地管理的简历文件及内容。Shared Context 标识当前使用的页面和职位，并关联用户资料与简历，不是把所有记录另存一份。
+Application 关联 Job。Resume 记录本地管理的简历文件及内容。Shared Context 标识当前使用的页面和职位，并关联用户资料与简历，不是把所有记录另存一份。
 
 初期存储方案为 **SQLite + 本地文件系统 + Electron Session**：
 
@@ -173,6 +178,7 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
 | Applications | Job + Application |
+| Inbox | 用户配置的网页邮箱 + Browser + Session |
 
 导航、上下文、AI 接入和文件处理应在这些工作流之间复用。
 
@@ -211,7 +217,7 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 | Page | 网页、AI 和内部功能统一存在于 Browser 环境。 |
 | Context | 应用知道当前页面、职位、用户资料和简历。 |
 | Action | 用户执行 Find、Tailor、Prepare、Save、Ask 等操作。 |
-| Data | 通过 Profile、Job、Application、Resume、Event 保存工作成果。 |
+| Data | 通过 Profile、Job、Application、Resume 保存工作成果。 |
 
 以这五个基础概念指导功能设计，避免为重叠的工作流重复建立系统。
 
@@ -230,9 +236,9 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 
 阶段 1 建立页面承载能力和导航控件，阶段 3 完成统一 URL 与历史行为。首个定制简历工作流完成后，再逐步完善：
 
-**Find Jobs → Applications → Interview Prep → Calendar → Ask AI → Settings**
+**Find Jobs → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
-这是完整功能的扩展顺序。Tailor Resume 所需的最小 AI 接入与配置能力必须在阶段 6 前就绪。
+这是完整功能的扩展顺序。Tailor Resume 所需的最小 AI 接入与配置能力必须在阶段 6 前就绪；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
 基础里程碑为：
 
@@ -244,4 +250,4 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 
 后续产品设计、界面设计和开发规划以本文为参考。本文取代此前的产品方向，当前实现情况继续单独记录。
 
-本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议、数据库结构、申请状态和日历集成方式仍留待实现时确定。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
+本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议、数据库结构、申请状态和后续邮箱深度集成方式仍留待实现时确定。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
