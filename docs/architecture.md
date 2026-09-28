@@ -1,6 +1,8 @@
 # Browser Foundation Architecture
 
-This document describes the Initial Commit implementation. It follows the scope in the supplied Job Agent Browser PRD: one browser workspace, one page view, native Chromium navigation history, and no Job Context or Agent behavior.
+This document describes the current browser foundation implementation: one browser workspace, one page view, native Chromium navigation history, and no Job Context or Agent behavior.
+
+The [product architecture baseline](product-architecture.md) ([中文版](product-architecture.zh-CN.md)) is the reference for future design and development and supersedes the earlier product direction. This document records what is implemented today, rather than defining the full MVP scope. Internal `app://` pages, unified internal/external navigation, the nine-entry Home page, Shared Context, and the job-seeking capabilities remain planned work.
 
 ## Process boundaries
 

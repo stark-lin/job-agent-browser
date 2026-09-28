@@ -34,4 +34,9 @@ npm run build
 - `src/shared/` — shared browser API and state types
 - `docs/` — architecture and development notes
 
-See [docs/architecture.md](docs/architecture.md) for process boundaries, navigation rules, and security decisions.
+## Product and architecture documentation
+
+The product direction is a browser package tailored to job seeking: a unified Browser Shell, a nine-entry Home page, URL-based navigation, and Shared Context. The current implementation is the browser foundation described above; the broader product capabilities are planned.
+
+- [Product architecture baseline](docs/product-architecture.md) — the reference for future design and development ([中文版](docs/product-architecture.zh-CN.md))
+- [Current implementation architecture](docs/architecture.md) — existing process boundaries, navigation rules, and security decisions
