@@ -1,1 +1,68 @@
-/* 占位：首页样式。 */
+.home-page {
+  --bg: #f7f7f5;
+  --panel: rgba(255,255,255,.72);
+  --text: #171717;
+  --muted: #858585;
+  --line: #deded9;
+  --hover: #ffffff;
+  --shadow: 0 12px 32px rgba(0,0,0,.055);
+  --radius: 14px;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.home-card { font: inherit; color: inherit; }
+.home-label, .home-desc { display: block; }
+.home-card:disabled { cursor: default; }
+.home-card:focus-visible { outline: 2px solid #858585; outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .home-card { transition: none; }
+}
+  .home-page {
+    display: flex;
+    justify-content: center;
+    padding: clamp(56px, 9vh, 108px) 28px 64px;
+  }
+  .home { width: min(760px, 100%); }
+  .home-heading { margin: 0 0 38px; }
+  .home-eyebrow {
+    font-size: 12px; font-weight: 650; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+  .home h1 {
+    font-size: clamp(30px, 3.2vw, 42px); line-height: 1.08;
+    letter-spacing: -.04em; margin: 0; font-weight: 630;
+  }
+  .home-sub { margin-top: 10px; color: var(--muted); font-size: 14px; }
+
+  .home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .home-card {
+    min-height: 142px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); padding: 18px; text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  }
+  .home-card:hover:not(:disabled) {
+    transform: translateY(-2px); background: var(--hover); border-color: #d2d2cc; box-shadow: var(--shadow);
+  }
+  .home-card:active:not(:disabled) { transform: translateY(0); }
+  .home-icon {
+    width: 32px; height: 32px; border-radius: 9px; border: 1px solid #e3e3de;
+    background: #fbfbfa; display: grid; place-items: center;
+  }
+  .home-icon svg { width: 16px; height: 16px; stroke-width: 1.65; }
+  .home-label { font-size: 14px; font-weight: 610; letter-spacing: -.012em; }
+  .home-desc { color: var(--muted); font-size: 11.5px; margin-top: 4px; line-height: 1.35; }
+
+  .home-footer-note { margin-top: 22px; text-align: center; color: #a1a19c; font-size: 11px; }
+
+  @media (max-width: 650px) {
+    .home-page { padding: 42px 18px; }
+    .home-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 430px) {
+    .home-grid { grid-template-columns: 1fr; }
+    .home-card { min-height: 112px; }
+  }

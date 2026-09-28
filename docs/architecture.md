@@ -2,7 +2,7 @@
 
 This document describes the current browser foundation implementation: one browser workspace, one page view, native Chromium navigation history, and no Job Context or Agent behavior.
 
-The [product architecture baseline](product-architecture.md) ([中文版](product-architecture.zh-CN.md)) is the reference for future design and development and supersedes the earlier product direction. This document records what is implemented today, rather than defining the full MVP scope. Internal `app://` pages, unified internal/external navigation, the nine-entry Home page, Shared Context, and the job-seeking capabilities remain planned work.
+The [product architecture baseline](product-architecture.md) ([中文版](product-architecture.zh-CN.md)) is the reference for future design and development and supersedes the earlier product direction. This document records what is implemented today, rather than defining the full MVP scope. The nine-entry Home page is implemented, with Browser connected and the other eight entries disabled pending implementation. Internal `app://` pages, unified internal/external navigation, Shared Context, and the job-seeking capabilities remain planned work.
 
 ## Process boundaries
 
@@ -14,11 +14,13 @@ React Renderer ── window.browser ── Preload ── IPC ── Main Proce
 ```
 
 - **Main** owns the app lifecycle, main window, `WebContentsView`, navigation, session, and browser state.
-- **Preload** exposes only `navigate`, `back`, `forward`, `getState`, and `onStateChange` through `contextBridge`.
-- **Renderer** draws the toolbar and tracks only editable address field state and the latest browser state.
+- **Preload** exposes only `navigate`, `back`, `forward`, `getState`, `onStateChange`, and `setVisible` through `contextBridge`.
+- **Renderer** draws Home or the browser toolbar and tracks the active screen, editable address field state, and the latest browser state.
 - **WebContentsView** loads external sites in an isolated, sandboxed renderer with Node integration disabled.
 
 The WebContentsView begins below the 64-pixel controls row. Main recalculates its bounds when the window resizes. This keeps third-party pages out of the React renderer and leaves the UI free to grow independently in later phases.
+
+The native view starts hidden so Home is visible at launch. Opening Browser shows the existing view; Home hides it without destroying its page or history. Reloading the app renderer also hides the view to match the renderer's initial Home screen. Screen switching uses validated IPC and does not add Home to Chromium's web history.
 
 ## Navigation and state
 

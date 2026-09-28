@@ -28,6 +28,9 @@ export class BrowserManager {
     })
     this.navigation = new NavigationController(this.view.webContents)
     this.window.contentView.addChildView(this.view)
+    this.view.setVisible(false)
+    // A renderer reload returns to Home; keep the native page from covering it.
+    this.window.webContents.on('did-start-loading', () => this.setVisible(false))
 
     this.view.webContents.setWindowOpenHandler(({ url }) => {
       if (isWebURL(url)) {
@@ -69,6 +72,11 @@ export class BrowserManager {
       width,
       height: Math.max(0, height - TOOLBAR_HEIGHT)
     })
+  }
+
+  setVisible(visible: boolean): void {
+    this.view.setVisible(visible)
+    if (visible) this.layout()
   }
 
   async navigate(input: string): Promise<void> {

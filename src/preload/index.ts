@@ -5,11 +5,13 @@ import {
   BROWSER_GET_STATE,
   BROWSER_NAVIGATE,
   BROWSER_STATE_CHANGED,
+  BROWSER_SET_VISIBLE,
   type BrowserAPI,
   type BrowserState
 } from '../shared/browser'
 
 const browserAPI: BrowserAPI = {
+  setVisible: (visible) => ipcRenderer.invoke(BROWSER_SET_VISIBLE, visible),
   navigate: (input) => ipcRenderer.invoke(BROWSER_NAVIGATE, input),
   back: () => ipcRenderer.invoke(BROWSER_BACK),
   forward: () => ipcRenderer.invoke(BROWSER_FORWARD),

@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-Job Agent Browser is a minimal Electron desktop browser foundation. The current phase includes one browser window, a Back/Forward toolbar, a URL and search field, and one persistent Chromium page view. Job Context and Agent features are outside this phase.
+Job Agent Browser is a minimal Electron desktop browser foundation. The app opens on a nine-card Home page. The Browser card opens the existing browser with a Home/Back/Forward toolbar, a URL and search field, and one persistent Chromium page view. The other eight cards are reserved for upcoming features. Job Context and Agent features are outside this phase.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ npm run dev
 ```
 
 The first development launch downloads the Electron binary for your platform.
-Enter a URL or domain in the address bar, or type search terms to search Google. Back and Forward use Chromium's navigation history.
+Select Browser, then enter a URL or domain in the address bar, or type search terms to search Google. Back and Forward use Chromium's navigation history. Home returns to the nine-card page; reopening Browser preserves the current page and history.
 
 ## Build
 
@@ -42,7 +42,7 @@ The target architecture is scaffolded alongside the running browser foundation:
 - `src/platform/` — Electron, browser, database, filesystem, storage, and AI adapters
 - `src/shared/{ui,hooks,utils,types}/` — public utilities without business semantics
 
-These new files are placeholders, not implemented features or active build entries.
+Home is implemented in `src/pages/home/` and used by the current Renderer entry. The remaining scaffold files are placeholders, not implemented features or active build entries.
 Named files follow the code architecture examples; otherwise directories have an
 `index.ts` entry placeholder. Each placeholder contains one comment describing its
 responsibility. Only the generic extractor is scaffolded; site-specific adapters remain

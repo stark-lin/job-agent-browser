@@ -3,7 +3,8 @@ import {
   BROWSER_BACK,
   BROWSER_FORWARD,
   BROWSER_GET_STATE,
-  BROWSER_NAVIGATE
+  BROWSER_NAVIGATE,
+  BROWSER_SET_VISIBLE
 } from '../shared/browser'
 import { createMainWindow } from './window'
 import type { BrowserManager } from './browser/BrowserManager'
@@ -38,6 +39,11 @@ ipcMain.handle(BROWSER_FORWARD, (event) => {
 ipcMain.handle(BROWSER_GET_STATE, (event) => {
   assertTrustedRenderer(event.sender.id)
   return requireBrowser().getState()
+})
+ipcMain.handle(BROWSER_SET_VISIBLE, (event, visible: unknown) => {
+  assertTrustedRenderer(event.sender.id)
+  if (typeof visible !== 'boolean') throw new Error('Browser visibility must be a boolean.')
+  requireBrowser().setVisible(visible)
 })
 
 app.on('window-all-closed', () => {

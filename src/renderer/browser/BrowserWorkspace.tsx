@@ -9,7 +9,7 @@ const initialState: BrowserState = {
   isLoading: false
 }
 
-export function BrowserWorkspace() {
+export function BrowserWorkspace({ onHome }: { onHome: () => void }) {
   const [state, setState] = useState(initialState)
   const [error, setError] = useState('')
 
@@ -35,7 +35,7 @@ export function BrowserWorkspace() {
 
   return (
     <main className="workspace">
-      <BrowserControls state={state} error={error} onNavigate={navigate} />
+      <BrowserControls state={state} error={error} onNavigate={navigate} onHome={onHome} />
       <div className="content-placeholder" aria-hidden="true">
         {error ? <span className="error-message">{error}</span> : null}
       </div>

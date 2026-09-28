@@ -5,12 +5,16 @@ interface BrowserControlsProps {
   state: BrowserState
   error: string
   onNavigate: (input: string) => Promise<void>
+  onHome: () => void
 }
 
-export function BrowserControls({ state, error, onNavigate }: BrowserControlsProps) {
+export function BrowserControls({ state, error, onNavigate, onHome }: BrowserControlsProps) {
   return (
     <header className="browser-controls">
       <div className="history-controls">
+        <button className="icon-button" type="button" aria-label="Go home" title="Home" onClick={onHome}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m2.5 9 7.5-6.5L17.5 9M4.5 7.5v10h4v-6h3v6h4v-10" /></svg>
+        </button>
         <button
           className="icon-button"
           type="button"

@@ -6,6 +6,7 @@ export interface BrowserState {
 }
 
 export interface BrowserAPI {
+  setVisible(visible: boolean): Promise<void>
   navigate(input: string): Promise<void>
   back(): Promise<void>
   forward(): Promise<void>
@@ -18,5 +19,6 @@ export const BROWSER_NAVIGATE = 'browser:navigate'
 export const BROWSER_BACK = 'browser:back'
 export const BROWSER_FORWARD = 'browser:forward'
 export const BROWSER_GET_STATE = 'browser:get-state'
+export const BROWSER_SET_VISIBLE = 'browser:set-visible'
 
 export const TOOLBAR_HEIGHT = 64
