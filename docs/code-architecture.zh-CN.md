@@ -1,6 +1,6 @@
 # Job Browser — 代码架构基线
 
-状态：已确立的目标代码组织方式，用于指导后续开发与渐进整理，不代表仓库已完成目录迁移。产品范围见[产品架构基线](product-architecture.zh-CN.md)，现有进程与实现边界见[当前实现架构](architecture.md)。
+状态：已确立的目标代码组织方式，用于指导后续开发与渐进整理。仓库已建立目录与文件占位，尚未完成源码迁移或功能实现。产品范围见[产品架构基线](product-architecture.zh-CN.md)，现有进程与实现边界见[当前实现架构](architecture.md)。
 
 > **按 Page 组织产品代码，按 Domain 沉淀业务能力，按 Platform 隔离技术实现。**
 
@@ -336,7 +336,9 @@ src/
    └─ types/
 ```
 
-这是目标目录。目前仓库仍使用 `src/main/`、`src/preload/`、`src/renderer/` 和 `src/shared/`。后续随功能开发渐进整理；迁移 Electron 入口时，需要同步更新构建配置和入口路径，本文不要求立即创建全部目录或迁移源码。
+这是目标目录，仓库已按此建立占位结构，并补充上文 Home、Tailor Resume、Job 及 Platform 示例中明确列出的文件。暂无具体文件的目录创建 `index.ts` 入口占位；职位提取器仅预留 `generic.ts`，网站专属适配仍按实际需要增加。每个占位文件仅用一行注释说明职责，不表示已实现组件、接口或业务逻辑。
+
+当前运行代码仍使用 `src/main/`、`src/preload/`、`src/renderer/` 和 `src/shared/browser.ts`，占位结构尚未接入运行入口。后续随功能开发渐进整理；迁移 Electron 入口时，需要同步更新构建配置和入口路径。
 
 ## 十、项目扩大后的演进
 

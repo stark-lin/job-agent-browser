@@ -34,6 +34,21 @@ npm run build
 - `src/shared/` — shared browser API and state types
 - `docs/` — architecture and development notes
 
+The target architecture is scaffolded alongside the running browser foundation:
+
+- `src/app/` — application composition, navigation, and shared context
+- `src/pages/` — Home and the nine feature entry directories
+- `src/domain/` — Job, Resume, Candidate, Application, and Interview boundaries
+- `src/platform/` — Electron, browser, database, filesystem, storage, and AI adapters
+- `src/shared/{ui,hooks,utils,types}/` — public utilities without business semantics
+
+These new files are placeholders, not implemented features or active build entries.
+Named files follow the code architecture examples; otherwise directories have an
+`index.ts` entry placeholder. Each placeholder contains one comment describing its
+responsibility. Only the generic extractor is scaffolded; site-specific adapters remain
+deferred. Existing source files and build entry points remain in place for gradual
+migration.
+
 ## Product and architecture documentation
 
 The product direction is a browser package tailored to job seeking: a unified Browser Shell, a nine-entry Home page, URL-based navigation, and Shared Context. The current implementation is the browser foundation described above; the broader product capabilities are planned.
