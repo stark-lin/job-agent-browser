@@ -1,6 +1,6 @@
 # Job Browser — Product Architecture Baseline
 
-Status: adopted product direction for future design and development. This document describes the target MVP, not completed functionality. See [current implementation architecture](architecture.md) for what exists today.
+Purpose: define product scope and delivery order. Status: **Planned**, the adopted direction for future design and development. This document describes the target MVP, not completed functionality. See [current implementation architecture](architecture.md) for what exists today.
 
 Language: English · [简体中文](product-architecture.zh-CN.md). Both versions describe the same baseline and should be updated together.
 
@@ -42,18 +42,6 @@ Users sign in directly on the email website, with Electron Session maintaining t
 
 The entire app runs within a unified Browser Shell. Internal features, external websites, and AI pages share the same navigation environment.
 
-```text
-┌─────────────────────────────────────────┐
-│ Back    Forward    Home          Agent  │
-├─────────────────────────────────────────┤
-│                                         │
-│                  PAGE                   │
-│                                         │
-│       Internal Page / Website / AI      │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
 The shell provides these global capabilities:
 
 | Capability | Responsibilities |
@@ -81,14 +69,7 @@ Internal features and internet pages are addressed through URLs.
 | `app://ai` | Ask AI |
 | `app://settings` | Settings |
 
-External destinations use their existing URLs, such as:
-
-```text
-https://linkedin.com/...
-https://seek.com.au/...
-https://company.com/careers/...
-https://chatgpt.com/...
-```
+External destinations retain their existing website URLs.
 
 A single navigation journey can therefore cross internal pages and websites:
 
@@ -100,39 +81,9 @@ Back and Forward follow a consistent history model across both page types. The e
 
 ## 5. Shared Context
 
-Shared Context connects the nine entry points, so users do not have to repeatedly copy, paste, or re-enter the same information.
+Shared Context connects the nine entry points using the current page (URL, title, content, selection), current Job, Profile, and Resume.
 
-```text
-Context
-├── Current Page
-│   ├── URL
-│   ├── Title
-│   ├── Content
-│   └── Selected Text
-├── Current Job
-│   ├── Company
-│   ├── Title
-│   ├── Job Description (JD)
-│   └── URL
-├── Profile
-└── Resume
-```
-
-For example, tailoring a resume follows this flow:
-
-```text
-Browse a LinkedIn job
-        ↓
-Capture job context from the page
-        ↓
-Open Tailor Resume
-        ↓
-Job + Profile + Resume
-        ↓
-AI
-        ↓
-Tailored Resume
-```
+Resume tailoring combines the captured Job with Profile and Resume, then uses AI to produce tailored output.
 
 The same context supports other actions:
 
@@ -147,25 +98,11 @@ Current Page + Job   → Ask AI
 
 The MVP is local first and does not require a complex backend. Local storage is the starting point; external websites and configured AI services may still require a network connection.
 
-These are conceptual data fields, not a finalized database schema:
+The [V1 data architecture](data-architecture.md) owns the planned 11-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
 
-| Entity | Fields |
-| --- | --- |
-| Profile | Basic Info, Education, Experience, Projects, Skills, Preferences |
-| Job | Company, Title, URL, Description, Created At |
-| Application | Job, Status, Applied At, Notes |
-| Resume | Name, File, Content, Created At |
-| Settings | Agent URL, API Key, Default Job Site, Email Provider and Web URL, Browser Settings |
+Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
-An Application refers to a Job. Resume records describe locally managed files and their content. Shared Context identifies the page and job currently in use alongside the user's profile and resume; it is not a separate copy of every record.
-
-The initial storage approach is **SQLite + the local file system + Electron Session**:
-
-- SQLite stores structured product records.
-- The local file system stores resumes and generated files.
-- Electron Session manages cookies and other website session data.
-
-Settings describe configuration needs; credential storage details must be decided during implementation. This baseline does not require storing API keys in plaintext SQLite records.
+SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence remains planned; the existing browser already uses Electron Session, as recorded in the [current architecture](architecture.md).
 
 ## 7. Compose capabilities instead of duplicating infrastructure
 
@@ -177,29 +114,14 @@ The nine entry points are not nine independent systems. Features compose shared 
 | Tailor Resume | Job Context + Profile + Resume + AI |
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
-| Applications | Job + Application |
+| Applications | Job + Application lifecycle + JobEvent |
 | Inbox | User-configured Webmail + Browser + Session |
 
 Navigation, context, AI access, and file handling should be reusable across these workflows.
 
 ## 8. Technical layers
 
-Keep the architecture to four layers:
-
-```text
-┌────────────────────────────────────────┐
-│              Electron App              │
-├────────────────────────────────────────┤
-│             Browser Shell              │
-│       Navigation / Agent / Page        │
-├────────────────────────────────────────┤
-│                Services                │
-│       Context / Job / AI / Files        │
-├────────────────────────────────────────┤
-│                  Data                  │
-│       SQLite / Files / Settings        │
-└────────────────────────────────────────┘
-```
+The four logical layers are Electron App → Browser Shell → Services → Data. Process responsibilities are:
 
 - **Electron Main** owns system capabilities: windows, WebContents, sessions, and file-system access.
 - **Renderer** owns the Home grid, internal pages, Browser Shell UI, and other presentation logic.
@@ -217,7 +139,7 @@ These are logical layers, not four independent applications or a requirement to 
 | Page | Websites, AI, and internal features live within one browser environment. |
 | Context | The app knows the current page, job, profile, and resume. |
 | Action | Users Find, Tailor, Prepare, Save, Ask, and perform related operations. |
-| Data | Profile, Job, Application, and Resume records persist the work. |
+| Data | Profile, Job lifecycle, and resume Artifacts persist the work. |
 
 Use these primitives to guide feature design and avoid creating separate systems for overlapping workflows.
 
@@ -250,4 +172,10 @@ The repository's existing browser foundation is a starting point toward this mil
 
 Use this document as the reference for subsequent product design, interface design, and development planning. It supersedes the earlier product direction while keeping the current implementation documented separately.
 
-The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, database schemas, application statuses, and future deeper email integrations remain implementation decisions. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
+The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, and future deeper email integrations remain implementation decisions. The planned data model and statuses are now owned by the data architecture; SQL migrations and detailed transition rules remain open. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
+
+## Related documents
+
+- [Current architecture](architecture.md): implemented behavior and limitations.
+- [Code architecture](code-architecture.md): target organization and dependency boundaries.
+- [README](../README.md): setup and documentation index.

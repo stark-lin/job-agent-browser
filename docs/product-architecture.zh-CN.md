@@ -1,6 +1,6 @@
 # Job Browser — 产品架构基线
 
-状态：已确立的产品方向，用于指导后续设计与开发。本文描述目标 MVP，不代表功能已经实现。现有能力见[当前实现架构](architecture.md)。
+用途：确定产品范围与交付顺序。状态：**规划**，作为后续设计与开发的产品方向。本文描述目标 MVP，不代表功能已经实现。现有能力见[当前实现架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](product-architecture.md)。两个版本表达同一基线，后续应同步更新。
 
@@ -42,18 +42,6 @@ Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等
 
 整个 App 运行在统一的 Browser Shell 中。内部功能、外部网页与 AI 页面共享同一导航环境。
 
-```text
-┌─────────────────────────────────────────┐
-│ Back    Forward    Home          Agent  │
-├─────────────────────────────────────────┤
-│                                         │
-│                  PAGE                   │
-│                                         │
-│       Internal Page / Website / AI      │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
 Shell 提供以下全局能力：
 
 | 能力 | 职责 |
@@ -81,14 +69,7 @@ Shell 提供以下全局能力：
 | `app://ai` | Ask AI |
 | `app://settings` | Settings |
 
-外部页面沿用已有 URL，例如：
-
-```text
-https://linkedin.com/...
-https://seek.com.au/...
-https://company.com/careers/...
-https://chatgpt.com/...
-```
+外部页面沿用网站已有 URL。
 
 一次完整导航可以连续经过内部页面和外部网站：
 
@@ -100,39 +81,9 @@ Back / Forward 对两类页面采用一致的历史模型。内部路由和混�
 
 ## 五、Shared Context
 
-Shared Context 是九个入口真正共享的核心，使用户不必反复复制、粘贴或重新输入相同信息。
+Shared Context 通过当前页面（URL、标题、内容、选中文字）、当前 Job、Profile 和 Resume 连接九个入口。
 
-```text
-Context
-├── Current Page
-│   ├── URL
-│   ├── Title
-│   ├── Content
-│   └── Selected Text
-├── Current Job
-│   ├── Company
-│   ├── Title
-│   ├── Job Description（JD，职位描述）
-│   └── URL
-├── Profile
-└── Resume
-```
-
-以定制简历为例：
-
-```text
-浏览 LinkedIn 职位
-        ↓
-从页面获取 Job Context
-        ↓
-打开 Tailor Resume
-        ↓
-Job + Profile + Resume
-        ↓
-AI
-        ↓
-Tailored Resume（定制后的简历）
-```
+定制简历将捕获的 Job 与 Profile、Resume 组合，再由 AI 生成定制内容。
 
 同一份上下文继续支持其他动作：
 
@@ -147,25 +98,11 @@ Current Page + Job   → Ask AI
 
 MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部网站和已配置的 AI 服务仍可能需要联网。
 
-以下为概念字段，不是最终数据库结构：
+[V1 数据架构](data-architecture.zh-CN.md) 负责规划中的 11 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
 
-| 实体 | 字段 |
-| --- | --- |
-| Profile | 基本信息、教育经历、工作经历、项目经历、技能、偏好 |
-| Job | 公司、职位名称、URL、职位描述、创建时间 |
-| Application | 关联职位、状态、申请时间、备注 |
-| Resume | 名称、文件、内容、创建时间 |
-| Settings | Agent URL、API Key、默认招聘网站、邮箱类型与网页 URL、浏览器设置 |
+Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
 
-Application 关联 Job。Resume 记录本地管理的简历文件及内容。Shared Context 标识当前使用的页面和职位，并关联用户资料与简历，不是把所有记录另存一份。
-
-初期存储方案为 **SQLite + 本地文件系统 + Electron Session**：
-
-- SQLite 保存结构化产品数据。
-- 本地文件系统保存简历和生成的文件。
-- Electron Session 管理 Cookie 等网站会话数据。
-
-Settings 描述配置需求；凭据的具体存储方式在开发时确定。本基线不要求将 API Key 明文存入 SQLite。
+SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化仍为规划；现有浏览器已使用 Electron Session，见[当前架构](architecture.zh-CN.md)。
 
 ## 七、功能通过能力组合实现
 
@@ -177,29 +114,14 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 | Tailor Resume | Job Context + Profile + Resume + AI |
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
-| Applications | Job + Application |
+| Applications | Job + 申请生命周期 + JobEvent |
 | Inbox | 用户配置的网页邮箱 + Browser + Session |
 
 导航、上下文、AI 接入和文件处理应在这些工作流之间复用。
 
 ## 八、技术分层
 
-整体保持四层：
-
-```text
-┌────────────────────────────────────────┐
-│              Electron App              │
-├────────────────────────────────────────┤
-│             Browser Shell              │
-│       Navigation / Agent / Page        │
-├────────────────────────────────────────┤
-│                Services                │
-│       Context / Job / AI / Files        │
-├────────────────────────────────────────┤
-│                  Data                  │
-│       SQLite / Files / Settings        │
-└────────────────────────────────────────┘
-```
+四个逻辑层为 Electron App → Browser Shell → Services → Data。进程职责为：
 
 - **Electron Main** 负责窗口、WebContents、Session、文件系统访问等系统能力。
 - **Renderer** 负责首页九宫格、内部页面、Browser Shell UI 及其他展示逻辑。
@@ -217,7 +139,7 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 | Page | 网页、AI 和内部功能统一存在于 Browser 环境。 |
 | Context | 应用知道当前页面、职位、用户资料和简历。 |
 | Action | 用户执行 Find、Tailor、Prepare、Save、Ask 等操作。 |
-| Data | 通过 Profile、Job、Application、Resume 保存工作成果。 |
+| Data | 通过 Profile、Job 生命周期和简历 Artifact 保存工作成果。 |
 
 以这五个基础概念指导功能设计，避免为重叠的工作流重复建立系统。
 
@@ -250,4 +172,10 @@ Settings 描述配置需求；凭据的具体存储方式在开发时确定。�
 
 后续产品设计、界面设计和开发规划以本文为参考。本文取代此前的产品方向，当前实现情况继续单独记录。
 
-本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议、数据库结构、申请状态和后续邮箱深度集成方式仍留待实现时确定。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
+本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议和后续邮箱深度集成方式仍留待实现时确定。规划的数据模型与状态已归入数据架构；SQL 迁移与详细状态转换规则仍待确定。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
+
+## 相关文档
+
+- [当前架构](architecture.zh-CN.md)：已实现行为与限制。
+- [代码架构](code-architecture.zh-CN.md)：目标组织与依赖边界。
+- [README](../README.zh-CN.md)：启动与文档索引。

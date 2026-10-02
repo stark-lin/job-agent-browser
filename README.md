@@ -1,60 +1,40 @@
 # Job Agent Browser
 
-Job Agent Browser is a minimal Electron desktop browser foundation. The app opens on a nine-card Home page. The Browser card opens the existing browser with a Home/Back/Forward toolbar, a URL and search field, and one persistent Chromium page view. The other eight cards are reserved for upcoming features. Job Context and Agent features are outside this phase.
+A local-first desktop workspace for job seeking. Status: **Implemented** browser foundation and nine-card Home; **Scaffolded** business modules; **Planned** job management, profile facts, resume generation, and the V1 data model.
 
-## Requirements
+Language: English · [简体中文](README.zh-CN.md)
 
-- Node.js 22.12 or newer
-- npm
+## Quick start
 
-## Install and run
+Requires Node.js 22.12 or newer and npm, as declared in [package.json](package.json).
 
 ```sh
 npm install
 npm run dev
 ```
 
-The first development launch downloads the Electron binary for your platform.
-Select Browser, then enter a URL or domain in the address bar, or type search terms to search Google. Back and Forward use Chromium's navigation history. Home returns to the nine-card page; reopening Browser preserves the current page and history.
+The `predev` helper downloads the Electron binary on first development launch. Select Browser on Home, then enter a URL, domain, or search terms. Back and Forward use Chromium history; Home hides the page, and reopening Browser preserves its page and history. The other eight cards are disabled. See [current architecture](docs/architecture.md) for runtime details and source references.
 
-## Build
+## Validation and build
+
+Commands are defined in [package.json](package.json):
 
 ```sh
 npm run typecheck
 npm run build
 ```
 
-`npm run build` compiles the Main, Preload, and Renderer bundles into `out/`. The current project does not yet define platform installers.
+The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). There is no configured test command or platform installer. A successful build does not verify planned product features.
 
-## Project structure
+For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 
-- `src/main/` — window lifecycle, persistent web view, navigation, and IPC handlers
-- `src/preload/` — narrow Browser API exposed to the trusted UI
-- `src/renderer/` — React browser controls
-- `src/shared/` — shared browser API and state types
-- `docs/` — architecture and development notes
+## Documentation index
 
-The target architecture is scaffolded alongside the running browser foundation:
-
-- `src/app/` — application composition, navigation, and shared context
-- `src/pages/` — Home and the nine feature entry directories
-- `src/domain/` — Job, Resume, Candidate, Application, and Interview boundaries
-- `src/platform/` — Electron, browser, database, filesystem, storage, and AI adapters
-- `src/shared/{ui,hooks,utils,types}/` — public utilities without business semantics
-
-Home is implemented in `src/pages/home/` and used by the current Renderer entry. The remaining scaffold files are placeholders, not implemented features or active build entries.
-Named files follow the code architecture examples; otherwise directories have an
-`index.ts` entry placeholder. Each placeholder contains one comment describing its
-responsibility. Only the generic extractor is scaffolded; site-specific adapters remain
-deferred. Existing source files and build entry points remain in place for gradual
-migration.
-
-## Product and architecture documentation
-
-Documentation changes follow the [documentation rules](AGENTS.md) ([简体中文](AGENTS.zh-CN.md)).
-
-The product direction is a browser package tailored to job seeking: a unified Browser Shell, a nine-entry Home page, URL-based navigation, and Shared Context. The current implementation is the browser foundation described above; the broader product capabilities are planned.
-
-- [Product architecture baseline](docs/product-architecture.md) — the reference for future design and development ([中文版](docs/product-architecture.zh-CN.md))
-- [Code architecture baseline](docs/code-architecture.zh-CN.md) — Page-first organization, Domain boundaries, and Platform abstractions for future development
-- [Current implementation architecture](docs/architecture.md) — existing process boundaries, navigation rules, and security decisions
+| Document | Purpose |
+| --- | --- |
+| [Documentation rules](AGENTS.md) · [简体中文](AGENTS.zh-CN.md) | Ownership, languages, length limits, and review requirements |
+| [Current architecture](docs/architecture.md) · [简体中文](docs/architecture.zh-CN.md) | Implemented runtime, security boundaries, and limitations |
+| [Product architecture](docs/product-architecture.md) · [简体中文](docs/product-architecture.zh-CN.md) | Planned scope, entry points, and delivery order |
+| [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
+| [V1 data architecture](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Planned entities, generation, provenance, audit, and storage |
+| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Complete planned 11-table model; shared by both data architecture editions |

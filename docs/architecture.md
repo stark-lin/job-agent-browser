@@ -1,56 +1,51 @@
-# Browser Foundation Architecture
+# Current Runtime Architecture
 
-This document describes the current browser foundation implementation: one browser workspace, one page view, native Chromium navigation history, and no Job Context or Agent behavior.
+Purpose: record verified runtime behavior. Status: **Implemented** browser foundation and Home; business workflows remain **Planned**, with selected modules **Scaffolded**.
 
-The [product architecture baseline](product-architecture.md) ([中文版](product-architecture.zh-CN.md)) is the reference for future design and development and supersedes the earlier product direction. This document records what is implemented today, rather than defining the full MVP scope. The nine-entry Home page is implemented, with Browser connected and the other eight entries disabled pending implementation. Internal `app://` pages, unified internal/external navigation, Shared Context, and the job-seeking capabilities remain planned work.
+Language: English · [简体中文](architecture.zh-CN.md)
 
-## Process boundaries
+## 1. Runtime and process boundaries
+
+[Build configuration](../electron.vite.config.ts) selects [Main](../src/main/index.ts), [Preload](../src/preload/index.ts), and the [Renderer HTML entry](../src/renderer/index.html). The [package entry](../package.json) points to `out/main/index.js`.
 
 ```text
-React Renderer ── window.browser ── Preload ── IPC ── Main Process
-                                                     ├── BrowserWindow
-                                                     └── WebContentsView
-                                                         └── persistent Session
+React Renderer → window.browser → Preload → IPC → Main
+                                                  ├── BrowserWindow
+                                                  └── WebContentsView → Session
 ```
 
-- **Main** owns the app lifecycle, main window, `WebContentsView`, navigation, session, and browser state.
-- **Preload** exposes only `navigate`, `back`, `forward`, `getState`, `onStateChange`, and `setVisible` through `contextBridge`.
-- **Renderer** draws Home or the browser toolbar and tracks the active screen, editable address field state, and the latest browser state.
-- **WebContentsView** loads external sites in an isolated, sandboxed renderer with Node integration disabled.
+[Main](../src/main/index.ts) owns window lifecycle and IPC; [window creation](../src/main/window.ts) creates the trusted UI and browser manager. [Preload](../src/preload/index.ts) exposes named operations from the [BrowserAPI](../src/shared/browser.ts), including navigation, visibility, state retrieval, and state subscriptions.
 
-The WebContentsView begins below the 64-pixel controls row. Main recalculates its bounds when the window resizes. This keeps third-party pages out of the React renderer and leaves the UI free to grow independently in later phases.
+[BrowserManager](../src/main/browser/BrowserManager.ts) owns one persistent page view per window, below the 64-pixel toolbar, and recalculates bounds on resize. [Renderer App](../src/renderer/App.tsx) switches between Home and Browser. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables Browser and leaves eight feature cards disabled.
 
-The native view starts hidden so Home is visible at launch. Opening Browser shows the existing view; Home hides it without destroying its page or history. Reloading the app renderer also hides the view to match the renderer's initial Home screen. Screen switching uses validated IPC and does not add Home to Chromium's web history.
+## 2. Navigation and state
 
-## Navigation and state
+[NavigationController](../src/main/browser/NavigationController.ts) trims input, searches Google when input contains whitespace, adds HTTPS when no scheme is supplied, and searches malformed URL input. It rejects empty input and non-HTTP(S) schemes. Back and Forward use `WebContents.navigationHistory`.
 
-`NavigationController` trims address input. Inputs with whitespace are searched through Google. Other input is parsed as a URL, with HTTPS added when no scheme is supplied. Only HTTP and HTTPS are accepted; unsupported schemes are rejected. A malformed non-whitespace value is treated as a search term.
+[BrowserManager](../src/main/browser/BrowserManager.ts) publishes URL, history availability, and loading state after navigation/loading events. It starts with the page hidden. Home hides the view without destroying history; reopening Browser shows it again. Reloading the trusted renderer also hides it. Home switching is not part of Chromium history.
 
-Back and Forward call the `WebContents.navigationHistory` API. The manager publishes URL, history availability, and loading state after navigation and loading events. The address input follows browser state while idle, but holds its draft while focused so redirects or history changes do not overwrite text being edited.
+[AddressBar](../src/renderer/browser/AddressBar.tsx) follows browser state while idle and preserves the user's draft while focused. [BrowserWorkspace](../src/renderer/browser/BrowserWorkspace.tsx) subscribes to state, invokes navigation, and displays errors.
 
-## Session and permissions
+## 3. Session and security
 
-The page uses the `persist:job-agent-browser` session partition so cookies and other Chromium site storage can survive app restarts. There is one shared default profile. Permission requests are denied by default in this foundation; add a deliberate permission flow before enabling camera, microphone, geolocation, notifications, or similar capabilities.
+[BrowserManager](../src/main/browser/BrowserManager.ts) uses `persist:job-agent-browser`, allowing website storage to survive restarts. It installs a handler that denies permission requests. There is one shared session partition, with no implemented multi-profile selector.
 
-## Security decisions
+- [Trusted window](../src/main/window.ts) and [remote view](../src/main/browser/BrowserManager.ts) disable Node integration and enable context isolation and sandboxing; remote web security remains enabled.
+- [IPC handlers](../src/main/index.ts) check that the sender's webContents belongs to a BrowserWindow and validate navigation/visibility argument types. [Preload](../src/preload/index.ts) does not expose raw `ipcRenderer`.
+- [Remote navigation](../src/main/browser/BrowserManager.ts) blocks non-HTTP(S) `will-navigate` events. Pop-ups are denied; HTTP(S) new-window links open in the operating-system browser, and other schemes are discarded.
+- The [trusted HTML document](../src/renderer/index.html) sets a restrictive Content Security Policy; external pages are hosted separately.
 
-- Both trusted UI and remote page views disable Node integration, enable context isolation and sandboxing, and retain Chromium web security.
-- IPC is exposed as named operations, never as raw `ipcRenderer`. Main checks that IPC senders belong to a BrowserWindow before handling requests.
-- Address bar navigation and in-page top-level navigation are limited to HTTP and HTTPS.
-- Pop-up windows are denied. HTTP(S) links requesting a new window are opened by the operating system browser; other schemes are discarded.
-- The local React document has a restrictive Content Security Policy. It does not need to connect to websites because Main loads those into a separate view.
+These describe existing checks, not a complete future security contract. New privileged APIs require appropriate sender, frame, origin, and input validation.
 
-## Local development
+## 4. Scaffold and limitations
 
-Use Node.js 22.12 or newer and npm:
+[Application navigation](../src/app/navigation/navigate.ts), [context](../src/app/context/appContext.ts), [Job types](../src/domain/job/job.types.ts), [SQLite](../src/platform/database/sqlite.ts), [migrations](../src/platform/database/migrations/index.ts), and [AI](../src/platform/ai/index.ts) are placeholders, not active implementations. Home is the implemented page used by the current Renderer; the target entry [src/app/App.tsx](../src/app/App.tsx) is still a placeholder.
 
-```sh
-npm install
-npm run dev
-npm run typecheck
-npm run build
-```
+Internal `app://` routing, combined internal/external history, Shared Context, job extraction, profile storage, generation, compilation, audit, settings, and secrets storage are not wired into the runtime. The ER diagram does not create tables or migrations. [package.json](../package.json) defines no automated test command or installer configuration; type checking and build commands are documented in the README.
 
-The build emits app bundles to `out/`. Installers, signing, and distribution configuration are not part of this commit.
+## 5. Related documents
 
-The `predev` script runs Electron's `install-electron` helper. Electron 44 ships its runtime binary separately from the npm package; this downloads it on the first development launch and skips the download once it is cached locally.
+- [README](../README.md): setup, validation, and documentation index.
+- [Product architecture](product-architecture.md): planned scope and delivery order.
+- [Code architecture](code-architecture.md): target organization and migration boundaries.
+- [V1 data architecture](data-architecture.md): planned persistence and generation design.
