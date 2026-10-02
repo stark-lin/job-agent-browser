@@ -51,8 +51,10 @@ migration.
 
 ## Product and architecture documentation
 
+Documentation changes follow the [documentation rules](AGENTS.md) ([简体中文](AGENTS.zh-CN.md)).
+
 The product direction is a browser package tailored to job seeking: a unified Browser Shell, a nine-entry Home page, URL-based navigation, and Shared Context. The current implementation is the browser foundation described above; the broader product capabilities are planned.
 
 - [Product architecture baseline](docs/product-architecture.md) — the reference for future design and development ([中文版](docs/product-architecture.zh-CN.md))
-- [Code architecture baseline（代码架构基线）](docs/code-architecture.zh-CN.md) — Page-first organization, Domain boundaries, and Platform abstractions for future development
+- [Code architecture baseline](docs/code-architecture.zh-CN.md) — Page-first organization, Domain boundaries, and Platform abstractions for future development
 - [Current implementation architecture](docs/architecture.md) — existing process boundaries, navigation rules, and security decisions
