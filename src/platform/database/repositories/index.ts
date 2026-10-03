@@ -1,1 +1,9 @@
-// 数据仓储实现入口，使用 SQLite 实现 Domain 定义的存储接口。
+import type { Store } from './store'
+import { jobRepository } from './jobs'
+import { candidateRepository } from './candidates'
+import { applicationRepository } from './applications'
+import { resumeRepository } from './resumes'
+
+export function repositories(store: Store) {
+  return { jobs: jobRepository(store), candidate: candidateRepository(store), applications: applicationRepository(store), resumes: resumeRepository(store) }
+}

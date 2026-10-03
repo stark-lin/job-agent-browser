@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { createDataBridge } from '../platform/electron/preload/data-bridge'
+import { DATA_CALL } from '../shared/ipc'
 import {
   BROWSER_BACK,
   BROWSER_FORWARD,
@@ -24,3 +26,4 @@ const browserAPI: BrowserAPI = {
 }
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
+contextBridge.exposeInMainWorld('data', createDataBridge((group, method, input) => ipcRenderer.invoke(DATA_CALL, group, method, input)))

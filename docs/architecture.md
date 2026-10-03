@@ -1,6 +1,6 @@
 # Current Runtime Architecture
 
-Purpose: record verified runtime behavior. Status: **Implemented** browser foundation and Home; business workflows remain **Planned**, with selected modules **Scaffolded**.
+Purpose: record verified runtime behavior. Status: **Implemented** browser foundation, Home and business storage backend; business pages, AI execution and compilation remain **Planned**.
 
 Language: English · [简体中文](architecture.zh-CN.md)
 
@@ -9,9 +9,9 @@ Language: English · [简体中文](architecture.zh-CN.md)
 [Build configuration](../electron.vite.config.ts) selects [Main](../src/main/index.ts), [Preload](../src/preload/index.ts), and the [Renderer HTML entry](../src/renderer/index.html). The [package entry](../package.json) points to `out/main/index.js`.
 
 ```text
-React Renderer → window.browser → Preload → IPC → Main
-                                                  ├── BrowserWindow
-                                                  └── WebContentsView → Session
+React Renderer → window.browser / window.data → Preload → IPC → Main
+                                                               ├── BrowserWindow / WebContentsView → Session
+                                                               └── Domain services → SQLite + audit
 ```
 
 [Main](../src/main/index.ts) owns window lifecycle and IPC; [window creation](../src/main/window.ts) creates the trusted UI and browser manager. [Preload](../src/preload/index.ts) exposes named operations from the [BrowserAPI](../src/shared/browser.ts), including navigation, visibility, state retrieval, and state subscriptions.
@@ -35,17 +35,19 @@ React Renderer → window.browser → Preload → IPC → Main
 - [Remote navigation](../src/main/browser/BrowserManager.ts) blocks non-HTTP(S) `will-navigate` events. Pop-ups are denied; HTTP(S) new-window links open in the operating-system browser, and other schemes are discarded.
 - The [trusted HTML document](../src/renderer/index.html) sets a restrictive Content Security Policy; external pages are hosted separately.
 
-These describe existing checks, not a complete future security contract. New privileged APIs require appropriate sender, frame, origin, and input validation.
+The [data IPC handler](../src/platform/electron/main/data-ipc.ts) additionally requires the exact trusted renderer document and top frame. A fixed capability allowlist and domain input validation restrict data operations; raw SQL, audit writes and generation-stage writes are not exposed.
 
-## 4. Scaffold and limitations
+## 4. Business storage and limitations
 
-[Application navigation](../src/app/navigation/navigate.ts), [context](../src/app/context/appContext.ts), [Job types](../src/domain/job/job.types.ts), [SQLite](../src/platform/database/sqlite.ts), [migrations](../src/platform/database/migrations/index.ts), and [AI](../src/platform/ai/index.ts) are placeholders, not active implementations. Home is the implemented page used by the current Renderer; the target entry [src/app/App.tsx](../src/app/App.tsx) is still a placeholder.
+[Main](../src/main/index.ts) opens the database and installs `window.data` handlers before creating the window, closing storage on quit. The [backend composition](../src/platform/database/backend.ts) injects repositories and transactions into Domain use cases and recovers interrupted generation attempts. Startup storage failure prevents the window from opening and reports a fixed error without resetting data.
 
-Internal `app://` routing, combined internal/external history, Shared Context, job extraction, profile storage, generation, compilation, audit, settings, and secrets storage are not wired into the runtime. The ER diagram does not create tables or migrations. [package.json](../package.json) defines no automated test command or installer configuration; type checking and build commands are documented in the README.
+SQLite migrations, business persistence, automatic content-free audit and typed business IPC are implemented; their rules and API are owned by [data architecture](data-architecture.md). [Integration tests](../tests/audit.test.ts) cover transaction/privacy guarantees; [Electron smoke](../scripts/smoke.cjs) verifies the built Main, sandboxed Preload and IPC. Validation commands are indexed in README.
+
+[Application navigation](../src/app/navigation/navigate.ts), [context](../src/app/context/appContext.ts), [AI](../src/platform/ai/index.ts), and the target [App](../src/app/App.tsx) remain placeholders. Business pages remain disabled. Internal routing, combined history, Shared Context, page extraction, AI generation execution, compilation, settings/secrets persistence and installers are not implemented.
 
 ## 5. Related documents
 
 - [README](../README.md): setup, validation, and documentation index.
 - [Product architecture](product-architecture.md): planned scope and delivery order.
 - [Code architecture](code-architecture.md): target organization and migration boundaries.
-- [V1 data architecture](data-architecture.md): planned persistence and generation design.
+- [V1 data architecture and API](data-architecture.md): implemented persistence and business interfaces.

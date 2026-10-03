@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已核实的运行行为。状态：浏览器基础与 Home **已实现**；业务流程仍为**规划**，部分模块已有**占位**。
+用途：记录已核实的运行行为。状态：浏览器基础、Home 和业务存储后端**已实现**；业务页面、AI 执行与编译仍为**规划**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -9,9 +9,9 @@
 [构建配置](../electron.vite.config.ts) 指定 [Main](../src/main/index.ts)、[Preload](../src/preload/index.ts) 和 [Renderer HTML 入口](../src/renderer/index.html)。[包入口](../package.json) 指向 `out/main/index.js`。
 
 ```text
-React Renderer → window.browser → Preload → IPC → Main
-                                                  ├── BrowserWindow
-                                                  └── WebContentsView → Session
+React Renderer → window.browser / window.data → Preload → IPC → Main
+                                                               ├── BrowserWindow / WebContentsView → Session
+                                                               └── Domain services → SQLite + audit
 ```
 
 [Main](../src/main/index.ts) 管理窗口生命周期和 IPC；[窗口创建逻辑](../src/main/window.ts) 创建可信 UI 与浏览器管理器。[Preload](../src/preload/index.ts) 按 [BrowserAPI](../src/shared/browser.ts) 暴露命名操作，包括导航、可见性、状态获取和订阅。
@@ -35,17 +35,19 @@ React Renderer → window.browser → Preload → IPC → Main
 - [远程导航](../src/main/browser/BrowserManager.ts) 阻止非 HTTP(S) 的 `will-navigate` 事件。拒绝弹窗；要求新窗口的 HTTP(S) 链接交给系统浏览器，其他协议丢弃。
 - [可信 HTML 文档](../src/renderer/index.html) 设置受限的 Content Security Policy，外部网页独立承载。
 
-这些描述现有检查，不是未来完整的安全契约。新增特权 API 时，仍需实施适当的发送方、frame、来源及输入校验。
+[数据 IPC 处理器](../src/platform/electron/main/data-ipc.ts) 额外要求精确匹配的可信 Renderer 文档和顶层 frame。固定能力白名单与领域输入校验限制数据操作；不暴露原始 SQL、审计写入或生成阶段写入。
 
-## 四、占位与限制
+## 四、业务存储与限制
 
-[应用导航](../src/app/navigation/navigate.ts)、[上下文](../src/app/context/appContext.ts)、[Job 类型](../src/domain/job/job.types.ts)、[SQLite](../src/platform/database/sqlite.ts)、[迁移](../src/platform/database/migrations/index.ts) 和 [AI](../src/platform/ai/index.ts) 都是占位，尚未形成运行实现。Home 是当前 Renderer 使用的已实现页面；目标入口 [src/app/App.tsx](../src/app/App.tsx) 仍是占位。
+[Main](../src/main/index.ts) 在创建窗口前打开数据库并安装 `window.data` 处理器，退出时关闭存储。[后端组装](../src/platform/database/backend.ts) 将 Repository 和事务注入 Domain 用例，并恢复中断的生成任务。存储启动失败时不打开窗口，显示固定错误且不重置数据。
 
-内部 `app://` 路由、内外页面混合历史、Shared Context、职位提取、资料存储、生成、编译、审计、配置与密钥存储尚未接入运行时。ER 图不会创建表或迁移。[package.json](../package.json) 没有自动测试命令或安装包配置；类型检查与构建命令统一记录在 README。
+SQLite 迁移、业务持久化、不含业务内容的自动审计和类型化业务 IPC 已实现；规则与 API 由[数据架构](data-architecture.zh-CN.md) 负责。[集成测试](../tests/audit.test.ts) 验证事务/隐私保证；[Electron 冒烟测试](../scripts/smoke.cjs) 验证构建后的 Main、沙盒 Preload 和 IPC。验证命令由 README 索引。
+
+[应用导航](../src/app/navigation/navigate.ts)、[上下文](../src/app/context/appContext.ts)、[AI](../src/platform/ai/index.ts) 和目标 [App](../src/app/App.tsx) 仍为占位。业务页面仍禁用。内部路由、混合历史、Shared Context、网页提取、AI 生成执行、编译、配置/密钥持久化和安装包尚未实现。
 
 ## 五、相关文档
 
 - [README](../README.zh-CN.md)：启动、验证与文档索引。
 - [产品架构](product-architecture.zh-CN.md)：规划范围与交付顺序。
 - [代码架构](code-architecture.zh-CN.md)：目标组织与迁移边界。
-- [V1 数据架构](data-architecture.zh-CN.md)：规划持久化与生成设计。
+- [V1 数据架构与 API](data-architecture.zh-CN.md)：已实现持久化及业务接口。

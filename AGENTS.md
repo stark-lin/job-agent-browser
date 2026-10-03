@@ -12,7 +12,7 @@ Applies to documentation additions and edits in this repository; bring existing 
 | [docs/architecture.md](docs/architecture.md) · [Chinese](docs/architecture.zh-CN.md) | Current runtime architecture, implemented behavior, limitations, and source references. |
 | [docs/product-architecture.md](docs/product-architecture.md) · [Chinese](docs/product-architecture.zh-CN.md) | Product goals, scope, and delivery sequence, explicitly marked as planned. |
 | [docs/code-architecture.md](docs/code-architecture.md) · [Chinese](docs/code-architecture.zh-CN.md) | Target code organization, dependency boundaries, and migration constraints, distinguishing current from target state. |
-| [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Planned V1 data model, generation, provenance, audit, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
+| [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, audit, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
 
 Check this table before adding a document; create one only for a distinct topic that does not fit an existing owner, and link it from the README index.
 

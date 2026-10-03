@@ -5,7 +5,7 @@ erDiagram
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
     JOB ||--o{ JOB_EVENT : has
-    JOB ||--o{ GENERATION_RUN : targets
+    JOB o|..o{ GENERATION_RUN : logical_target
 
     PROFILE ||--o{ PROFILE_ITEM : contains
     PROFILE ||--o{ FACT : owns
@@ -14,9 +14,8 @@ erDiagram
 
     GENERATION_RUN ||--o| ARTIFACT : produces
     ARTIFACT ||--o{ ARTIFACT_FACT : references
-    FACT ||--o{ ARTIFACT_FACT : used_by
+    FACT o|..o{ ARTIFACT_FACT : logical_source
 
-    GENERATION_RUN o|--o{ AUDIT_LOG : originates
 
     COMPANY {
         string id PK
@@ -119,7 +118,7 @@ erDiagram
 
     GENERATION_RUN {
         string id PK
-        string job_id FK
+        string job_id
         string type
         string status
         json input_snapshot_json
@@ -150,20 +149,24 @@ erDiagram
     ARTIFACT_FACT {
         string artifact_id PK,FK
         string block_id PK
-        string fact_id PK,FK
+        string fact_id PK
     }
 
     AUDIT_LOG {
-        string id PK
-        string entity_type
-        string entity_id
+        int sequence PK
+        string id UK
+        string event_type
         string action
-        string actor
+        datetime timestamp
+        string component
+        string location
         string source
+        string request_id
+        string status
+        string error
+        string actor_id
+        string target_type
+        string target_id
         string transaction_id
-        string generation_run_id FK
-        json changes_json
-        json metadata_json
-        datetime created_at
     }
 ```

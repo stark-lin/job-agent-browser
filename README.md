@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-A local-first desktop workspace for job seeking. Status: **Implemented** browser foundation and nine-card Home; **Scaffolded** business modules; **Planned** job management, profile facts, resume generation, and the V1 data model.
+A local-first desktop workspace for job seeking. Status: **Implemented** browser foundation, nine-card Home and layered SQLite business backend with automatic audit and typed IPC. Business pages, AI execution and compilation remain **Planned**; settings/secrets are **Scaffolded**.
 
 Language: English · [简体中文](README.zh-CN.md)
 
@@ -20,11 +20,11 @@ The `predev` helper downloads the Electron binary on first development launch. S
 Commands are defined in [package.json](package.json):
 
 ```sh
-npm run typecheck
-npm run build
+npm run check
+npm run test:smoke
 ```
 
-The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). There is no configured test command or platform installer. A successful build does not verify planned product features.
+The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC with disposable data. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 
@@ -36,5 +36,5 @@ For documentation changes, check language parity, implementation labels, relativ
 | [Current architecture](docs/architecture.md) · [简体中文](docs/architecture.zh-CN.md) | Implemented runtime, security boundaries, and limitations |
 | [Product architecture](docs/product-architecture.md) · [简体中文](docs/product-architecture.zh-CN.md) | Planned scope, entry points, and delivery order |
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
-| [V1 data architecture](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Planned entities, generation, provenance, audit, and storage |
-| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Complete planned 11-table model; shared by both data architecture editions |
+| [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, audit privacy, deletion rules and business API |
+| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 11-table model; shared by both data architecture editions |

@@ -1,138 +1,154 @@
-# V1 Data Architecture
+# V1 Data Architecture and API
 
-Purpose: define the planned local, single-user data model, generation lifecycle, and storage rules. Status: **Planned**; the ER diagram is a logical design, not an executable SQLite schema.
+Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI execution, compilation and business pages remain **Planned**. Settings and secrets are **Scaffolded**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
-## 1. Scope and implementation status
+## 1. Runtime and storage
 
-The design uses 11 tables across Job, Profile, Generation, Artifact, and Audit, plus ordinary settings and encrypted secrets files. Features share stable entity IDs rather than storing separate copies of jobs or facts.
+[Main](../src/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface.
 
-**Implemented:** Electron, TypeScript, Home, and the browser foundation; see [current architecture](architecture.md). **Scaffolded:** [SQLite connection](../src/platform/database/sqlite.ts), [migrations](../src/platform/database/migrations/index.ts), [AI](../src/platform/ai/index.ts), and [settings storage](../src/platform/storage/index.ts) contain placeholders. No product database, generation pipeline, compilation, audit, or secrets service is wired into the [runtime entry](../src/main/index.ts).
+[Versioned migrations](../src/platform/database/migrations/index.ts) create 11 business tables plus `schema_migrations` in a transaction. Recorded checksums detect changed migrations; newer schemas or mismatches fail startup without resetting data. A storage startup error prevents the window/API from opening. UUID v4 IDs are generated internally and cannot be reused after successful deletion. Times are UTC ISO strings; calendar dates use `YYYY-MM-DD`.
 
-Applications is a view of Job lifecycle data, not a separate table. Calendar is a planned Applications view over JobEvent, not an additional Home entry. Resume Builder corresponds to Tailor Resume; generated resumes are Artifacts. Initial Inbox remains webmail; an email event type does not imply email synchronization.
+The [shared ER diagram](diagrams/data-model.md) describes the implemented model. Concrete SQL types, defaults, nullability, checks and indexes live in [the schema](../src/platform/database/migrations/schema.ts). JSON uses validated TEXT columns; SQL tables are STRICT. Applications and Calendar use Job and JobEvent, without separate application/calendar tables.
 
-## 2. ER diagram and table ownership
-
-Open the [complete Mermaid ER diagram](diagrams/data-model.md). This language-neutral shared asset preserves all supplied fields, keys, and 12 relationships; both editions reference the same diagram. `PK`, `FK`, and `UK` denote primary, foreign, and unique keys. Diagram types are logical types; concrete SQLite storage types remain a migration decision.
-
-| ER entity / planned table | Responsibility |
+| Tables | Ownership |
 | --- | --- |
-| `COMPANY` / `companies` | Company identity, normalized name, domain, and branding |
-| `JOB` / `jobs` | Job description, requirements, and application lifecycle |
-| `JOB_SOURCE` / `job_sources` | URLs, source identity, cleaned content, and deduplication evidence |
-| `JOB_EVENT` / `job_events` | Timeline and calendar events |
-| `PROFILE` / `profiles` | Personal identity and contact information |
-| `PROFILE_ITEM` / `profile_items` | Structured experience, project, and education containers |
-| `FACT` / `facts` | Independently selectable and verifiable personal facts |
-| `GENERATION_RUN` / `generation_runs` | One generation attempt, snapshots, and intermediate results |
-| `ARTIFACT` / `artifacts` | Validated structured output and compiled file references |
-| `ARTIFACT_FACT` / `artifact_facts` | Provenance from output blocks to facts |
-| `AUDIT_LOG` / `audit_logs` | Business-data change history |
+| `companies`, `jobs`, `job_sources` | Company identity, job details and preserved source content |
+| `job_events` | Application lifecycle, schedules and notes |
+| `profiles`, `profile_items`, `facts` | Contact information, structured containers and selectable evidence |
+| `generation_runs`, `artifacts`, `artifact_facts` | Immutable inputs, generation stages, output and provenance |
+| `audit_logs` | Content-free success/failure events |
 
-Each Job optionally belongs to one Company. Each source, event, and generation run belongs to exactly one Job. Each ProfileItem and Fact belongs to exactly one Profile; a Fact may optionally belong to one ProfileItem, and an item may optionally have one parent.
+## 2. Business rules
 
-Each run produces zero or one Artifact; each Artifact belongs to exactly one run, enforced by a required, unique `generation_run_id`. Each ArtifactFact references one Artifact and one Fact. An AuditLog may optionally reference one run; `entity_type + entity_id` is a logical reference, not a polymorphic database foreign key.
+[Job use cases](../src/domain/job/job.service.ts) accept allowlisted details. Sources normalize URL fragments/query order and hash cleaned content; duplicate matching/merging and page extraction remain planned. Archiving is independent of application status. Deleting a Company detaches Jobs and preserves their raw company names.
 
-## 3. Job and event rules
+[Application use cases](../src/domain/application/application.service.ts) write status changes and timeline events atomically. Allowed transitions are:
 
-Job retains the raw company name even when no Company match exists. `location_text` retains source wording; `locations_json` describes raw text, city, state, country, and `ONSITE | HYBRID | REMOTE` work mode. `salary_json` holds optional minimum, maximum, currency, raw text, and `HOUR | DAY | WEEK | MONTH | YEAR` period. Requirements carry text, `REQUIRED | PREFERRED | OTHER` kind, and keywords.
-
-Planned `application_status` values are `NOT_STARTED`, `PREPARING`, `APPLIED`, `INTERVIEW`, `OFFER`, `ACCEPTED`, `REJECTED`, and `WITHDRAWN`. Lifecycle timestamps and notes stay on Job; archiving is separate from application status. Transition rules remain to be specified.
-
-Import cleans a page, parses it, then finds or creates a Job. Look up sources by normalized URL; use company, title, location, external ID, and fingerprint as matching evidence. Preserve uncertain matches as separate records. Store structured fields on Job and cleaned source content on JobSource for reparsing; these matching indexes are not automatic uniqueness or merge rules.
-
-Planned event types are `STATUS_CHANGED`, `APPLICATION_SUBMITTED`, `EMAIL_RECEIVED`, `INTERVIEW`, `DEADLINE`, `FOLLOW_UP`, and `NOTE`. `occurred_at` records when something happened; `starts_at` and `ends_at` support scheduled calendar entries. `external_source + external_id` can assist deduplication; uniqueness policy remains open.
-
-## 4. Profile and fact rules
-
-ProfileItem types are `EXPERIENCE`, `PROJECT`, and `EDUCATION`. Common fields hold title, organization, role, location, dates, summary, and order. Type-specific metadata can hold employment type, project stack and links, or degree, major, and GPA.
-
-A project may nest under experience or education. Parent and child must belong to the same Profile, and cycles are forbidden. A Fact's optional ProfileItem must belong to its Profile. These are additional integrity rules, not guarantees established by the ER relationships alone.
-
-Facts hold content, tags, evidence, and `UNVERIFIED | CONFIRMED` verification status. Planned kinds cover Achievement, Responsibility, Skill, Award, Certification, Coursework, Language, and Other; stored enum spellings remain to be finalized. A Fact without `profile_item_id` is global to its Profile. Generation can select individual facts without selecting every fact in a container.
-
-## 5. Generation and artifacts
-
-The initial run type is `RESUME`. A run owns the following stages and records its configuration, status, error, and completion time; the status enum and retry policy remain open.
-
-| Stage | Planned responsibility / stored result |
+| Current status | Allowed next statuses |
 | --- | --- |
-| Input | Snapshot Job, Profile, ProfileItems, and Facts in `input_snapshot_json` |
-| Scoring | Record job-specific item and fact scores in `scores_json`; do not overwrite Facts |
-| Gate | Store pass/fail, reason, and missing requirements in `gate_json`; stop if it fails |
-| Selection | Store selected item/fact IDs, global fact IDs, and word budgets in `selection_json` |
-| Draft | Write structured resume content to `draft_json` |
-| Polish | Write refined content to `polished_json` |
-| Validation | Check provenance and length; unverified text cannot automatically become confirmed fact |
-| Compilation | Produce PDF / DOCX files for the validated Artifact |
+| `NOT_STARTED` | `PREPARING`, `APPLIED`, `WITHDRAWN` |
+| `PREPARING` | `NOT_STARTED`, `APPLIED`, `WITHDRAWN` |
+| `APPLIED` | `INTERVIEW`, `OFFER`, `REJECTED`, `WITHDRAWN` |
+| `INTERVIEW` | `OFFER`, `REJECTED`, `WITHDRAWN` |
+| `OFFER` | `ACCEPTED`, `REJECTED`, `WITHDRAWN` |
+| `ACCEPTED`, `REJECTED`, `WITHDRAWN` | Terminal; no status change |
 
-Artifact `content_json` contains a header, optional summary block, and sections with items, headings, subtitles, date ranges, and bullet blocks. Blocks have stable IDs and text; items can refer to ProfileItems. Store the template ID and relative output file paths with the Artifact. Multiple export files belong to one Artifact, not multiple Artifacts for one run.
+Archived Jobs reject status changes and scheduling/rescheduling. `APPLIED` sets the application time; terminal states set the closed time. System-created status events cannot be independently deleted. Calendar bounds are inclusive and filter schedule start times. Email synchronization/events remain planned.
 
-`artifact_facts` uses the composite primary key `(artifact_id, block_id, fact_id)`. One block can reference several facts, and one fact can support several artifacts. `block_id` refers to a block inside `content_json`, not another SQL table; validate block existence and update provenance together with content edits.
+[Candidate use cases](../src/domain/candidate/candidate.service.ts) enforce same-profile parent/fact references, acyclic item nesting, valid date ranges and immutable item type. Item kinds are `EXPERIENCE / PROJECT / EDUCATION`. Fact kinds are `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`. New or edited facts are `UNVERIFIED`; only `confirmFact` marks them `CONFIRMED`.
 
-Input snapshots preserve the material used for a run. Historical output must remain interpretable after profile edits; fact deletion, revision handling, and snapshot versioning need explicit policies before migrations are implemented.
+## 3. Generation, output and deletion
 
-## 6. Audit and data integrity
+[Resume requests](../src/domain/resume/resume.service.ts) capture a version-1 snapshot of Job, Profile, selected Facts, selected Items and required ancestors. Empty fact selection, foreign-profile evidence and archived Jobs are rejected. Unverified facts retain their status in the snapshot. Configuration defaults to template `default` and 500 words; inputs and configuration are immutable.
 
-Audit actions are `CREATE`, `UPDATE`, `DELETE`, and `MERGE`; actors are `USER`, `AI`, and `SYSTEM`. Record source, optional transaction/run IDs, before/after changes, and metadata. Write a business change and its audit record in the same SQLite transaction.
+The [Main-only generation service](../src/domain/resume/generation.service.ts) persists start → scores → gate → selection → draft → polish → validated artifact. It does not call an AI provider or compiler. States are `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`. Gate failure stops the run. Startup marks surviving `RUNNING` attempts `INTERRUPTED` with SYSTEM audit. Retrying creates a new run from current inputs. Running runs must be cancelled before deletion.
 
-Audit is append-only during ordinary operations. Define access and retention limits for personal data, and allow removal through an explicit data-purge workflow. Never record API keys, tokens, or other secrets in audit or ordinary logs.
+[Artifact validation](../src/domain/resume/resume.validation.ts) checks unique content IDs, selected snapshot references, complete block provenance and the selected word budget. Each run has at most one Artifact. Editing content and provenance is atomic and clears stale output file references. Main-only output recording accepts one relative PDF and one relative DOCX path; compilation and filesystem consistency are still planned.
 
-Use stable application-generated IDs, UTC ISO 8601 timestamps, and local-time display. Calendar dates such as ProfileItem dates require a separate date-only representation. Enable foreign-key enforcement. Do not cascade-delete Facts referenced by historical Artifacts or Jobs referenced by runs; prefer Job archiving and explicit purge workflows. Other deletion behavior remains to be designed; the model does not provide an archive field for every entity.
+Hard deletion removes source entities while preserving historical generated output and immutable snapshots. History still contains business content; deletion is not a privacy purge. References returned by `getRun`, `listRuns` and `getArtifact` carry `ACTIVE / DELETED` and `deletedAt`; only successful deletion audit establishes the deleted state.
 
-| Object | Planned constraints / indexes |
+| Deleted object | Result |
 | --- | --- |
-| Company | Ordinary indexes on `normalized_name`, `domain` |
-| Job | Indexes on `company_id`, `application_status`, `saved_at` |
-| JobSource | Indexes on `normalized_url`, `fingerprint` |
-| JobEvent | Indexes on `job_id`, `starts_at` |
-| ProfileItem | Indexes on `profile_id`, `parent_item_id`; same-profile, acyclic parent rules |
-| Fact | Indexes on `profile_id`, `profile_item_id`; same-profile item rule |
-| GenerationRun | Index on `(job_id, created_at)` |
-| Artifact | Required and unique `generation_run_id` foreign key |
-| ArtifactFact | Composite primary key `(artifact_id, block_id, fact_id)`; index on `fact_id` |
-| AuditLog | Indexes on `(entity_type, entity_id, created_at)`, `transaction_id` |
+| Job | Remove sources/events; retain generation runs and artifacts |
+| Profile | Remove all items/facts; retain generation history |
+| ProfileItem | Remove its descendant subtree and attached facts |
+| Fact | Remove source fact; retain historical artifact links |
+| GenerationRun | Remove its artifact and artifact links |
+| Artifact | Remove its links; retain the run |
 
-## 7. Settings, secrets, and files
+`generation_runs.job_id` and `artifact_facts.fact_id` are stable logical references so historical sources can disappear. Snapshot IDs are also logical references. All other ownership relationships use foreign keys. Audit survives every business deletion; no audit-clear or disk-file-cleanup API is implemented.
 
-Planned application-owned storage under Electron's application data directory:
+## 4. Audit and transactions
 
-```text
-userData/
-├── database.sqlite
-├── settings.json
-├── secrets.enc
-└── artifacts/
-    ├── resume_001.pdf
-    └── resume_001.docx
+[Transactions](../src/platform/database/transactions.ts) and [database triggers](../src/platform/database/migrations/audit-triggers.ts) automatically append audit for every changed business row. Callers supply business parameters only. A write operation owns one internal transaction: all mutations and success audit commit together, or all roll back. Multi-row operations share a request and transaction ID. Query and audit-query operations never write audit.
+
+| Element | SQL fields | Allowed contents |
+| --- | --- | --- |
+| What | `event_type`, `action` | Fixed operation name; `CREATE / UPDATE / DELETE` |
+| When | `timestamp` | Backend-generated UTC time |
+| Where | `component`, `location` | Logical component/operation identifiers |
+| Source | `source`, `request_id` | Trusted entry category and generated request UUID |
+| Outcome | `status`, `error` | `SUCCESS / FAILURE`; error code only |
+| Identity | `actor_id`, `target_type`, `target_id` | Opaque subject and business object identifiers |
+
+Additional fields are `id`, monotonically increasing `sequence` and `transaction_id`. ArtifactFact targets encode their three opaque key IDs as a JSON array string. USER, AI and SYSTEM use fixed local identifiers; source is `RENDERER / GENERATOR / STARTUP`. This is a local single-user identity scheme, not multi-user authentication. Public DTO fields use camelCase.
+
+No before/after values, arbitrary metadata, business bodies, prompts, credentials, raw exception messages, stack traces, physical paths or page URLs are retained in audit. An SQL authorizer and triggers reject audit updates/deletions and forged inserts. Business writes without the internal context are rejected. Successful no-op operations with no changed rows create no success record; a generation gate rejection is a successful persistence operation whose run state becomes FAILED.
+
+Failed writes first roll back, then append one failure audit in a separate transaction. The failure retains its request ID; its transaction ID belongs to the failure-audit transaction. A validated target ID is included when known, otherwise null. Invalid business write input is audited without copying input. If failure audit cannot persist, return `AUDIT_UNAVAILABLE`; do not claim it was recorded. Untrusted/unknown IPC requests are rejected before business execution. Settings/secrets scaffolds do not persist or audit credentials.
+
+## 5. API contract and access
+
+The sandboxed [Preload](../src/preload/index.ts) exposes `window.data`. The complete typed inputs/outputs live in [DataContract](../src/platform/electron/data-contract.ts); field/enumeration definitions remain in the linked Domain types. [Main IPC](../src/platform/electron/main/data-ipc.ts) requires an owned window, its top frame and the exact trusted renderer document. External pages/subframes cannot access data.
+
+Every method accepts one input object and resolves to `{ ok: true, value }` or `{ ok: false, error }`. Implemented business endpoints reject unknown fields, including injected audit/transaction fields. Edit-details methods replace the allowed details, applying documented type defaults; they are not arbitrary patches. Lists use `limit` (default 25, maximum 100) and `offset` (default 0, maximum 1000000), returning `{ items, total }` with stable ordering. Multi-table reads use a consistent read transaction.
+
+Optional detail text and optional URLs default to empty strings, arrays to empty arrays, nullable IDs/dates/salary to null, and item order to 0. Required source/contact-link URLs must use HTTP(S) without credentials. Content must contain at least one text block; its word budget counts whitespace-delimited words in summary/bullet blocks. Exact accepted shapes and limits are enforced by the Domain validation modules.
+
+| Namespace / methods | Input and result / behavior |
+| --- | --- |
+| `jobs.saveJob` | `{ details, source? }` → Job; optionally attach source atomically |
+| `jobs.updateDetails` | `{ id, details }` → Job; lifecycle fields are excluded |
+| `jobs.attachSource` | `{ jobId, source }` → JobSource |
+| `jobs.setArchived` | `{ id, archived }` → Job |
+| `jobs.deleteJob`, `jobs.getJob` | `{ id }` → deleted ID / Job |
+| `jobs.listJobs` | Page + `status? / archived? / search?` → Jobs; default unarchived |
+| `jobs.listSources` | `{ jobId }` + Page → JobSources |
+| `jobs.registerCompany`, `jobs.updateCompany` | Company details / `{ id, details }` → Company |
+| `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → deleted ID / Companies |
+| `profiles.createProfile`, `profiles.editContact` | Contact details / `{ id, details }` → Profile |
+| `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / deleted ID / Profiles |
+| `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
+| `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
+| `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → deleted ID / ProfileItems |
+| `profiles.addFact`, `profiles.editFact` | `{ profileId, profileItemId?, details }` / `{ id, profileItemId?, details }` → Fact |
+| `profiles.confirmFact`, `profiles.deleteFact`, `profiles.listFacts` | `{ id }` / `{ profileId }` + Page → Fact / deleted ID / Facts |
+| `applications.changeStatus` | `{ jobId, status }` → Job and internally recorded status event |
+| `applications.scheduleEvent` | `{ jobId, type, title, description?, startsAt, endsAt? }` → scheduled event |
+| `applications.rescheduleEvent` | `{ id, startsAt, endsAt? }` → scheduled event |
+| `applications.addNote`, `applications.deleteEvent` | `{ jobId, text }` / `{ id }` → event / deleted ID |
+| `applications.listEvents`, `applications.listCalendar` | `{ jobId }` / `{ from, to }` + Page → events |
+| `resumes.createRun` | `{ jobId, profileId, factIds, itemIds?, config? }` → GenerationRun |
+| `resumes.cancelRun`, `resumes.deleteRun`, `resumes.getRun` | `{ id }` → run / deleted ID / `{ run, references }` |
+| `resumes.listRuns` | Page + `jobId?` → `{ run, references }` entries, including deleted Job history |
+| `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
+| `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / deleted ID |
+| `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → audit entries, newest sequence first |
+| `settings.get`, `settings.savePreferences` | Explicit scaffolds; return `NOT_IMPLEMENTED` |
+| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | Explicit scaffolds; return `NOT_IMPLEMENTED` |
+
+```ts
+const saved = await window.data.jobs.saveJob({
+  details: { title: 'Software Engineer', companyNameRaw: 'Example' }
+})
+if (saved.ok) {
+  const history = await window.data.audit.list({ targetType: 'job', targetId: saved.value.id })
+}
 ```
 
-Electron Session separately owns website cookies and session data. The tree is a target layout, not a description of files currently created by the app.
+The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Main alone persists generation stages with its trusted service identity. Callers should branch on the following codes rather than database messages. Mutations are not automatically retried/idempotent; refresh uncertain state before retrying.
 
-| Settings group | Planned fields / proposed defaults |
+| Error code | Meaning |
 | --- | --- |
-| Root | `schemaVersion: 1` |
-| `general` | `theme: system`, `language: en`, `autoSave: true` |
-| `browser` | `homeUrl: about:blank`, `searchEngine: google`, `confirmBeforeSavingJob: true` |
-| `ai` | `provider: openai`, empty `model`, `temperature: 0.3` |
-| `generation` | `defaultTemplate: default`, `targetWordCount: 500`, `selectionThreshold: 70`, `outputFormat: PDF`, empty `outputDirectory` |
-| `privacy` | Proposed `auditEnabled: true`; disabling semantics must be resolved against mandatory transactional audit |
+| `INVALID_INPUT` | Unknown field, invalid shape/value or exceeded input/query limit |
+| `NOT_FOUND` | Requested live entity does not exist |
+| `CONFLICT` | Relationship, immutable data, provenance or SQL integrity violation |
+| `INVALID_STATE` | Disallowed lifecycle transition, generation stage or operation |
+| `STORAGE_BUSY` | Database lock contention exceeded the wait limit |
+| `STORAGE_UNAVAILABLE` | Storage operation could not complete; raw error details are withheld |
+| `AUDIT_UNAVAILABLE` | Failed operation could not durably record failure audit; no success is reported |
+| `NOT_IMPLEMENTED` | Settings/secrets scaffold has no persistence implementation |
+| `FORBIDDEN` | IPC caller is not the trusted top-level renderer document |
 
-These values are design inputs, not a working configuration file. `homeUrl` describes a future browser start preference; app launch still opens Home, and support for `about:blank` through navigation must be designed. Existing product requirements for Agent URL, default job site, and mailbox provider/web URL still need configuration keys. Empty model and output directory need validation/default-resolution rules.
+## 6. Settings, secrets and remaining work
 
-Main owns settings reads and writes, using a temporary file and atomic replacement. Store encrypted API keys in `secrets.enc`, separately from SQLite, settings, snapshots, audit, and logs. Only Main decrypts secrets; Renderer receives narrow save, delete, and presence-check operations.
+Only `database.sqlite` and its SQLite auxiliary files are implemented application-owned storage. Settings, encrypted keys and compiled artifacts remain planned under `userData/settings.json`, `userData/secrets.enc`, and `userData/artifacts/`. Electron Session separately owns website cookies/storage. Ordinary audit cannot be disabled.
 
-The target is Electron `safeStorage` backed by operating-system key protection, using `isAsyncEncryptionAvailable`, `encryptStringAsync`, and `decryptStringAsync`. These names were checked in the installed Electron 44.4.5 declarations (`node_modules/electron/electron.d.ts`), matching the [dependency lock](../package-lock.json); runtime behavior and backend availability remain unverified.
+[Settings/secrets scaffolds](../src/platform/storage/index.ts) create no files and return no fake success. Future preferences, key protection and file export need separate implementation; secrets must remain outside the database, snapshots and audit. AI calls, extraction/deduplication, compilation, UI wiring and full privacy purge remain unimplemented.
 
-Check actual key protection before using secrets storage. On Linux, fail explicitly when suitable protection is unavailable rather than silently accepting a weak fallback.
-
-## 8. Implementation decisions and related documents
-
-Before schema migration work, resolve SQL types, nullability beyond relationship requirements, defaults, JSON shapes/versioning, enum checks, foreign-key deletion policies, duplicate handling, cross-profile validation, generation recovery, and database/file consistency on export failure. None are implemented by this diagram alone.
-
-The proposal's `main/domains`, separate Jobs/Calendar/Resume pages, and service folders are conceptual responsibilities. Their code placement follows the existing [code architecture](code-architecture.md); no directory migration is introduced here.
-
-- [Product architecture](product-architecture.md): scope, entry points, and delivery sequence.
-- [Current architecture](architecture.md): verified runtime behavior and limitations.
-- [README](../README.md): setup, validation, and documentation index.
+- [Current architecture](architecture.md): runtime initialization and process boundaries.
+- [Code architecture](code-architecture.md): source ownership and quality checks.
+- [Product architecture](product-architecture.md): planned product scope.
+- [README](../README.md): validation commands and documentation index.

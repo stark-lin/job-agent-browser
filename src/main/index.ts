@@ -1,4 +1,7 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { join } from 'node:path'
+import { createBackend } from '../platform/database/backend'
+import { registerDataIPC } from '../platform/electron/main/data-ipc'
 import {
   BROWSER_BACK,
   BROWSER_FORWARD,
@@ -10,8 +13,11 @@ import { createMainWindow } from './window'
 import type { BrowserManager } from './browser/BrowserManager'
 
 let browser: BrowserManager | undefined
+let backend: ReturnType<typeof createBackend> | undefined
 
 app.whenReady().then(() => {
+  backend = createBackend(join(app.getPath('userData'), 'database.sqlite'))
+  registerDataIPC(backend, join(__dirname, '../renderer/index.html'))
   const created = createMainWindow()
   browser = created.browser
 
@@ -21,7 +27,13 @@ app.whenReady().then(() => {
       browser = next.browser
     }
   })
+}).catch(() => {
+  // Do not show raw SQLite errors/paths; initialization failure must never silently reset user data.
+  dialog.showErrorBox('Storage unavailable', 'The database could not be opened or migrated. Your database has not been reset.')
+  app.quit()
 })
+
+app.on('will-quit', () => { backend?.close(); backend = undefined })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {
   assertTrustedRenderer(event.sender.id)

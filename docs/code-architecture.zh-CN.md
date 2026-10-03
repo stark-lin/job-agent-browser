@@ -1,6 +1,6 @@
 # 目标代码架构
 
-用途：确定代码职责、依赖关系与渐进迁移方式。状态：目标组织仍为**规划**，部分已有**占位**；Home **已实现**，多数目标模块仅含注释。运行依据见[当前架构](architecture.zh-CN.md)。
+用途：确定代码职责、依赖关系与渐进迁移方式。状态：Home 和分层业务存储**已实现**；页面导航及其他目标模块仍为**占位 / 规划**。运行依据见[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -12,8 +12,8 @@
 | --- | --- | --- |
 | App | 组装、路由、Provider、导航与上下文 | [App 占位](../src/app/App.tsx) |
 | Pages | UI、局部组件/hooks/状态和页面流程 | [已实现 Home](../src/pages/home/HomePage.tsx)、[Tailor Resume 占位](../src/pages/tailor-resume/TailorResumePage.tsx) |
-| Domain | 实体、规则、用例、Repository 与能力接口 | [Job service 占位](../src/domain/job/job.service.ts) |
-| Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [SQLite 占位](../src/platform/database/sqlite.ts) |
+| Domain | 实体、规则、用例、Repository 与能力接口 | [Job 业务用例](../src/domain/job/job.service.ts) |
+| Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [SQLite 适配](../src/platform/database/sqlite.ts) |
 | Shared | 不含业务语义的工具、类型、hooks 与 UI | [公共 UI 占位](../src/shared/ui/index.ts) |
 
 当前构建仍从 `src/main/`、`src/preload/`、`src/renderer/` 启动，以 [electron.vite.config.ts](../electron.vite.config.ts) 为准。Home 由 [Renderer App](../src/renderer/App.tsx) 导入；目标入口在迁移完成前不替换现有入口。
@@ -41,7 +41,8 @@ src/
 │   ├── resume/
 │   ├── candidate/
 │   ├── application/
-│   └── interview/
+│   ├── interview/
+│   └── common/
 ├── platform/
 │   ├── electron/
 │   │   ├── main/
@@ -61,7 +62,7 @@ src/
     └── types/
 ```
 
-目标占位与运行代码并存，尚未取代运行代码。页面局部组件、hooks、model 按需创建；[Tailor Resume 目录](../src/pages/tailor-resume/) 提供了占位。[Home 目录](../src/pages/home/) 保存已实现页面。未明确文件的模块使用 `index.ts` 占位；文件存在不代表功能已经实现。
+目标组织与原始运行入口并存，存储实现已填充其中的 Domain 与 Platform 边界。页面局部组件、hooks、model 按需创建；[Tailor Resume 目录](../src/pages/tailor-resume/) 提供了占位。[Home 目录](../src/pages/home/) 保存已实现页面。未明确文件的模块使用 `index.ts` 占位；文件存在不代表功能已经实现。
 
 ## 三、依赖关系与进程组装
 
@@ -75,7 +76,7 @@ src/
 
 逻辑调用流程为 Page → Domain → Platform；Domain 依赖接口，Platform 实现接口。Repository 与 AI 能力在应用初始化时注入。跨进程调用通过窄 Preload/IPC 操作完成；源码目录不会消除 Electron 进程边界。
 
-数据库访问、配置、密钥解密、AI 请求与文件编译归 Main 或受控服务。Renderer 不得导入 SQLite、文件系统或 Electron Main 实现。保留沙盒、上下文隔离和第三方网页隔离，并校验特权 IPC 的发送方与输入。
+数据库访问归 Main；配置、密钥解密、AI 请求与文件编译同样保留给 Main 或受控服务。Renderer 不得导入 SQLite、文件系统或 Electron Main 实现。保留沙盒、上下文隔离和第三方网页隔离，并校验特权 IPC 的发送方与输入。
 
 ## 四、导航与共享上下文
 
@@ -89,9 +90,9 @@ Home 只调用功能入口导航。跨页面业务规则属于 Domain；导航�
 
 [V1 数据架构](data-architecture.zh-CN.md) 负责结构、流水线阶段与存储规则。五组数据不要求新增五个源码目录。提案中的 `main/domains` 目录树不替换现有页面优先基线。
 
-| 规划职责 | 现有边界中的归属 |
+| 职责 | 现有边界中的归属 |
 | --- | --- |
-| Company、Job、来源与事件 | `domain/job/`；Applications/Interview 组合相关流程 |
+| Company、Job 与来源 | `domain/job/`；事件及申请/日历用例位于 `domain/application/` |
 | Profile、ProfileItem、Fact | `domain/candidate/`，对应 My Profile |
 | GenerationRun、Artifact、溯源 | `domain/resume/` 中的简历用例；确有复用需要时再抽取 |
 | 申请生命周期与日历 | `domain/application/` 基于 Job 和 JobEvent 的流程；UI 位于 `pages/applications/` |
@@ -104,14 +105,18 @@ AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用它
 
 `JobCard`、`ResumePreview` 即使复用也保留在 Pages；`ApplicationStatus` 等业务类型属于 Domain。Shared 不承载业务 UI 或实体。
 
-## 六、迁移与开发规则
+## 六、实现与质量规则
 
 1. 替代实现可用前保持现有构建入口；迁移时同步更新[构建配置](../electron.vite.config.ts) 和[包入口](../package.json)。
 2. 新功能先放对应 Page，页面专属逻辑留在页面，不提前创建所有可能的子目录。
 3. 工作流需要时再引入共享业务接口，注入 Platform 实现，避免反向依赖。
-4. 明确实现数据库迁移和存储契约；占位文件与 ER 图不会自动形成可用数据层。
+4. 公开业务能力放在类型化[数据契约](../src/platform/electron/data-contract.ts)；Platform Repository、事务上下文及 Main 内部生成持久化属于私有实现细节。
 5. 保留[产品入口](product-architecture.zh-CN.md)。Calendar 属于 Applications 视图，Resume Builder 使用 Tailor Resume。Inbox 初版复用配置的网页邮箱，不新增邮件数据库或 API 适配。
 6. 实现变化时同步更新所属文档及中英文版本。运行检查与命令统一由 README 索引。
+
+存储按迁移、事务/审计控制、行映射及各领域 Repository 适配拆分。Domain 服务负责校验和业务规则；可复用的无框架解析器/错误/能力契约位于 `domain/common/`。资料条目/事实及简历成品/生成按职责拆分。注释解释原子性、隐私、历史引用和恢复规则。
+
+[质量检查](../scripts/quality.cjs) 校验 Domain/Shared/UI 依赖，拒绝运行时循环依赖及数据模块中的 `any`，限制数据模块为 250 行，并检查双语文档链接、示例和篇幅。TypeScript 检查未使用声明/参数及大小写一致性。集成测试使用 Electron SQLite；冒烟测试运行构建后的 Main/Preload。命令由 README 负责。
 
 只有规模需要时才在 Page 之上增加 Product Area；这不改变 Domain/Platform 边界，也不要求完整 DDD。
 
@@ -119,5 +124,5 @@ AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用它
 
 - [产品架构](product-architecture.zh-CN.md)：范围、URL 与功能组合。
 - [当前架构](architecture.zh-CN.md)：运行入口、行为与安全检查。
-- [V1 数据架构](data-architecture.zh-CN.md)：规划数据语义与待定迁移决策。
+- [V1 数据架构与 API](data-architecture.zh-CN.md)：已实现存储语义和公开能力。
 - [README](../README.zh-CN.md)：启动、验证与文档索引。

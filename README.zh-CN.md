@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-面向求职的本地优先桌面工作空间。状态：浏览器基础和九宫格 Home **已实现**；业务模块为**占位**；职位管理、个人事实、简历生成与 V1 数据模型仍为**规划**。
+面向求职的本地优先桌面工作空间。状态：浏览器基础、九宫格 Home 及带自动审计和类型化 IPC 的分层 SQLite 业务后端**已实现**。业务页面、AI 执行与编译仍为**规划**；配置/密钥为**占位**。
 
 语言：简体中文 · [English](README.md)
 
@@ -20,11 +20,11 @@ npm run dev
 命令定义在 [package.json](package.json)：
 
 ```sh
-npm run typecheck
-npm run build
+npm run check
+npm run test:smoke
 ```
 
-构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、Preload 和 Renderer 产物写入 `out/`。目前没有配置测试命令或平台安装包。构建成功不代表规划中的产品能力已通过验证。
+构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台安装包仍未配置。
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 
@@ -36,5 +36,5 @@ npm run build
 | [当前架构](docs/architecture.zh-CN.md) · [English](docs/architecture.md) | 已实现的运行架构、安全边界与限制 |
 | [产品架构](docs/product-architecture.zh-CN.md) · [English](docs/product-architecture.md) | 规划范围、入口与交付顺序 |
 | [代码架构](docs/code-architecture.zh-CN.md) · [English](docs/code-architecture.md) | 目标组织、依赖边界与迁移约束 |
-| [V1 数据架构](docs/data-architecture.zh-CN.md) · [English](docs/data-architecture.md) | 规划实体、生成流程、溯源、审计与存储 |
-| [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 完整的 11 表规划模型，由中英文数据架构共用 |
+| [V1 数据架构与 API](docs/data-architecture.zh-CN.md) · [English](docs/data-architecture.md) | 已实现实体、事务、审计隐私、删除规则及业务 API |
+| [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 11 表模型，由中英文数据架构共用 |

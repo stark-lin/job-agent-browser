@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "rootDir": ".",
+    "outDir": ".cache/tests",
+    "baseUrl": ".",
+    "paths": {},
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["src/domain/**/*.ts", "src/platform/database/**/*.ts", "src/platform/storage/**/*.ts", "src/platform/electron/**/*.ts", "src/shared/ipc.ts", "tests/**/*.ts"]
+}

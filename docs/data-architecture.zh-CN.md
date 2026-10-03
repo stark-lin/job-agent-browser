@@ -1,138 +1,154 @@
-# V1 数据架构
+# V1 数据架构与 API
 
-用途：定义规划中的本地单用户数据模型、生成生命周期与存储规则。状态：**规划**；ER 图是逻辑设计，不是可执行的 SQLite 建表定义。
+用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 执行、编译及业务页面仍为**规划**。配置和密钥为**占位**。
 
 语言：简体中文 · [English](data-architecture.md)
 
-## 一、范围与实现状态
+## 一、运行与存储
 
-设计包含 Job、Profile、Generation、Artifact、Audit 五组共 11 张表，以及普通配置和加密密钥文件。各功能共享稳定的实体 ID，不分别保存职位或事实的副本。
+[Main](../src/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。
 
-**已实现：** Electron、TypeScript、Home 和浏览器基础，见[当前架构](architecture.zh-CN.md)。**占位：** [SQLite 连接](../src/platform/database/sqlite.ts)、[迁移](../src/platform/database/migrations/index.ts)、[AI](../src/platform/ai/index.ts) 和[配置存储](../src/platform/storage/index.ts) 仅有占位文件。[运行入口](../src/main/index.ts) 尚未接入业务数据库、生成流水线、文件编译、审计或密钥服务。
+[版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 11 张业务表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
 
-Applications 是 Job 生命周期数据的视图，不另建申请表。Calendar 是基于 JobEvent 的 Applications 规划视图，不新增首页入口。Resume Builder 对应 Tailor Resume；生成的简历属于 Artifact。Inbox 初版仍为网页邮箱；邮件事件类型不代表已实现邮件同步。
+[共享 ER 图](diagrams/data-model.md) 描述已实现模型。具体 SQL 类型、默认值、可空性、约束及索引以[建表定义](../src/platform/database/migrations/schema.ts) 为准。JSON 使用校验后的 TEXT 列；SQL 表使用 STRICT。Applications 和 Calendar 基于 Job 与 JobEvent，不另建申请或日历表。
 
-## 二、ER 图与表职责
-
-打开[完整 Mermaid ER 图](diagrams/data-model.md)。这份语言无关的共享资源保留了所提供的全部字段、键和 12 条关系；中英文引用同一张图。`PK`、`FK`、`UK` 分别表示主键、外键和唯一键。图中类型为逻辑类型，具体 SQLite 存储类型留待迁移设计确定。
-
-| ER 实体 / 规划表名 | 职责 |
+| 表 | 职责 |
 | --- | --- |
-| `COMPANY` / `companies` | 公司身份、标准化名称、域名与品牌信息 |
-| `JOB` / `jobs` | 职位描述、要求与申请生命周期 |
-| `JOB_SOURCE` / `job_sources` | URL、来源标识、清洗内容与查重依据 |
-| `JOB_EVENT` / `job_events` | 时间线与日历事件 |
-| `PROFILE` / `profiles` | 个人身份与联系方式 |
-| `PROFILE_ITEM` / `profile_items` | 工作经历、项目、教育的结构化容器 |
-| `FACT` / `facts` | 可独立选择和验证的个人事实 |
-| `GENERATION_RUN` / `generation_runs` | 一次生成尝试、快照与中间结果 |
-| `ARTIFACT` / `artifacts` | 校验后的结构化成品与编译文件引用 |
-| `ARTIFACT_FACT` / `artifact_facts` | 输出内容块到事实的溯源关系 |
-| `AUDIT_LOG` / `audit_logs` | 业务数据变更历史 |
+| `companies`, `jobs`, `job_sources` | 公司身份、职位详情及保留的来源内容 |
+| `job_events` | 申请生命周期、日程与备注 |
+| `profiles`, `profile_items`, `facts` | 联系方式、结构化容器及可选择证据 |
+| `generation_runs`, `artifacts`, `artifact_facts` | 不可变输入、生成阶段、成品与溯源 |
+| `audit_logs` | 不含业务内容的成功/失败事件 |
 
-每个 Job 可关联一个 Company。每条来源、事件和生成任务必须归属一个 Job。每个 ProfileItem 和 Fact 必须归属一个 Profile；Fact 可关联一个 ProfileItem，资料条目可关联一个父条目。
+## 二、业务规则
 
-每次生成任务产出零或一个 Artifact；每个 Artifact 必须归属一个任务，以非空且唯一的 `generation_run_id` 保证。每条 ArtifactFact 关联一个 Artifact 和一个 Fact。AuditLog 可关联一个生成任务；`entity_type + entity_id` 是逻辑引用，不是多态数据库外键。
+[职位用例](../src/domain/job/job.service.ts) 接收白名单详情。来源 URL 移除片段并排序查询参数，清洗内容计算哈希；重复匹配/合并和网页提取仍为规划。归档独立于申请状态。删除 Company 会解除 Job 关联并保留原始公司名称。
 
-## 三、职位与事件规则
+[申请用例](../src/domain/application/application.service.ts) 原子写入状态变化及时间线事件。允许的状态转换如下：
 
-Job 即使未匹配 Company，也保留原始公司名称。`location_text` 保留来源文字；`locations_json` 描述原文、城市、州、国家及 `ONSITE | HYBRID | REMOTE` 工作模式。`salary_json` 保存可选的上下限、币种、原文及 `HOUR | DAY | WEEK | MONTH | YEAR` 周期。职位要求包含文本、`REQUIRED | PREFERRED | OTHER` 类型及关键词。
-
-规划的 `application_status` 值为 `NOT_STARTED`、`PREPARING`、`APPLIED`、`INTERVIEW`、`OFFER`、`ACCEPTED`、`REJECTED`、`WITHDRAWN`。生命周期时间戳与备注保存在 Job；归档与申请状态分开。状态转换规则尚待定义。
-
-导入先清洗页面、解析内容，再查找或创建 Job。通过标准化 URL 查找来源，以公司、职位名称、地点、外部 ID 和指纹作为匹配依据。不确定时保留独立记录。结构化字段写入 Job，清洗内容写入 JobSource 以便重新解析；这些匹配索引不代表自动唯一约束或合并规则。
-
-规划事件类型为 `STATUS_CHANGED`、`APPLICATION_SUBMITTED`、`EMAIL_RECEIVED`、`INTERVIEW`、`DEADLINE`、`FOLLOW_UP`、`NOTE`。`occurred_at` 表示事实发生时间，`starts_at` 和 `ends_at` 用于日历日程。`external_source + external_id` 可辅助查重，唯一性策略尚待确定。
-
-## 四、个人资料与事实规则
-
-ProfileItem 类型为 `EXPERIENCE`、`PROJECT`、`EDUCATION`。通用字段保存标题、组织、角色、地点、日期、摘要和顺序。按类型区分的元数据可保存雇佣类型、项目技术栈与链接，或学位、专业与 GPA。
-
-项目可嵌套在工作或教育经历下。父子条目必须属于同一个 Profile，且禁止循环引用。Fact 关联的可选 ProfileItem 必须属于其 Profile。这些属于额外完整性规则，ER 关系本身并不能保证。
-
-Fact 保存内容、标签、证据及 `UNVERIFIED | CONFIRMED` 验证状态。规划类别包括成就、职责、技能、奖项、证书、课程、语言及其他；存储枚举的拼写尚待确定。没有 `profile_item_id` 的 Fact 属于个人全局事实。生成时可单独选择事实，无须使用容器内的全部事实。
-
-## 五、生成任务与成品
-
-初版生成类型为 `RESUME`。一次任务管理以下阶段，并记录配置、状态、错误和完成时间；状态枚举与重试策略尚待确定。
-
-| 阶段 | 规划职责 / 存储结果 |
+| 当前状态 | 允许的下一状态 |
 | --- | --- |
-| 输入 | 在 `input_snapshot_json` 保存 Job、Profile、ProfileItem 和 Fact 快照 |
-| 评分 | 在 `scores_json` 保存针对职位的条目和事实评分，不覆盖 Fact |
-| 门控 | 在 `gate_json` 保存是否通过、原因和缺失要求；失败时停止 |
-| 筛选 | 在 `selection_json` 保存入选条目与事实 ID、全局事实 ID 和字数预算 |
-| 初稿 | 将结构化简历写入 `draft_json` |
-| 润色 | 将润色内容写入 `polished_json` |
-| 校验 | 检查溯源与长度；未验证文本不得自动变成已确认事实 |
-| 编译 | 为通过校验的 Artifact 生成 PDF / DOCX 文件 |
+| `NOT_STARTED` | `PREPARING`, `APPLIED`, `WITHDRAWN` |
+| `PREPARING` | `NOT_STARTED`, `APPLIED`, `WITHDRAWN` |
+| `APPLIED` | `INTERVIEW`, `OFFER`, `REJECTED`, `WITHDRAWN` |
+| `INTERVIEW` | `OFFER`, `REJECTED`, `WITHDRAWN` |
+| `OFFER` | `ACCEPTED`, `REJECTED`, `WITHDRAWN` |
+| `ACCEPTED`, `REJECTED`, `WITHDRAWN` | 终态；不再变更状态 |
 
-Artifact 的 `content_json` 包含页头、可选摘要块，以及由条目、标题、副标题、日期范围和要点块组成的章节。内容块具有稳定 ID 和文本，条目可引用 ProfileItem。Artifact 保存模板 ID 和输出文件相对路径。多个导出文件归属于同一个 Artifact，不为同一次任务建立多个 Artifact。
+归档 Job 拒绝变更状态及安排/调整日程。`APPLIED` 设置申请时间，终态设置关闭时间。系统生成的状态事件不能单独删除。日历范围包含两端，按日程开始时间筛选。邮件同步/事件仍为规划。
 
-`artifact_facts` 使用复合主键 `(artifact_id, block_id, fact_id)`。一个内容块可引用多个事实，同一事实可支持多份成品。`block_id` 指向 `content_json` 内的内容块，不是另一张 SQL 表；必须校验块存在，并在编辑内容时同步维护溯源关系。
+[个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。新建或修改事实为 `UNVERIFIED`，只有 `confirmFact` 将其标记为 `CONFIRMED`。
 
-输入快照保留该任务使用的材料。个人资料修改后，历史成品仍需可解释；事实删除、修订处理和快照版本规则应在实现迁移前明确。
+## 三、生成、成品与删除
 
-## 六、审计与数据完整性
+[简历请求](../src/domain/resume/resume.service.ts) 保存版本 1 的 Job、Profile、入选 Fact、入选条目及必要祖先快照。拒绝空事实选择、跨资料证据及归档职位。未经确认的事实在快照中保留原状态。默认配置为模板 `default` 和 500 词；输入及配置不可修改。
 
-审计动作包括 `CREATE`、`UPDATE`、`DELETE`、`MERGE`；操作者包括 `USER`、`AI`、`SYSTEM`。记录来源、可选事务或任务 ID、前后差异和元数据。业务修改及其审计记录必须在同一个 SQLite 事务中写入。
+[仅 Main 可调用的生成服务](../src/domain/resume/generation.service.ts) 持久化开始 → 评分 → 门控 → 筛选 → 初稿 → 润色 → 校验成品。它不调用 AI 或编译器。状态为 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。门控失败停止任务。启动时将残留 `RUNNING` 任务标记为 `INTERRUPTED` 并记录 SYSTEM 审计。重试通过当前输入创建新任务。运行中的任务须先取消才能删除。
 
-普通操作只追加审计。应为个人数据定义访问与保留范围，并允许通过明确的数据清除流程删除。API Key、令牌和其他秘密不得写入审计或普通日志。
+[成品校验](../src/domain/resume/resume.validation.ts) 检查内容 ID 唯一、入选快照引用、每个内容块的完整溯源及所选词数预算。每次任务最多一个 Artifact。内容与溯源原子编辑，并清空过期输出文件引用。Main 内部输出记录接受各一个相对 PDF 和 DOCX 路径；编译及文件系统一致性仍为规划。
 
-使用应用生成的稳定 ID、UTC ISO 8601 时间戳，并按本地时区展示。ProfileItem 日期等日历日期需使用独立的纯日期表示。启用外键约束。禁止级联删除历史 Artifact 引用的 Fact 或生成任务引用的 Job；优先归档 Job，并使用明确的清除流程。其他删除行为尚待设计；模型没有为每种实体提供归档字段。
+硬删除移除来源实体，同时保留历史生成结果及不可变快照。历史仍包含业务内容，删除不等于隐私清除。`getRun`、`listRuns` 与 `getArtifact` 返回的引用包含 `ACTIVE / DELETED` 和 `deletedAt`，仅成功删除审计确立已删除状态。
 
-| 对象 | 规划约束 / 索引 |
+| 删除对象 | 结果 |
 | --- | --- |
-| Company | `normalized_name`、`domain` 普通索引 |
-| Job | `company_id`、`application_status`、`saved_at` 索引 |
-| JobSource | `normalized_url`、`fingerprint` 索引 |
-| JobEvent | `job_id`、`starts_at` 索引 |
-| ProfileItem | `profile_id`、`parent_item_id` 索引；父子同属一个资料且无环 |
-| Fact | `profile_id`、`profile_item_id` 索引；条目同属一个资料 |
-| GenerationRun | `(job_id, created_at)` 索引 |
-| Artifact | 非空且唯一的 `generation_run_id` 外键 |
-| ArtifactFact | `(artifact_id, block_id, fact_id)` 复合主键；`fact_id` 索引 |
-| AuditLog | `(entity_type, entity_id, created_at)`、`transaction_id` 索引 |
+| Job | 删除来源/事件；保留生成任务和成品 |
+| Profile | 删除全部条目/事实；保留生成历史 |
+| ProfileItem | 删除后代子树及关联事实 |
+| Fact | 删除来源事实；保留历史成品引用 |
+| GenerationRun | 删除其成品及成品溯源 |
+| Artifact | 删除其溯源；保留任务 |
 
-## 七、配置、密钥与文件
+`generation_runs.job_id` 和 `artifact_facts.fact_id` 使用稳定的逻辑引用，允许历史来源被删除。快照 ID 同样属于逻辑引用。其他归属关系使用外键。审计在所有业务删除后保留；没有实现审计清空或磁盘文件清理 API。
 
-规划在 Electron 应用数据目录下保存应用自有数据：
+## 四、审计与事务
 
-```text
-userData/
-├── database.sqlite
-├── settings.json
-├── secrets.enc
-└── artifacts/
-    ├── resume_001.pdf
-    └── resume_001.docx
+[事务管理](../src/platform/database/transactions.ts) 与[数据库触发器](../src/platform/database/migrations/audit-triggers.ts) 为每条变更业务记录自动追加审计。调用方只提交业务参数。一次写入操作拥有一个内部事务：全部变更与成功审计一起提交或全部回滚。多记录操作共享请求和事务 ID。业务查询和审计查询均不写审计。
+
+| 要素 | SQL 字段 | 允许内容 |
+| --- | --- | --- |
+| 事件 | `event_type`, `action` | 固定操作名称；`CREATE / UPDATE / DELETE` |
+| 时间 | `timestamp` | 后端生成的 UTC 时间 |
+| 位置 | `component`, `location` | 逻辑组件/操作标识 |
+| 来源 | `source`, `request_id` | 可信入口类别和生成的请求 UUID |
+| 结果 | `status`, `error` | `SUCCESS / FAILURE`；仅错误码 |
+| 身份 | `actor_id`, `target_type`, `target_id` | 不透明的主体与业务对象标识 |
+
+补充字段为 `id`、递增 `sequence` 和 `transaction_id`。ArtifactFact 目标将三个不透明主键 ID 编码为 JSON 数组字符串。USER、AI 和 SYSTEM 使用固定本地主体标识；来源为 `RENDERER / GENERATOR / STARTUP`。这是本地单用户身份方案，不是多用户认证。公开 DTO 字段使用 camelCase。
+
+审计不保留前后值、任意元数据、业务正文、提示词、凭据、原始异常消息、堆栈、实际文件路径或网页 URL。SQL 授权器和触发器拒绝审计更新/删除及伪造插入。缺少内部上下文时拒绝业务写入。成功操作没有实际变更记录时不生成成功审计；生成门控拒绝是成功的持久化操作，任务状态变为 FAILED。
+
+失败写入先回滚，再通过独立事务追加一条失败审计。失败记录沿用请求 ID，其事务 ID 属于失败审计事务。已知时包含校验后的目标 ID，否则为空。无效业务写入参数也会审计，但不复制输入。失败审计无法持久化时返回 `AUDIT_UNAVAILABLE`，不声称已记录。不可信/未知 IPC 请求在执行业务前拒绝。配置/密钥占位不持久化或审计凭据。
+
+## 五、API 契约与访问
+
+沙盒 [Preload](../src/preload/index.ts) 暴露 `window.data`。完整类型化输入/输出在 [DataContract](../src/platform/electron/data-contract.ts)；字段/枚举定义保留在所链接的 Domain 类型中。[Main IPC](../src/platform/electron/main/data-ipc.ts) 要求自有窗口、顶层 frame 及精确匹配的可信 Renderer 文档。外部网页/子 frame 无权访问数据。
+
+每个方法接收一个输入对象，返回 `{ ok: true, value }` 或 `{ ok: false, error }`。已实现的业务接口拒绝未知字段，包括注入的审计/事务字段。详情编辑方法替换允许的详情，应用类型约定的默认值，不是任意字段 patch。列表使用 `limit`（默认 25，最大 100）及 `offset`（默认 0，最大 1000000），返回 `{ items, total }` 并稳定排序。多表读取使用一致性读事务。
+
+可选详情文本及可选 URL 默认空字符串，数组默认空数组，可空 ID/日期/薪资默认空值，条目顺序默认 0。必填来源/联系方式链接 URL 必须使用 HTTP(S) 且不含凭据。内容须至少包含一个文本块；词数预算统计摘要/要点块中按空白分隔的词。具体结构及上限由 Domain 校验模块执行。
+
+| 命名空间 / 方法 | 输入及结果 / 行为 |
+| --- | --- |
+| `jobs.saveJob` | `{ details, source? }` → Job；可原子附加来源 |
+| `jobs.updateDetails` | `{ id, details }` → Job；不包含生命周期字段 |
+| `jobs.attachSource` | `{ jobId, source }` → JobSource |
+| `jobs.setArchived` | `{ id, archived }` → Job |
+| `jobs.deleteJob`, `jobs.getJob` | `{ id }` → 删除 ID / Job |
+| `jobs.listJobs` | Page + `status? / archived? / search?` → Jobs；默认未归档 |
+| `jobs.listSources` | `{ jobId }` + Page → JobSources |
+| `jobs.registerCompany`, `jobs.updateCompany` | 公司详情 / `{ id, details }` → Company |
+| `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → 删除 ID / Companies |
+| `profiles.createProfile`, `profiles.editContact` | 联系方式详情 / `{ id, details }` → Profile |
+| `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / 删除 ID / Profiles |
+| `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
+| `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
+| `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → 删除 ID / ProfileItems |
+| `profiles.addFact`, `profiles.editFact` | `{ profileId, profileItemId?, details }` / `{ id, profileItemId?, details }` → Fact |
+| `profiles.confirmFact`, `profiles.deleteFact`, `profiles.listFacts` | `{ id }` / `{ profileId }` + Page → Fact / 删除 ID / Facts |
+| `applications.changeStatus` | `{ jobId, status }` → Job，内部记录状态事件 |
+| `applications.scheduleEvent` | `{ jobId, type, title, description?, startsAt, endsAt? }` → 日程事件 |
+| `applications.rescheduleEvent` | `{ id, startsAt, endsAt? }` → 日程事件 |
+| `applications.addNote`, `applications.deleteEvent` | `{ jobId, text }` / `{ id }` → 事件 / 删除 ID |
+| `applications.listEvents`, `applications.listCalendar` | `{ jobId }` / `{ from, to }` + Page → 事件 |
+| `resumes.createRun` | `{ jobId, profileId, factIds, itemIds?, config? }` → GenerationRun |
+| `resumes.cancelRun`, `resumes.deleteRun`, `resumes.getRun` | `{ id }` → 任务 / 删除 ID / `{ run, references }` |
+| `resumes.listRuns` | Page + `jobId?` → `{ run, references }` 列表，包含已删除 Job 的历史 |
+| `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
+| `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / 删除 ID |
+| `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → 审计，序号倒序 |
+| `settings.get`, `settings.savePreferences` | 明确占位；返回 `NOT_IMPLEMENTED` |
+| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 明确占位；返回 `NOT_IMPLEMENTED` |
+
+```ts
+const saved = await window.data.jobs.saveJob({
+  details: { title: 'Software Engineer', companyNameRaw: 'Example' }
+})
+if (saved.ok) {
+  const history = await window.data.audit.list({ targetType: 'job', targetId: saved.value.id })
+}
 ```
 
-Electron Session 单独管理网站 Cookie 与会话数据。该目录树是目标布局，不表示应用目前已创建这些文件。
+API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。仅 Main 通过可信服务身份持久化生成阶段。调用方应按以下错误码处理，不依赖数据库消息。变更不自动重试或保证幂等；结果不确定时先刷新状态再重试。
 
-| 配置组 | 规划字段 / 建议默认值 |
+| 错误码 | 含义 |
 | --- | --- |
-| 根节点 | `schemaVersion: 1` |
-| `general` | `theme: system`、`language: en`、`autoSave: true` |
-| `browser` | `homeUrl: about:blank`、`searchEngine: google`、`confirmBeforeSavingJob: true` |
-| `ai` | `provider: openai`、空 `model`、`temperature: 0.3` |
-| `generation` | `defaultTemplate: default`、`targetWordCount: 500`、`selectionThreshold: 70`、`outputFormat: PDF`、空 `outputDirectory` |
-| `privacy` | 建议 `auditEnabled: true`；禁用语义需与强制事务审计要求协调 |
+| `INVALID_INPUT` | 未知字段、无效结构/值或超过输入/查询限制 |
+| `NOT_FOUND` | 所请求的当前实体不存在 |
+| `CONFLICT` | 关系、不可变数据、溯源或 SQL 完整性冲突 |
+| `INVALID_STATE` | 不允许的生命周期转换、生成阶段或操作 |
+| `STORAGE_BUSY` | 数据库锁争用超过等待上限 |
+| `STORAGE_UNAVAILABLE` | 存储操作无法完成；不暴露原始错误详情 |
+| `AUDIT_UNAVAILABLE` | 失败操作无法持久记录失败审计；不报告成功 |
+| `NOT_IMPLEMENTED` | 配置/密钥占位尚未实现持久化 |
+| `FORBIDDEN` | IPC 调用方不是可信的顶层 Renderer 文档 |
 
-这些值是设计输入，不是已经生效的配置文件。`homeUrl` 表示未来浏览器起始页偏好；应用启动仍打开 Home，通过导航支持 `about:blank` 的方式尚待设计。已有产品要求中的 Agent URL、默认招聘网站、邮箱类型与网页 URL 仍需定义配置键。空模型和输出目录需要校验与默认值解析规则。
+## 六、配置、密钥与待完成工作
 
-Main 负责配置读写，先写临时文件再原子替换。加密 API Key 存入 `secrets.enc`，与 SQLite、配置、快照、审计和日志分离。仅 Main 可解密；Renderer 只获得保存、删除、检查密钥是否存在的窄接口。
+目前应用自有存储只实现 `database.sqlite` 及 SQLite 辅助文件。配置、加密密钥和编译成品仍规划在 `userData/settings.json`、`userData/secrets.enc` 及 `userData/artifacts/`。Electron Session 单独拥有网站 Cookie/存储。普通审计不可禁用。
 
-目标采用基于操作系统密钥保护的 Electron `safeStorage`，使用 `isAsyncEncryptionAvailable`、`encryptStringAsync` 和 `decryptStringAsync`。已在所安装 Electron 44.4.5 的声明文件（`node_modules/electron/electron.d.ts`）中核对这些名称，版本与[依赖锁文件](../package-lock.json) 一致；运行行为和后端可用性仍未验证。
+[配置/密钥占位](../src/platform/storage/index.ts) 不创建文件，不返回伪造成功。未来偏好配置、密钥保护和文件导出需要独立实现；秘密必须与数据库、快照和审计分离。AI 调用、提取/查重、编译、业务 UI 接入及完整隐私清除尚未实现。
 
-使用密钥存储前必须检查实际保护能力。在 Linux 缺少适当保护时应明确失败，不应静默接受弱保护回退。
-
-## 八、实现决策与相关文档
-
-编写数据库迁移前，应明确 SQL 类型、关系要求之外的可空性、默认值、JSON 结构与版本、枚举约束、外键删除策略、重复处理、跨资料校验、生成任务恢复，以及导出失败时数据库与文件的一致性。ER 图本身不实现这些规则。
-
-提案中的 `main/domains`、独立 Jobs/Calendar/Resume 页面和服务目录表达概念职责。具体代码位置遵循现有[代码架构](code-architecture.zh-CN.md)；本次不引入目录迁移。
-
-- [产品架构](product-architecture.zh-CN.md)：范围、入口与交付顺序。
-- [当前架构](architecture.zh-CN.md)：已核实的运行行为与限制。
-- [README](../README.zh-CN.md)：启动、验证与文档索引。
+- [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
+- [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。
+- [产品架构](product-architecture.zh-CN.md)：规划的产品范围。
+- [README](../README.zh-CN.md)：验证命令与文档索引。
