@@ -57,6 +57,8 @@ src/
 │   └── ai/
 ├── renderer/
 └── shared/
+    ├── i18n/
+    │   └── locales/
     ├── ui/
     ├── hooks/
     ├── utils/
@@ -79,6 +81,8 @@ Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Rep
 
 数据库访问仍只属于 Main。配置、密钥、AI 请求和编译由 Main 或受控服务执行。保留沙盒、上下文隔离、第三方页面分离，以及精确可信文档/顶层 frame 的 IPC 校验。
 
+[共享 i18n 模块](../src/shared/i18n/)管理无框架的资源、配置、selector 类型和翻译初始化，不导入 React 或 Electron。[App](../src/app/i18n.tsx)管理 React Provider 集成和文档元数据。Pages 在渲染时取词，Platform 为应用自有的原生文案取词。新增可见文字放入文案资源，包括完整的插值句子，并使用类型化 selector。运行行为及后续语言支持由[当前架构](architecture.zh-CN.md#五国际化准备)管理。
+
 ## 四、导航、React 状态与上下文
 
 [App 导航](../src/app/navigation/)提供 Main 快照的订阅投影和统一导航 hook。React Context 注入依赖，`useSyncExternalStore` 读取稳定快照，不增加路由/状态库。Provider 生命周期管理订阅、初始化竞争和清理；页面局部状态仍在页面 hooks/components 中。
@@ -90,6 +94,13 @@ Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览�
 [App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录。业务流程实现后通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。内容/选区捕获和自动填充上下文仍为规划。
 
 Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
+
+### 页面按钮归属
+
+- 各 Page 自行管理显示哪些按钮、按钮位置、可用/加载状态及点击处理函数。App 路由和 Provider 提供能力，不注入全局 Back/Next/Forward 按钮栏。
+- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页，不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward 工具栏。
+- 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用混合页面历史。业务操作和链接仍由所属页面管理。
+- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx) 提供回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
 ## 五、数据与能力归属
 

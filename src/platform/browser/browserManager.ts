@@ -1,8 +1,9 @@
+import { t } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
 import { session, type BrowserWindow, type WebContents } from 'electron'
 import { BROWSER_CHROME_HEIGHT, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
-import { internalPages, isBrowserDestination } from '../../shared/navigation'
+import { isBrowserDestination } from '../../shared/navigation'
 import { resolveDestination } from './navigationManager'
 import { MixedHistory } from './mixedHistory'
 import { SESSION_PARTITION, WebSegment } from './webSegment'
@@ -120,7 +121,7 @@ export class BrowserManager {
     const destination = item.kind === 'internal' ? item.destination : { kind: 'web' as const, url: item.segment.url }
     return {
       id: tab.id, destination, targetId: this.targetId(tab),
-      title: item.kind === 'internal' ? internalPages[item.destination.page] : item.segment.title,
+      title: item.kind === 'internal' ? t($ => $.navigation.pages[item.destination.page]) : item.segment.title,
       url: destination.kind === 'web' ? destination.url : '',
       canGoBack: tab.history.canGoBack, canGoForward: tab.history.canGoForward,
       isLoading: item.kind === 'web' && item.segment.isLoading,
@@ -131,7 +132,7 @@ export class BrowserManager {
   private targetId(tab: Tab): string { return `${tab.history.current.id}:${tab.version}` }
   private requireTab(id: string): Tab {
     const tab = this.tabs.get(id)
-    if (!tab) throw new Error('Tab is no longer available.')
+    if (!tab) throw new Error(t($ => $.errors.tabUnavailable))
     return tab
   }
 

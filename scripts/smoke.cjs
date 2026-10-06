@@ -33,6 +33,8 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(results.missing.error, 'NOT_FOUND')
       assert.deepEqual(results.auditMethods, ['list'])
       assert.equal(results.generatorExposed, false)
+      assert.equal(await window.webContents.executeJavaScript('document.title'), 'Job Agent Browser')
+      assert.equal(await window.webContents.executeJavaScript('document.documentElement.lang'), 'en')
       await require('./browser-smoke.cjs')(window)
       // A different document in a window still fails the real Main IPC sender check.
       const outsider = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } })

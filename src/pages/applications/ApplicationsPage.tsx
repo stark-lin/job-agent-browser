@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import { PlaceholderPage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 
 export function ApplicationsPage() {
-  const { active, back, openPage } = useNavigation()
-  return <PlaceholderPage title="Applications" description="Track applications in list or calendar view." canGoBack={Boolean(active?.canGoBack)}
-    onBack={() => void back()} onHome={() => void openPage('home')}></PlaceholderPage>
+  const { t } = useTranslation()
+  const { openPage } = useNavigation()
+  return <PlaceholderPage title={t($ => $.navigation.pages.applications)} description={t($ => $.features.descriptions.applications)}
+    actions={<button type="button" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</button>} />
 }

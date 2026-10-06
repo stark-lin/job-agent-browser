@@ -16,7 +16,7 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。八个业务页面明确显示待实现说明和页面内 Back/Home，不实现业务流程；Inbox 可进入 Settings 占位页。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。八个业务页面明确显示待实现说明，不实现业务流程；Inbox 可进入 Settings 占位页。
 
 ## 二、路由与混合历史
 
@@ -31,6 +31,8 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 [网页输入解析](../src/platform/browser/navigationManager.ts) 保留 HTTP(S)，识别域名/IP/localhost，其他输入使用 Google 搜索。裸地址默认 HTTPS，localhost 和回环地址默认 HTTP。空输入、无效显式网址及其他协议被拒绝。[测试](../tests/navigation.test.ts) 保留这些规则；[混合历史测试](../tests/mixed-history.test.ts) 覆盖内部路由与段间回放/分叉。
 
 ## 三、展示与交互
+
+[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮，不显示跨页面 Back/Next/Forward 控件。各页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back 和 Forward。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。
 
 只有活动网页段可见，位于 Browser 的 44 像素标签栏和 64 像素工具栏下方，随窗口调整边界。目标切换先隐藏全部原生视图，直到 BrowserPage 提交后确认当前标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
 
@@ -51,13 +53,21 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
-## 五、验证与限制
+## 五、国际化准备
+
+**已实现：**[英文资源](../src/shared/i18n/locales/en.ts)集中管理应用自有的页面文案、内部标题、提示气泡、无障碍标签、错误及原生启动对话框。[共享初始化](../src/shared/i18n/index.ts)通过打包资源在各进程分别创建 i18next 实例，同步初始化，默认及回退语言均为英文。不请求网络翻译资源，也不检测系统语言。
+
+[App 翻译 Provider](../src/app/i18n.tsx)向 `useTranslation()` 提供同一个 Renderer 实例，并更新文档标题和语言。非 React 代码使用共享 `t` 函数；[Main](../src/platform/electron/main/index.ts)可在 React 启动前取词。[构建配置](../electron.vite.config.ts)从与原生窗口共用的英文资源注入 HTML 标题。完整句子模板插入标签/标题，React 将结果作为文本渲染。用户数据、网站标题/内容及仅用于诊断的异常不进入文案资源。浏览器 IPC 仍传递英文标题/错误字符串。
+
+**规划：**其他语言翻译、语言选择器、语言偏好持久化及进程间同步。[翻译测试](../tests/i18n.test.ts)覆盖启动取词、回退、实例隔离、React 资源使用、插值安全及无效键的类型检查。
+
+## 六、验证与限制
 
 [集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
 标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。业务流程、网页提取、AI 生成执行、编译、完整 Shared Context 捕获、邮箱配置、配置/密钥持久化和安装包仍未实现。
 
-## 六、相关文档
+## 七、相关文档
 
 - [README](../README.zh-CN.md)：启动、验证和文档索引。
 - [产品架构](product-architecture.zh-CN.md)：产品规则和规划交付顺序。

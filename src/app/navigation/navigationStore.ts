@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n'
 import type { BrowserAPI, BrowserState } from '../../shared/browser'
 
 export interface NavigationSnapshot {
@@ -42,7 +43,7 @@ export class NavigationStore {
   private report(reason: unknown, tabId: string, targetId: string): void {
     const message = reason instanceof Error
       ? reason.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '')
-      : 'Unable to complete the action.'
+      : t($ => $.errors.actionFailed)
     this.snapshot = { ...this.snapshot, error: { tabId, targetId, message } }
     this.emit()
   }

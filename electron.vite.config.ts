@@ -1,3 +1,4 @@
+import { en } from './src/shared/i18n/locales/en'
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
@@ -23,7 +24,10 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
-    plugins: [react()],
+    plugins: [react(), {
+      name: 'application-title',
+      transformIndexHtml: (html) => html.replace('%APP_TITLE%', en.app.title)
+    }],
     resolve: {
       alias: {
         '@shared': resolve(__dirname, 'src/shared')

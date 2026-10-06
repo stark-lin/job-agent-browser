@@ -23,6 +23,7 @@
     "src/shared/browser.ts",
     "src/shared/navigation.ts",
     "src/app/navigation/navigationStore.ts",
-    "src/app/context/contextStore.ts"
+    "src/app/context/contextStore.ts",
+    "src/shared/i18n/**/*.ts"
   ]
 }

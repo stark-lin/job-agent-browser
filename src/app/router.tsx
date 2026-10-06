@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import { useNavigation } from './navigation/navigate'
 import { HomePage } from '../pages/home/HomePage'
@@ -19,13 +20,14 @@ const featurePages = {
 }
 
 export function AppRouter() {
-  const { active, error, back, openPage } = useNavigation()
-  if (!active) return <main className="feature-page" role={error ? 'alert' : 'status'}>{error || 'Loading workspace…'}</main>
+  const { t } = useTranslation()
+  const { active, error, openPage } = useNavigation()
+  if (!active) return <main className="feature-page" role={error ? 'alert' : 'status'}>{error || t($ => $.app.loadingWorkspace)}</main>
   const destination = active.destination
   let page: ReactNode
   if (isBrowserDestination(destination)) page = <BrowserPage />
   else if (destination.kind === 'internal' && destination.page === 'home') {
-    page = <HomePage onNavigate={(target) => void openPage(target)} canGoBack={active.canGoBack} onBack={() => void back()} />
+    page = <HomePage onNavigate={(target) => void openPage(target)} />
   } else if (destination.kind === 'internal' && destination.page !== 'browser' && destination.page !== 'home') {
     const Page = featurePages[destination.page]
     page = <Page />

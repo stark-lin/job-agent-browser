@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import { PlaceholderPage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 
 export function FindJobsPage() {
-  const { active, back, openPage } = useNavigation()
-  return <PlaceholderPage title="Find Jobs" description="Search and browse opportunities." canGoBack={Boolean(active?.canGoBack)}
-    onBack={() => void back()} onHome={() => void openPage('home')}></PlaceholderPage>
+  const { t } = useTranslation()
+  const { openPage } = useNavigation()
+  return <PlaceholderPage title={t($ => $.navigation.pages.find)} description={t($ => $.features.descriptions.find)}
+    actions={<button type="button" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</button>} />
 }

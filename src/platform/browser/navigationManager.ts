@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n'
 import { parseInternalURL, type Destination } from '../../shared/navigation'
 
 export function resolveDestination(input: string): Destination {
@@ -10,19 +11,19 @@ const SEARCH_URL = 'https://www.google.com/search?q='
 
 export function resolveNavigationInput(input: string): string {
   const value = input.trim()
-  if (!value) throw new Error('Enter a URL or search term.')
+  if (!value) throw new Error(t($ => $.errors.emptyAddress))
 
   // Host:port syntax must be distinguished from an explicit protocol.
   const hostWithPort = /^(?:localhost|[^\s/:?#]+\.[^\s/:?#]+):\d+(?:[/?#]|$)/i.test(value)
   if (!hostWithPort && /^[a-z][a-z\d+.-]*:/i.test(value)) {
-    if (!/^https?:/i.test(value)) throw new Error('Only HTTP and HTTPS pages can be opened.')
+    if (!/^https?:/i.test(value)) throw new Error(t($ => $.errors.unsupportedProtocol))
     let url: URL
     try {
       url = new URL(value)
     } catch {
-      throw new Error('Enter a valid web address.')
+      throw new Error(t($ => $.errors.invalidAddress))
     }
-    if (!url.hostname) throw new Error('Enter a valid web address.')
+    if (!url.hostname) throw new Error(t($ => $.errors.invalidAddress))
     return url.toString()
   }
 

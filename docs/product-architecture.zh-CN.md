@@ -77,7 +77,7 @@ Shell 提供以下全局能力：
 Home → Find Jobs → LinkedIn Job → Tailor Resume → Company Application
 ```
 
-每个标签具有独立的内部页面/网站混合历史。Home 在当前标签新增历史，切换标签不新增历史。启动、新建或关闭最后一个标签后打开 Home。Browser 卡片打开空白工作区，访问网站前地址框为空。内部页面提供页面内 Back/Home 和键盘历史导航，只有 Browser 渲染浏览器控件。运行实现细节归当前架构管理。
+每个标签具有独立的内部页面/网站混合历史。Home 在当前标签新增历史，切换标签不新增历史。启动、新建或关闭最后一个标签后打开 Home。Browser 卡片打开空白工作区，访问网站前地址框为空。Home 不显示 Back 按钮，其他业务页面的页面导航按钮只保留回到主页，键盘历史导航仍可用。Browser 保留自己的 Home/Back/Forward 控件。按钮归属遵循[代码架构](code-architecture.zh-CN.md#页面按钮归属)。运行实现细节归当前架构管理。
 
 ## 五、Shared Context
 

@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n'
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { BrowserAPI } from '../shared/browser'
 import type { DataAPI } from '../platform/electron/data-contract'
@@ -18,7 +19,7 @@ export function AppProviders({ children, browser = window.browser, data = window
 
 export function useServices(): Services {
   const services = useContext(ServicesContext)
-  if (!services) throw new Error('Application providers are unavailable.')
+  if (!services) throw new Error(t($ => $.errors.providersUnavailable))
   return services
 }
 

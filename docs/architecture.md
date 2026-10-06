@@ -16,7 +16,7 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
 
-[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. Eight business pages provide explicit coming-soon content, page-local Back/Home controls and no business workflow; Inbox links to the Settings placeholder.
+[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. Eight business pages provide explicit coming-soon content and no business workflow; Inbox links to the Settings placeholder.
 
 ## 2. Routes and mixed history
 
@@ -31,6 +31,8 @@ New navigation after Back trims both the app forward stack and the current segme
 [Web input parsing](../src/platform/browser/navigationManager.ts) preserves HTTP(S), recognizes domains/IPs/localhost and searches other terms on Google. Bare addresses default to HTTPS; localhost and loopback default to HTTP. Empty input, invalid explicit web addresses and other schemes are rejected. [Tests](../tests/navigation.test.ts) retain those rules; [mixed-history tests](../tests/mixed-history.test.ts) cover internal routing and segment traversal/branching.
 
 ## 3. Presentation and interaction
+
+[HomePage](../src/pages/home/HomePage.tsx) renders the launcher without a Back button. Other business pages provide only a Go home button for page navigation, with no cross-page Back/Next/Forward controls. Each page supplies its own buttons and handlers through the [placeholder layout](../src/shared/ui/PlaceholderPage.tsx) action slot; the layout defines no navigation behavior. [Browser controls](../src/pages/browser/BrowserControls.tsx) retain Home, Back and Forward. Button ownership rules are defined in [code architecture](code-architecture.md#page-button-ownership).
 
 Only the active web segment can be shown, below Browser's 44-pixel tab strip and 64-pixel toolbar. Bounds follow window resizing. Target transitions hide all native views until BrowserPage acknowledges the active tab/target after committing. Stale visibility requests are ignored. Renderer reload hides views while providers resubscribe, then restores Main's destination/history; it does not reset the tab to Home.
 
@@ -51,13 +53,21 @@ Remote views share `persist:job-agent-browser`, retaining website storage across
 
 Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
 
-## 5. Verification and limitations
+## 5. Internationalization preparation
+
+**Implemented:** [English resources](../src/shared/i18n/locales/en.ts) centralize application-owned page copy, internal titles, tooltips, accessible labels, errors and native startup dialogs. [Shared initialization](../src/shared/i18n/index.ts) creates a separate i18next instance in each process from bundled resources, synchronously with English as the default and fallback. No translation network requests or system-language detection occur.
+
+[App translation provider](../src/app/i18n.tsx) supplies that Renderer instance to `useTranslation()` and updates document title/language. Non-React code uses the shared `t` function; [Main](../src/platform/electron/main/index.ts) can translate before React starts. [Build configuration](../electron.vite.config.ts) injects the HTML title from the same English resource used for the native window. Complete sentence templates interpolate labels/titles, and React renders the result as text. User data, website titles/content and diagnostic-only exceptions remain outside the catalog. Browser IPC still carries English title/error strings.
+
+**Planned:** additional translations, a language selector, saved language preferences and synchronization between processes. [Translation tests](../tests/i18n.test.ts) cover startup readiness, fallback, instance isolation, React resource consumption, interpolation safety and invalid-key type checking.
+
+## 6. Verification and limitations
 
 [Integration tests](../tests/audit.test.ts) verify storage/privacy guarantees; [navigation-store tests](../tests/navigation-store.test.ts) cover subscription ordering and StrictMode cleanup. [Electron smoke](../scripts/smoke.cjs) exercises built Main/Preload, IPC and sender rejection. [Browser smoke](../scripts/browser-smoke.cjs) covers tabs, bounds, shortcuts, isolation and failures; [navigation smoke](../scripts/navigation-smoke.cjs) covers feature entry UI, mixed traversal, branching/disposal, SPA/duplicate history, reload, stale visibility and loading races. [Window-close smoke](../scripts/window-close-smoke.cjs) verifies release of retained views after the owning window closes. Commands are indexed in README.
 
 Tab histories and context references are memory-only. Retained web segments are released by branching or closing tabs/windows; automatic eviction and cross-restart restoration are not implemented. Business workflows, page extraction, AI generation execution, compilation, full Shared Context capture, mailbox configuration, settings/secrets persistence and installers remain unimplemented.
 
-## 6. Related documents
+## 7. Related documents
 
 - [README](../README.md): setup, validation and documentation index.
 - [Product architecture](product-architecture.md): product rules and planned delivery order.

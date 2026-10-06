@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 
 interface HomeTileProps {
@@ -8,12 +9,13 @@ interface HomeTileProps {
 }
 
 export function HomeTile({ label, description, icon, onClick }: HomeTileProps) {
+  const { t } = useTranslation()
   return (
     <button
       className="home-card"
       type="button"
       disabled={!onClick}
-      title={onClick ? undefined : `${label} — Coming soon`}
+      title={onClick ? undefined : t($ => $.home.comingSoon, { label })}
       onClick={onClick}
     >
       <span className="home-icon" aria-hidden="true">{icon}</span>

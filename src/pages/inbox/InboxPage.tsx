@@ -1,10 +1,12 @@
+import { useTranslation } from 'react-i18next'
 import { PlaceholderPage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 
 export function InboxPage() {
-  const { active, back, openPage } = useNavigation()
-  return <PlaceholderPage title="Inbox" description="Job-seeking email will open your configured webmail." canGoBack={Boolean(active?.canGoBack)}
-    onBack={() => void back()} onHome={() => void openPage('home')}>
-      <button type="button" onClick={() => void openPage('settings')}>Open Settings</button>
+  const { t } = useTranslation()
+  const { openPage } = useNavigation()
+  return <PlaceholderPage title={t($ => $.navigation.pages.inbox)} description={t($ => $.features.descriptions.inbox)}
+    actions={<button type="button" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</button>}>
+      <button type="button" onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</button>
     </PlaceholderPage>
 }

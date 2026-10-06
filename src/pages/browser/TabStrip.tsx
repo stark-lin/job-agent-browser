@@ -1,5 +1,6 @@
+import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import type { BrowserTabState } from '@shared/browser'
+import type { BrowserTabState } from '../../shared/browser'
 
 interface TabStripProps {
   tabs: BrowserTabState[]
@@ -10,6 +11,7 @@ interface TabStripProps {
 }
 
 export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: TabStripProps) {
+  const { t } = useTranslation()
   const list = useRef<HTMLDivElement>(null)
   useEffect(() => {
     list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -29,7 +31,7 @@ export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: T
 
   return (
     <div className="tab-strip">
-      <div className="tab-list" role="tablist" aria-label="Browser tabs" ref={list}>
+      <div className="tab-list" role="tablist" aria-label={t($ => $.browser.tabs)} ref={list}>
         {tabs.map((tab, index) => (
           <div className={`browser-tab${tab.id === activeTabId ? ' is-active' : ''}`} key={tab.id} role="presentation">
             <button
@@ -45,11 +47,11 @@ export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: T
               <span className={`tab-indicator${tab.isLoading ? ' is-loading' : ''}`} aria-hidden="true">{tab.isLoading ? '' : '○'}</span>
               <span className="tab-title">{tab.title}</span>
             </button>
-            <button className="tab-close" type="button" aria-label={`Close ${tab.title}`} title="Close tab" onClick={() => onClose(tab.id)}>×</button>
+            <button className="tab-close" type="button" aria-label={t($ => $.browser.closeNamedTab, { title: tab.title })} title={t($ => $.browser.closeTab)} onClick={() => onClose(tab.id)}>×</button>
           </div>
         ))}
       </div>
-      <button className="icon-button new-tab-button" type="button" aria-label="New tab" title="New tab" onClick={onCreate}>+</button>
+      <button className="icon-button new-tab-button" type="button" aria-label={t($ => $.browser.newTab)} title={t($ => $.browser.newTab)} onClick={onCreate}>+</button>
     </div>
   )
 }

@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import { PlaceholderPage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 
 export function TailorResumePage() {
-  const { active, back, openPage } = useNavigation()
-  return <PlaceholderPage title="Tailor Resume" description="Adapt your resume to a role."
-    canGoBack={Boolean(active?.canGoBack)} onBack={() => void back()} onHome={() => void openPage('home')} />
+  const { t } = useTranslation()
+  const { openPage } = useNavigation()
+  return <PlaceholderPage title={t($ => $.navigation.pages.resume)} description={t($ => $.features.descriptions.resume)}
+    actions={<button type="button" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</button>} />
 }

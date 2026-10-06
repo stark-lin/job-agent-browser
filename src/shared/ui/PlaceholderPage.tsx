@@ -1,20 +1,18 @@
+import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 
-export function PlaceholderPage({ title, description, canGoBack, onBack, onHome, children }: {
-  title: string; description: string; canGoBack: boolean
-  onBack: () => void; onHome: () => void; children?: ReactNode
+export function PlaceholderPage({ title, description, actions, children }: {
+  title: string; description: string; actions?: ReactNode; children?: ReactNode
 }) {
+  const { t } = useTranslation()
   return (
     <main className="feature-page">
-      <nav className="page-actions" aria-label="Page navigation">
-        <button type="button" disabled={!canGoBack} onClick={onBack}>Back</button>
-        <button type="button" onClick={onHome}>Home</button>
-      </nav>
+      {actions ? <nav className="page-actions" aria-label={t($ => $.navigation.pageNavigation)}>{actions}</nav> : null}
       <section className="feature-content" aria-labelledby="feature-heading">
-        <p className="feature-status">Coming soon</p>
+        <p className="feature-status">{t($ => $.features.comingSoon)}</p>
         <h1 id="feature-heading">{title}</h1>
         <p>{description}</p>
-        <p>This feature is not implemented yet.</p>
+        <p>{t($ => $.features.notImplemented)}</p>
         {children}
       </section>
     </main>

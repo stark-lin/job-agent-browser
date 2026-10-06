@@ -1,3 +1,4 @@
+import { t } from '../../../shared/i18n'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -33,7 +34,7 @@ app.whenReady().then(() => {
   })
 }).catch(() => {
   // Do not show raw SQLite errors/paths; initialization failure must never silently reset user data.
-  dialog.showErrorBox('Storage unavailable', 'The database could not be opened or migrated. Your database has not been reset.')
+  dialog.showErrorBox(t($ => $.errors.storageTitle), t($ => $.errors.storageMessage))
   app.quit()
 })
 
@@ -41,7 +42,7 @@ app.on('will-quit', () => { backend?.close(); backend = undefined })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {
   assertTrustedRenderer(event)
-  if (typeof input !== 'string') throw new Error('Navigation input must be text.')
+  if (typeof input !== 'string') throw new Error(t($ => $.errors.navigationInput))
   await requireBrowser().navigate(input)
 })
 ipcMain.handle(BROWSER_BACK, (event) => {
@@ -58,11 +59,11 @@ ipcMain.handle(BROWSER_GET_STATE, (event) => {
 })
 ipcMain.handle(BROWSER_SET_VISIBLE, (event, visible: unknown, presentation: unknown) => {
   assertTrustedRenderer(event)
-  if (typeof visible !== 'boolean') throw new Error('Browser visibility must be a boolean.')
+  if (typeof visible !== 'boolean') throw new Error(t($ => $.errors.visibilityInput))
   if (!presentation || typeof presentation !== 'object' ||
     !('tabId' in presentation) || typeof presentation.tabId !== 'string' ||
     !('targetId' in presentation) || typeof presentation.targetId !== 'string') {
-    throw new Error('Browser presentation must identify a tab and target.')
+    throw new Error(t($ => $.errors.presentationInput))
   }
   requireBrowser().setVisible(visible, { tabId: presentation.tabId, targetId: presentation.targetId })
 })
@@ -73,12 +74,12 @@ ipcMain.handle(BROWSER_CREATE_TAB, (event) => {
 })
 ipcMain.handle(BROWSER_ACTIVATE_TAB, (event, id: unknown) => {
   assertTrustedRenderer(event)
-  if (typeof id !== 'string') throw new Error('Tab ID must be text.')
+  if (typeof id !== 'string') throw new Error(t($ => $.errors.tabIdInput))
   requireBrowser().activateTab(id)
 })
 ipcMain.handle(BROWSER_CLOSE_TAB, (event, id: unknown) => {
   assertTrustedRenderer(event)
-  if (typeof id !== 'string') throw new Error('Tab ID must be text.')
+  if (typeof id !== 'string') throw new Error(t($ => $.errors.tabIdInput))
   requireBrowser().closeTab(id)
 })
 
@@ -87,7 +88,7 @@ app.on('window-all-closed', () => {
 })
 
 function requireBrowser(): BrowserManager {
-  if (!browser) throw new Error('Browser is not ready.')
+  if (!browser) throw new Error(t($ => $.errors.browserNotReady))
   return browser
 }
 
@@ -95,7 +96,7 @@ function assertTrustedRenderer(event: Electron.IpcMainInvokeEvent): void {
   const expectedURL = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href
   if (!trustedDataSender({ windowOwned: requireBrowser().isTrustedSender(event.sender.id),
     mainFrame: event.senderFrame === event.sender.mainFrame, url: event.senderFrame?.url ?? '' }, expectedURL)) {
-    throw new Error('Untrusted IPC sender.')
+    throw new Error(t($ => $.errors.untrustedSender))
   }
 }
 

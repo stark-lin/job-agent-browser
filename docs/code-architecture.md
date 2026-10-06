@@ -57,6 +57,8 @@ src/
 │   └── ai/
 ├── renderer/
 └── shared/
+    ├── i18n/
+    │   └── locales/
     ├── ui/
     ├── hooks/
     ├── utils/
@@ -79,6 +81,8 @@ Renderer workflows call typed bridge operations; Main composes Domain services w
 
 Database access remains Main-only. Settings, secrets, AI requests and compilation are reserved for Main or controlled services. Preserve sandboxing, context isolation, third-party page separation and exact trusted-document/top-frame IPC validation.
 
+The [shared i18n module](../src/shared/i18n/) owns framework-independent resources, configuration, selector types and translation initialization; it imports neither React nor Electron. [App](../src/app/i18n.tsx) owns React provider integration and document metadata. Pages translate at render time; Platform translates application-owned native copy. Keep new visible text in the catalog, including complete interpolated sentences, and use typed selectors. Runtime behavior and remaining language support are owned by [current architecture](architecture.md#5-internationalization-preparation).
+
 ## 4. Navigation, React state and context
 
 [App navigation](../src/app/navigation/) provides a subscribed projection of Main snapshots and a unified navigation hook. React Context supplies dependencies and `useSyncExternalStore` reads stable snapshots. No routing/state library is added. Provider lifecycle owns subscriptions, initialization races and cleanup; page-local state remains in page hooks/components.
@@ -90,6 +94,13 @@ Browser owns its tab strip/address/controls; other internal pages hide the entir
 [App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge when workflows are implemented. Applications uses a Job ID, not a separate persisted Application entity. Content/selection capture and automatic context population remain planned.
 
 Home invokes navigation only. Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
+
+### Page button ownership
+
+- Each Page owns the buttons it displays, their placement, enabled/loading state and click handlers. App routing and providers supply capabilities without injecting a global Back/Next/Forward button bar.
+- Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button; do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward toolbar.
+- Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than mixed page history. Business actions and links remain page-owned.
+- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx) supplies Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
 
 ## 5. Data and capability placement
 

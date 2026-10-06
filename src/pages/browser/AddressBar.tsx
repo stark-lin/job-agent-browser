@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useServices } from '../../app/providers'
 
@@ -9,6 +10,7 @@ interface AddressBarProps {
 }
 
 export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProps) {
+  const { t } = useTranslation()
   const { navigation } = useServices()
   const [value, setValue] = useState(url)
   const [isEditing, setIsEditing] = useState(false)
@@ -35,13 +37,13 @@ export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProp
       <input
         ref={input}
         autoFocus
-        aria-label="Search or enter URL"
+        aria-label={t($ => $.browser.addressLabel)}
         aria-invalid={Boolean(error)}
         title={error || undefined}
         autoComplete="off"
         autoCapitalize="off"
         spellCheck={false}
-        placeholder="Search or enter URL..."
+        placeholder={t($ => $.browser.addressPlaceholder)}
         value={value}
         onFocus={(event) => { setIsEditing(true); event.target.select() }}
         onBlur={() => setIsEditing(false)}

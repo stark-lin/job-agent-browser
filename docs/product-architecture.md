@@ -77,7 +77,7 @@ A single navigation journey can therefore cross internal pages and websites:
 Home → Find Jobs → LinkedIn Job → Tailor Resume → Company Application
 ```
 
-Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Internal pages provide page-local Back/Home and keyboard history navigation; only Browser renders browser controls. Runtime implementation details belong to the current architecture.
+Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Home has no Back button; other business pages provide Go home as their only page navigation button, and keyboard history navigation remains available. Browser retains its own Home/Back/Forward controls. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
 
 ## 5. Shared Context
 

@@ -1,10 +1,10 @@
+import { t } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
 import { session, WebContentsView, type BrowserWindow } from 'electron'
 import type { HistorySegment } from './mixedHistory'
 import { NativeHistoryIdentity } from './nativeHistory'
 
 export const SESSION_PARTITION = 'persist:job-agent-browser'
-const LOAD_ERROR = 'Unable to load this page. Check the address and your connection.'
 
 export function isWebURL(value: string): boolean {
   try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
@@ -49,7 +49,7 @@ export class WebSegment implements HistorySegment {
     contents.on('page-title-updated', () => this.notify())
     contents.on('did-fail-load', (_event, code, _description, _url, mainFrame) => {
       if (mainFrame && code !== -3) {
-        this.isLoading = false; this.error = LOAD_ERROR; this.pendingIndex = undefined; this.notify()
+        this.isLoading = false; this.error = t($ => $.errors.loadFailed); this.pendingIndex = undefined; this.notify()
       }
     })
   }
@@ -67,8 +67,8 @@ export class WebSegment implements HistorySegment {
     } catch (reason) {
       const aborted = reason instanceof Error && 'code' in reason && reason.code === 'ERR_ABORTED'
       if (this.disposed || generation !== this.generation || aborted) return
-      this.isLoading = false; this.error = LOAD_ERROR; this.notify()
-      throw new Error(LOAD_ERROR)
+      this.isLoading = false; this.error = t($ => $.errors.loadFailed); this.notify()
+      throw new Error(t($ => $.errors.loadFailed))
     }
   }
 
@@ -99,7 +99,7 @@ export class WebSegment implements HistorySegment {
     // traverse again or leave Browser as soon as they receive the snapshot.
     void this.identity.committed().then((newEntry) => this.notify(newEntry)).catch(() => {
       if (this.disposed) return
-      this.error = 'Unable to synchronize browser history.'
+      this.error = t($ => $.errors.historySyncFailed)
       this.notify()
     })
   }

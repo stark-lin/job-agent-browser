@@ -1,3 +1,4 @@
+import { t } from '../../../shared/i18n'
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { BrowserManager } from '../../browser/browserManager'
@@ -8,7 +9,7 @@ export function createMainWindow(): { window: BrowserWindow; browser: BrowserMan
     height: 820,
     minWidth: 640,
     minHeight: 420,
-    title: 'Job Agent Browser',
+    title: t($ => $.app.title),
     backgroundColor: '#f6f7f8',
     autoHideMenuBar: true,
     webPreferences: {

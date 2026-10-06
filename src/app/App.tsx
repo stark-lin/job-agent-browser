@@ -1,6 +1,7 @@
+import { TranslationProvider } from './i18n'
 import { AppProviders } from './providers'
 import { AppRouter } from './router'
 
 export function App() {
-  return <AppProviders><AppRouter /></AppProviders>
+  return <TranslationProvider><AppProviders><AppRouter /></AppProviders></TranslationProvider>
 }

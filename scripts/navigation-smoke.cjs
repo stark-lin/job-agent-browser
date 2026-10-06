@@ -25,19 +25,27 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     assert(views().every((view) => !view.getVisible()))
     assert.equal(await evaluate('document.body.innerText.includes("app://")'), false)
   }
+  const home = async () => {
+    await waitFor(() => evaluate('!!document.querySelector(".home-grid")'), 'Home grid')
+    assert.equal(await evaluate('document.querySelectorAll(".home-page button").length'), 9)
+    assert.equal(await evaluate('!!document.querySelector(".home-back")'), false)
+  }
   assert.equal(active(await read()).destination.page, 'home')
+  await home()
   for (const [title, page] of routes) {
     await evaluate(`(() => { [...document.querySelectorAll('.home-card')].find(card => card.querySelector('.home-label').textContent === ${JSON.stringify(title)}).click() })()`)
     await internal(page)
     await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), true)
+    assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), ['Go home'])
     if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {
       await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent === 'Open Settings').click()")
       await internal('settings')
     }
-    await call('navigate', 'app://home')
-    await waitFor(() => evaluate('!!document.querySelector(".home-grid")'), 'Home grid')
+    await evaluate('document.querySelector(".page-actions button").click()')
+    await internal('home')
+    await home()
   }
   await capture('react-home.png')
   // Start an isolated journey and verify each native/app boundary in both directions.
