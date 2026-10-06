@@ -1,24 +1,24 @@
-# 目标代码架构
+# 代码架构
 
-用途：确定代码职责、依赖关系与渐进迁移方式。状态：Home 和分层业务存储**已实现**；页面导航及其他目标模块仍为**占位 / 规划**。运行依据见[当前架构](architecture.zh-CN.md)。
+用途：定义源码职责、依赖边界和后续交付约束。状态：React 组装/路由、混合导航、Platform 运行入口及分层业务存储**已实现**。业务页面流程和 AI/文件集成仍为**占位 / 规划**。已验证行为由[当前架构](architecture.zh-CN.md)管理。
 
 语言：简体中文 · [English](code-architecture.md)
 
-## 一、组织原则与现状
+## 一、组织原则与活动入口
 
-按 Page 组织产品代码，按 Domain 沉淀共享业务规则，按 Platform 隔离技术适配。采用页面优先的模块化架构，不引入完整 DDD。新功能先放对应页面，需要时再抽取稳定的跨页面能力。
+按 Page 组织产品代码，按 Domain 沉淀业务规则，按 Platform 隔离技术适配。采用页面优先模块，不引入完整 DDD；需要时抽取稳定的跨页面能力。
 
 | 层 | 职责 | 现有依据 |
 | --- | --- | --- |
-| App | 组装、路由、Provider、导航与上下文 | [App 占位](../src/app/App.tsx) |
-| Pages | UI、局部组件/hooks/状态和页面流程 | [已实现 Home](../src/pages/home/HomePage.tsx)、[Tailor Resume 占位](../src/pages/tailor-resume/TailorResumePage.tsx) |
-| Domain | 实体、规则、用例、Repository 与能力接口 | [Job 业务用例](../src/domain/job/job.service.ts) |
-| Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [SQLite 适配](../src/platform/database/sqlite.ts) |
-| Shared | 不含业务语义的工具、类型、hooks 与 UI | [公共 UI 占位](../src/shared/ui/index.ts) |
+| App | React 组装、路由、Provider、导航投影与上下文 | [App](../src/app/App.tsx)、[Provider](../src/app/providers.tsx) |
+| Pages | UI、局部组件/hooks/状态与页面流程 | [Home](../src/pages/home/HomePage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
+| Domain | 实体、校验、用例与能力/Repository 接口 | [Job 用例](../src/domain/job/job.service.ts) |
+| Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
+| Shared | 无框架契约及不含业务语义的 UI/工具/hooks | [导航契约](../src/shared/navigation.ts)、[占位布局](../src/shared/ui/PlaceholderPage.tsx) |
 
-当前构建仍从 `src/main/`、`src/preload/`、`src/renderer/` 启动，以 [electron.vite.config.ts](../electron.vite.config.ts) 为准。Home 由 [Renderer App](../src/renderer/App.tsx) 导入；目标入口在迁移完成前不替换现有入口。
+[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。构建产物和包入口保持稳定。
 
-## 二、目标目录边界
+## 二、目录边界
 
 ```text
 src/
@@ -55,6 +55,7 @@ src/
 │   ├── filesystem/
 │   ├── storage/
 │   └── ai/
+├── renderer/
 └── shared/
     ├── ui/
     ├── hooks/
@@ -62,67 +63,64 @@ src/
     └── types/
 ```
 
-目标组织与原始运行入口并存，存储实现已填充其中的 Domain 与 Platform 边界。页面局部组件、hooks、model 按需创建；[Tailor Resume 目录](../src/pages/tailor-resume/) 提供了占位。[Home 目录](../src/pages/home/) 保存已实现页面。未明确文件的模块使用 `index.ts` 占位；文件存在不代表功能已经实现。
+Home 和 Browser 为已实现页面。其余八个入口渲染明确占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
 
-## 三、依赖关系与进程组装
+## 三、依赖与进程组装
 
 | 使用方 | 允许依赖 | 边界 |
 | --- | --- | --- |
-| App | Pages、Domain、Platform API | 在正确进程中组装并注入依赖 |
-| Page | Domain、受控 Platform API、公共 UI/工具 | 使用导航与上下文，不导入 Main 专属实现 |
-| Domain | 业务接口、无框架依赖的工具与类型 | 不依赖 Page、React、Electron 或具体 Platform |
-| Platform | Domain 接口、通用契约、技术库 | 实现能力，不感知产品页面 |
-| Shared | 对应运行环境允许的通用库 | 不反向依赖业务模块；Domain 不使用 React UI/hooks |
+| App | Pages、通用契约、Domain 类型及受限桥接 | 组装 Renderer 服务，不导入特权实现 |
+| Page | App 导航/Provider、Domain 类型、公共 UI/工具 | 调用注入的桥接能力，不导入 Main 实现 |
+| Domain | 业务接口和无框架工具/类型 | 不依赖 Page、React、Electron 或具体 Platform |
+| Platform | Domain 接口、通用契约和技术库 | 实现能力，不了解产品页面 |
+| Shared | 对应运行环境允许的通用库 | 不依赖业务/Platform/App/Page，Domain 不使用 React UI/hooks |
 
-逻辑调用流程为 Page → Domain → Platform；Domain 依赖接口，Platform 实现接口。Repository 与 AI 能力在应用初始化时注入。跨进程调用通过窄 Preload/IPC 操作完成；源码目录不会消除 Electron 进程边界。
+Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Repository/事务。Domain 依赖接口，由[后端组装](../src/platform/database/backend.ts)注入具体适配器。概念上的 Page → Domain → Platform 流程不允许 UI 导入服务端业务服务。
 
-数据库访问归 Main；配置、密钥解密、AI 请求与文件编译同样保留给 Main 或受控服务。Renderer 不得导入 SQLite、文件系统或 Electron Main 实现。保留沙盒、上下文隔离和第三方网页隔离，并校验特权 IPC 的发送方与输入。
+数据库访问仍只属于 Main。配置、密钥、AI 请求和编译由 Main 或受控服务执行。保留沙盒、上下文隔离、第三方页面分离，以及精确可信文档/顶层 frame 的 IPC 校验。
 
-## 四、导航与共享上下文
+## 四、导航、React 状态与上下文
 
-导航位于 [app/navigation](../src/app/navigation/)，不进入 Domain。未来通过校验 URL 与类型的统一 API 处理内部 `app://` 页面和 HTTP(S) 网站。目录名不决定公开 URL：`tailor-resume/` 对应 `app://resume`。内部路由与混合历史仍待实现。
+[App 导航](../src/app/navigation/)提供 Main 快照的订阅投影和统一导航 hook。React Context 注入依赖，`useSyncExternalStore` 读取稳定快照，不增加路由/状态库。Provider 生命周期管理订阅、初始化竞争和清理；页面局部状态仍在页面 hooks/components 中。
 
-[app/context](../src/app/context/) 应保存当前页面、Job 和简历 Artifact 的引用，不复制完整记录。通过 Domain 获取 Profile 与业务实体，需要时通过浏览器能力获取标题、内容和选中文字。旧示例中的 `currentApplicationId` 在 V1 模型中不对应独立持久化实体；Applications 使用 Job ID。
+无框架的 [Destination](../src/shared/navigation.ts) 契约跨进程共享。[Main 浏览器管理](../src/platform/browser/browserManager.ts)拥有标签和权威混合历史；[MixedHistory](../src/platform/browser/mixedHistory.ts) 组合内部项与原生历史段，[WebSegment](../src/platform/browser/webSegment.ts) 管理视图事件、原生回放和释放。App 路由不改变可信文档 URL。
 
-Home 只调用功能入口导航。跨页面业务规则属于 Domain；导航与上下文切换仍由 App/Page 负责。
+Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览器栏和全部内部 URL。只有 Browser 确认原生视图展示，携带活动标签与目标，避免旧确认覆盖内部页面。UI URL 和历史规则由产品架构管理，运行细节由当前架构管理。
 
-## 五、数据模型与能力归属
+[App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录。业务流程实现后通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。内容/选区捕获和自动填充上下文仍为规划。
 
-[V1 数据架构](data-architecture.zh-CN.md) 负责结构、流水线阶段与存储规则。五组数据不要求新增五个源码目录。提案中的 `main/domains` 目录树不替换现有页面优先基线。
+Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
 
-| 职责 | 现有边界中的归属 |
+## 五、数据与能力归属
+
+[V1 数据架构](data-architecture.zh-CN.md)管理结构、API、生成阶段和存储规则。五个数据分组不要求新增五个目录或用 `main/domains` 替换现有组织。
+
+| 职责 | 归属 |
 | --- | --- |
-| Company、Job 与来源 | `domain/job/`；事件及申请/日历用例位于 `domain/application/` |
-| Profile、ProfileItem、Fact | `domain/candidate/`，对应 My Profile |
-| GenerationRun、Artifact、溯源 | `domain/resume/` 中的简历用例；确有复用需要时再抽取 |
-| 申请生命周期与日历 | `domain/application/` 基于 Job 和 JobEvent 的流程；UI 位于 `pages/applications/` |
-| SQLite、迁移、Repository、审计持久化 | Main 侧 `platform/database/`；审计策略仍是业务规则 |
-| AI Provider、配置、加密密钥、输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/` 适配；编译器和服务文件仍待设计 |
+| Company、Job 与来源 | `domain/job/` |
+| 申请生命周期、事件和日历 | `domain/application/`，UI 在 `pages/applications/` |
+| Profile、ProfileItem 与 Fact | `domain/candidate/`，UI 在 `pages/profile/` |
+| GenerationRun、Artifact 与溯源 | `domain/resume/`，UI 在 `pages/tailor-resume/` |
+| SQLite、迁移、Repository 与审计持久化 | Main 侧 `platform/database/` |
+| AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`，实现仍为规划 |
 
-Domain 定义 Repository 与提取接口，具体 SQLite Repository 和[通用提取器](../src/platform/browser/extractors/generic.ts) 归 Platform。页面快照使用普通数据，不传入 Electron 或 DOM 对象。当前只占位通用提取器，网站专属适配仍延后。保存提取的部分数据前需校验 Job 必需字段。
+Domain 定义 Repository/提取接口。具体 SQLite Repository 和占位[通用提取器](../src/platform/browser/extractors/generic.ts)归 Platform。网页快照必须是普通数据，不传 DOM/Electron 对象。网站专属提取延后；保存部分数据前校验 Job 必需字段。
 
-AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用它的 Domain，只有通用契约进入 Shared。具体 Provider 和编译适配仍为规划。
+AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
-`JobCard`、`ResumePreview` 即使复用也保留在 Pages；`ApplicationStatus` 等业务类型属于 Domain。Shared 不承载业务 UI 或实体。
+## 六、质量与后续交付
 
-## 六、实现与质量规则
+[质量检查](../scripts/quality.cjs)约束 App/Page/Renderer 特权导入、Domain/Shared 依赖、运行导入环、数据边界类型/模块长度及双语文档结构/链接/篇幅。TypeScript 检查未使用声明/参数和大小写。纯导航/store 测试补充 Electron SQLite 集成与生产窗口 smoke。命令归 README 管理。
 
-1. 替代实现可用前保持现有构建入口；迁移时同步更新[构建配置](../electron.vite.config.ts) 和[包入口](../package.json)。
-2. 新功能先放对应 Page，页面专属逻辑留在页面，不提前创建所有可能的子目录。
-3. 工作流需要时再引入共享业务接口，注入 Platform 实现，避免反向依赖。
-4. 公开业务能力放在类型化[数据契约](../src/platform/electron/data-contract.ts)；Platform Repository、事务上下文及 Main 内部生成持久化属于私有实现细节。
-5. 保留[产品入口](product-architecture.zh-CN.md)。Calendar 属于 Applications 视图，Resume Builder 使用 Tailor Resume。Inbox 初版复用配置的网页邮箱，不新增邮件数据库或 API 适配。
-6. 实现变化时同步更新所属文档及中英文版本。运行检查与命令统一由 README 索引。
+公开业务能力保留在 [DataContract](../src/platform/electron/data-contract.ts)，Repository、事务上下文、审计写入及生成阶段持久化仍为私有实现。存储模块分离迁移、事务/审计控制、映射和领域适配；Domain 服务管理业务校验。
 
-存储按迁移、事务/审计控制、行映射及各领域 Repository 适配拆分。Domain 服务负责校验和业务规则；可复用的无框架解析器/错误/能力契约位于 `domain/common/`。资料条目/事实及简历成品/生成按职责拆分。注释解释原子性、隐私、历史引用和恢复规则。
+Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。初版 Inbox 将复用配置的网页邮箱，不建立邮件数据库。AI 执行、编译、配置/密钥持久化和业务表单为后续工作，不因页面骨架可访问就视为完成。历史恢复/淘汰同样延后。
 
-[质量检查](../scripts/quality.cjs) 校验 Domain/Shared/UI 依赖，拒绝运行时循环依赖及数据模块中的 `any`，限制数据模块为 250 行，并检查双语文档链接、示例和篇幅。TypeScript 检查未使用声明/参数及大小写一致性。集成测试使用 Electron SQLite；冒烟测试运行构建后的 Main/Preload。命令由 README 负责。
-
-只有规模需要时才在 Page 之上增加 Product Area；这不改变 Domain/Platform 边界，也不要求完整 DDD。
+行为、接口、目录或配置变化时同步更新所属文档和两种语言。未来迁移保留构建产物、SQLite/审计行为和 Session 分区。规模需要时再引入 Product Areas；不要求完整 DDD。
 
 ## 七、相关文档
 
-- [产品架构](product-architecture.zh-CN.md)：范围、URL 与功能组合。
-- [当前架构](architecture.zh-CN.md)：运行入口、行为与安全检查。
-- [V1 数据架构与 API](data-architecture.zh-CN.md)：已实现存储语义和公开能力。
-- [README](../README.zh-CN.md)：启动、验证与文档索引。
+- [产品架构](product-architecture.zh-CN.md)：产品规则和能力组合。
+- [当前架构](architecture.zh-CN.md)：运行、行为与安全。
+- [V1 数据架构与 API](data-architecture.zh-CN.md)：持久化语义和能力。
+- [README](../README.zh-CN.md)：启动、验证及文档索引。

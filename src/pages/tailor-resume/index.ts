@@ -1,1 +1,1 @@
-// 占位：定制简历页面的公开导出。
+export { TailorResumePage } from './TailorResumePage'

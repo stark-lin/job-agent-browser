@@ -1,14 +1,16 @@
-import type { BrowserState } from '@shared/browser'
+import type { BrowserTabState } from '@shared/browser'
 import { AddressBar } from './AddressBar'
 
 interface BrowserControlsProps {
-  state: BrowserState
+  state: BrowserTabState
   error: string
   onNavigate: (input: string) => Promise<void>
   onHome: () => void
+  onBack: () => void
+  onForward: () => void
 }
 
-export function BrowserControls({ state, error, onNavigate, onHome }: BrowserControlsProps) {
+export function BrowserControls({ state, error, onNavigate, onHome, onBack, onForward }: BrowserControlsProps) {
   return (
     <header className="browser-controls">
       <div className="history-controls">
@@ -21,7 +23,7 @@ export function BrowserControls({ state, error, onNavigate, onHome }: BrowserCon
           aria-label="Go back"
           title="Back"
           disabled={!state.canGoBack}
-          onClick={() => void window.browser.back()}
+          onClick={onBack}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.1 4.7 3 10l5.1 5.3M3.5 10h7.8a5.2 5.2 0 0 1 5.2 5.2" /></svg>
         </button>
@@ -31,12 +33,15 @@ export function BrowserControls({ state, error, onNavigate, onHome }: BrowserCon
           aria-label="Go forward"
           title="Forward"
           disabled={!state.canGoForward}
-          onClick={() => void window.browser.forward()}
+          onClick={onForward}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11.9 4.7 5.1 5.3-5.1 5.3M16.5 10H8.7a5.2 5.2 0 0 0-5.2 5.2" /></svg>
         </button>
       </div>
-      <AddressBar url={state.url} isLoading={state.isLoading} error={error} onNavigate={onNavigate} />
+      <div className="address-controls">
+        <AddressBar url={state.url} isLoading={state.isLoading} error={error} onNavigate={onNavigate} />
+        {error ? <div className="navigation-error" role="alert">{error}</div> : null}
+      </div>
     </header>
   )
 }

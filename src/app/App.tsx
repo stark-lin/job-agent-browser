@@ -1,1 +1,6 @@
-// 占位：应用根组件与全局编排；后续从现有 Renderer 入口渐进迁移。
+import { AppProviders } from './providers'
+import { AppRouter } from './router'
+
+export function App() {
+  return <AppProviders><AppRouter /></AppProviders>
+}

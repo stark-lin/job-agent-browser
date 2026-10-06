@@ -1,12 +1,12 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 执行、编译及业务页面仍为**规划**。配置和密钥为**占位**。
+用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 执行、编译及业务流程仍为**规划**，功能页面 UI 为**占位**。配置和密钥为**占位**。
 
 语言：简体中文 · [English](data-architecture.md)
 
 ## 一、运行与存储
 
-[Main](../src/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。
+[Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；页面骨架不实现业务流程。
 
 [版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 11 张业务表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
 
@@ -81,7 +81,7 @@
 
 ## 五、API 契约与访问
 
-沙盒 [Preload](../src/preload/index.ts) 暴露 `window.data`。完整类型化输入/输出在 [DataContract](../src/platform/electron/data-contract.ts)；字段/枚举定义保留在所链接的 Domain 类型中。[Main IPC](../src/platform/electron/main/data-ipc.ts) 要求自有窗口、顶层 frame 及精确匹配的可信 Renderer 文档。外部网页/子 frame 无权访问数据。
+沙盒 [Preload](../src/platform/electron/preload/index.ts) 暴露 `window.data`。完整类型化输入/输出在 [DataContract](../src/platform/electron/data-contract.ts)；字段/枚举定义保留在所链接的 Domain 类型中。[Main IPC](../src/platform/electron/main/data-ipc.ts) 要求自有窗口、顶层 frame 及精确匹配的可信 Renderer 文档。外部网页/子 frame 无权访问数据。
 
 每个方法接收一个输入对象，返回 `{ ok: true, value }` 或 `{ ok: false, error }`。已实现的业务接口拒绝未知字段，包括注入的审计/事务字段。详情编辑方法替换允许的详情，应用类型约定的默认值，不是任意字段 patch。列表使用 `limit`（默认 25，最大 100）及 `offset`（默认 0，最大 1000000），返回 `{ items, total }` 并稳定排序。多表读取使用一致性读事务。
 

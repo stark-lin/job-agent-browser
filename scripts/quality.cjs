@@ -21,21 +21,22 @@ for (const file of sourceFiles) {
   for (const node of imports) {
     const module = node.moduleSpecifier.text
     const typeOnly = node.isTypeOnly || node.importClause?.isTypeOnly
-    const resolved = module.startsWith('.') ? path.resolve(path.dirname(file), module) : module
+    const resolved = module.startsWith('.') ? path.resolve(path.dirname(file), module)
+      : module.startsWith('@shared/') ? path.resolve(root, 'src/shared', module.slice(8)) : module
     const destination = path.relative(root, resolved).replaceAll('\\', '/')
     if (relative.startsWith('src/domain/')) {
       assert(module.startsWith('.') && destination.startsWith('src/domain/'), `${relative}: Domain must depend only on domain contracts/utilities`)
     }
     if (relative.startsWith('src/shared/')) {
-      assert(!destination.startsWith('src/domain/') && !destination.startsWith('src/platform/'), `${relative}: Shared must have no business/platform dependency`)
+      assert(!/^src\/(domain|platform|app|pages|renderer)\//.test(destination), `${relative}: Shared must have no business/platform dependency`)
     }
-    if (/^src\/(renderer|pages)\//.test(relative) && !typeOnly) {
+    if (/^src\/(app|renderer|pages)\//.test(relative) && !typeOnly) {
       assert(!/^src\/(main|preload|platform)\//.test(destination), `${relative}: UI cannot import privileged runtime code`)
       assert(!destination.includes('.service') && !destination.includes('.repository'), `${relative}: UI must call the public bridge`)
       assert(!module.startsWith('node:') && module !== 'electron', `${relative}: privileged import`)
     }
-    if (!typeOnly && module.startsWith('.')) {
-      const target = [resolved + '.ts', resolved + '.tsx', path.join(resolved, 'index.ts')].find((candidate) => sourceFiles.includes(candidate))
+    if (!typeOnly && (module.startsWith('.') || module.startsWith('@shared/'))) {
+      const target = [resolved + '.ts', resolved + '.tsx', path.join(resolved, 'index.ts'), path.join(resolved, 'index.tsx')].find((candidate) => sourceFiles.includes(candidate))
       if (target) runtimeEdges.push(target)
     }
   }

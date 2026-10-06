@@ -1,1 +1,1 @@
-// 申请管理页面入口，展示和管理求职申请记录。
+export { ApplicationsPage } from './ApplicationsPage'

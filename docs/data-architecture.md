@@ -1,12 +1,12 @@
 # V1 Data Architecture and API
 
-Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI execution, compilation and business pages remain **Planned**. Settings and secrets are **Scaffolded**.
+Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI execution, compilation and business workflows remain **Planned**; feature-page UI is **Scaffolded**. Settings and secrets are **Scaffolded**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
 ## 1. Runtime and storage
 
-[Main](../src/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface.
+[Main](../src/platform/electron/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface. [App Context](../src/app/context/appContext.ts) holds nullable Job/Profile/Artifact IDs rather than entity copies; page skeletons do not implement business workflows.
 
 [Versioned migrations](../src/platform/database/migrations/index.ts) create 11 business tables plus `schema_migrations` in a transaction. Recorded checksums detect changed migrations; newer schemas or mismatches fail startup without resetting data. A storage startup error prevents the window/API from opening. UUID v4 IDs are generated internally and cannot be reused after successful deletion. Times are UTC ISO strings; calendar dates use `YYYY-MM-DD`.
 
@@ -81,7 +81,7 @@ Failed writes first roll back, then append one failure audit in a separate trans
 
 ## 5. API contract and access
 
-The sandboxed [Preload](../src/preload/index.ts) exposes `window.data`. The complete typed inputs/outputs live in [DataContract](../src/platform/electron/data-contract.ts); field/enumeration definitions remain in the linked Domain types. [Main IPC](../src/platform/electron/main/data-ipc.ts) requires an owned window, its top frame and the exact trusted renderer document. External pages/subframes cannot access data.
+The sandboxed [Preload](../src/platform/electron/preload/index.ts) exposes `window.data`. The complete typed inputs/outputs live in [DataContract](../src/platform/electron/data-contract.ts); field/enumeration definitions remain in the linked Domain types. [Main IPC](../src/platform/electron/main/data-ipc.ts) requires an owned window, its top frame and the exact trusted renderer document. External pages/subframes cannot access data.
 
 Every method accepts one input object and resolves to `{ ok: true, value }` or `{ ok: false, error }`. Implemented business endpoints reject unknown fields, including injected audit/transaction fields. Edit-details methods replace the allowed details, applying documented type defaults; they are not arbitrary patches. Lists use `limit` (default 25, maximum 100) and `offset` (default 0, maximum 1000000), returning `{ items, total }` with stable ordering. Multi-table reads use a consistent read transaction.
 

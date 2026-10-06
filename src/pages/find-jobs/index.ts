@@ -1,1 +1,1 @@
-// 找工作页面入口，组织职位搜索与网页职位采集流程。
+export { FindJobsPage } from './FindJobsPage'

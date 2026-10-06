@@ -1,53 +1,65 @@
 # Current Runtime Architecture
 
-Purpose: record verified runtime behavior. Status: **Implemented** browser foundation, Home and business storage backend; business pages, AI execution and compilation remain **Planned**.
+Purpose: record verified runtime behavior. Status: **Implemented** React application composition, nine accessible entries, per-tab mixed navigation, browser foundation and business storage. Business workflows, AI execution and compilation remain **Planned**; feature-page UI is **Scaffolded**.
 
 Language: English · [简体中文](architecture.zh-CN.md)
 
 ## 1. Runtime and process boundaries
 
-[Build configuration](../electron.vite.config.ts) selects [Main](../src/main/index.ts), [Preload](../src/preload/index.ts), and the [Renderer HTML entry](../src/renderer/index.html). The [package entry](../package.json) points to `out/main/index.js`.
+[Build configuration](../electron.vite.config.ts) selects [Main](../src/platform/electron/main/index.ts), [Preload](../src/platform/electron/preload/index.ts), and the [Renderer HTML entry](../src/renderer/index.html). The [package entry](../package.json) remains `out/main/index.js`.
 
 ```text
-React Renderer → window.browser / window.data → Preload → IPC → Main
-                                                               ├── BrowserWindow / WebContentsView → Session
+React App → Page → window.browser / window.data → Preload → IPC → Main
+                                                               ├── Mixed history + WebContentsView → Session
                                                                └── Domain services → SQLite + audit
 ```
 
-[Main](../src/main/index.ts) owns window lifecycle and IPC; [window creation](../src/main/window.ts) creates the trusted UI and browser manager. [Preload](../src/preload/index.ts) exposes named operations from the [BrowserAPI](../src/shared/browser.ts), including navigation, visibility, state retrieval, and state subscriptions.
+The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
 
-[BrowserManager](../src/main/browser/BrowserManager.ts) owns one persistent page view per window, below the 64-pixel toolbar, and recalculates bounds on resize. [Renderer App](../src/renderer/App.tsx) switches between Home and Browser. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables Browser and leaves eight feature cards disabled.
+[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. Eight business pages provide explicit coming-soon content, page-local Back/Home controls and no business workflow; Inbox links to the Settings placeholder.
 
-## 2. Navigation and state
+## 2. Routes and mixed history
 
-[NavigationController](../src/main/browser/NavigationController.ts) trims input, searches Google when input contains whitespace, adds HTTPS when no scheme is supplied, and searches malformed URL input. It rejects empty input and non-HTTP(S) schemes. Back and Forward use `WebContents.navigationHistory`.
+The [destination contract](../src/shared/navigation.ts) allowlists `app://home`, `app://find`, `app://resume`, `app://interview`, `app://applications`, `app://inbox`, `app://profile`, `app://browser`, `app://ai` and `app://settings`. Internal URLs are navigation identifiers, not registered OS protocols or documents loaded by Chromium. Unknown internal targets are rejected before changing history. Public URLs are owned by [product architecture](product-architecture.md).
 
-[BrowserManager](../src/main/browser/BrowserManager.ts) publishes URL, history availability, and loading state after navigation/loading events. It starts with the page hidden. Home hides the view without destroying history; reopening Browser shows it again. Reloading the trusted renderer also hides it. Home switching is not part of Chromium history.
+[BrowserManager](../src/platform/browser/browserManager.ts) owns tabs, active destination and versioned snapshots. Each tab starts on Home. Home adds an internal history entry; new tabs and closing the final tab create fresh Home destinations. Selecting Browser adds an empty browser workspace with an empty address field. Selecting another tab never adds history. Closing the active tab selects its right neighbor, or its left neighbor if last.
 
-[AddressBar](../src/renderer/browser/AddressBar.tsx) follows browser state while idle and preserves the user's draft while focused. [BrowserWorkspace](../src/renderer/browser/BrowserWorkspace.tsx) subscribes to state, invokes navigation, and displays errors.
+[MixedHistory](../src/platform/browser/mixedHistory.ts) combines internal entries with continuous web-history segments. Each [WebSegment](../src/platform/browser/webSegment.ts) retains its own native view and Chromium history. Back/Forward traverse native indices inside a segment, then cross internal/segment boundaries. Internal navigation hides existing views without navigating or destroying them, preserving the current page state when returning directly. Normal Chromium history traversal may reload older documents.
 
-## 3. Session and security
+New navigation after Back trims both the app forward stack and the current segment's native forward entries. Unreachable segments are closed; tab/window closure releases all retained views. Website links, redirects and SPA navigation update native history; traversal and replacement do not append app entries. Duplicate URLs retain native entry identity. The private [Chromium history observer](../src/platform/browser/nativeHistory.ts) reads stable entry IDs through the internal debugging protocol to distinguish new visits from website-driven traversal; it injects no page scripts and exposes no debugging bridge. Loading/error events remain associated with their original segment and never activate a background tab or internal page.
 
-[BrowserManager](../src/main/browser/BrowserManager.ts) uses `persist:job-agent-browser`, allowing website storage to survive restarts. It installs a handler that denies permission requests. There is one shared session partition, with no implemented multi-profile selector.
+[Web input parsing](../src/platform/browser/navigationManager.ts) preserves HTTP(S), recognizes domains/IPs/localhost and searches other terms on Google. Bare addresses default to HTTPS; localhost and loopback default to HTTP. Empty input, invalid explicit web addresses and other schemes are rejected. [Tests](../tests/navigation.test.ts) retain those rules; [mixed-history tests](../tests/mixed-history.test.ts) cover internal routing and segment traversal/branching.
 
-- [Trusted window](../src/main/window.ts) and [remote view](../src/main/browser/BrowserManager.ts) disable Node integration and enable context isolation and sandboxing; remote web security remains enabled.
-- [IPC handlers](../src/main/index.ts) check that the sender's webContents belongs to a BrowserWindow and validate navigation/visibility argument types. [Preload](../src/preload/index.ts) does not expose raw `ipcRenderer`.
-- [Remote navigation](../src/main/browser/BrowserManager.ts) blocks non-HTTP(S) `will-navigate` events. Pop-ups are denied; HTTP(S) new-window links open in the operating-system browser, and other schemes are discarded.
-- The [trusted HTML document](../src/renderer/index.html) sets a restrictive Content Security Policy; external pages are hosted separately.
+## 3. Presentation and interaction
 
-The [data IPC handler](../src/platform/electron/main/data-ipc.ts) additionally requires the exact trusted renderer document and top frame. A fixed capability allowlist and domain input validation restrict data operations; raw SQL, audit writes and generation-stage writes are not exposed.
+Only the active web segment can be shown, below Browser's 44-pixel tab strip and 64-pixel toolbar. Bounds follow window resizing. Target transitions hide all native views until BrowserPage acknowledges the active tab/target after committing. Stale visibility requests are ignored. Renderer reload hides views while providers resubscribe, then restores Main's destination/history; it does not reset the tab to Home.
 
-## 4. Business storage and limitations
+[TabStrip](../src/pages/browser/TabStrip.tsx) supports creation, selection, closure, scrolling and arrow/Home/End selection. Internal destinations use page titles in tab labels; `app://` text is never rendered. [AddressBar](../src/pages/browser/AddressBar.tsx) follows state while idle and preserves drafts while focused; changing tabs resets the input.
 
-[Main](../src/main/index.ts) opens the database and installs `window.data` handlers before creating the window, closing storage on quit. The [backend composition](../src/platform/database/backend.ts) injects repositories and transactions into Domain use cases and recovers interrupted generation attempts. Startup storage failure prevents the window from opening and reports a fixed error without resetting data.
+[Shortcuts](../src/platform/browser/shortcuts.ts) work from the trusted renderer and native pages: `Cmd+T/W` on macOS or `Ctrl+T/W` elsewhere create/close tabs; `Ctrl+Tab` and `Ctrl+Shift+Tab` cycle tabs. `Cmd+L`/`Ctrl+L` focuses/selects the address only on Browser. `Alt+Left/Right` traverses mixed history, including internal pages without browser chrome.
 
-SQLite migrations, business persistence, automatic content-free audit and typed business IPC are implemented; their rules and API are owned by [data architecture](data-architecture.md). [Integration tests](../tests/audit.test.ts) cover transaction/privacy guarantees; [Electron smoke](../scripts/smoke.cjs) verifies the built Main, sandboxed Preload and IPC. Validation commands are indexed in README.
+[App Context](../src/app/context/appContext.ts) exposes the active page's tab/title/destination and nullable Job, Profile and Artifact IDs. The [reference store](../src/app/context/contextStore.ts) starts empty; it does not copy entities, extract page content or automatically select business records.
 
-[Application navigation](../src/app/navigation/navigate.ts), [context](../src/app/context/appContext.ts), [AI](../src/platform/ai/index.ts), and the target [App](../src/app/App.tsx) remain placeholders. Business pages remain disabled. Internal routing, combined history, Shared Context, page extraction, AI generation execution, compilation, settings/secrets persistence and installers are not implemented.
+## 4. Session, security and storage
 
-## 5. Related documents
+Remote views share `persist:job-agent-browser`, retaining website storage across restarts. Permission requests are denied; there is no multi-profile selector.
 
-- [README](../README.md): setup, validation, and documentation index.
-- [Product architecture](product-architecture.md): planned scope and delivery order.
-- [Code architecture](code-architecture.md): target organization and migration boundaries.
-- [V1 data architecture and API](data-architecture.md): implemented persistence and business interfaces.
+- [Trusted window](../src/platform/electron/main/window.ts) and [remote views](../src/platform/browser/webSegment.ts) disable Node integration and enable context isolation and sandboxing; remote web security remains enabled.
+- Browser and data IPC require the owning trusted document and top frame, and validate inputs. [Preload](../src/platform/electron/preload/index.ts) exposes named operations, never raw `ipcRenderer`.
+- Remote main-frame navigation/redirects permit HTTP(S) only. HTTP(S) pop-ups create an app tab; native pop-ups and other schemes are denied. Remote pages cannot enter internal routes or access browser/data bridges.
+- [Trusted HTML](../src/renderer/index.html) retains its CSP. Trusted UI external links use the operating-system browser through window creation.
+
+Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
+
+## 5. Verification and limitations
+
+[Integration tests](../tests/audit.test.ts) verify storage/privacy guarantees; [navigation-store tests](../tests/navigation-store.test.ts) cover subscription ordering and StrictMode cleanup. [Electron smoke](../scripts/smoke.cjs) exercises built Main/Preload, IPC and sender rejection. [Browser smoke](../scripts/browser-smoke.cjs) covers tabs, bounds, shortcuts, isolation and failures; [navigation smoke](../scripts/navigation-smoke.cjs) covers feature entry UI, mixed traversal, branching/disposal, SPA/duplicate history, reload, stale visibility and loading races. [Window-close smoke](../scripts/window-close-smoke.cjs) verifies release of retained views after the owning window closes. Commands are indexed in README.
+
+Tab histories and context references are memory-only. Retained web segments are released by branching or closing tabs/windows; automatic eviction and cross-restart restoration are not implemented. Business workflows, page extraction, AI generation execution, compilation, full Shared Context capture, mailbox configuration, settings/secrets persistence and installers remain unimplemented.
+
+## 6. Related documents
+
+- [README](../README.md): setup, validation and documentation index.
+- [Product architecture](product-architecture.md): product rules and planned delivery order.
+- [Code architecture](code-architecture.md): source ownership and dependency boundaries.
+- [V1 data architecture and API](data-architecture.md): persistence and business interfaces.

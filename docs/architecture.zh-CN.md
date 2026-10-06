@@ -1,53 +1,65 @@
 # 当前运行架构
 
-用途：记录已核实的运行行为。状态：浏览器基础、Home 和业务存储后端**已实现**；业务页面、AI 执行与编译仍为**规划**。
+用途：记录已验证的运行行为。状态：React 应用组装、九个可访问入口、每标签混合导航、浏览器基础及业务存储**已实现**。业务流程、AI 执行与编译仍为**规划**；业务页面 UI 为**占位**。
 
 语言：简体中文 · [English](architecture.md)
 
 ## 一、运行入口与进程边界
 
-[构建配置](../electron.vite.config.ts) 指定 [Main](../src/main/index.ts)、[Preload](../src/preload/index.ts) 和 [Renderer HTML 入口](../src/renderer/index.html)。[包入口](../package.json) 指向 `out/main/index.js`。
+[构建配置](../electron.vite.config.ts) 使用 [Main](../src/platform/electron/main/index.ts)、[Preload](../src/platform/electron/preload/index.ts) 和 [Renderer HTML 入口](../src/renderer/index.html)。[包入口](../package.json) 保持 `out/main/index.js`。
 
 ```text
-React Renderer → window.browser / window.data → Preload → IPC → Main
-                                                               ├── BrowserWindow / WebContentsView → Session
+React App → Page → window.browser / window.data → Preload → IPC → Main
+                                                               ├── Mixed history + WebContentsView → Session
                                                                └── Domain services → SQLite + audit
 ```
 
-[Main](../src/main/index.ts) 管理窗口生命周期和 IPC；[窗口创建逻辑](../src/main/window.ts) 创建可信 UI 与浏览器管理器。[Preload](../src/preload/index.ts) 按 [BrowserAPI](../src/shared/browser.ts) 暴露命名操作，包括导航、可见性、状态获取和订阅。
+[Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-[BrowserManager](../src/main/browser/BrowserManager.ts) 为每个窗口管理一个持久网页视图，放在 64 像素工具栏下方，并在窗口缩放时更新边界。[Renderer App](../src/renderer/App.tsx) 切换 Home 与 Browser。[HomeGrid](../src/pages/home/HomeGrid.tsx) 仅启用 Browser，其余八个功能卡片禁用。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。八个业务页面明确显示待实现说明和页面内 Back/Home，不实现业务流程；Inbox 可进入 Settings 占位页。
 
-## 二、导航与状态
+## 二、路由与混合历史
 
-[NavigationController](../src/main/browser/NavigationController.ts) 去除输入首尾空白；包含空白时搜索 Google，无协议时补充 HTTPS，无法解析的 URL 输入转为搜索。空输入和非 HTTP(S) 协议被拒绝。Back 和 Forward 使用 `WebContents.navigationHistory`。
+[目标契约](../src/shared/navigation.ts) 白名单包含 `app://home`、`app://find`、`app://resume`、`app://interview`、`app://applications`、`app://inbox`、`app://profile`、`app://browser`、`app://ai` 和 `app://settings`。内部 URL 是导航标识，不是已注册的操作系统协议或 Chromium 加载的文档。未知内部目标在修改历史前拒绝。公开 URL 由[产品架构](product-architecture.zh-CN.md)管理。
 
-[BrowserManager](../src/main/browser/BrowserManager.ts) 在导航和加载事件后发布 URL、前进后退可用性及加载状态。网页初始隐藏。Home 隐藏视图而不销毁历史，重新打开 Browser 时再次显示。可信 Renderer 重载时也会隐藏网页。Home 切换不进入 Chromium 历史。
+[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。每个标签从 Home 开始。Home 新增内部历史项；新建或关闭最后一个标签后创建新的 Home。选择 Browser 新增空白浏览器工作区，地址框为空。切换标签不新增历史；关闭活动标签选择右侧邻居，无右侧时选择左侧。
 
-[AddressBar](../src/renderer/browser/AddressBar.tsx) 空闲时跟随浏览器状态，聚焦时保留用户输入。[BrowserWorkspace](../src/renderer/browser/BrowserWorkspace.tsx) 订阅状态、发起导航并展示错误。
+[MixedHistory](../src/platform/browser/mixedHistory.ts) 将内部历史项与连续网页历史段组合。每个 [WebSegment](../src/platform/browser/webSegment.ts) 保留自己的原生视图与 Chromium 历史。Back/Forward 先遍历段内原生索引，再跨越内部项/网页段。进入内部页面只隐藏现有视图，不导航或销毁它，直接返回时保留当前网页状态。正常 Chromium 历史回放可能重新加载较早文档。
 
-## 三、会话与安全
+后退后发起新导航会裁剪应用前进栈和当前段的原生前进项。不可达段被关闭；关闭标签/窗口释放全部保留视图。网站链接、重定向和 SPA 导航更新原生历史，历史回放及替换不新增应用项。重复 URL 保留原生项身份。私有 [Chromium 历史观察器](../src/platform/browser/nativeHistory.ts)通过内部调试协议读取稳定项 ID，区分新访问与网站自身的历史回放，不注入页面脚本或暴露调试桥接。加载/错误事件归属原段，不会激活后台标签或内部页面。
 
-[BrowserManager](../src/main/browser/BrowserManager.ts) 使用 `persist:job-agent-browser`，允许网站存储跨重启保留，并安装拒绝权限请求的处理器。当前共用一个会话分区，没有实现多配置选择器。
+[网页输入解析](../src/platform/browser/navigationManager.ts) 保留 HTTP(S)，识别域名/IP/localhost，其他输入使用 Google 搜索。裸地址默认 HTTPS，localhost 和回环地址默认 HTTP。空输入、无效显式网址及其他协议被拒绝。[测试](../tests/navigation.test.ts) 保留这些规则；[混合历史测试](../tests/mixed-history.test.ts) 覆盖内部路由与段间回放/分叉。
 
-- [可信窗口](../src/main/window.ts) 与[远程网页视图](../src/main/browser/BrowserManager.ts) 禁用 Node 集成，启用上下文隔离和沙盒；远程网页保留 web security。
-- [IPC 处理器](../src/main/index.ts) 检查发送方 webContents 是否属于 BrowserWindow，并校验导航和可见性参数类型。[Preload](../src/preload/index.ts) 不暴露原始 `ipcRenderer`。
-- [远程导航](../src/main/browser/BrowserManager.ts) 阻止非 HTTP(S) 的 `will-navigate` 事件。拒绝弹窗；要求新窗口的 HTTP(S) 链接交给系统浏览器，其他协议丢弃。
-- [可信 HTML 文档](../src/renderer/index.html) 设置受限的 Content Security Policy，外部网页独立承载。
+## 三、展示与交互
 
-[数据 IPC 处理器](../src/platform/electron/main/data-ipc.ts) 额外要求精确匹配的可信 Renderer 文档和顶层 frame。固定能力白名单与领域输入校验限制数据操作；不暴露原始 SQL、审计写入或生成阶段写入。
+只有活动网页段可见，位于 Browser 的 44 像素标签栏和 64 像素工具栏下方，随窗口调整边界。目标切换先隐藏全部原生视图，直到 BrowserPage 提交后确认当前标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
 
-## 四、业务存储与限制
+[TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。内部目标以页面标题作为标签名称，不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 
-[Main](../src/main/index.ts) 在创建窗口前打开数据库并安装 `window.data` 处理器，退出时关闭存储。[后端组装](../src/platform/database/backend.ts) 将 Repository 和事务注入 Domain 用例，并恢复中断的生成任务。存储启动失败时不打开窗口，显示固定错误且不重置数据。
+[快捷键](../src/platform/browser/shortcuts.ts) 在可信 Renderer 和原生网页中生效：macOS 的 `Cmd+T/W` 或其他平台的 `Ctrl+T/W` 新建/关闭标签；`Ctrl+Tab` 和 `Ctrl+Shift+Tab` 切换标签。`Cmd+L`/`Ctrl+L` 仅在 Browser 聚焦并选择地址。`Alt+Left/Right` 遍历混合历史，也适用于没有浏览器栏的内部页面。
 
-SQLite 迁移、业务持久化、不含业务内容的自动审计和类型化业务 IPC 已实现；规则与 API 由[数据架构](data-architecture.zh-CN.md) 负责。[集成测试](../tests/audit.test.ts) 验证事务/隐私保证；[Electron 冒烟测试](../scripts/smoke.cjs) 验证构建后的 Main、沙盒 Preload 和 IPC。验证命令由 README 索引。
+[App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体、提取网页内容或自动选择业务记录。
 
-[应用导航](../src/app/navigation/navigate.ts)、[上下文](../src/app/context/appContext.ts)、[AI](../src/platform/ai/index.ts) 和目标 [App](../src/app/App.tsx) 仍为占位。业务页面仍禁用。内部路由、混合历史、Shared Context、网页提取、AI 生成执行、编译、配置/密钥持久化和安装包尚未实现。
+## 四、会话、安全与存储
 
-## 五、相关文档
+远程视图共享 `persist:job-agent-browser`，网站存储跨重启保留。权限请求被拒绝；没有多资料选择器。
 
-- [README](../README.zh-CN.md)：启动、验证与文档索引。
-- [产品架构](product-architecture.zh-CN.md)：规划范围与交付顺序。
-- [代码架构](code-architecture.zh-CN.md)：目标组织与迁移边界。
-- [V1 数据架构与 API](data-architecture.zh-CN.md)：已实现持久化及业务接口。
+- [可信窗口](../src/platform/electron/main/window.ts)和[远程视图](../src/platform/browser/webSegment.ts)禁用 Node 集成，启用上下文隔离和沙盒；远程网页安全检查保持启用。
+- 浏览器和数据 IPC 要求自有可信文档及顶层 frame，并校验输入。[Preload](../src/platform/electron/preload/index.ts) 只暴露命名操作，不暴露原始 `ipcRenderer`。
+- 远程主 frame 导航/重定向只允许 HTTP(S)。HTTP(S) 弹窗新建应用标签；原生弹窗和其他协议被拒绝。远程页面不能进入内部路由或访问浏览器/数据桥接。
+- [可信 HTML](../src/renderer/index.html) 保持 CSP。可信 UI 外部链接通过窗口创建逻辑使用操作系统浏览器。
+
+Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
+
+## 五、验证与限制
+
+[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+
+标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。业务流程、网页提取、AI 生成执行、编译、完整 Shared Context 捕获、邮箱配置、配置/密钥持久化和安装包仍未实现。
+
+## 六、相关文档
+
+- [README](../README.zh-CN.md)：启动、验证和文档索引。
+- [产品架构](product-architecture.zh-CN.md)：产品规则和规划交付顺序。
+- [代码架构](code-architecture.zh-CN.md)：源码职责和依赖边界。
+- [V1 数据架构与 API](data-architecture.zh-CN.md)：持久化与业务接口。

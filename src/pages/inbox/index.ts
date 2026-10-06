@@ -1,1 +1,1 @@
-// 收件箱页面入口，读取邮箱配置并通过统一导航打开网页邮箱。
+export { InboxPage } from './InboxPage'

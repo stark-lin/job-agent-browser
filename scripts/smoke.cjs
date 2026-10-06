@@ -11,6 +11,9 @@ let mainWindowSelected = false
 app.on('browser-window-created', (_event, window) => {
   if (mainWindowSelected) return
   mainWindowSelected = true
+  window.webContents.on('console-message', (event) => {
+    if (event.level === 'error') console.error(`Renderer: ${event.message}`)
+  })
   window.webContents.once('did-finish-load', async () => {
     try {
       const results = await window.webContents.executeJavaScript(`(async () => {
@@ -30,15 +33,18 @@ app.on('browser-window-created', (_event, window) => {
       assert.equal(results.missing.error, 'NOT_FOUND')
       assert.deepEqual(results.auditMethods, ['list'])
       assert.equal(results.generatorExposed, false)
+      await require('./browser-smoke.cjs')(window)
       // A different document in a window still fails the real Main IPC sender check.
       const outsider = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } })
       await outsider.loadURL('data:text/html,<h1>Untrusted smoke document</h1>')
       const denied = await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','jobs','listJobs',{})")
       assert.deepEqual(denied, { ok: false, error: 'FORBIDDEN' })
-      outsider.destroy()
+      await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender/)
+      await require('./window-close-smoke.cjs')(window)
       console.log('Electron smoke passed: production startup, sandboxed bridge, automatic audit, read semantics, deletion and rejected untrusted document.')
       // Main's earlier will-quit listener closes SQLite first. Avoid waiting on Chromium helpers.
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) })
+      outsider.destroy()
       app.quit()
     } catch (error) {
       clearTimeout(timeout)

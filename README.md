@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-A local-first desktop workspace for job seeking. Status: **Implemented** browser foundation, nine-card Home and layered SQLite business backend with automatic audit and typed IPC. Business pages, AI execution and compilation remain **Planned**; settings/secrets are **Scaffolded**.
+A local-first desktop workspace for job seeking. Status: **Implemented** unified React App, nine accessible Home entries, per-tab mixed navigation and layered SQLite business backend with automatic audit and typed IPC. Eight feature pages are **Scaffolded**; business workflows, AI execution and compilation remain **Planned**.
 
 Language: English · [简体中文](README.zh-CN.md)
 
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-The `predev` helper downloads the Electron binary on first development launch. Select Browser on Home, then enter a URL, domain, or search terms. Back and Forward use Chromium history; Home hides the page, and reopening Browser preserves its page and history. The other eight cards are disabled. See [current architecture](docs/architecture.md) for runtime details and source references.
+The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; the other eight features show coming-soon pages. Only Browser shows tabs and address controls. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
 
 ## Validation and build
 
@@ -24,7 +24,7 @@ npm run check
 npm run test:smoke
 ```
 
-The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC with disposable data. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
+The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history and view lifecycle with disposable data. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 

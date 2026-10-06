@@ -1,1 +1,1 @@
-// 浏览器页面入口，组织地址输入、网页容器及加载与错误展示。
+export { BrowserPage } from './BrowserPage'

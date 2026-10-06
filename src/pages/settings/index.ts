@@ -1,1 +1,1 @@
-// 设置页面入口，管理应用、邮箱入口、AI 与浏览器配置。
+export { SettingsPage } from './SettingsPage'

@@ -1,1 +1,1 @@
-// 个人资料页面入口，管理候选人资料与简历。
+export { ProfilePage } from './ProfilePage'

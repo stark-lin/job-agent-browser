@@ -30,7 +30,7 @@ The rows represent three groups:
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-Add new capabilities within existing entry points whenever possible, instead of continually adding Home buttons.
+All nine entries are accessible; eight business pages are currently scaffolded. Add new capabilities within existing entry points whenever possible.
 
 ### Initial Inbox
 
@@ -40,7 +40,7 @@ Users sign in directly on the email website, with Electron Session maintaining t
 
 ## 3. Browser Shell
 
-The entire app runs within a unified Browser Shell. Internal features, external websites, and AI pages share the same navigation environment.
+Internal features, external websites and AI pages share one navigation environment. Browser is a React page whose tab strip, address bar and controls belong to that page. Home and other internal pages hide the entire browser bar; internal URLs remain hidden from users.
 
 The shell provides these global capabilities:
 
@@ -77,7 +77,7 @@ A single navigation journey can therefore cross internal pages and websites:
 Home → Find Jobs → LinkedIn Job → Tailor Resume → Company Application
 ```
 
-Back and Forward follow a consistent history model across both page types. The exact implementation of internal routing and the combined history stack remains an engineering decision; the current foundation uses Chromium history for external pages only.
+Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Internal pages provide page-local Back/Home and keyboard history navigation; only Browser renders browser controls. Runtime implementation details belong to the current architecture.
 
 ## 5. Shared Context
 
@@ -98,11 +98,11 @@ Current Page + Job   → Ask AI
 
 The MVP is local first and does not require a complex backend. Local storage is the starting point; external websites and configured AI services may still require a network connection.
 
-The [V1 data architecture](data-architecture.md) owns the planned 11-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
+The [V1 data architecture](data-architecture.md) owns the implemented 11-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
 
 Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
-SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence remains planned; the existing browser already uses Electron Session, as recorded in the [current architecture](architecture.md).
+SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence and Electron Session are implemented; settings, secrets and compiled outputs remain planned, as recorded in the [current architecture](architecture.md).
 
 ## 7. Compose capabilities instead of duplicating infrastructure
 
@@ -166,13 +166,13 @@ The foundation milestone is:
 
 > Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
 
-The repository's existing browser foundation is a starting point toward this milestone, not evidence that the milestone is already complete.
+The current foundation implements stages 1–3 and reference-only App Context. Business workflows and full context capture remain planned; accessible page skeletons do not complete the MVP.
 
 ## 11. How to use this baseline
 
 Use this document as the reference for subsequent product design, interface design, and development planning. It supersedes the earlier product direction while keeping the current implementation documented separately.
 
-The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, and future deeper email integrations remain implementation decisions. The planned data model and statuses are now owned by the data architecture; SQL migrations and detailed transition rules remain open. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
+The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, and future deeper email integrations remain implementation decisions. The implemented data model, statuses, SQL migrations and transition rules are owned by the data architecture. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
 
 ## Related documents
 

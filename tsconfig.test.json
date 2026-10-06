@@ -12,5 +12,17 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/domain/**/*.ts", "src/platform/database/**/*.ts", "src/platform/storage/**/*.ts", "src/platform/electron/**/*.ts", "src/shared/ipc.ts", "tests/**/*.ts"]
+  "include": [
+    "src/domain/**/*.ts",
+    "src/platform/database/**/*.ts",
+    "src/platform/storage/**/*.ts",
+    "src/platform/electron/**/*.ts",
+    "src/shared/ipc.ts",
+    "tests/**/*.ts",
+    "src/platform/browser/**/*.ts",
+    "src/shared/browser.ts",
+    "src/shared/navigation.ts",
+    "src/app/navigation/navigationStore.ts",
+    "src/app/context/contextStore.ts"
+  ]
 }

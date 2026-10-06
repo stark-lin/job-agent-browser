@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'src/main/index.ts'),
+        input: resolve(__dirname, 'src/platform/electron/main/index.ts'),
         output: { format: 'cjs', entryFileNames: 'index.js' }
       }
     }
@@ -16,7 +16,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'src/preload/index.ts'),
+        input: resolve(__dirname, 'src/platform/electron/preload/index.ts'),
         output: { format: 'cjs', entryFileNames: 'index.js' }
       }
     }

@@ -1,0 +1,18 @@
+export const internalPages = {
+  home: 'Home', find: 'Find Jobs', resume: 'Tailor Resume', interview: 'Interview Prep',
+  applications: 'Applications', inbox: 'Inbox', profile: 'My Profile',
+  browser: 'Browser', ai: 'Ask AI', settings: 'Settings'
+} as const
+
+export type InternalPage = keyof typeof internalPages
+export type Destination = { kind: 'internal'; page: InternalPage } | { kind: 'web'; url: string }
+
+export function parseInternalURL(input: string): Destination {
+  const match = /^app:\/\/([a-z-]+)\/?$/.exec(input.trim())
+  if (!match || !Object.hasOwn(internalPages, match[1])) throw new Error('Unknown application page.')
+  return { kind: 'internal', page: match[1] as InternalPage }
+}
+
+export function isBrowserDestination(destination: Destination): boolean {
+  return destination.kind === 'web' || destination.page === 'browser'
+}

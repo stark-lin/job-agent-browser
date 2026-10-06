@@ -1,1 +1,8 @@
-// 占位：定制简历页面与页面流程。
+import { PlaceholderPage } from '../../shared/ui'
+import { useNavigation } from '../../app/navigation/navigate'
+
+export function TailorResumePage() {
+  const { active, back, openPage } = useNavigation()
+  return <PlaceholderPage title="Tailor Resume" description="Adapt your resume to a role."
+    canGoBack={Boolean(active?.canGoBack)} onBack={() => void back()} onHome={() => void openPage('home')} />
+}

@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useServices } from '../../app/providers'
 
 interface AddressBarProps {
   url: string
@@ -8,8 +9,15 @@ interface AddressBarProps {
 }
 
 export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProps) {
+  const { navigation } = useServices()
   const [value, setValue] = useState(url)
   const [isEditing, setIsEditing] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+
+  useEffect(() => navigation.api.onFocusAddress(() => {
+    input.current?.focus()
+    input.current?.select()
+  }), [navigation])
 
   useEffect(() => {
     if (!isEditing) setValue(url)
@@ -25,6 +33,8 @@ export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProp
     <form className="address-form" onSubmit={submit}>
       <span className={`loading-indicator${isLoading ? ' is-loading' : ''}${error ? ' has-error' : ''}`} aria-hidden="true" title={error || undefined} />
       <input
+        ref={input}
+        autoFocus
         aria-label="Search or enter URL"
         aria-invalid={Boolean(error)}
         title={error || undefined}
@@ -33,9 +43,9 @@ export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProp
         spellCheck={false}
         placeholder="Search or enter URL..."
         value={value}
-        onFocus={() => setIsEditing(true)}
+        onFocus={(event) => { setIsEditing(true); event.target.select() }}
         onBlur={() => setIsEditing(false)}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => { setIsEditing(true); setValue(event.target.value) }}
       />
     </form>
   )

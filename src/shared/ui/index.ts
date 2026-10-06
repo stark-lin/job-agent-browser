@@ -1,1 +1,1 @@
-// 通用 UI 入口，提供不含业务语义的基础组件。
+export { PlaceholderPage } from './PlaceholderPage'

@@ -1,1 +1,2 @@
-// 占位：应用导航目标契约。
+export { internalPages, isBrowserDestination, parseInternalURL } from '../../shared/navigation'
+export type { Destination, InternalPage } from '../../shared/navigation'

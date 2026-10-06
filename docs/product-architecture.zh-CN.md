@@ -30,7 +30,7 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-新增能力时，优先放进现有入口，而不是不断增加首页按钮。
+九个入口均可访问，八个业务页面目前为占位。新增能力优先放进现有入口。
 
 ### Inbox 初版
 
@@ -40,7 +40,7 @@ Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等
 
 ## 三、Browser Shell
 
-整个 App 运行在统一的 Browser Shell 中。内部功能、外部网页与 AI 页面共享同一导航环境。
+内部功能、外部网页与 AI 页面共享统一导航环境。Browser 是独立 React 页面，标签栏、地址栏及控件属于该页面。Home 和其他内部页面隐藏整个浏览器栏，内部 URL 对用户隐藏。
 
 Shell 提供以下全局能力：
 
@@ -77,7 +77,7 @@ Shell 提供以下全局能力：
 Home → Find Jobs → LinkedIn Job → Tailor Resume → Company Application
 ```
 
-Back / Forward 对两类页面采用一致的历史模型。内部路由和混合导航栈的具体实现留待开发确定；当前浏览器基础版本仅使用 Chromium 管理外部网页历史。
+每个标签具有独立的内部页面/网站混合历史。Home 在当前标签新增历史，切换标签不新增历史。启动、新建或关闭最后一个标签后打开 Home。Browser 卡片打开空白工作区，访问网站前地址框为空。内部页面提供页面内 Back/Home 和键盘历史导航，只有 Browser 渲染浏览器控件。运行实现细节归当前架构管理。
 
 ## 五、Shared Context
 
@@ -98,11 +98,11 @@ Current Page + Job   → Ask AI
 
 MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部网站和已配置的 AI 服务仍可能需要联网。
 
-[V1 数据架构](data-architecture.zh-CN.md) 负责规划中的 11 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
+[V1 数据架构](data-architecture.zh-CN.md) 负责已实现的 11 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
 
 Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
 
-SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化仍为规划；现有浏览器已使用 Electron Session，见[当前架构](architecture.zh-CN.md)。
+SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化和 Electron Session 已实现；配置、密钥和编译输出仍为规划，见[当前架构](architecture.zh-CN.md)。
 
 ## 七、功能通过能力组合实现
 
@@ -166,13 +166,13 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 > 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
 
-仓库当前的浏览器基础实现是通向该里程碑的起点，不代表上述目标已经完成。
+当前基础实现已完成阶段 1–3 和仅含引用的 App Context。业务流程及完整上下文捕获仍为规划，可访问页面骨架不代表 MVP 完成。
 
 ## 十一、基线使用规则
 
 后续产品设计、界面设计和开发规划以本文为参考。本文取代此前的产品方向，当前实现情况继续单独记录。
 
-本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议和后续邮箱深度集成方式仍留待实现时确定。规划的数据模型与状态已归入数据架构；SQL 迁移与详细状态转换规则仍待确定。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
+本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议和后续邮箱深度集成方式仍留待实现时确定。已实现的数据模型、状态、SQL 迁移及状态转换规则归数据架构管理。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
 
 ## 相关文档
 

@@ -1,1 +1,11 @@
-// 占位：当前页面、职位、简历与申请的引用契约。
+import type { Destination } from '../../shared/navigation'
+
+export interface ContextReferences {
+  jobId: string | null
+  profileId: string | null
+  artifactId: string | null
+}
+
+export interface AppContext extends ContextReferences {
+  currentPage: { tabId: string; title: string; destination: Destination } | null
+}
