@@ -12,6 +12,7 @@
 | [docs/architecture.md](docs/architecture.md) · [中文](docs/architecture.zh-CN.md) | 当前运行架构、已实现行为、限制及源码依据。 |
 | [docs/product-architecture.md](docs/product-architecture.md) · [中文](docs/product-architecture.zh-CN.md) | 产品目标、范围与开发顺序；明确标为规划。 |
 | [docs/code-architecture.md](docs/code-architecture.md) · [中文](docs/code-architecture.zh-CN.md) | 目标代码组织、依赖边界与迁移约束；区分现状与目标。 |
+| [DESIGN.md](DESIGN.md) · [中文](DESIGN.zh-CN.md) | 视觉方向、交互原则与设计入口；具体组件规则仍归设计规范。 |
 | [docs/design-system.md](docs/design-system.md) · [中文](docs/design-system.zh-CN.md) | 共享 UI 规范、组件参考展示库、Design Tokens 与设计验证。 |
 | [docs/data-architecture.md](docs/data-architecture.md) · [中文](docs/data-architecture.zh-CN.md) | 当前及规划的 V1 数据模型、业务数据 API、生成、溯源、审计与存储；拥有共享 [ER 图](docs/diagrams/data-model.md)。 |
 

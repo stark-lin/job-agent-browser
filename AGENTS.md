@@ -12,6 +12,7 @@ Applies to documentation additions and edits in this repository; bring existing 
 | [docs/architecture.md](docs/architecture.md) · [Chinese](docs/architecture.zh-CN.md) | Current runtime architecture, implemented behavior, limitations, and source references. |
 | [docs/product-architecture.md](docs/product-architecture.md) · [Chinese](docs/product-architecture.zh-CN.md) | Product goals, scope, and delivery sequence, explicitly marked as planned. |
 | [docs/code-architecture.md](docs/code-architecture.md) · [Chinese](docs/code-architecture.zh-CN.md) | Target code organization, dependency boundaries, and migration constraints, distinguishing current from target state. |
+| [DESIGN.md](DESIGN.md) · [Chinese](DESIGN.zh-CN.md) | Visual direction, interaction principles, and design entry point; detailed component rules remain in the design-system specification. |
 | [docs/design-system.md](docs/design-system.md) · [Chinese](docs/design-system.zh-CN.md) | Shared UI rules, component reference gallery, design tokens, and design validation. |
 | [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, audit, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
 

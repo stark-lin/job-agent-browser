@@ -78,7 +78,8 @@ function walk(file) {
 }
 for (const file of graph.keys()) walk(file)
 
-const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !file.includes('/diagrams/')).concat([root + '/README.md', root + '/README.zh-CN.md', root + '/AGENTS.md', root + '/AGENTS.zh-CN.md'])
+const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !file.includes('/diagrams/'))
+  .concat(['README', 'AGENTS', 'DESIGN'].flatMap((name) => [root + `/${name}.md`, root + `/${name}.zh-CN.md`]))
 for (const file of editions) {
   const body = fs.readFileSync(file, 'utf8'), chinese = file.endsWith('.zh-CN.md')
   const other = chinese ? file.replace('.zh-CN.md', '.md') : file.replace('.md', '.zh-CN.md')
