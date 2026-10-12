@@ -38,3 +38,4 @@ npm run test:smoke
 | [代码架构](docs/code-architecture.zh-CN.md) · [English](docs/code-architecture.md) | 目标组织、依赖边界与迁移约束 |
 | [V1 数据架构与 API](docs/data-architecture.zh-CN.md) · [English](docs/data-architecture.md) | 已实现实体、事务、审计隐私、删除规则及业务 API |
 | [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 11 表模型，由中英文数据架构共用 |
+| [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |

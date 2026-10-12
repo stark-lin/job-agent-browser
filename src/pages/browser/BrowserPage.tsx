@@ -3,6 +3,7 @@ import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { BrowserControls } from './BrowserControls'
 import { TabStrip } from './TabStrip'
+import { Icon, IconBox } from '../../shared/ui'
 
 export function BrowserPage() {
   const { state, active, error, navigate, back, forward, openPage, createTab, activateTab, closeTab } = useNavigation()
@@ -25,7 +26,9 @@ export function BrowserPage() {
       <BrowserControls key={active.id} state={active} error={message} onNavigate={navigate}
         onBack={() => void back()} onForward={() => void forward()} onHome={() => void openPage('home')} />
       {!active.url ? <section className="new-tab-page">
-        <div className="new-tab-icon" aria-hidden="true">↗</div>
+        <IconBox size="md" tone="primary" aria-hidden="true">
+          <Icon><path d="M7 17 17 7M7 7h10v10" /></Icon>
+        </IconBox>
         <h1>Start exploring</h1><p>Search for anything or enter a web address above.</p>
         {message ? <p className="error-message" role="alert">{message}</p> : null}
       </section> : null}

@@ -18,6 +18,10 @@ Organize product code by Page, business rules by Domain and technical adapters b
 
 [Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. Build output and package entry remain stable.
 
+All UI components must compose primitives from the [central library entry](../src/shared/ui/index.ts); add missing variants centrally before page use. Pages keep layout and event behavior. The [design specification](design-system.md#2-mandatory-central-component-reuse) owns the full reuse rule.
+
+Shared UI also owns [canonical design tokens](../src/shared/ui/design-tokens.json), generated CSS/geometry and reference component styles; Renderer/Page styles consume them. The [design specification](design-system.md) owns visual rules, assets and regeneration.
+
 ## 2. Directory boundaries
 
 ```text

@@ -38,3 +38,4 @@ For documentation changes, check language parity, implementation labels, relativ
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
 | [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, audit privacy, deletion rules and business API |
 | [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 11-table model; shared by both data architecture editions |
+| [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |

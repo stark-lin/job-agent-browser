@@ -34,7 +34,9 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 [HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮，不显示跨页面 Back/Next/Forward 控件。各页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back 和 Forward。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。
 
-只有活动网页段可见，位于 Browser 的 44 像素标签栏和 64 像素工具栏下方，随窗口调整边界。目标切换先隐藏全部原生视图，直到 BrowserPage 提交后确认当前标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
+**已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为 [Home](../src/pages/home/home.css) 和[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
+
+只有活动网页段可见，位于 Browser 的 48 像素标签栏和 48 像素工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方，随窗口调整边界。目标切换先隐藏全部原生视图，直到 BrowserPage 提交后确认当前标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
 
 [TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。内部目标以页面标题作为标签名称，不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 

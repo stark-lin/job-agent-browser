@@ -1,3 +1,4 @@
+import { Icon, IconButton } from '../../shared/ui'
 import type { BrowserTabState } from '@shared/browser'
 import { AddressBar } from './AddressBar'
 
@@ -14,10 +15,10 @@ export function BrowserControls({ state, error, onNavigate, onHome, onBack, onFo
   return (
     <header className="browser-controls">
       <div className="history-controls">
-        <button className="icon-button" type="button" aria-label="Go home" title="Home" onClick={onHome}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m2.5 9 7.5-6.5L17.5 9M4.5 7.5v10h4v-6h3v6h4v-10" /></svg>
-        </button>
-        <button
+        <IconButton className="icon-button" type="button" aria-label="Go home" title="Home" onClick={onHome}>
+          <Icon viewBox="0 0 20 20" aria-hidden="true"><path d="m2.5 9 7.5-6.5L17.5 9M4.5 7.5v10h4v-6h3v6h4v-10" /></Icon>
+        </IconButton>
+        <IconButton
           className="icon-button"
           type="button"
           aria-label="Go back"
@@ -25,9 +26,9 @@ export function BrowserControls({ state, error, onNavigate, onHome, onBack, onFo
           disabled={!state.canGoBack}
           onClick={onBack}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.1 4.7 3 10l5.1 5.3M3.5 10h7.8a5.2 5.2 0 0 1 5.2 5.2" /></svg>
-        </button>
-        <button
+          <Icon viewBox="0 0 20 20" aria-hidden="true"><path d="M8.1 4.7 3 10l5.1 5.3M3.5 10h7.8a5.2 5.2 0 0 1 5.2 5.2" /></Icon>
+        </IconButton>
+        <IconButton
           className="icon-button"
           type="button"
           aria-label="Go forward"
@@ -35,12 +36,12 @@ export function BrowserControls({ state, error, onNavigate, onHome, onBack, onFo
           disabled={!state.canGoForward}
           onClick={onForward}
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11.9 4.7 5.1 5.3-5.1 5.3M16.5 10H8.7a5.2 5.2 0 0 0-5.2 5.2" /></svg>
-        </button>
+          <Icon viewBox="0 0 20 20" aria-hidden="true"><path d="m11.9 4.7 5.1 5.3-5.1 5.3M16.5 10H8.7a5.2 5.2 0 0 0-5.2 5.2" /></Icon>
+        </IconButton>
       </div>
       <div className="address-controls">
         <AddressBar url={state.url} isLoading={state.isLoading} error={error} onNavigate={onNavigate} />
-        {error ? <div className="navigation-error" role="alert">{error}</div> : null}
+        {error ? <div className="navigation-error" role="alert" title={error}>{error}</div> : null}
       </div>
     </header>
   )

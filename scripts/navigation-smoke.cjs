@@ -33,7 +33,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   assert.equal(active(await read()).destination.page, 'home')
   await home()
   for (const [title, page] of routes) {
-    await evaluate(`(() => { [...document.querySelectorAll('.home-card')].find(card => card.querySelector('.home-label').textContent === ${JSON.stringify(title)}).click() })()`)
+    await evaluate(`(() => { [...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === ${JSON.stringify(title)}).click() })()`)
     await internal(page)
     await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), true)

@@ -1,3 +1,4 @@
+import { TextInput } from '../../shared/ui'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useServices } from '../../app/providers'
@@ -34,7 +35,8 @@ export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProp
   return (
     <form className="address-form" onSubmit={submit}>
       <span className={`loading-indicator${isLoading ? ' is-loading' : ''}${error ? ' has-error' : ''}`} aria-hidden="true" title={error || undefined} />
-      <input
+      <TextInput
+        variant="bare"
         ref={input}
         autoFocus
         aria-label={t($ => $.browser.addressLabel)}

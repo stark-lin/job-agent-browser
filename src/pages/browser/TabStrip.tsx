@@ -1,3 +1,4 @@
+import { Button, IconButton } from '../../shared/ui'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type { BrowserTabState } from '../../shared/browser'
@@ -34,7 +35,8 @@ export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: T
       <div className="tab-list" role="tablist" aria-label={t($ => $.browser.tabs)} ref={list}>
         {tabs.map((tab, index) => (
           <div className={`browser-tab${tab.id === activeTabId ? ' is-active' : ''}`} key={tab.id} role="presentation">
-            <button
+            <Button
+              variant="tab"
               className="tab-select"
               type="button"
               role="tab"
@@ -46,12 +48,12 @@ export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: T
             >
               <span className={`tab-indicator${tab.isLoading ? ' is-loading' : ''}`} aria-hidden="true">{tab.isLoading ? '' : '○'}</span>
               <span className="tab-title">{tab.title}</span>
-            </button>
-            <button className="tab-close" type="button" aria-label={t($ => $.browser.closeNamedTab, { title: tab.title })} title={t($ => $.browser.closeTab)} onClick={() => onClose(tab.id)}>×</button>
+            </Button>
+            <Button variant="tab-close" size="sm" className="tab-close" type="button" aria-label={t($ => $.browser.closeNamedTab, { title: tab.title })} title={t($ => $.browser.closeTab)} onClick={() => onClose(tab.id)}>×</Button>
           </div>
         ))}
       </div>
-      <button className="icon-button new-tab-button" type="button" aria-label={t($ => $.browser.newTab)} title={t($ => $.browser.newTab)} onClick={onCreate}>+</button>
+      <IconButton className="icon-button new-tab-button" type="button" aria-label={t($ => $.browser.newTab)} title={t($ => $.browser.newTab)} onClick={onCreate}>+</IconButton>
     </div>
   )
 }

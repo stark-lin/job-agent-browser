@@ -1,3 +1,4 @@
+import { FeatureCard } from '../../shared/ui'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 
@@ -11,18 +12,14 @@ interface HomeTileProps {
 export function HomeTile({ label, description, icon, onClick }: HomeTileProps) {
   const { t } = useTranslation()
   return (
-    <button
+    <FeatureCard
       className="home-card"
-      type="button"
+      label={label}
+      description={description}
+      icon={icon}
       disabled={!onClick}
       title={onClick ? undefined : t($ => $.home.comingSoon, { label })}
       onClick={onClick}
-    >
-      <span className="home-icon" aria-hidden="true">{icon}</span>
-      <span>
-        <span className="home-label">{label}</span>
-        <span className="home-desc">{description}</span>
-      </span>
-    </button>
+    />
   )
 }

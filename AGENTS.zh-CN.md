@@ -12,6 +12,7 @@
 | [docs/architecture.md](docs/architecture.md) · [中文](docs/architecture.zh-CN.md) | 当前运行架构、已实现行为、限制及源码依据。 |
 | [docs/product-architecture.md](docs/product-architecture.md) · [中文](docs/product-architecture.zh-CN.md) | 产品目标、范围与开发顺序；明确标为规划。 |
 | [docs/code-architecture.md](docs/code-architecture.md) · [中文](docs/code-architecture.zh-CN.md) | 目标代码组织、依赖边界与迁移约束；区分现状与目标。 |
+| [docs/design-system.md](docs/design-system.md) · [中文](docs/design-system.zh-CN.md) | 共享 UI 规范、组件参考展示库、Design Tokens 与设计验证。 |
 | [docs/data-architecture.md](docs/data-architecture.md) · [中文](docs/data-architecture.zh-CN.md) | 当前及规划的 V1 数据模型、业务数据 API、生成、溯源、审计与存储；拥有共享 [ER 图](docs/diagrams/data-model.md)。 |
 
 新增文档前先检查上表；只有独立主题无法合理归入现有文档时才新建，并在 README 索引中添加链接。
@@ -37,3 +38,9 @@
 
 - 每个主题只在所属文档详细说明，其他位置用一句摘要和相对链接引用；翻译视为同一主题。不要复制完整接口、目录清单、安装步骤或产品流程；源码能直接表达的细节优先链接。
 - 提交前检查：双语含义一致、状态与实现匹配、路径和链接有效、篇幅合规、无重复正文；运行与变更相关的验证，并如实记录未验证项。
+
+## UI 设计规范
+
+- UI 新增和修改遵循[组件库规范](docs/design-system.zh-CN.md)，间距、尺寸、排版、圆角和语义色使用共享 Tokens。
+- 所有 UI 组件必须通过 `src/shared/ui/index.ts` 引用中央组件库；页面和业务组件由中央基础组件组合，缺失的基础组件或变体必须先加入中央库。页面可定义布局与行为，不得重复编写控件结构/样式或通过内联样式覆盖中央外观。
+- 修改权威 Tokens 时同步生成共享 CSS/浏览器尺寸，运行设计验证和相关运行检查；参考展示库与两个语言版本的规范保持一致。

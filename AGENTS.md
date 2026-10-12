@@ -12,6 +12,7 @@ Applies to documentation additions and edits in this repository; bring existing 
 | [docs/architecture.md](docs/architecture.md) · [Chinese](docs/architecture.zh-CN.md) | Current runtime architecture, implemented behavior, limitations, and source references. |
 | [docs/product-architecture.md](docs/product-architecture.md) · [Chinese](docs/product-architecture.zh-CN.md) | Product goals, scope, and delivery sequence, explicitly marked as planned. |
 | [docs/code-architecture.md](docs/code-architecture.md) · [Chinese](docs/code-architecture.zh-CN.md) | Target code organization, dependency boundaries, and migration constraints, distinguishing current from target state. |
+| [docs/design-system.md](docs/design-system.md) · [Chinese](docs/design-system.zh-CN.md) | Shared UI rules, component reference gallery, design tokens, and design validation. |
 | [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, audit, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
 
 Check this table before adding a document; create one only for a distinct topic that does not fit an existing owner, and link it from the README index.
@@ -37,3 +38,9 @@ Check this table before adding a document; create one only for a distinct topic 
 
 - Explain each topic in detail only in its owning document; use a one-sentence summary and relative link elsewhere. Translations count as the same topic. Avoid copying full interfaces, directory inventories, setup steps, or product flows; prefer source links for details already expressed in code.
 - Before submitting, check language parity, implementation status, valid paths and links, length limits, and duplicate content; run relevant validation and report anything left unverified.
+
+## UI design rules
+
+- Follow the [component-library specification](docs/design-system.md) for UI additions and edits; use shared tokens for spacing, sizes, type, corners and semantic colors.
+- All UI components must reuse the central library through `src/shared/ui/index.ts`. Build page/domain components from its primitives; add missing primitives or variants centrally before using them. Pages may define layout and behavior, but must not duplicate control markup/styles or override central presentation with inline styles.
+- Change canonical tokens and regenerate shared CSS/browser geometry together. Run design validation and relevant runtime checks; keep the reference gallery and both specification editions aligned.

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const ts = require('typescript')
+require('./design-system.cjs')
 
 const root = path.resolve(__dirname, '..')
 function files(dir) {
@@ -16,6 +17,19 @@ for (const file of sourceFiles) {
   const relative = path.relative(root, file).replaceAll('\\', '/')
   const text = fs.readFileSync(file, 'utf8')
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
+  if (file.endsWith('.tsx') && !relative.startsWith('src/shared/ui/')) {
+    const visitUI = (node) => {
+      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        const tag = node.tagName.getText(ast)
+        assert(!['button', 'input', 'select', 'textarea', 'svg', 'a', 'dialog', 'table', 'label', 'fieldset', 'progress', 'meter'].includes(tag),
+          `${relative}: ${tag} must use a central component exported from src/shared/ui/index.ts`)
+        assert(!node.attributes.properties.some((attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(ast) === 'style'),
+          `${relative}: put component presentation in the central library; use CSS for page layout`)
+      }
+      ts.forEachChild(node, visitUI)
+    }
+    visitUI(ast)
+  }
   const imports = ast.statements.filter((node) => ts.isImportDeclaration(node) || ts.isExportDeclaration(node)).filter((node) => node.moduleSpecifier)
   const runtimeEdges = []
   for (const node of imports) {
@@ -24,6 +38,10 @@ for (const file of sourceFiles) {
     const resolved = module.startsWith('.') ? path.resolve(path.dirname(file), module)
       : module.startsWith('@shared/') ? path.resolve(root, 'src/shared', module.slice(8)) : module
     const destination = path.relative(root, resolved).replaceAll('\\', '/')
+    if (/^src\/(app|renderer|pages)\//.test(relative) && destination.startsWith('src/shared/ui/')) {
+      assert(module.endsWith('.css') || ['src/shared/ui/index', 'src/shared/ui/index.ts'].includes(destination),
+        `${relative}: import central components through src/shared/ui/index.ts`)
+    }
     if (relative.startsWith('src/domain/')) {
       assert(module.startsWith('.') && destination.startsWith('src/domain/'), `${relative}: Domain must depend only on domain contracts/utilities`)
     }

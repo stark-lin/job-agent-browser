@@ -61,14 +61,52 @@ module.exports = async function browserSmoke(window) {
     const firstId = state.activeTabId
     assert.equal(active(state).url, '')
     assert(views().every((view) => !view.getVisible()))
-    await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.home-label').textContent === 'Browser').click()")
+    await waitFor(() => evaluate('document.querySelectorAll(".home-card").length === 9'), 'Home grid')
+    const homeGeometry = await evaluate(`(() => {
+      const card = document.querySelector('.home-card');
+      const style = getComputedStyle(card);
+      return { padding: style.padding, radius: style.borderRadius,
+        gap: getComputedStyle(document.querySelector('.home-grid')).gap,
+        icon: document.querySelector('.ui-icon-box svg').getBoundingClientRect().width,
+        iconBox: document.querySelector('.ui-icon-box').getBoundingClientRect().width };
+    })()`)
+    assert.deepEqual(homeGeometry, { padding: '16px', radius: '16px', gap: '16px', icon: 16, iconBox: 32 })
+    const originalSize = window.getContentSize(), originalMinimum = window.getMinimumSize()
+    window.setMinimumSize(320, 320)
+    try {
+      for (const width of [320, 640, 1200]) {
+        window.setContentSize(width, 820)
+        await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Home viewport ${width}`)
+        const layout = await evaluate(`(() => {
+          const grid = document.querySelector('.home-grid');
+          const page = document.querySelector('.home-page');
+          return { columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+            heights: [...document.querySelectorAll('.home-card')].map(card => card.getBoundingClientRect().height),
+            overflow: page.scrollWidth > page.clientWidth };
+        })()`)
+        assert.equal(layout.columns, width === 320 ? 1 : width === 640 ? 2 : 3)
+        assert(layout.heights.every((height) => height >= 144), 'Home cards must remain at least 144px')
+        assert.equal(layout.overflow, false, `Home must fit viewport ${width}`)
+      }
+    } finally {
+      window.setContentSize(...originalSize)
+      window.setMinimumSize(...originalMinimum)
+    }
+    await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === 'Browser').click()")
     await waitFor(() => evaluate('!!document.querySelector(".new-tab-page")'), 'blank tab UI')
     await submit(`${origin.replace('http://', '')}/one`)
     await waitState((state) => active(state).title === '/one' && !active(state).isLoading, 'bare loopback address navigation')
     const firstView = pageFor(`${origin}/one`)
     const firstContents = firstView.webContents
     assert(firstView.getVisible())
-    assert.equal(firstView.getBounds().y, 108)
+    assert.equal(firstView.getBounds().y, 96)
+    const chrome = await evaluate(`(() => {
+      const tabs = document.querySelector('.tab-strip').getBoundingClientRect();
+      const toolbar = document.querySelector('.browser-controls').getBoundingClientRect();
+      return { tabs: tabs.height, toolbar: toolbar.height, bottom: toolbar.bottom };
+    })()`)
+    assert.deepEqual(chrome, { tabs: 48, toolbar: 48, bottom: 96 })
+    assert.equal(firstView.getBounds().y, chrome.bottom, 'Native view must meet the rendered toolbar')
     assert.equal(await firstView.webContents.executeJavaScript('typeof window.browser + ":" + typeof require'), 'undefined:undefined')
     await firstView.webContents.executeJavaScript('document.querySelector("#draft").value = "Keep this draft"')
     await call('navigate', `${origin}/two`)
@@ -117,7 +155,7 @@ module.exports = async function browserSmoke(window) {
     await evaluate('document.querySelector(".history-controls button").click()')
     await waitFor(() => evaluate('!!document.querySelector(".home-grid")'), 'Home')
     assert(views().every((view) => !view.getVisible()))
-    await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.home-label').textContent === 'Browser').click()")
+    await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === 'Browser').click()")
     await waitFor(() => evaluate('!!document.querySelector(".address-form")'), 'reopen Browser')
     assert.equal((await read()).activeTabId, secondId)
     assert(!secondView.getVisible())

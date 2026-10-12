@@ -18,6 +18,10 @@
 
 [构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。构建产物和包入口保持稳定。
 
+所有 UI 组件必须组合[中央组件库入口](../src/shared/ui/index.ts)提供的基础组件；缺少变体时先扩展中央库再用于页面。页面保留布局与事件行为。[设计规范](design-system.zh-CN.md#二必须复用中央组件库)管理完整复用规则。
+
+Shared UI 同时拥有[权威 Design Tokens](../src/shared/ui/design-tokens.json)、生成的 CSS/尺寸及参考组件样式，由 Renderer/Page 样式消费。[设计规范](design-system.zh-CN.md)管理视觉规则、资源和重新生成方式。
+
 ## 二、目录边界
 
 ```text

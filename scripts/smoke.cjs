@@ -11,6 +11,8 @@ let mainWindowSelected = false
 app.on('browser-window-created', (_event, window) => {
   if (mainWindowSelected) return
   mainWindowSelected = true
+  // Keep animation-frame assertions/captures progressing when another app is foreground.
+  window.webContents.setBackgroundThrottling(false)
   window.webContents.on('console-message', (event) => {
     if (event.level === 'error') console.error(`Renderer: ${event.message}`)
   })
