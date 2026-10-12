@@ -69,7 +69,7 @@ src/
     └── types/
 ```
 
-Home and Browser are implemented pages. The other eight page entries render explicit placeholders; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
+Home, Browser, Inbox and Settings are implemented pages. Six other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
 
 ## 3. Dependencies and process composition
 
@@ -85,7 +85,7 @@ Renderer workflows call typed bridge operations; Main composes Domain services w
 
 Database access remains Main-only. Settings, secrets, AI requests and compilation are reserved for Main or controlled services. Preserve sandboxing, context isolation, third-party page separation and exact trusted-document/top-frame IPC validation.
 
-The [shared i18n module](../src/shared/i18n/) owns framework-independent resources, configuration, selector types and translation initialization; it imports neither React nor Electron. [App](../src/app/i18n.tsx) owns React provider integration and document metadata. Pages translate at render time; Platform translates application-owned native copy. Keep new visible text in the catalog, including complete interpolated sentences, and use typed selectors. Runtime behavior and remaining language support are owned by [current architecture](architecture.md#5-internationalization-preparation).
+The [shared i18n module](../src/shared/i18n/) owns framework-independent resources, configuration, selector types and translation initialization; it imports neither React nor Electron. [App](../src/app/i18n.tsx) owns React provider integration and document metadata. Pages translate at render time; Platform translates application-owned native copy. Keep new visible text in the catalog, including complete interpolated sentences, and use typed selectors. Runtime behavior and remaining language support are owned by [current architecture](architecture.md#5-internationalization).
 
 ## 4. Navigation, React state and context
 
@@ -93,7 +93,7 @@ The [shared i18n module](../src/shared/i18n/) owns framework-independent resourc
 
 The framework-free [Destination](../src/shared/navigation.ts) contract is shared across processes. [Main browser management](../src/platform/browser/browserManager.ts) owns tabs and authoritative mixed histories; [MixedHistory](../src/platform/browser/mixedHistory.ts) joins internal entries and native-history segments, while [WebSegment](../src/platform/browser/webSegment.ts) owns view events, native traversal and disposal. App routing never changes the trusted document URL.
 
-Browser owns its tab strip/address/controls; other internal pages hide the entire browser bar and all internal URLs. Only Browser acknowledges native presentation, identifying the active tab and target so old acknowledgments cannot cover an internal page. UI URLs and history rules are owned by product architecture; runtime details are owned by current architecture.
+Browser owns its tab strip/address/controls; other internal pages hide the entire browser bar and all internal URLs. Browser and Inbox acknowledge their own native surfaces through the [presentation hook](../src/app/navigation/useNativePresentation.ts), identifying the active tab and target so old acknowledgments cannot cover another page. Inbox never renders Browser controls. UI URLs and history rules are owned by product architecture; runtime details are owned by current architecture.
 
 [App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge when workflows are implemented. Applications uses a Job ID, not a separate persisted Application entity. Content/selection capture and automatic context population remain planned.
 
@@ -101,7 +101,7 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 
 ### Page button ownership
 
-- Each Page owns the buttons it displays, their placement, enabled/loading state and click handlers. App routing and providers supply capabilities without injecting a global Back/Next/Forward button bar.
+- App owns the persistent workspace sidebar and feature navigation metadata; Pages own their workflow buttons, placement, enabled/loading state and handlers. The sidebar uses the same navigation API and leave guard, without a global Back/Next/Forward bar.
 - Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button; do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward toolbar.
 - Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than mixed page history. Business actions and links remain page-owned.
 - Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx) supplies Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
@@ -117,7 +117,7 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 | Profile, ProfileItem and Fact | `domain/candidate/`; UI in `pages/profile/` |
 | GenerationRun, Artifact and provenance | `domain/resume/`; UI in `pages/tailor-resume/` |
 | SQLite, migrations, repositories and audit persistence | Main-side `platform/database/` |
-| AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; implementations remain planned |
+| AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; settings/secrets are implemented, AI execution and output integration remain planned |
 
 Domain defines repository/extraction interfaces. Concrete SQLite repositories and the scaffolded [generic extractor](../src/platform/browser/extractors/generic.ts) belong to Platform. Page snapshots must be plain data, never DOM/Electron objects. Site-specific extraction is deferred; validate required Job fields before saving partial data.
 
@@ -129,7 +129,7 @@ AI contracts must not expose provider SDK types to pages. Business-specific cont
 
 Keep business capabilities in [DataContract](../src/platform/electron/data-contract.ts); repositories, transaction contexts, audit writers and generation-stage persistence remain private. Storage modules separate migrations, transaction/audit control, mapping and domain adapters; Domain services own business validation.
 
-Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Initial Inbox will reuse configured webmail without a mail database. AI execution, compilation, settings/secrets persistence and business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
+Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Inbox reuses configured webmail without a mail database. AI execution, compilation and remaining business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
 
 Update the owning document and both language editions with behavior, interface, directory or configuration changes. Preserve build output, SQLite/audit behavior and Session partition during future migrations. Add Product Areas only when scale requires them; full DDD remains unnecessary.
 

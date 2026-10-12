@@ -1,6 +1,6 @@
 # 组件库与设计规范
 
-用途：定义可执行的组件规则与维护流程。状态：Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser 和占位页对它们的引用均**已实现**。业务功能页面为**占位**；业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
+用途：定义可执行的组件规则与维护流程。状态：Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Settings 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
 
 语言：简体中文 · [English](design-system.md)
 
@@ -12,7 +12,7 @@
 | 公共 React 组件 | [中央入口](../src/shared/ui/index.ts) |
 | 共享应用外观 | [components.css](../src/shared/ui/components.css) |
 | 参考示例及其展示样式 | [展示库 HTML](components/job-browser-component-library-8px.html) 和 [component-library.css](../src/shared/ui/component-library.css) |
-| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[浏览器尺寸](../src/shared/ui/geometry.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
+| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生尺寸](../src/shared/ui/geometry.ts)、[侧栏响应式 CSS](../src/shared/ui/sidebar-responsive.css)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
 
 [Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。
 
@@ -28,15 +28,21 @@
 | --- | --- | --- |
 | `Button`, `IconButton` | 操作、图标与浏览器标签变体；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
 | `TextInput` | 默认字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
+| `Glyph` | Home 与工作区导航复用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
+| `Sidebar`, `NavigationGroup`, `NavigationItem` | 通用侧栏组合、分组标题及带当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | 带图标、标题和描述的功能入口 | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
+| `FormField`, `Select` | 关联标签、帮助/错误及原生选择 | [Form.tsx](../src/shared/ui/Form.tsx) |
+| `SectionCard`, `PageHeading` | 共享面板及页面标题外观 | [Form.tsx](../src/shared/ui/Form.tsx) |
+| `StatusMessage` | 中性、信息、成功及错误反馈 | [Form.tsx](../src/shared/ui/Form.tsx) |
+| `Dialog` | 原生模态焦点约束；页面管理操作及取消 | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
 | `PlaceholderPage` | 明确的待实现布局，操作由页面提供 | [PlaceholderPage.tsx](../src/shared/ui/PlaceholderPage.tsx) |
 
 - 缺少基础组件或变体时，先加入 `src/shared/ui/` 并从中央入口导出，再用于页面。仅存在展示示例的表单、徽章、职位卡片、反馈、对话框和表格，若未由现有基础组件表达，仍需中央 React 实现。
 - 通用外观、尺寸、视觉状态和无障碍默认行为归中央库。页面 CSS 可通过共享 Tokens 安排布局，不得复制控件样式、重写 `.ui-*` 选择器或通过内联样式绕过中央库。
 - 页面管理位置、业务数据、启用/加载状态、导航和事件处理。Shared UI 通过 props 与组合插槽接收配置，不得导入 App/Page/Domain/Platform 行为。`className` 用于组合，不用于另建组件外观。
 
-[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx) 和 [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx)展示当前引用方式。不得将展示库结构复制到页面，或用私有实现文件导入代替公共入口。
+[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx) 和 [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx)及 [SettingsPage](../src/pages/settings/SettingsPage.tsx) 展示当前引用方式。不得将展示库结构复制到页面，或用私有实现文件导入代替公共入口。
 
 ## 三、布局、尺寸与排版
 
@@ -46,6 +52,7 @@
 | 控件 | 小号 32px / 默认 40px / 大号 48px | `--control-sm`, `--control-md`, `--control-lg` |
 | Toolbar | 48px | `--toolbar-height` |
 | Browser 标签栏 / 浏览器栏总高度 | 48px / 96px | `--tab-strip-height`, `--browser-chrome-height` |
+| 工作区侧栏 | 超过 960px 时宽 208px，否则为 64px 图标栏；导航项最小 40px | `--sidebar-width`, `--sidebar-compact-width`, `--sidebar-breakpoint`, `--control-md` |
 | List Row | 最小 64px；必要时随内容增高 | `--list-row-height` |
 | Home Card | 所有视口下最小 144px | `--feature-card-height` |
 | 图标 / 容器 | 16px / 32px 或 40px | `--icon-size`, `--icon-box`, `--icon-box-lg` |
@@ -75,7 +82,9 @@
 
 以下是 UI 新增和修改的要求，不代表已获得完整无障碍认证：
 
+- 侧栏隐藏文字时仍保留完整无障碍名称及原生提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，底部固定的 Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
+- Settings 在 16px 圆角面板中组合 40px 字段，内边距为 24px（窄屏为 16px）；页面 CSS 仅管理布局。成功反馈使用可读文字及成功背景/边框。展示库 Settings 示例引用这些共享规则。
 - 保留原生键盘激活、禁用行为和可见焦点。裸 `TextInput` 必须位于提供可见焦点反馈的容器中，参见 [AddressBar](../src/pages/browser/AddressBar.tsx)；其自身描边按设计被移除。
 - 标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
 - 区分加载、空状态、成功与错误。不得让参考示例看起来像已实现操作；页面文案归属 [i18n 资源](../src/shared/i18n/locales/en.ts)。
@@ -107,6 +116,9 @@ npm run quality
 | [设计检查器](../scripts/design-system.cjs) | 生成文件一致性、允许的 Token 值、声明间距/固定尺寸、Token 引用、展示库链接及十个分类；拒绝 Shared UI 外的 `.ui-*` 选择器 | 不证明所有计算后的布局、状态或无障碍属性 |
 | [质量检查器](../scripts/quality.cjs) | 中央 UI 外禁止原生通用 JSX 控件/图标及显式 JSX `style` 属性；App/Page/Renderer 组件经公共入口导入；文档双语、路径和篇幅检查 | 不同类名的重复实现、props 展开绕过和动态创建元素仍需审查 |
 | [Browser smoke](../scripts/browser-smoke.cjs) | Home 在 320/640/1200px 下的表现、卡片最小高度、溢出、中央卡片尺寸，以及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
+| [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
+| [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、响应式宽度及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
+| [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
 
 原生边界通过[浏览器契约](../src/shared/browser.ts)使用[生成尺寸](../src/shared/ui/geometry.ts)，不得分别修改 CSS 与 Main 的工具栏高度。[构建配置](../electron.vite.config.ts)选择 Renderer 入口，脚本和命令以 [package.json](../package.json) 为准。
 

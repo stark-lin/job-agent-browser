@@ -11,7 +11,8 @@ import { InboxPage } from '../pages/inbox'
 import { ProfilePage } from '../pages/profile'
 import { AskAIPage } from '../pages/ai'
 import { SettingsPage } from '../pages/settings'
-import { isBrowserDestination } from '../shared/navigation'
+import { isBrowserDestination, isInboxDestination } from '../shared/navigation'
+import { WorkspaceSidebar } from './WorkspaceSidebar'
 
 const featurePages = {
   find: FindJobsPage, resume: TailorResumePage, interview: InterviewPrepPage,
@@ -25,12 +26,15 @@ export function AppRouter() {
   if (!active) return <main className="feature-page" role={error ? 'alert' : 'status'}>{error || t($ => $.app.loadingWorkspace)}</main>
   const destination = active.destination
   let page: ReactNode
-  if (isBrowserDestination(destination)) page = <BrowserPage />
+  if (isInboxDestination(destination)) page = <InboxPage />
+  else if (isBrowserDestination(destination)) page = <BrowserPage />
   else if (destination.kind === 'internal' && destination.page === 'home') {
     page = <HomePage onNavigate={(target) => void openPage(target)} />
   } else if (destination.kind === 'internal' && destination.page !== 'browser' && destination.page !== 'home') {
     const Page = featurePages[destination.page]
     page = <Page />
   }
-  return <>{page}{error && !isBrowserDestination(destination) ? <div className="app-error" role="alert">{error}</div> : null}</>
+  return <div className="app-shell"><WorkspaceSidebar /><div className="app-content">
+    {page}{error && !isBrowserDestination(destination) && !isInboxDestination(destination) ? <div className="app-error" role="alert">{error}</div> : null}
+  </div></div>
 }

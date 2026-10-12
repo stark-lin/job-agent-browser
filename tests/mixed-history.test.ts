@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { MixedHistory, type HistoryItem, type HistorySegment } from '../src/platform/browser/mixedHistory'
 import { resolveDestination } from '../src/platform/browser/navigationManager'
-import { internalPages, isBrowserDestination, type InternalPage } from '../src/shared/navigation'
+import { internalPages, isBrowserDestination, isInboxDestination, type InternalPage } from '../src/shared/navigation'
 
 class FakeSegment implements HistorySegment {
   index = 0
@@ -25,6 +25,14 @@ for (const page of Object.keys(internalPages) as InternalPage[]) {
 for (const input of ['app://missing', 'app://home/other', 'app://home?x=1', 'app://home#fragment', 'app://user@home', 'app://home:80']) {
   test(`unknown internal target is rejected: ${input}`, () => assert.throws(() => resolveDestination(input)))
 }
+
+test('webmail surface stays distinct from the Browser even at the same URL', () => {
+  const url = 'https://mail.example.com/'
+  assert.equal(isBrowserDestination({ kind: 'web', url }), true)
+  assert.equal(isInboxDestination({ kind: 'web', url }), false)
+  assert.equal(isBrowserDestination({ kind: 'web', url, surface: 'inbox' }), false)
+  assert.equal(isInboxDestination({ kind: 'web', url, surface: 'inbox' }), true)
+})
 
 test('crosses Home, feature pages and native segments in both directions without appending during traversal', () => {
   const history = new MixedHistory<FakeSegment>(), a = new FakeSegment('a', 2), c = new FakeSegment('c', 1)

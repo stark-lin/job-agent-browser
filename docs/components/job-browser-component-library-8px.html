@@ -196,7 +196,7 @@
             <label class="field">
               <span class="field-label">API key</span>
               <input class="control" type="password" value="sk-example-hidden" />
-              <span class="field-help">Store secrets in the OS credential vault.</span>
+              <span class="field-help">Encrypt secrets using OS-backed storage; never display saved keys.</span>
             </label>
             <label class="field field-error">
               <span class="field-label">Profile name</span>
@@ -234,6 +234,21 @@
             </div>
             <div class="spacer"></div>
             <div class="breadcrumbs"><span>Applications</span><span>›</span><span>Acme</span><span>›</span><b>Product Engineer</b></div>
+          </div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">Workspace sidebar — shared navigation</div>
+          <div class="demo-stage">
+            <nav class="workspace-sidebar-example" aria-label="Workspace navigation example">
+              <div class="label">Job Browser</div>
+              <button class="workspace-navigation-item" aria-current="page">Home</button>
+              <div class="workspace-navigation-heading">Job search</div>
+              <button class="workspace-navigation-item">Find Jobs</button><button class="workspace-navigation-item">Tailor Resume</button><button class="workspace-navigation-item">Interview Prep</button>
+              <div class="workspace-navigation-heading">Manage</div>
+              <button class="workspace-navigation-item">Applications</button><button class="workspace-navigation-item">Inbox</button><button class="workspace-navigation-item">My Profile</button>
+              <div class="workspace-navigation-heading">Tools</div>
+              <button class="workspace-navigation-item">Browser</button><button class="workspace-navigation-item">Ask AI</button><button class="workspace-navigation-item">Settings</button>
+            </nav>
           </div>
         </div>
       </section>
@@ -308,6 +323,20 @@
                 <button class="tool"><svg><use href="#i-more"/></svg></button>
               </div>
             </div>
+          </div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">Settings group — shared runtime reference</div>
+          <div class="demo-stage">
+            <section class="settings-panel" aria-labelledby="settings-example-title">
+              <h3 id="settings-example-title">General</h3>
+              <p>Choose the language for your workspace.</p>
+              <div class="grid-2">
+                <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
+                <label class="field"><span class="field-label">Appearance</span><select class="control" disabled><option>Light</option></select><span class="field-help">Currently available in light appearance.</span></label>
+              </div>
+              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
+            </section>
           </div>
         </div>
       </section>

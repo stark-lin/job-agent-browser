@@ -30,11 +30,11 @@ The rows represent three groups:
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-All nine entries are accessible; eight business pages are currently scaffolded. Add new capabilities within existing entry points whenever possible.
+A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings and the dedicated Inbox webmail view are implemented; six other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
 
 ### Initial Inbox
 
-Inbox is the entry point for job-seeking email. Its first version reuses user-configured webmail such as Gmail or Outlook. Users select an email provider and configure its web URL in Settings; entering `app://inbox` opens that URL inside the Browser Shell through the unified Navigation API. If no mailbox is configured, guide the user to email settings.
+Inbox is the entry point for job-seeking email. Its first version reuses user-configured webmail such as Gmail or Outlook. Users select an email provider and configure its web URL in Settings; entering `app://inbox` opens that URL through the unified Navigation API in a dedicated Inbox view beside the workspace sidebar, without Browser tabs, an address bar or an app top bar. The sidebar provides Home and direct access to all features. If no mailbox is configured, guide the user to email settings.
 
 Users sign in directly on the email website, with Electron Session maintaining the login session. The first version stores only the mailbox entry configuration, not email passwords, and does not require email APIs, message synchronization, an aggregated inbox, or local message entities. Reading and replying use the email website’s existing features.
 
@@ -102,7 +102,7 @@ The [V1 data architecture](data-architecture.md) owns the implemented 11-table m
 
 Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
-SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence and Electron Session are implemented; settings, secrets and compiled outputs remain planned, as recorded in the [current architecture](architecture.md).
+SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence, Electron Session, settings and encrypted secrets are implemented; compiled outputs remain planned, as recorded in the [current architecture](architecture.md).
 
 ## 7. Compose capabilities instead of duplicating infrastructure
 
@@ -115,7 +115,7 @@ The nine entry points are not nine independent systems. Features compose shared 
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
 | Applications | Job + Application lifecycle + JobEvent |
-| Inbox | User-configured Webmail + Browser + Session |
+| Inbox | User-configured Webmail + dedicated native Inbox view + Session |
 
 Navigation, context, AI access, and file handling should be reusable across these workflows.
 

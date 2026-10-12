@@ -1,4 +1,5 @@
 import type { Result } from '../../shared/ipc'
+import type { Preferences, PreferencePatch } from '../../shared/settings'
 import type { ErrorCode } from '../../domain/common/errors'
 import type { AuditEntry, AuditFilter, Page, PageResult } from '../../domain/common/ports'
 import type { ApplicationStatus, Company, CompanyInput, Job, JobFilter, JobInput, JobSource, SourceInput } from '../../domain/job/job.types'
@@ -63,13 +64,13 @@ export interface DataContract {
   }
   audit: { list: Endpoint<AuditFilter, PageResult<AuditEntry>> }
   settings: {
-    get: Endpoint<Record<string, never>, never>
-    savePreferences: Endpoint<{ theme?: 'system' | 'light' | 'dark'; language?: 'en' | 'zh-CN'; autoSave?: boolean }, never>
+    get: Endpoint<Record<string, never>, Preferences>
+    savePreferences: Endpoint<PreferencePatch, Preferences>
   }
   secrets: {
-    hasProviderKey: Endpoint<{ provider: 'openai' }, never>
-    saveProviderKey: Endpoint<{ provider: 'openai'; apiKey: string }, never>
-    deleteProviderKey: Endpoint<{ provider: 'openai' }, never>
+    hasProviderKey: Endpoint<{ provider: 'openai' }, { configured: boolean; available: boolean }>
+    saveProviderKey: Endpoint<{ provider: 'openai'; apiKey: string }, { configured: boolean; available: boolean }>
+    deleteProviderKey: Endpoint<{ provider: 'openai' }, { configured: boolean; available: boolean }>
   }
 }
 

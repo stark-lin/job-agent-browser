@@ -100,6 +100,9 @@ module.exports = async function browserSmoke(window) {
     const firstContents = firstView.webContents
     assert(firstView.getVisible())
     assert.equal(firstView.getBounds().y, 96)
+    const sidebarWidth = window.getContentSize()[0] <= 960 ? 64 : 208
+    assert.equal(firstView.getBounds().x, sidebarWidth)
+    assert.equal(firstView.getBounds().width, window.getContentSize()[0] - sidebarWidth)
     const chrome = await evaluate(`(() => {
       const tabs = document.querySelector('.tab-strip').getBoundingClientRect();
       const toolbar = document.querySelector('.browser-controls').getBoundingClientRect();
@@ -230,6 +233,8 @@ module.exports = async function browserSmoke(window) {
     assert(views().every((view) => !view.getVisible()))
     assert.equal(views().length, 0)
     await require('./navigation-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut })
+    await require('./sidebar-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut })
+    await require('./settings-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin })
     console.log('Browser smoke passed: tab UI/lifecycle, independent histories and page state, Home visibility, native bounds, shortcuts, URL input, pop-ups, isolation and load errors.')
   } finally {
     server.closeAllConnections()

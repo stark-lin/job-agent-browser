@@ -1,7 +1,7 @@
-import { t } from '../../shared/i18n'
+import { t, i18n } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
-import { session, type BrowserWindow, type WebContents } from 'electron'
-import { BROWSER_CHROME_HEIGHT, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
+import { session, dialog, type BrowserWindow, type WebContents } from 'electron'
+import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
 import { isBrowserDestination } from '../../shared/navigation'
 import { resolveDestination } from './navigationManager'
@@ -16,10 +16,22 @@ export class BrowserManager {
   private activeTabId = ''
   private revision = 0
   private visible = false
+  private unsaved = false
+  private confirming = false
 
-  constructor(private readonly window: BrowserWindow) {
+  constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null) {
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    this.createTab()
+    void this.createTab()
+    const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
+    i18n.on('languageChanged', languageChanged)
+    window.on('close', event => {
+      if (!this.unsaved) return
+      event.preventDefault()
+      void this.confirmLeave().then(allowed => { if (allowed && !window.isDestroyed()) window.close() })
+    })
+    window.webContents.on('will-prevent-unload', event => {
+      if (dialog.showMessageBoxSync(window, this.leaveDialog()) === 1) { this.unsaved = false; event.preventDefault() }
+    })
     this.shortcuts(window.webContents)
     window.webContents.on('did-start-loading', () => {
       // Invalidate acknowledgments from the previous renderer document as well
@@ -29,9 +41,34 @@ export class BrowserManager {
     })
     window.on('resize', () => this.layout())
     window.on('closed', () => {
+      i18n.off('languageChanged', languageChanged)
       for (const tab of this.tabs.values()) tab.history.dispose()
       this.tabs.clear()
     })
+  }
+
+  setUnsaved(unsaved: boolean, presentation: Presentation): void {
+    const tab = this.requireTab(this.activeTabId)
+    const destination = this.tabState(tab).destination
+    if (presentation.tabId === tab.id && presentation.targetId === this.targetId(tab) && destination.kind === 'internal' &&
+      destination.page === 'settings') this.unsaved = unsaved
+  }
+
+  private leaveDialog(): Electron.MessageBoxOptions {
+    return { type: 'question', title: t($ => $.settings.discardTitle), message: t($ => $.settings.discardDescription),
+      buttons: [t($ => $.settings.stay), t($ => $.settings.discard)], defaultId: 0, cancelId: 0, noLink: true }
+  }
+
+  private async confirmLeave(): Promise<boolean> {
+    if (this.confirming) return false
+    this.confirming = true
+    const revision = this.revision
+    try {
+      const result = await dialog.showMessageBox(this.window, this.leaveDialog())
+      if (result.response !== 1 || this.window.isDestroyed() || revision !== this.revision) return false
+      this.unsaved = false
+      return true
+    } finally { this.confirming = false }
   }
 
   isTrustedSender(senderId: number): boolean {
@@ -40,21 +77,25 @@ export class BrowserManager {
 
   layout(): void {
     const { width, height } = this.window.getContentBounds()
+    const sidebar = getSidebarWidth(width)
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
-      if (item.kind === 'web') item.segment.view.setBounds({
-        x: 0, y: BROWSER_CHROME_HEIGHT, width, height: Math.max(0, height - BROWSER_CHROME_HEIGHT)
-      })
+      if (item.kind === 'web') {
+        const inset = item.segment.surface === 'inbox' ? 0 : BROWSER_CHROME_HEIGHT
+        item.segment.view.setBounds({ x: sidebar, y: inset, width: Math.max(0, width - sidebar), height: Math.max(0, height - inset) })
+      }
     }
   }
 
   setVisible(visible: boolean, presentation: Presentation): void {
     const tab = this.requireTab(this.activeTabId)
     if (presentation.tabId !== tab.id || presentation.targetId !== this.targetId(tab)) return
-    this.visible = visible && isBrowserDestination(this.tabState(tab).destination)
+    const destination = this.tabState(tab).destination
+    this.visible = visible && (destination.kind === 'web' || isBrowserDestination(destination))
     this.updateVisibility()
   }
 
-  createTab(): void {
+  async createTab(): Promise<void> {
+    if (this.unsaved && !(await this.confirmLeave())) return
     const tab: Tab = { id: randomUUID(), version: 0, history: new MixedHistory() }
     tab.history.append({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'home' } })
     this.tabs.set(tab.id, tab)
@@ -62,26 +103,33 @@ export class BrowserManager {
     this.transition(tab)
   }
 
-  activateTab(id: string): void {
+  async activateTab(id: string): Promise<void> {
     const tab = this.requireTab(id)
     if (this.activeTabId === id) return
+    if (this.unsaved && !(await this.confirmLeave())) return
     this.activeTabId = id
     this.transition(tab)
   }
 
-  closeTab(id: string): void {
+  async closeTab(id: string): Promise<void> {
     const tab = this.requireTab(id), ids = [...this.tabs.keys()], index = ids.indexOf(id)
+    if (this.activeTabId === id && this.unsaved && !(await this.confirmLeave())) return
     this.tabs.delete(id)
     tab.history.dispose()
-    if (!this.tabs.size) { this.createTab(); return }
+    if (!this.tabs.size) { await this.createTab(); return }
     if (this.activeTabId === id) {
       this.activeTabId = ids[index + 1] ?? ids[index - 1]
       this.transition(this.requireTab(this.activeTabId))
     } else this.publishState()
   }
 
-  async navigate(input: string): Promise<void> {
-    const destination = resolveDestination(input) // Reject invalid input before mutating either history.
+  async navigate(input: string, surface: 'browser' | 'inbox' = 'browser'): Promise<void> {
+    let destination = resolveDestination(input) // Reject invalid input before mutating either history.
+    if (destination.kind === 'internal' && destination.page === 'inbox') {
+      const inboxURL = this.getInboxURL()
+      if (inboxURL) { destination = resolveDestination(inboxURL); surface = 'inbox' }
+    }
+    if (this.unsaved && !(await this.confirmLeave())) return
     const tab = this.requireTab(this.activeTabId)
     if (destination.kind === 'internal') {
       tab.history.append({ kind: 'internal', id: randomUUID(), destination })
@@ -90,16 +138,18 @@ export class BrowserManager {
     }
     tab.history.branch()
     let segment: WebSegment
-    if (tab.history.current.kind === 'web') segment = tab.history.current.segment
+    if (tab.history.current.kind === 'web' && tab.history.current.segment.surface === surface) segment = tab.history.current.segment
     else {
       segment = new WebSegment(this.window, (newEntry) => {
         if (!this.tabs.has(tab.id)) return
         if (newEntry && tab.history.current.kind === 'web' && tab.history.current.segment === segment) tab.history.discardFuture()
         this.updateVisibility(); this.publishState()
       }, (url) => {
-        this.createTab()
-        void this.navigate(url).catch(() => { /* The popup's load error belongs to its own tab. */ })
-      })
+        void (async () => {
+          if (this.unsaved && !(await this.confirmLeave())) return
+          await this.createTab(); await this.navigate(url, segment.surface)
+        })().catch(() => { /* The popup's load error belongs to its own tab. */ })
+      }, surface)
       this.shortcuts(segment.view.webContents)
       tab.history.append({ kind: 'web', id: segment.id, segment })
     }
@@ -109,19 +159,20 @@ export class BrowserManager {
     await segment.navigate(destination.url)
   }
 
-  back(): void { this.travel(-1) }
-  forward(): void { this.travel(1) }
+  back(): Promise<void> { return this.travel(-1) }
+  forward(): Promise<void> { return this.travel(1) }
 
   getState(): BrowserState {
-    return { revision: this.revision, tabs: [...this.tabs.values()].map((tab) => this.tabState(tab)), activeTabId: this.activeTabId }
+    return { language: i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en', revision: this.revision, tabs: [...this.tabs.values()].map((tab) => this.tabState(tab)), activeTabId: this.activeTabId }
   }
 
   private tabState(tab: Tab): BrowserTabState {
     const item = tab.history.current
-    const destination = item.kind === 'internal' ? item.destination : { kind: 'web' as const, url: item.segment.url }
+    const destination = item.kind === 'internal' ? item.destination : { kind: 'web' as const, url: item.segment.url,
+      ...(item.segment.surface === 'inbox' ? { surface: 'inbox' as const } : {}) }
     return {
       id: tab.id, destination, targetId: this.targetId(tab),
-      title: item.kind === 'internal' ? t($ => $.navigation.pages[item.destination.page]) : item.segment.title,
+      title: item.kind === 'internal' ? t($ => $.navigation.pages[item.destination.page]) : item.segment.surface === 'inbox' ? t($ => $.navigation.pages.inbox) : item.segment.title,
       url: destination.kind === 'web' ? destination.url : '',
       canGoBack: tab.history.canGoBack, canGoForward: tab.history.canGoForward,
       isLoading: item.kind === 'web' && item.segment.isLoading,
@@ -136,16 +187,18 @@ export class BrowserManager {
     return tab
   }
 
-  private travel(direction: -1 | 1): void {
+  private async travel(direction: -1 | 1): Promise<void> {
     const tab = this.requireTab(this.activeTabId)
     if (direction === -1 ? !tab.history.canGoBack : !tab.history.canGoForward) return
+    if (this.unsaved && !(await this.confirmLeave())) return
     tab.history.travel(direction)
     this.transition(tab)
   }
 
   private transition(tab: Tab): void {
+    this.unsaved = false
     tab.version++
-    this.visible = false // React acknowledges the new target after its Browser page commits.
+    this.visible = false // The owning Browser or Inbox page acknowledges the committed target.
     this.updateVisibility(); this.publishState()
   }
 

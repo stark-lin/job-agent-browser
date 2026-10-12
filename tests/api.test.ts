@@ -37,7 +37,7 @@ test('query pagination is bounded and deterministic, while unknown fields are re
   assert.deepEqual(f.backend.dispatch('jobs', 'listJobs', { where: '1=1' }), { ok: false, error: 'INVALID_INPUT' })
 })
 
-test('settings and secrets remain explicit scaffolds and do not log credentials', async (t) => {
+test('backend without storage adapters fails explicitly and does not log credentials', async (t) => {
   const f = fixture(t)
   assert.deepEqual(await f.api.settings.get({}), { ok: false, error: 'NOT_IMPLEMENTED' })
   assert.deepEqual(await f.api.secrets.saveProviderKey({ provider: 'openai', apiKey: 'PRIVATE_API_KEY' }), { ok: false, error: 'NOT_IMPLEMENTED' })

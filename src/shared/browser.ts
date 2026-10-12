@@ -18,12 +18,14 @@ export interface BrowserTabState {
 }
 
 export interface BrowserState {
+  language?: 'en' | 'zh-CN'
   revision: number
   tabs: BrowserTabState[]
   activeTabId: string
 }
 
 export interface BrowserAPI {
+  setUnsaved(unsaved: boolean, presentation: Presentation): Promise<void>
   setVisible(visible: boolean, presentation: Presentation): Promise<void>
   navigate(input: string): Promise<void>
   back(): Promise<void>
@@ -42,9 +44,10 @@ export const BROWSER_BACK = 'browser:back'
 export const BROWSER_FORWARD = 'browser:forward'
 export const BROWSER_GET_STATE = 'browser:get-state'
 export const BROWSER_SET_VISIBLE = 'browser:set-visible'
+export const BROWSER_SET_UNSAVED = 'browser:set-unsaved'
 export const BROWSER_CREATE_TAB = 'browser:create-tab'
 export const BROWSER_ACTIVATE_TAB = 'browser:activate-tab'
 export const BROWSER_CLOSE_TAB = 'browser:close-tab'
 export const BROWSER_FOCUS_ADDRESS = 'browser:focus-address'
 
-export { TAB_STRIP_HEIGHT, TOOLBAR_HEIGHT, BROWSER_CHROME_HEIGHT } from './ui/geometry'
+export { TAB_STRIP_HEIGHT, TOOLBAR_HEIGHT, BROWSER_CHROME_HEIGHT, getSidebarWidth } from './ui/geometry'

@@ -1,6 +1,6 @@
 # V1 Data Architecture and API
 
-Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI execution, compilation and business workflows remain **Planned**; feature-page UI is **Scaffolded**. Settings and secrets are **Scaffolded**.
+Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI execution, compilation and business workflows remain **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
@@ -77,7 +77,7 @@ Additional fields are `id`, monotonically increasing `sequence` and `transaction
 
 No before/after values, arbitrary metadata, business bodies, prompts, credentials, raw exception messages, stack traces, physical paths or page URLs are retained in audit. An SQL authorizer and triggers reject audit updates/deletions and forged inserts. Business writes without the internal context are rejected. Successful no-op operations with no changed rows create no success record; a generation gate rejection is a successful persistence operation whose run state becomes FAILED.
 
-Failed writes first roll back, then append one failure audit in a separate transaction. The failure retains its request ID; its transaction ID belongs to the failure-audit transaction. A validated target ID is included when known, otherwise null. Invalid business write input is audited without copying input. If failure audit cannot persist, return `AUDIT_UNAVAILABLE`; do not claim it was recorded. Untrusted/unknown IPC requests are rejected before business execution. Settings/secrets scaffolds do not persist or audit credentials.
+Failed writes first roll back, then append one failure audit in a separate transaction. The failure retains its request ID; its transaction ID belongs to the failure-audit transaction. A validated target ID is included when known, otherwise null. Invalid business write input is audited without copying input. If failure audit cannot persist, return `AUDIT_UNAVAILABLE`; do not claim it was recorded. Untrusted/unknown IPC requests are rejected before business execution. Settings/secrets use separate file adapters and never place credentials in SQLite or audit.
 
 ## 5. API contract and access
 
@@ -116,8 +116,8 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
 | `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / deleted ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → audit entries, newest sequence first |
-| `settings.get`, `settings.savePreferences` | Explicit scaffolds; return `NOT_IMPLEMENTED` |
-| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | Explicit scaffolds; return `NOT_IMPLEMENTED` |
+| `settings.get`, `settings.savePreferences` | `{}` / partial language, light theme or mailbox → versioned Preferences |
+| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | OpenAI provider; save also accepts `apiKey` → `{ configured, available }`, never a key |
 
 ```ts
 const saved = await window.data.jobs.saveJob({
@@ -139,14 +139,19 @@ The API offers no raw SQL/table CRUD, unrestricted filters, transaction manageme
 | `STORAGE_BUSY` | Database lock contention exceeded the wait limit |
 | `STORAGE_UNAVAILABLE` | Storage operation could not complete; raw error details are withheld |
 | `AUDIT_UNAVAILABLE` | Failed operation could not durably record failure audit; no success is reported |
-| `NOT_IMPLEMENTED` | Settings/secrets scaffold has no persistence implementation |
+| `NOT_IMPLEMENTED` | Storage adapter was not supplied to a non-production backend |
+| `ENCRYPTION_UNAVAILABLE` | OS-backed encryption is unavailable; key saving is refused |
 | `FORBIDDEN` | IPC caller is not the trusted top-level renderer document |
 
 ## 6. Settings, secrets and remaining work
 
-Only `database.sqlite` and its SQLite auxiliary files are implemented application-owned storage. Settings, encrypted keys and compiled artifacts remain planned under `userData/settings.json`, `userData/secrets.enc`, and `userData/artifacts/`. Electron Session separately owns website cookies/storage. Ordinary audit cannot be disabled.
+Main owns `database.sqlite`, its auxiliary files, `userData/settings.json` and `userData/secrets.enc`. Compiled artifacts under `userData/artifacts/` remain planned. Electron Session separately owns website cookies/storage. Ordinary business audit cannot be disabled.
 
-[Settings/secrets scaffolds](../src/platform/storage/index.ts) create no files and return no fake success. Future preferences, key protection and file export need separate implementation; secrets must remain outside the database, snapshots and audit. AI calls, extraction/deduplication, compilation, UI wiring and full privacy purge remain unimplemented.
+[Preferences](../src/platform/storage/preferences.ts) validate version 1, English/Simplified Chinese, the light theme and optional Gmail/Outlook/custom HTTPS webmail without embedded credentials. Missing files use defaults without writing. Partial saves merge the latest file; malformed/future files fail without resetting. [Atomic replacement](../src/platform/storage/files.ts) uses a private temporary file and rename; failed writes preserve previous data.
+
+[Secrets](../src/platform/storage/secrets.ts) store only versioned OpenAI ciphertext, encrypted by Electron `safeStorage` at [Main composition](../src/platform/electron/main/index.ts). Unavailable encryption (including Linux `basic_text`) refuses saves; deletion remains available. The API returns configuration/encryption status, never decrypted keys. Keys stay outside ordinary preferences, SQLite, snapshots and audit; file preferences/key operations do not append business audit. Key configuration does not verify provider access or execute AI.
+
+[Settings tests](../tests/settings.test.ts) verify reopen, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI calls, extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
 
 - [Current architecture](architecture.md): runtime initialization and process boundaries.
 - [Code architecture](code-architecture.md): source ownership and quality checks.

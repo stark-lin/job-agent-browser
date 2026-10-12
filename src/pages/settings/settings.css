@@ -1,0 +1,14 @@
+.settings-page { height: 100%; overflow-y: auto; background: var(--bg); padding: var(--space-4) var(--space-3) var(--space-8); }
+.settings-content { width: min(var(--content-width), 100%); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-4); }
+.settings-navigation { display: flex; }
+.settings-sections { display: flex; flex-direction: column; gap: var(--space-3); }
+.settings-stack { display: flex; flex-direction: column; gap: var(--space-2); }
+.settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.settings-actions, .settings-provider { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.settings-actions { min-height: var(--control-md); }
+.settings-buttons { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-left: auto; }
+.settings-actions > button { margin-left: auto; }
+@media (max-width: 640px) {
+  .settings-page { padding: var(--space-3) var(--space-2) var(--space-6); }
+  .settings-fields { grid-template-columns: 1fr; gap: var(--space-2); }
+}

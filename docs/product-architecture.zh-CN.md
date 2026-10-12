@@ -30,11 +30,11 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-九个入口均可访问，八个业务页面目前为占位。新增能力优先放进现有入口。
+常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings 和独立的 Inbox 网页邮箱视图已实现，其余六个功能入口仍为占位。新增能力优先放进现有入口。
 
 ### Inbox 初版
 
-Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等网页邮箱。用户在 Settings 选择邮箱类型并配置网页 URL；进入 `app://inbox` 后，通过统一 Navigation API 在 Browser Shell 中打开该 URL。未配置时，引导用户完成邮箱设置。
+Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等网页邮箱。用户在 Settings 选择邮箱类型并配置网页 URL；进入 `app://inbox` 后，通过统一 Navigation API 在工作区侧栏旁的独立 Inbox 视图中打开该 URL，不显示 Browser 标签栏、地址栏或应用顶部条。侧栏提供主页和全部功能入口。未配置时，引导用户完成邮箱设置。
 
 用户直接在邮箱网站登录，登录状态由 Electron Session 管理。初版只保存邮箱入口配置，不保存邮箱密码，不要求邮箱 API 接入、邮件同步、聚合收件箱或本地邮件实体。阅读和回复邮件使用邮箱网站已有功能。
 
@@ -102,7 +102,7 @@ MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部�
 
 Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
 
-SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化和 Electron Session 已实现；配置、密钥和编译输出仍为规划，见[当前架构](architecture.zh-CN.md)。
+SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化、Electron Session、配置和加密密钥已实现；编译输出仍为规划，见[当前架构](architecture.zh-CN.md)。
 
 ## 七、功能通过能力组合实现
 
@@ -115,7 +115,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
 | Applications | Job + 申请生命周期 + JobEvent |
-| Inbox | 用户配置的网页邮箱 + Browser + Session |
+| Inbox | 用户配置的网页邮箱 + 独立原生 Inbox 视图 + Session |
 
 导航、上下文、AI 接入和文件处理应在这些工作流之间复用。
 

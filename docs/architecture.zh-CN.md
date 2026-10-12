@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 应用组装、九个可访问入口、每标签混合导航、浏览器基础及业务存储**已实现**。业务流程、AI 执行与编译仍为**规划**；业务页面 UI 为**占位**。
+用途：记录已验证的运行行为。状态：React 应用组装、九个可访问入口、每标签混合导航、浏览器基础、Settings 及业务存储**已实现**。业务流程、AI 执行与编译仍为**规划**；其余业务页面 UI 为**占位**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -16,7 +16,7 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。八个业务页面明确显示待实现说明，不实现业务流程；Inbox 可进入 Settings 占位页。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。其余六个功能入口仍为占位。
 
 ## 二、路由与混合历史
 
@@ -32,15 +32,17 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 ## 三、展示与交互
 
-[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮，不显示跨页面 Back/Next/Forward 控件。各页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back 和 Forward。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。
+[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 常驻每个页面左侧，提供主页、九个功能、翻译后的分组及唯一当前状态。共享[功能元数据](../src/app/navigation/features.ts)管理侧栏及 Home 的图标/顺序。切换功能使用相同导航 API 和未保存设置保护；点击当前功能不新增历史。[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮，不显示跨页面 Back/Next/Forward 控件。占位页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back 和 Forward。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。
 
 **已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为 [Home](../src/pages/home/home.css) 和[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
 
-只有活动网页段可见，位于 Browser 的 48 像素标签栏和 48 像素工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方，随窗口调整边界。目标切换先隐藏全部原生视图，直到 BrowserPage 提交后确认当前标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
+只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[生成尺寸](../src/shared/ui/geometry.ts)：窗口宽度超过 960px 时为 208px，否则为 64px。[生成的响应式 CSS](../src/shared/ui/sidebar-responsive.css)使用相同 Tokens，确保侧栏控件不会被原生视图遮挡。侧栏主页入口替代邮箱退出区域。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 切换创建独立网页段。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
 
 [TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。内部目标以页面标题作为标签名称，不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 
 [快捷键](../src/platform/browser/shortcuts.ts) 在可信 Renderer 和原生网页中生效：macOS 的 `Cmd+T/W` 或其他平台的 `Ctrl+T/W` 新建/关闭标签；`Ctrl+Tab` 和 `Ctrl+Shift+Tab` 切换标签。`Cmd+L`/`Ctrl+L` 仅在 Browser 聚焦并选择地址。`Alt+Left/Right` 遍历混合历史，也适用于没有浏览器栏的内部页面。
+
+[Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、历史遍历、标签切换/关闭及窗口关闭前确认放弃未保存设置；通过标签/目标标识忽略过期草稿登记。已配置的 `app://inbox` 在写入历史前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
 
 [App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体、提取网页内容或自动选择业务记录。
 
@@ -55,19 +57,19 @@ React App → Page → window.browser / window.data → Preload → IPC → Main
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
-## 五、国际化准备
+## 五、国际化
 
-**已实现：**[英文资源](../src/shared/i18n/locales/en.ts)集中管理应用自有的页面文案、内部标题、提示气泡、无障碍标签、错误及原生启动对话框。[共享初始化](../src/shared/i18n/index.ts)通过打包资源在各进程分别创建 i18next 实例，同步初始化，默认及回退语言均为英文。不请求网络翻译资源，也不检测系统语言。
+**已实现：**英文与[简体中文资源](../src/shared/i18n/locales/zh-CN.ts)支持保存语言选择。[英文资源](../src/shared/i18n/locales/en.ts)集中管理应用自有的页面文案、内部标题、提示气泡、无障碍标签、错误及原生启动对话框。[共享初始化](../src/shared/i18n/index.ts)通过打包资源在各进程分别创建 i18next 实例，同步初始化，默认及回退语言均为英文。不请求网络翻译资源，也不检测系统语言。
 
-[App 翻译 Provider](../src/app/i18n.tsx)向 `useTranslation()` 提供同一个 Renderer 实例，并更新文档标题和语言。非 React 代码使用共享 `t` 函数；[Main](../src/platform/electron/main/index.ts)可在 React 启动前取词。[构建配置](../electron.vite.config.ts)从与原生窗口共用的英文资源注入 HTML 标题。完整句子模板插入标签/标题，React 将结果作为文本渲染。用户数据、网站标题/内容及仅用于诊断的异常不进入文案资源。浏览器 IPC 仍传递英文标题/错误字符串。
+[App 翻译 Provider](../src/app/i18n.tsx)向 `useTranslation()` 提供同一个 Renderer 实例，并更新文档标题和语言。非 React 代码使用共享 `t` 函数；[Main](../src/platform/electron/main/index.ts)可在 React 启动前取词。[构建配置](../electron.vite.config.ts)从与原生窗口共用的英文资源注入 HTML 标题。完整句子模板插入标签/标题，React 将结果作为文本渲染。用户数据、网站标题/内容及仅用于诊断的异常不进入文案资源。Main 在创建窗口前加载保存的语言，通过浏览器快照发布；Renderer 的 Provider 跟随该语言。新的浏览器标题/错误使用当前语言；之前已捕获的错误文字不重新翻译。
 
-**规划：**其他语言翻译、语言选择器、语言偏好持久化及进程间同步。[翻译测试](../tests/i18n.test.ts)覆盖启动取词、回退、实例隔离、React 资源使用、插值安全及无效键的类型检查。
+**规划：**更多语言及系统语言检测。[翻译测试](../tests/i18n.test.ts)覆盖启动取词、回退、实例隔离、React 资源使用、插值安全及无效键的类型检查。
 
 ## 六、验证与限制
 
-[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
-标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。业务流程、网页提取、AI 生成执行、编译、完整 Shared Context 捕获、邮箱配置、配置/密钥持久化和安装包仍未实现。
+标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。业务流程、网页提取、AI 生成执行、编译、完整 Shared Context 捕获、安装包仍未实现。
 
 ## 七、相关文档
 

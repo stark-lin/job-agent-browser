@@ -14,7 +14,7 @@ import { repositories } from './repositories'
 import { auditReader, references } from './audit-reader'
 
 /** Main composition root. All services share one connection; generation has a separate trusted identity. */
-export function composeBackend(database: ReturnType<typeof openDatabase>) {
+export function composeBackend(database: ReturnType<typeof openDatabase>, storage: Pick<ServiceContract, 'settings' | 'secrets'> = storageScaffold) {
   const store = new Store(database.connection, database.transactions), repo = repositories(store)
   const user = database.transactions.forActor('USER'), system = database.transactions.forActor('SYSTEM')
   const runtime = { id: randomUUID, now: () => new Date().toISOString() }
@@ -22,7 +22,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>) {
     jobs: createJobService(repo.jobs, user, runtime), profiles: createCandidateService(repo.candidate, user, runtime),
     applications: createApplicationService(repo.jobs, repo.applications, user, runtime),
     resumes: createResumeService(repo.jobs, repo.candidate, repo.resumes, user, runtime, references(store)),
-    audit: auditReader(store, user), ...storageScaffold
+    audit: auditReader(store, user), ...storage
   } satisfies ServiceContract
   const generation = createGenerationService(repo.resumes, database.transactions.forActor('AI'), runtime)
   createGenerationService(repo.resumes, system, runtime).recoverInterrupted()
@@ -42,7 +42,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>) {
   }
 }
 
-export function createBackend(path: string) {
+export function createBackend(path: string, storage?: Pick<ServiceContract, 'settings' | 'secrets'>) {
   const database = openDatabase(path)
-  try { return composeBackend(database) } catch (error) { database.close(); throw error }
+  try { return composeBackend(database, storage) } catch (error) { database.close(); throw error }
 }

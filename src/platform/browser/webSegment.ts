@@ -24,7 +24,8 @@ export class WebSegment implements HistorySegment {
   constructor(
     private readonly window: BrowserWindow,
     private readonly changed: (newEntry: boolean) => void,
-    openPopup: (url: string) => void
+    openPopup: (url: string) => void,
+    readonly surface: 'browser' | 'inbox' = 'browser'
   ) {
     this.view = new WebContentsView({ webPreferences: {
       session: session.fromPartition(SESSION_PARTITION), nodeIntegration: false,

@@ -43,7 +43,7 @@ app.on('browser-window-created', (_event, window) => {
       await outsider.loadURL('data:text/html,<h1>Untrusted smoke document</h1>')
       const denied = await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','jobs','listJobs',{})")
       assert.deepEqual(denied, { ok: false, error: 'FORBIDDEN' })
-      await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender/)
+      await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender|不可信的 IPC 发送方/)
       await require('./window-close-smoke.cjs')(window)
       console.log('Electron smoke passed: production startup, sandboxed bridge, automatic audit, read semantics, deletion and rejected untrusted document.')
       // Main's earlier will-quit listener closes SQLite first. Avoid waiting on Chromium helpers.

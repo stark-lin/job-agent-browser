@@ -1,6 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 执行、编译及业务流程仍为**规划**，功能页面 UI 为**占位**。配置和密钥为**占位**。
+用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 执行、编译及业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
 
 语言：简体中文 · [English](data-architecture.md)
 
@@ -77,7 +77,7 @@
 
 审计不保留前后值、任意元数据、业务正文、提示词、凭据、原始异常消息、堆栈、实际文件路径或网页 URL。SQL 授权器和触发器拒绝审计更新/删除及伪造插入。缺少内部上下文时拒绝业务写入。成功操作没有实际变更记录时不生成成功审计；生成门控拒绝是成功的持久化操作，任务状态变为 FAILED。
 
-失败写入先回滚，再通过独立事务追加一条失败审计。失败记录沿用请求 ID，其事务 ID 属于失败审计事务。已知时包含校验后的目标 ID，否则为空。无效业务写入参数也会审计，但不复制输入。失败审计无法持久化时返回 `AUDIT_UNAVAILABLE`，不声称已记录。不可信/未知 IPC 请求在执行业务前拒绝。配置/密钥占位不持久化或审计凭据。
+失败写入先回滚，再通过独立事务追加一条失败审计。失败记录沿用请求 ID，其事务 ID 属于失败审计事务。已知时包含校验后的目标 ID，否则为空。无效业务写入参数也会审计，但不复制输入。失败审计无法持久化时返回 `AUDIT_UNAVAILABLE`，不声称已记录。不可信/未知 IPC 请求在执行业务前拒绝。配置/密钥使用独立文件适配器，不将凭据写入 SQLite 或审计。
 
 ## 五、API 契约与访问
 
@@ -116,8 +116,8 @@
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
 | `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / 删除 ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → 审计，序号倒序 |
-| `settings.get`, `settings.savePreferences` | 明确占位；返回 `NOT_IMPLEMENTED` |
-| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 明确占位；返回 `NOT_IMPLEMENTED` |
+| `settings.get`, `settings.savePreferences` | `{}` / 部分语言、浅色主题或邮箱配置 → 带版本的 Preferences |
+| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | OpenAI 服务商；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
 
 ```ts
 const saved = await window.data.jobs.saveJob({
@@ -139,14 +139,19 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 | `STORAGE_BUSY` | 数据库锁争用超过等待上限 |
 | `STORAGE_UNAVAILABLE` | 存储操作无法完成；不暴露原始错误详情 |
 | `AUDIT_UNAVAILABLE` | 失败操作无法持久记录失败审计；不报告成功 |
-| `NOT_IMPLEMENTED` | 配置/密钥占位尚未实现持久化 |
+| `NOT_IMPLEMENTED` | 非生产后端未提供存储适配器 |
+| `ENCRYPTION_UNAVAILABLE` | 操作系统加密不可用；拒绝保存密钥 |
 | `FORBIDDEN` | IPC 调用方不是可信的顶层 Renderer 文档 |
 
 ## 六、配置、密钥与待完成工作
 
-目前应用自有存储只实现 `database.sqlite` 及 SQLite 辅助文件。配置、加密密钥和编译成品仍规划在 `userData/settings.json`、`userData/secrets.enc` 及 `userData/artifacts/`。Electron Session 单独拥有网站 Cookie/存储。普通审计不可禁用。
+Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。`userData/artifacts/` 下的编译成品仍为规划。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
 
-[配置/密钥占位](../src/platform/storage/index.ts) 不创建文件，不返回伪造成功。未来偏好配置、密钥保护和文件导出需要独立实现；秘密必须与数据库、快照和审计分离。AI 调用、提取/查重、编译、业务 UI 接入及完整隐私清除尚未实现。
+[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、浅色主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
+
+[密钥](../src/platform/storage/secrets.ts) 仅保存带版本的 OpenAI 密文，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。配置密钥不验证服务访问或执行 AI。
+
+[设置测试](../tests/settings.test.ts) 验证重启读取、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 调用、提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
 
 - [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。

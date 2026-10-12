@@ -1,6 +1,6 @@
 # Design Brief
 
-Purpose: provide the visual direction and starting point for UI design in Job Agent Browser. Status: **Implemented** light-theme foundations, central UI primitives, Home and Browser presentation; business feature pages are **Scaffolded** and their workflows remain **Planned**. Detailed component rules belong to the [design-system specification](docs/design-system.md).
+Purpose: provide the visual direction and starting point for UI design in Job Agent Browser. Status: **Implemented** light-theme foundations, central UI primitives, Home, Browser, Inbox and Settings presentation; remaining business feature pages are **Scaffolded** and their workflows remain **Planned**. Detailed component rules belong to the [design-system specification](docs/design-system.md).
 
 Language: English · [简体中文](DESIGN.zh-CN.md)
 
@@ -8,7 +8,7 @@ Language: English · [简体中文](DESIGN.zh-CN.md)
 
 The workspace should feel calm, readable and focused on the user's next task. Use warm neutral backgrounds, light panels, subtle borders and clear text hierarchy. Keep decoration secondary to content; avoid turning every card or navigation item into a primary action. The current palette and type choices are defined by [canonical tokens](src/shared/ui/design-tokens.json) and expressed in [Home](src/pages/home/HomePage.tsx) and [central styles](src/shared/ui/components.css).
 
-Consistent geometry should make pages feel like one application. Use the shared grid, type baselines and component sizes in the [layout specification](docs/design-system.md#3-layout-geometry-and-typography); do not introduce a separate visual system for a new feature.
+The persistent left sidebar provides direct access to Home and every feature, with one active state. Narrow windows use accessible icon navigation; Inbox remains free of an application top bar. The persistent left sidebar provides direct access to Home and every feature, with one active state. Narrow windows use accessible icon navigation; Inbox remains free of an application top bar. Consistent geometry should make pages feel like one application. Use the shared grid, type baselines and component sizes in the [layout specification](docs/design-system.md#3-layout-geometry-and-typography); do not introduce a separate visual system for a new feature.
 
 Use semantic color to explain an action or outcome, with accompanying text or icons. The [color specification](docs/design-system.md#4-semantic-color-rules) owns the palette and stage mapping; decorative accents must not change those meanings.
 

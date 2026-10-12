@@ -36,14 +36,16 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     await evaluate(`(() => { [...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === ${JSON.stringify(title)}).click() })()`)
     await internal(page)
     await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
-    assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), true)
-    assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), ['Go home'])
+    assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), page !== 'settings' && page !== 'inbox')
+    if (page === 'settings') await waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 3'), 'Settings forms')
+    else assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
     if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {
       await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent === 'Open Settings').click()")
       await internal('settings')
     }
-    await evaluate('document.querySelector(".page-actions button").click()')
+    await waitFor(() => evaluate('!!document.querySelector(".settings-navigation button, .page-actions button")'), 'Go home button')
+    await evaluate('document.querySelector(".settings-navigation button, .page-actions button").click()')
     await internal('home')
     await home()
   }

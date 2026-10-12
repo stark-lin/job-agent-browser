@@ -3,7 +3,7 @@ import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { BrowserManager } from '../../browser/browserManager'
 
-export function createMainWindow(): { window: BrowserWindow; browser: BrowserManager } {
+export function createMainWindow(getInboxURL: () => string | null = () => null): { window: BrowserWindow; browser: BrowserManager } {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -21,7 +21,7 @@ export function createMainWindow(): { window: BrowserWindow; browser: BrowserMan
   })
   window.removeMenu()
 
-  const browser = new BrowserManager(window)
+  const browser = new BrowserManager(window, getInboxURL)
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isWebURL(url)) void shell.openExternal(url)

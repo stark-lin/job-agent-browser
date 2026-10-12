@@ -405,3 +405,17 @@ tbody tr:last-child td { border-bottom: 0; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Settings panel reference: the React counterpart is SectionCard/FormField. */
+.settings-panel { width: 100%; padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-lg); background: var(--panel); }
+.settings-panel h3 { margin: 0; font-size: var(--font-lg); line-height: var(--line-lg); font-weight: var(--weight-semibold); }
+.settings-panel p { margin: var(--space-1) 0 var(--space-3); color: var(--muted); font-size: var(--font-sm); line-height: var(--line-sm); }
+.settings-panel .grid-2 { gap: var(--space-3); }
+.settings-panel-actions { display: flex; justify-content: flex-end; margin-top: var(--space-2); }
+@media (max-width: 640px) { .settings-panel { padding: var(--space-2); } .settings-panel .grid-2 { grid-template-columns: 1fr; gap: var(--space-2); } }
+
+
+.workspace-sidebar-example { width: var(--sidebar-width); padding: var(--space-2) var(--space-1); border-right: var(--border-width) solid var(--line); background: var(--panel-solid); }
+.workspace-navigation-heading { margin: var(--space-2) var(--space-1) var(--space-1); font-size: var(--font-xs); line-height: var(--line-xs); color: var(--muted); }
+.workspace-navigation-item { display: flex; align-items: center; width: 100%; min-height: var(--control-md); padding: var(--space-1); background: transparent; color: var(--text); border: 0; border-radius: var(--radius-sm); font-size: var(--font-sm); line-height: var(--line-sm); text-align: left; cursor: pointer; }
+.workspace-navigation-item[aria-current="page"] { background: var(--primary-soft); color: var(--primary-hover); font-weight: var(--weight-semibold); }

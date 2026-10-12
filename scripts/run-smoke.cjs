@@ -6,7 +6,8 @@ const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_RENDERER_URL
 env.JOB_BROWSER_SMOKE_DATA = mkdtempSync(resolve(tmpdir(), 'job-browser-smoke-'))
-const child = spawnSync(require('electron'), [resolve(__dirname, 'smoke.cjs')], { env, stdio: 'inherit', timeout: 40_000, killSignal: 'SIGKILL' })
+let child = spawnSync(require('electron'), [resolve(__dirname, 'smoke.cjs')], { env, stdio: 'inherit', timeout: 40_000, killSignal: 'SIGKILL' })
+if (child.status === 0) child = spawnSync(require('electron'), [resolve(__dirname, 'settings-restart-smoke.cjs')], { env, stdio: 'inherit', timeout: 15_000, killSignal: 'SIGKILL' })
 rmSync(env.JOB_BROWSER_SMOKE_DATA, { recursive: true, force: true })
 if (child.error) console.error(child.error.message)
 if (child.status !== 0) console.error(`Electron smoke exited: status=${child.status}, signal=${child.signal}`)

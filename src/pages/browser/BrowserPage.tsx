@@ -1,21 +1,12 @@
-import { useEffect } from 'react'
 import { useNavigation } from '../../app/navigation/navigate'
-import { useServices } from '../../app/providers'
+import { useNativePresentation } from '../../app/navigation/useNativePresentation'
 import { BrowserControls } from './BrowserControls'
 import { TabStrip } from './TabStrip'
 import { Icon, IconBox } from '../../shared/ui'
 
 export function BrowserPage() {
   const { state, active, error, navigate, back, forward, openPage, createTab, activateTab, closeTab } = useNavigation()
-  const { navigation } = useServices()
-  const tabId = active?.id, targetId = active?.targetId
-  useEffect(() => {
-    if (!tabId || !targetId) return
-    const presentation = { tabId, targetId }
-    void navigation.run(() => navigation.api.setVisible(true, presentation))
-    return () => { void navigation.api.setVisible(false, presentation).catch(() => {}) }
-    // Only target changes require a presentation handshake, not title/loading updates.
-  }, [navigation, tabId, targetId])
+  useNativePresentation()
 
   if (!active) return null
   const message = error || active.error

@@ -4,7 +4,7 @@ import { t } from './i18n'
 export const internalPages = en.navigation.pages
 
 export type InternalPage = keyof typeof internalPages
-export type Destination = { kind: 'internal'; page: InternalPage } | { kind: 'web'; url: string }
+export type Destination = { kind: 'internal'; page: InternalPage } | { kind: 'web'; url: string; surface?: 'inbox' }
 
 export function parseInternalURL(input: string): Destination {
   const match = /^app:\/\/([a-z-]+)\/?$/.exec(input.trim())
@@ -13,5 +13,9 @@ export function parseInternalURL(input: string): Destination {
 }
 
 export function isBrowserDestination(destination: Destination): boolean {
-  return destination.kind === 'web' || destination.page === 'browser'
+  return destination.kind === 'web' ? destination.surface !== 'inbox' : destination.page === 'browser'
+}
+
+export function isInboxDestination(destination: Destination): boolean {
+  return destination.kind === 'web' && destination.surface === 'inbox'
 }

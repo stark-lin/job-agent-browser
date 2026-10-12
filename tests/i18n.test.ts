@@ -33,6 +33,17 @@ test('React and isolated translation instances consume their own resource values
   assert.equal(other.t($ => $.navigation.goHome), 'Go home')
 })
 
+test('Chinese catalog switches existing UI and new settings copy while preserving English fallback', async () => {
+  const instance = createTranslationInstance()
+  await instance.changeLanguage('zh-CN')
+  assert.equal(instance.resolvedLanguage, 'zh-CN')
+  assert.equal(instance.t($ => $.navigation.pages.settings), '设置')
+  assert.equal(instance.t($ => $.settings.save), '保存更改')
+  assert.equal(instance.t($ => $.browser.closeNamedTab, { title: 'Example' }), '关闭 Example')
+  await instance.changeLanguage('fr')
+  assert.equal(instance.t($ => $.settings.save), 'Save changes')
+})
+
 test('complete sentence interpolation preserves external titles and React renders them as text', () => {
   const instance = createTranslationInstance()
   const title = 'A & B <script>alert("x")</script> {{title}}'

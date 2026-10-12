@@ -12,11 +12,13 @@ import {
   BROWSER_NAVIGATE,
   BROWSER_STATE_CHANGED,
   BROWSER_SET_VISIBLE,
+  BROWSER_SET_UNSAVED,
   type BrowserAPI,
   type BrowserState
 } from '../../../shared/browser'
 
 const browserAPI: BrowserAPI = {
+  setUnsaved: (unsaved, presentation) => ipcRenderer.invoke(BROWSER_SET_UNSAVED, unsaved, presentation),
   setVisible: (visible, presentation) => ipcRenderer.invoke(BROWSER_SET_VISIBLE, visible, presentation),
   navigate: (input) => ipcRenderer.invoke(BROWSER_NAVIGATE, input),
   back: () => ipcRenderer.invoke(BROWSER_BACK),
