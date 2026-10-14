@@ -116,7 +116,7 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
 | `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / deleted ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → audit entries, newest sequence first |
-| `settings.get`, `settings.savePreferences` | `{}` / partial language, light theme or mailbox → versioned Preferences |
+| `settings.get`, `settings.savePreferences` | `{}` / partial language, `light / dark / system` theme or mailbox → versioned Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | OpenAI provider; save also accepts `apiKey` → `{ configured, available }`, never a key |
 
 ```ts
@@ -147,11 +147,11 @@ The API offers no raw SQL/table CRUD, unrestricted filters, transaction manageme
 
 Main owns `database.sqlite`, its auxiliary files, `userData/settings.json` and `userData/secrets.enc`. Compiled artifacts under `userData/artifacts/` remain planned. Electron Session separately owns website cookies/storage. Ordinary business audit cannot be disabled.
 
-[Preferences](../src/platform/storage/preferences.ts) validate version 1, English/Simplified Chinese, the light theme and optional Gmail/Outlook/custom HTTPS webmail without embedded credentials. Missing files use defaults without writing. Partial saves merge the latest file; malformed/future files fail without resetting. [Atomic replacement](../src/platform/storage/files.ts) uses a private temporary file and rename; failed writes preserve previous data.
+[Preferences](../src/platform/storage/preferences.ts) validate version 1, English/Simplified Chinese, a `light / dark / system` theme and optional Gmail/Outlook/custom HTTPS webmail without embedded credentials. Existing version-1 light files remain compatible; the version stays 1. Light remains the default. Store the preference (including `system`), not its resolved color scheme; unrelated partial saves preserve it. Apply saved preferences only after successful atomic replacement. Missing files use defaults without writing. Partial saves merge the latest file; malformed/future files fail without resetting. [Atomic replacement](../src/platform/storage/files.ts) uses a private temporary file and rename; failed writes preserve previous data.
 
 [Secrets](../src/platform/storage/secrets.ts) store only versioned OpenAI ciphertext, encrypted by Electron `safeStorage` at [Main composition](../src/platform/electron/main/index.ts). Unavailable encryption (including Linux `basic_text`) refuses saves; deletion remains available. The API returns configuration/encryption status, never decrypted keys. Keys stay outside ordinary preferences, SQLite, snapshots and audit; file preferences/key operations do not append business audit. Key configuration does not verify provider access or execute AI.
 
-[Settings tests](../tests/settings.test.ts) verify reopen, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI calls, extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
+[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI calls, extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
 
 - [Current architecture](architecture.md): runtime initialization and process boundaries.
 - [Code architecture](code-architecture.md): source ownership and quality checks.

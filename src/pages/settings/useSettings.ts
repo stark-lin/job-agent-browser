@@ -29,7 +29,7 @@ export function useSettings() {
     return () => { cancelled = true }
   }, [data, attempt])
 
-  const generalDirty = Boolean(draft && saved && draft.language !== saved.language)
+  const generalDirty = Boolean(draft && saved && (draft.language !== saved.language || draft.theme !== saved.theme))
   const mailDirty = Boolean(draft && saved && JSON.stringify(draft.mailbox) !== JSON.stringify(saved.mailbox))
   const dirty = generalDirty || mailDirty || key.length > 0
   const tabId = active?.id, targetId = active?.targetId
@@ -46,6 +46,7 @@ export function useSettings() {
 
   const notice = (group: 'general' | 'mailbox' | 'key', value: Notice) => setNotices(previous => ({ ...previous, [group]: value }))
   const changeLanguage = (language: Preferences['language']) => { setDraft(previous => previous && ({ ...previous, language })); notice('general', '') }
+  const changeTheme = (theme: Preferences['theme']) => { setDraft(previous => previous && ({ ...previous, theme })); notice('general', '') }
   const changeMailbox = (mailbox: Mailbox) => { setDraft(previous => previous && ({ ...previous, mailbox })); notice('mailbox', '') }
   const changeKey = (value: string) => { setKey(value); notice('key', '') }
 
@@ -53,7 +54,7 @@ export function useSettings() {
     if (!draft || savingLock.current) return
     savingLock.current = true
     setSaving(group); notice(group, '')
-    const patch: PreferencePatch = group === 'general' ? { language: draft.language } : { mailbox: draft.mailbox }
+    const patch: PreferencePatch = group === 'general' ? { language: draft.language, theme: draft.theme } : { mailbox: draft.mailbox }
     try {
       const result = await data.settings.savePreferences(patch)
       if (!result.ok) { notice(group, 'saveFailed'); return }
@@ -76,5 +77,5 @@ export function useSettings() {
 
   const retry = useCallback(() => setAttempt(value => value + 1), [])
   return { draft, loading, loadFailed, retry, saving, notices, dirty, generalDirty, mailDirty,
-    key, keyStatus, changeLanguage, changeMailbox, changeKey, save, saveKey }
+    key, keyStatus, changeLanguage, changeTheme, changeMailbox, changeKey, save, saveKey }
 }

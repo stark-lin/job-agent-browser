@@ -23,7 +23,7 @@ export const zhCN = {
   inbox: { exit: '退出', configure: '连接你的邮箱', configureHelp: '在设置中选择网页邮箱服务商和地址，即可在此打开邮箱。', loadFailed: '无法打开邮箱' },
   settings: {
     subtitle: '打造适合你的工作区。偏好设置保存在此设备上。',
-    general: '通用', generalDescription: '选择工作区的显示语言。', language: '语言', appearance: '外观', light: '浅色', lightHelp: '当前提供浅色外观。',
+    general: '通用', generalDescription: '选择工作区的显示语言和外观。', language: '语言', appearance: '外观', light: '浅色', dark: '暗夜', system: '跟随系统', appearanceHelp: '保存后生效。跟随系统会随系统外观变化自动更新。',
     ai: 'AI 服务', aiDescription: '管理此设备上的 OpenAI API 密钥。', provider: '服务商', apiKey: 'API 密钥', keyPlaceholder: '输入新的 API 密钥', keyHelp: '通过操作系统加密。此处不会显示已保存的密钥。',
     configured: '已保存密钥', notConfigured: '尚未保存密钥', aiPlanned: 'AI 执行功能即将推出。保存密钥不会发送 API 请求或验证密钥。', encryptionUnavailable: '此设备无法使用安全的密钥存储。',
     mailbox: '邮箱', mailboxDescription: '从收件箱直接打开网页邮箱。', mailProvider: '邮箱服务商', none: '未配置', custom: '自定义网页邮箱', mailURL: '网页邮箱地址', mailHelp: '使用 HTTPS 地址，且网址中不得包含用户名或密码。', mailInvalid: '请输入有效的 HTTPS 网页邮箱地址，且不得包含登录凭据。',

@@ -1,6 +1,6 @@
 # 组件库与设计规范
 
-用途：定义可执行的组件规则与维护流程。状态：Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Settings 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
+用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Settings 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
 
 语言：简体中文 · [English](design-system.md)
 
@@ -8,11 +8,11 @@
 
 | 职责 | 权威来源 |
 | --- | --- |
-| Token 值 | [design-tokens.json](../src/shared/ui/design-tokens.json) |
+| Token 值 | [浅色及共享 Tokens](../src/shared/ui/design-tokens.json)、[暗色颜色覆盖](../src/shared/ui/design-tokens.dark.json) |
 | 公共 React 组件 | [中央入口](../src/shared/ui/index.ts) |
 | 共享应用外观 | [components.css](../src/shared/ui/components.css) |
 | 参考示例及其展示样式 | [展示库 HTML](components/job-browser-component-library-8px.html) 和 [component-library.css](../src/shared/ui/component-library.css) |
-| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生尺寸](../src/shared/ui/geometry.ts)、[侧栏响应式 CSS](../src/shared/ui/sidebar-responsive.css)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
+| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[侧栏响应式 CSS](../src/shared/ui/sidebar-responsive.css)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
 
 [Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。
 
@@ -69,14 +69,18 @@
 
 ## 四、语义色规则
 
-| 含义 | Token | 色值 | 用途 |
+| 含义 | Token | 浅色 / 暗色 | 用途 |
 | --- | --- | --- | --- |
-| 操作 / 信息 | `--primary`, `--info` | `#2563eb` | 主要操作、当前导航、信息状态 |
-| 成功 | `--success` | `#16a34a` | 操作完成、产物就绪、获得 Offer |
-| 警告 | `--warning` | `#d97706` | 需要审核或注意 |
-| 错误 / 破坏性操作 | `--danger` | `#dc2626` | 操作失败、字段无效、破坏性操作 |
+| 操作 / 信息 | `--primary`, `--info` | `#2563eb` / `#60a5fa` | 主要操作、当前导航、信息状态 |
+| 成功 | `--success` | `#16a34a` / `#4ade80` | 操作完成、产物就绪、获得 Offer |
+| 警告 | `--warning` | `#d97706` / `#fbbf24` | 需要审核或注意 |
+| 错误 / 破坏性操作 | `--danger` | `#dc2626` / `#f87171` | 操作失败、字段无效、破坏性操作 |
 
 使用对应背景与边框 Tokens，每个任务优先保留一个明确主要操作。Saved/Closed 保持中性，Applied/Interview 使用信息样式。流程阶段本身不自动成为警告或错误；同时提供文字或图标，避免只通过颜色表达含义。[参考展示库](components/job-browser-component-library-8px.html)展示当前语义映射；若应用页面仍为占位，其使用这些语义的业务流程仍属规划。
+
+主题只能修改背景、前景、边框、图标、焦点及阴影颜色。组件结构、尺寸、间距、排版、圆角、边框粗细、阴影偏移/模糊、过渡与行为共用。生成器拒绝非颜色的暗色覆盖和阴影尺寸变化。`--on-primary` 是主要按钮前景色，不得用 `--surface` 代替。展示库专用颜色也使用权威 Tokens。
+
+生成 CSS 支持 `data-theme="light"` / `data-theme="dark"`；未指定属性时跟随 `prefers-color-scheme`。离线展示库随系统切换，不增加控件或脚本；十六进制说明文字记录浅色色板，色块填充跟随当前主题。需要检查指定配色时，在浏览器开发工具中设置根节点属性。应用选择与同步归属[当前架构](architecture.zh-CN.md#三展示与交互)。
 
 ## 五、交互与无障碍
 
@@ -95,7 +99,7 @@
 ## 六、维护与验证
 
 1. 确认组件已在公共入口提供。必要时扩展中央实现和 `components.css`，页面行为与布局保留在调用处。
-2. 共享值修改 `design-tokens.json`，参考示例修改 `component-library.css`/展示库 HTML。不要手动修改生成资源。调整必须遵循的尺度时，同一变更中更新本规范与检查器的允许值断言。
+2. 浅色/共享值修改 `design-tokens.json`，仅颜色的暗色覆盖修改 `design-tokens.dark.json`，参考示例修改 `component-library.css`/展示库 HTML。不要手动修改生成资源。调整必须遵循的尺度时，同一变更中更新本规范与检查器的允许值断言。
 3. 仅当 Tokens 或参考样式输入变化时重新生成：
 
 ```sh
@@ -113,12 +117,13 @@ npm run quality
 
 | 验证 | 能证明什么 | 边界 |
 | --- | --- | --- |
-| [设计检查器](../scripts/design-system.cjs) | 生成文件一致性、允许的 Token 值、声明间距/固定尺寸、Token 引用、展示库链接及十个分类；拒绝 Shared UI 外的 `.ui-*` 选择器 | 不证明所有计算后的布局、状态或无障碍属性 |
+| [设计检查器](../scripts/design-system.cjs) | 生成文件一致性、仅颜色覆盖/阴影尺寸不变、部分暗色文字对比度 ≥4.5:1、允许的 Token 值、声明间距/固定尺寸、Token 引用、展示库链接及十个分类；拒绝 Shared UI 外的 `.ui-*` 选择器 | 不证明所有计算后的布局、状态或无障碍属性 |
 | [质量检查器](../scripts/quality.cjs) | 中央 UI 外禁止原生通用 JSX 控件/图标及显式 JSX `style` 属性；App/Page/Renderer 组件经公共入口导入；文档双语、路径和篇幅检查 | 不同类名的重复实现、props 展开绕过和动态创建元素仍需审查 |
 | [Browser smoke](../scripts/browser-smoke.cjs) | Home 在 320/640/1200px 下的表现、卡片最小高度、溢出、中央卡片尺寸，以及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
 | [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、响应式宽度及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
+| [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings/Home 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
 
 原生边界通过[浏览器契约](../src/shared/browser.ts)使用[生成尺寸](../src/shared/ui/geometry.ts)，不得分别修改 CSS 与 Main 的工具栏高度。[构建配置](../electron.vite.config.ts)选择 Renderer 入口，脚本和命令以 [package.json](../package.json) 为准。
 

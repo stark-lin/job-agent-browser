@@ -10,7 +10,7 @@ Organize product code by Page, business rules by Domain and technical adapters b
 
 | Layer | Ownership | Existing reference |
 | --- | --- | --- |
-| App | React composition, routing, providers, navigation projection and context | [App](../src/app/App.tsx), [providers](../src/app/providers.tsx) |
+| App | React composition, routing, providers, navigation projection and context | [App](../src/app/App.tsx), [providers](../src/app/providers.tsx), [theme projection](../src/app/theme.tsx) |
 | Pages | UI, local components/hooks/state and page workflows | [Home](../src/pages/home/HomePage.tsx), [Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | Entities, validation, use cases and capability/repository interfaces | [Job use cases](../src/domain/job/job.service.ts) |
 | Platform | Electron, browser, database, filesystem, AI and settings adapters | [Browser manager](../src/platform/browser/browserManager.ts), [SQLite](../src/platform/database/sqlite.ts) |
@@ -20,7 +20,7 @@ Organize product code by Page, business rules by Domain and technical adapters b
 
 All UI components must compose primitives from the [central library entry](../src/shared/ui/index.ts); add missing variants centrally before page use. Pages keep layout and event behavior. The [design specification](design-system.md#2-mandatory-central-component-reuse) owns the full reuse rule.
 
-Shared UI also owns [canonical design tokens](../src/shared/ui/design-tokens.json), generated CSS/geometry and reference component styles; Renderer/Page styles consume them. The [design specification](design-system.md) owns visual rules, assets and regeneration.
+Shared UI also owns [canonical design tokens](../src/shared/ui/design-tokens.json), [dark color overrides](../src/shared/ui/design-tokens.dark.json), generated CSS/native colors/geometry and reference component styles; Renderer/Page styles consume them. The [design specification](design-system.md) owns visual rules, assets and regeneration.
 
 ## 2. Directory boundaries
 

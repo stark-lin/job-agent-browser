@@ -116,7 +116,7 @@
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
 | `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / 删除 ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → 审计，序号倒序 |
-| `settings.get`, `settings.savePreferences` | `{}` / 部分语言、浅色主题或邮箱配置 → 带版本的 Preferences |
+| `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题或邮箱配置 → 带版本的 Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | OpenAI 服务商；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
 
 ```ts
@@ -147,11 +147,11 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。`userData/artifacts/` 下的编译成品仍为规划。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
 
-[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、浅色主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
+[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
 
 [密钥](../src/platform/storage/secrets.ts) 仅保存带版本的 OpenAI 密文，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。配置密钥不验证服务访问或执行 AI。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 调用、提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
+[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 调用、提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
 
 - [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。

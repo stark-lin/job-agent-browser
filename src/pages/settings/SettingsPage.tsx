@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
-import { mailURLs, type Language, type MailProvider } from '../../shared/settings'
+import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
 import { useSettings, type Notice } from './useSettings'
 import './settings.css'
 
@@ -36,7 +36,9 @@ export function SettingsPage() {
               <FormField label={t($ => $.settings.language)}>{props => <Select {...props} value={draft.language} disabled={Boolean(saving)} onChange={event => settings.changeLanguage(event.target.value as Language)}>
                 <option value="en" lang="en">English</option><option value="zh-CN" lang="zh-CN">简体中文</option>
               </Select>}</FormField>
-              <FormField label={t($ => $.settings.appearance)} help={t($ => $.settings.lightHelp)}>{props => <Select {...props} value="light" disabled><option value="light">{t($ => $.settings.light)}</option></Select>}</FormField>
+              <FormField label={t($ => $.settings.appearance)} help={t($ => $.settings.appearanceHelp)}>{props => <Select {...props} value={draft.theme} disabled={Boolean(saving)} onChange={event => settings.changeTheme(event.target.value as ThemePreference)}>
+                <option value="light">{t($ => $.settings.light)}</option><option value="dark">{t($ => $.settings.dark)}</option><option value="system">{t($ => $.settings.system)}</option>
+              </Select>}</FormField>
             </div>
             <div className="settings-actions">{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" disabled={!settings.generalDirty || Boolean(saving)}>{saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
           </form>

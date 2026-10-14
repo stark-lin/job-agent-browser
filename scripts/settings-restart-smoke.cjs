@@ -19,10 +19,14 @@ app.once('browser-window-created', (_event, window) => {
           const check = () => document.querySelectorAll('.settings-page form').length === 3 && document.documentElement.lang === 'zh-CN' ? resolve() : setTimeout(check, 10);
           check();
         });
-        return {preferences,key,browser,language:document.documentElement.lang,title:document.querySelector('h1').textContent,
+        return {preferences,key,browser,theme:document.documentElement.dataset.theme,colorScheme:getComputedStyle(document.documentElement).colorScheme,language:document.documentElement.lang,title:document.querySelector('h1').textContent,
           keyInput:document.querySelector('input[type=password]').value};
       })()`)
       assert.equal(result.preferences.value.language, 'zh-CN')
+      assert.equal(result.preferences.value.theme, 'dark')
+      assert.equal(result.browser.theme, 'dark')
+      assert.equal(result.theme, 'dark')
+      assert.equal(result.colorScheme, 'dark')
       assert.deepEqual(result.preferences.value.mailbox, { provider: 'custom', url: 'https://example.invalid/mail' })
       assert.equal(result.browser.language, 'zh-CN')
       assert.equal(result.browser.tabs[0].title, '主页')
@@ -35,7 +39,7 @@ app.once('browser-window-created', (_event, window) => {
         assert.equal(file.includes('smoke-key-restart'), false)
         assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).openai, 'base64')), 'smoke-key-restart')
       }
-      console.log('Settings restart smoke passed: persisted language/mailbox restored before startup and encrypted key restored without exposing it to UI.')
+      console.log('Settings restart smoke passed: persisted language/theme/mailbox restored before startup and encrypted key restored without exposing it to UI.')
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) })
       app.quit()
     } catch (error) { clearTimeout(timeout); console.error(error); app.exit(1) }

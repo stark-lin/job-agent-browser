@@ -51,8 +51,8 @@ export const en = {
   },
   settings: {
     subtitle: 'Make this workspace yours. Preferences are stored on this device.',
-    general: 'General', generalDescription: 'Choose the language for your workspace.',
-    language: 'Language', appearance: 'Appearance', light: 'Light', lightHelp: 'Currently available in light appearance.',
+    general: 'General', generalDescription: 'Choose the language and appearance for your workspace.',
+    language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark', system: 'Follow system', appearanceHelp: 'Save to apply. Follow system updates when your system appearance changes.',
     ai: 'AI provider', aiDescription: 'Manage your OpenAI API key on this device.',
     provider: 'Provider', apiKey: 'API key', keyPlaceholder: 'Enter a new API key',
     keyHelp: 'Encrypted using your operating system. Saved keys are never displayed here.',

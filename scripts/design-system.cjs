@@ -5,13 +5,50 @@ const path = require('node:path')
 const root = path.resolve(__dirname, '..')
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 const tokens = JSON.parse(read('src/shared/ui/design-tokens.json'))
+const darkTokens = JSON.parse(read('src/shared/ui/design-tokens.dark.json'))
+const colorValue = (value, palette, seen = new Set()) => {
+  if (typeof value !== 'string') return false
+  const alias = /^var\(--([\w-]+)\)$/.exec(value)
+  if (!alias) return /^(#[\da-f]{6}|rgba?\([\d.,\s]+\))$/i.test(value)
+  if (seen.has(alias[1])) return false
+  seen.add(alias[1])
+  return colorValue(palette[alias[1]], palette, seen)
+}
+// Dark overrides may contain colors, aliases or shadows with identical geometry only.
+for (const [name, value] of Object.entries(darkTokens)) {
+  assert(name in tokens, `${name}: dark theme must override an existing token`)
+  if (/shadow/.test(name)) {
+    const geometry = text => text.replace(/rgba?\([^)]*\)|#[\da-f]+/gi, 'COLOR')
+    assert.equal(geometry(value), geometry(tokens[name]), `${name}: themes must preserve shadow geometry`)
+  } else {
+    assert(colorValue(value, { ...tokens, ...darkTokens }) && colorValue(tokens[name], tokens), `${name}: themes may change colors only`)
+  }
+}
+const darkDeclarations = Object.entries(darkTokens).map(([name, value]) => `  --${name}: ${value};`).join('\n')
+const luminance = color => {
+  assert(/^#[\da-f]{6}$/i.test(color), `Contrast checks require opaque hex colors: ${color}`)
+  const channels = [1, 3, 5].map(offset => Number.parseInt(color.slice(offset, offset + 2), 16) / 255)
+  return channels.reduce((total, channel, index) => total + [0.2126, 0.7152, 0.0722][index] *
+    (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4), 0)
+}
+for (const [foreground, background] of [['text', 'bg'], ['text', 'surface'], ['muted', 'surface'],
+  ['primary', 'primary-soft'], ['danger', 'surface'], ['danger', 'danger-bg'], ['success', 'success-bg'],
+  ['warning', 'warning-bg'], ['on-primary', 'primary'], ['on-primary', 'primary-hover']]) {
+  const [low, high] = [luminance(darkTokens[foreground]), luminance(darkTokens[background])].sort((a, b) => a - b)
+  assert((high + 0.05) / (low + 0.05) >= 4.5, `${foreground}/${background}: dark text contrast must reach 4.5:1`)
+}
 const pixels = (name) => {
   assert(/^\d+px$/.test(tokens[name]), `${name}: expected a pixel dimension`)
   return Number.parseInt(tokens[name], 10)
 }
 const generated = {
   'src/shared/ui/design-tokens.css': '/* Generated from design-tokens.json: npm run design:tokens */\n:root {\n' +
-    Object.entries(tokens).map(([name, value]) => `  --${name}: ${value};`).join('\n') + '\n}\n',
+    '  color-scheme: light;\n' + Object.entries(tokens).map(([name, value]) => `  --${name}: ${value};`).join('\n') + '\n}\n' +
+    '@media (prefers-color-scheme: dark) {\n  :root:not([data-theme="light"]) {\n    color-scheme: dark;\n' +
+    darkDeclarations.replace(/^/gm, '  ') + '\n  }\n}\n' +
+    ':root[data-theme="dark"] {\n  color-scheme: dark;\n' + darkDeclarations + '\n}\n',
+  'src/shared/ui/theme-colors.ts': '// Generated from design-tokens.json and design-tokens.dark.json: npm run design:tokens\n' +
+    `export const themeBackgrounds = ${JSON.stringify({ light: tokens.bg, dark: darkTokens.bg })} as const\n`,
   'src/shared/ui/geometry.ts': '// Generated from design-tokens.json: npm run design:tokens\n' +
     `export const TAB_STRIP_HEIGHT = ${pixels('tab-strip-height')}\n` +
     `export const TOOLBAR_HEIGHT = ${pixels('toolbar-height')}\n` +
@@ -86,6 +123,8 @@ for (const file of sourceStyles('src')) {
     assert(!/\.ui-[\w-]+/.test(read(file)), `${file}: central component selectors belong in src/shared/ui/`)
   }
 }
+assert(!/#[\da-f]{3,8}\b|rgba?\(|\b(?:background|color):\s*white\b/i.test(read('src/shared/ui/component-library.css')),
+  'Gallery colors must use shared tokens')
 const html = read('docs/components/job-browser-component-library-8px.html')
 assert.deepEqual([...html.matchAll(/<section class="section" id="([^"]+)"/g)].map((match) => match[1]),
   ['foundations', 'buttons', 'forms', 'navigation', 'badges', 'cards', 'job', 'feedback', 'overlays', 'tables'])
@@ -93,4 +132,4 @@ for (const [, inline] of html.matchAll(/style="([^"]+)"/g)) checkDeclarations(in
 for (const [, href] of html.matchAll(/(?:href|src)="([^"#][^"]*)"/g)) {
   assert(fs.existsSync(path.resolve(root, 'docs/components', href)), `Gallery: missing asset ${href}`)
 }
-console.log('Design system checks passed: generated assets, 8px geometry, spacing tokens, semantic colors and 10 gallery categories.')
+console.log('Design system checks passed: generated assets, color-only themes, 8px geometry, spacing tokens, semantic colors and 10 gallery categories.')

@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
+const { nativeTheme } = require('electron')
 
 // Keep the outsider window alive until this check ends, so window-all-closed
 // cannot quit the app before the retained native views are inspected.
@@ -18,6 +19,7 @@ module.exports = async function windowCloseSmoke(window) {
     await window.webContents.executeJavaScript("window.browser.navigate('app://home')")
     const retained = window.contentView.children.filter((view) => view.webContents).map((view) => view.webContents)
     assert(retained.length > 0)
+    const themeListeners = nativeTheme.listenerCount('updated')
     // WebContents.close() completes asynchronously after the BrowserWindow's
     // closed event; verify the actual native destruction events before checking.
     const released = Promise.all(retained.map((contents) => new Promise((resolve) => contents.once('destroyed', resolve))))
@@ -26,6 +28,7 @@ module.exports = async function windowCloseSmoke(window) {
     await closed
     await released
     assert(retained.every((contents) => contents.isDestroyed()))
+    assert.equal(nativeTheme.listenerCount('updated'), themeListeners - 1, 'Window releases its shared theme listener')
     console.log('Window close smoke passed: hidden retained native views are released when the owning window closes.')
   } finally {
     server.closeAllConnections()

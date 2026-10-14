@@ -25,8 +25,9 @@ export function mailbox(input: unknown): Mailbox {
 function merge(input: unknown, current: Preferences): Preferences {
   const value = object(input, ['language', 'theme', 'mailbox'])
   if ('language' in value && value.language !== 'en' && value.language !== 'zh-CN') return fail('INVALID_INPUT')
-  if ('theme' in value && value.theme !== 'light') return fail('INVALID_INPUT')
+  if ('theme' in value && value.theme !== 'light' && value.theme !== 'dark' && value.theme !== 'system') return fail('INVALID_INPUT')
   return { ...current, language: 'language' in value ? value.language as Preferences['language'] : current.language,
+    theme: 'theme' in value ? value.theme as Preferences['theme'] : current.theme,
     mailbox: 'mailbox' in value ? mailbox(value.mailbox) : current.mailbox }
 }
 

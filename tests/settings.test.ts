@@ -53,12 +53,26 @@ test('unknown fields, unsupported preferences and unsafe mailbox URLs leave save
   const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
   service.savePreferences({ language: 'en' })
   const before = readFileSync(path, 'utf8')
-  for (const input of [null, [], { autoSave: true }, { theme: 'dark' }, { theme: 'system' }, { language: 'fr' }, { language: undefined },
+  for (const input of [null, [], { autoSave: true }, { theme: 'sepia' }, { theme: undefined }, { theme: null }, { theme: {} }, { language: 'fr' }, { language: undefined },
     ...['http://example.com', 'javascript:alert(1)', 'app://home', 'https://user:password@example.com', '', 'https://'].map(url => ({ mailbox: { provider: 'custom', url } })),
     { mailbox: { provider: 'other', url: 'https://example.com' } }, { mailbox: { provider: 'none', url: 'https://example.com' } }]) {
     assert.throws(() => service.savePreferences(input), { code: 'INVALID_INPUT' })
     assert.equal(readFileSync(path, 'utf8'), before)
   }
+})
+
+test('all themes persist, partial saves preserve them, and old version-1 light files remain compatible', t => {
+  const path = join(temporary(t), 'settings.json'), notifications: string[] = []
+  writeFileSync(path, JSON.stringify(defaultPreferences))
+  const service = createPreferences(path, value => notifications.push(value.theme))
+  assert.deepEqual(service.get({}), defaultPreferences)
+  for (const theme of ['dark', 'system', 'light'] as const) {
+    assert.equal(service.savePreferences({ theme }).theme, theme)
+    assert.equal(createPreferences(path).get({}).theme, theme)
+    assert.equal(service.savePreferences({ language: 'zh-CN' }).theme, theme)
+    assert.equal(service.savePreferences({ mailbox: { provider: 'none', url: '' } }).theme, theme)
+  }
+  assert.deepEqual(notifications, ['dark', 'dark', 'dark', 'system', 'system', 'system', 'light', 'light', 'light'])
 })
 
 test('corrupt and future configuration fails without resetting or replacing user files', t => {
@@ -78,7 +92,7 @@ test('an unwritable preference directory preserves the previous file and emits n
   service.savePreferences({ language: 'en' })
   const before = readFileSync(path, 'utf8')
   chmodSync(directory, 0o500)
-  assert.throws(() => service.savePreferences({ language: 'zh-CN' }))
+  assert.throws(() => service.savePreferences({ language: 'zh-CN', theme: 'dark' }))
   assert.equal(readFileSync(path, 'utf8'), before)
   assert.deepEqual(notifications, ['en'])
 })

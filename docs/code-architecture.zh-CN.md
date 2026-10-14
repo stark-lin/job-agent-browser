@@ -10,7 +10,7 @@
 
 | 层 | 职责 | 现有依据 |
 | --- | --- | --- |
-| App | React 组装、路由、Provider、导航投影与上下文 | [App](../src/app/App.tsx)、[Provider](../src/app/providers.tsx) |
+| App | React 组装、路由、Provider、导航投影与上下文 | [App](../src/app/App.tsx)、[Provider](../src/app/providers.tsx)、[主题投影](../src/app/theme.tsx) |
 | Pages | UI、局部组件/hooks/状态与页面流程 | [Home](../src/pages/home/HomePage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | 实体、校验、用例与能力/Repository 接口 | [Job 用例](../src/domain/job/job.service.ts) |
 | Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
@@ -20,7 +20,7 @@
 
 所有 UI 组件必须组合[中央组件库入口](../src/shared/ui/index.ts)提供的基础组件；缺少变体时先扩展中央库再用于页面。页面保留布局与事件行为。[设计规范](design-system.zh-CN.md#二必须复用中央组件库)管理完整复用规则。
 
-Shared UI 同时拥有[权威 Design Tokens](../src/shared/ui/design-tokens.json)、生成的 CSS/尺寸及参考组件样式，由 Renderer/Page 样式消费。[设计规范](design-system.zh-CN.md)管理视觉规则、资源和重新生成方式。
+Shared UI 同时拥有[权威 Design Tokens](../src/shared/ui/design-tokens.json)、[暗色颜色覆盖](../src/shared/ui/design-tokens.dark.json)、生成的 CSS/原生颜色/尺寸及参考组件样式，由 Renderer/Page 样式消费。[设计规范](design-system.zh-CN.md)管理视觉规则、资源和重新生成方式。
 
 ## 二、目录边界
 

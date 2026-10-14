@@ -1,4 +1,5 @@
 import type { Destination } from './navigation'
+import type { ResolvedTheme } from './settings'
 
 export interface Presentation {
   tabId: string
@@ -19,6 +20,7 @@ export interface BrowserTabState {
 
 export interface BrowserState {
   language?: 'en' | 'zh-CN'
+  theme?: ResolvedTheme
   revision: number
   tabs: BrowserTabState[]
   activeTabId: string

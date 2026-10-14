@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
 import { session, WebContentsView, type BrowserWindow } from 'electron'
+import { themeBackground } from '../electron/main/theme'
 import type { HistorySegment } from './mixedHistory'
 import { NativeHistoryIdentity } from './nativeHistory'
 
@@ -31,6 +32,7 @@ export class WebSegment implements HistorySegment {
       session: session.fromPartition(SESSION_PARTITION), nodeIntegration: false,
       contextIsolation: true, sandbox: true, webSecurity: true
     } })
+    this.updateThemeBackground()
     this.view.setVisible(false)
     window.contentView.addChildView(this.view)
     const contents = this.view.webContents
@@ -54,6 +56,8 @@ export class WebSegment implements HistorySegment {
       }
     })
   }
+
+  updateThemeBackground(): void { if (!this.disposed) this.view.setBackgroundColor(themeBackground()) }
 
   get title(): string { return this.view.webContents.getTitle() || this.url }
   get length(): number { return Math.max(1, this.view.webContents.navigationHistory.length()) }

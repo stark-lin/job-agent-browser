@@ -31,6 +31,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
       labels: [...document.querySelectorAll('.ui-field-label')].every(label => !!document.getElementById(label.htmlFor)) };
   })()`)
   assert.deepEqual(geometry, { padding: '24px', radius: '16px', height: 40, labels: true })
+  await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data })
   await capture('settings-en.png')
 
   // Change through React controls and the production IPC, then reload the renderer.
@@ -134,7 +135,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   }
   await call('navigate', 'app://home')
   // Leave a disposable fixture for the next process's startup-recovery smoke.
-  await data('settings', 'savePreferences', { language: 'zh-CN', mailbox: { provider: 'custom', url: 'https://example.invalid/mail' } })
+  await data('settings', 'savePreferences', { language: 'zh-CN', theme: 'dark', mailbox: { provider: 'custom', url: 'https://example.invalid/mail' } })
   if (status.available) await data('secrets', 'saveProviderKey', { provider: 'openai', apiKey: 'smoke-key-restart' })
   console.log('Settings smoke passed: real forms, bilingual persistence/reload, responsive geometry, validation, leave guards, Inbox routing and encrypted-key lifecycle.')
 }

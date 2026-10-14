@@ -18,6 +18,7 @@
     "design:tokens": "node scripts/design-system.cjs --write",
     "design:check": "node scripts/design-system.cjs",
     "test:smoke": "npm run build && node scripts/run-smoke.cjs",
+    "test:theme": "npm run build && node scripts/run-smoke.cjs --theme",
     "check": "npm run typecheck && npm run quality && npm test && npm run build"
   },
   "dependencies": {

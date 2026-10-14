@@ -2,6 +2,7 @@ import { t } from '../../../shared/i18n'
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { BrowserManager } from '../../browser/browserManager'
+import { themeBackground } from './theme'
 
 export function createMainWindow(getInboxURL: () => string | null = () => null): { window: BrowserWindow; browser: BrowserManager } {
   const window = new BrowserWindow({
@@ -10,7 +11,7 @@ export function createMainWindow(getInboxURL: () => string | null = () => null):
     minWidth: 640,
     minHeight: 420,
     title: t($ => $.app.title),
-    backgroundColor: '#f6f7f8',
+    backgroundColor: themeBackground(),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

@@ -1,6 +1,7 @@
 import { t, i18n } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
-import { session, dialog, type BrowserWindow, type WebContents } from 'electron'
+import { session, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
+import { resolvedTheme, themeBackground } from '../electron/main/theme'
 import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
 import { isBrowserDestination } from '../../shared/navigation'
@@ -24,6 +25,15 @@ export class BrowserManager {
     void this.createTab()
     const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
     i18n.on('languageChanged', languageChanged)
+    const themeChanged = () => {
+      if (window.isDestroyed()) return
+      window.setBackgroundColor(themeBackground())
+      for (const tab of this.tabs.values()) for (const item of tab.history.items) {
+        if (item.kind === 'web') item.segment.updateThemeBackground()
+      }
+      this.publishState()
+    }
+    nativeTheme.on('updated', themeChanged)
     window.on('close', event => {
       if (!this.unsaved) return
       event.preventDefault()
@@ -42,6 +52,7 @@ export class BrowserManager {
     window.on('resize', () => this.layout())
     window.on('closed', () => {
       i18n.off('languageChanged', languageChanged)
+      nativeTheme.off('updated', themeChanged)
       for (const tab of this.tabs.values()) tab.history.dispose()
       this.tabs.clear()
     })
@@ -62,10 +73,12 @@ export class BrowserManager {
   private async confirmLeave(): Promise<boolean> {
     if (this.confirming) return false
     this.confirming = true
-    const revision = this.revision
+    const tab = this.requireTab(this.activeTabId), targetId = this.targetId(tab)
     try {
       const result = await dialog.showMessageBox(this.window, this.leaveDialog())
-      if (result.response !== 1 || this.window.isDestroyed() || revision !== this.revision) return false
+      // Theme/other background snapshots must not invalidate an otherwise current confirmation.
+      if (result.response !== 1 || this.window.isDestroyed() || this.activeTabId !== tab.id ||
+        !this.tabs.has(tab.id) || targetId !== this.targetId(tab)) return false
       this.unsaved = false
       return true
     } finally { this.confirming = false }
@@ -163,7 +176,7 @@ export class BrowserManager {
   forward(): Promise<void> { return this.travel(1) }
 
   getState(): BrowserState {
-    return { language: i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en', revision: this.revision, tabs: [...this.tabs.values()].map((tab) => this.tabState(tab)), activeTabId: this.activeTabId }
+    return { language: i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en', theme: resolvedTheme(), revision: this.revision, tabs: [...this.tabs.values()].map((tab) => this.tabState(tab)), activeTabId: this.activeTabId }
   }
 
   private tabState(tab: Tab): BrowserTabState {

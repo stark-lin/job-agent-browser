@@ -18,6 +18,7 @@ import {
   BROWSER_SET_UNSAVED
 } from '../../../shared/browser'
 import { createMainWindow } from './window'
+import { applyTheme } from './theme'
 import type { BrowserManager } from '../../browser/browserManager'
 
 let browser: BrowserManager | undefined
@@ -27,8 +28,13 @@ const getInboxURL = () => preferences.get({}).mailbox.url || null
 
 app.whenReady().then(async () => {
   const directory = app.getPath('userData')
-  preferences = createPreferences(join(directory, 'settings.json'), value => { void i18n.changeLanguage(value.language) })
-  await i18n.changeLanguage(preferences.get({}).language)
+  preferences = createPreferences(join(directory, 'settings.json'), value => {
+    applyTheme(value.theme)
+    void i18n.changeLanguage(value.language)
+  })
+  const initialPreferences = preferences.get({})
+  applyTheme(initialPreferences.theme)
+  await i18n.changeLanguage(initialPreferences.language)
   const secrets = createSecrets(join(directory, 'secrets.enc'), {
     available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)

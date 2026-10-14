@@ -1,12 +1,12 @@
 # 设计纲要
 
-用途：提供 Job Agent Browser 的视觉方向和 UI 设计入口。状态：浅色主题基础、中央 UI 基础组件、Home、Browser、Inbox 与 Settings 展示均**已实现**；其余业务功能页面为**占位**，其流程仍为**规划**。具体组件规则归属[设计规范](docs/design-system.zh-CN.md)。
+用途：提供 Job Agent Browser 的视觉方向和 UI 设计入口。状态：浅色/暗色配色基础、中央 UI 基础组件、Home、Browser、Inbox 与 Settings 展示均**已实现**；其余业务功能页面为**占位**，其流程仍为**规划**。具体组件规则归属[设计规范](docs/design-system.zh-CN.md)。
 
 语言：简体中文 · [English](DESIGN.md)
 
 ## 一、视觉方向
 
-工作空间应安静、易读，并聚焦用户的下一项任务。采用偏暖的中性背景、浅色面板、轻量边框和清晰的文字层级。装饰服务于内容，不将每个卡片或导航项都处理为主要操作。当前色板与排版选择由[权威 Tokens](src/shared/ui/design-tokens.json)定义，在 [Home](src/pages/home/HomePage.tsx) 和[中央样式](src/shared/ui/components.css)中体现。
+工作空间应安静、易读，并聚焦用户的下一项任务。浅色使用偏暖中性背景，暗色使用分层深灰表面，配合轻量边框和清晰的文字层级。主题修改颜色并保留组件尺寸及行为，具体约束归属[设计规范](docs/design-system.zh-CN.md#四语义色规则)。装饰服务于内容，不将每个卡片或导航项都处理为主要操作。当前色板与排版选择由[权威 Tokens](src/shared/ui/design-tokens.json)定义，在 [Home](src/pages/home/HomePage.tsx) 和[中央样式](src/shared/ui/components.css)中体现。
 
 常驻左侧栏直接提供主页和全部功能入口，只高亮当前功能。窄窗口使用带无障碍名称的图标导航；Inbox 不显示应用顶部条。一致的尺寸与几何规则让不同页面属于同一个应用。使用[布局规范](docs/design-system.zh-CN.md#三布局尺寸与排版)中的共享网格、文字基线和组件尺寸，不为新功能另建视觉体系。
 
