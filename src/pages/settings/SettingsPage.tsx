@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Button, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
 import { useSettings, type Notice } from './useSettings'
+import { AISettingsSection } from './AISettingsSection'
 import './settings.css'
 
 export function SettingsPage() {
   const { t } = useTranslation(), { openPage } = useNavigation(), settings = useSettings()
-  const [confirmDelete, setConfirmDelete] = useState(false), [mailError, setMailError] = useState(false)
-  const { draft, saving, notices, keyStatus } = settings
+  const [mailError, setMailError] = useState(false)
+  const { draft, saving, notices } = settings
   const feedback = (notice: Notice, dirty: boolean) => notice
     ? <StatusMessage tone={notice === 'saveFailed' || notice === 'encryptionUnavailable' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
     : dirty ? <StatusMessage>{t($ => $.settings.unsaved)}</StatusMessage> : null
@@ -43,18 +44,7 @@ export function SettingsPage() {
             <div className="settings-actions">{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" disabled={!settings.generalDirty || Boolean(saving)}>{saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
           </form>
         </SectionCard>
-        <SectionCard title={t($ => $.settings.ai)} description={t($ => $.settings.aiDescription)}>
-          <form className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.saveKey() }}>
-            <div className="settings-provider"><span>OpenAI</span><StatusMessage tone={keyStatus.configured ? 'success' : 'neutral'}>{keyStatus.configured ? t($ => $.settings.configured) : t($ => $.settings.notConfigured)}</StatusMessage></div>
-            <FormField label={t($ => $.settings.apiKey)} help={t($ => $.settings.keyHelp)}>{props => <TextInput {...props} type="password" autoComplete="off" spellCheck={false} maxLength={4096} value={settings.key} placeholder={t($ => $.settings.keyPlaceholder)} disabled={Boolean(saving) || !keyStatus.available} onChange={event => settings.changeKey(event.target.value)} />}</FormField>
-            <StatusMessage tone="info">{t($ => $.settings.aiPlanned)}</StatusMessage>
-            {!keyStatus.available && <StatusMessage tone="error">{t($ => $.settings.encryptionUnavailable)}</StatusMessage>}
-            <div className="settings-actions">{feedback(notices.key, settings.key.length > 0)}<div className="settings-buttons">
-              {keyStatus.configured && <Button variant="danger" disabled={Boolean(saving)} onClick={() => setConfirmDelete(true)}>{t($ => $.settings.deleteKey)}</Button>}
-              <Button variant="primary" type="submit" disabled={!settings.key.trim() || /\s/.test(settings.key.trim()) || Boolean(saving) || !keyStatus.available}>{saving === 'key' ? t($ => $.settings.saving) : keyStatus.configured ? t($ => $.settings.replaceKey) : t($ => $.settings.saveKey)}</Button>
-            </div></div>
-          </form>
-        </SectionCard>
+        <AISettingsSection settings={settings} />
         <SectionCard title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
           <form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>
             <FormField label={t($ => $.settings.mailProvider)}>{props => <Select {...props} value={draft.mailbox.provider} disabled={Boolean(saving)} onChange={event => {
@@ -67,10 +57,6 @@ export function SettingsPage() {
         </SectionCard>
         <div className="settings-stack"><StatusMessage>{t($ => $.settings.local)}</StatusMessage><StatusMessage>{t($ => $.settings.localDescription)}</StatusMessage></div>
       </div>}
-      <Dialog open={confirmDelete} title={t($ => $.settings.deleteTitle)} description={t($ => $.settings.deleteDescription)} onClose={() => setConfirmDelete(false)}>
-        <Button autoFocus onClick={() => setConfirmDelete(false)}>{t($ => $.settings.cancel)}</Button>
-        <Button variant="danger" onClick={() => { setConfirmDelete(false); void settings.saveKey(true) }}>{t($ => $.settings.deleteKey)}</Button>
-      </Dialog>
     </div>
   </main>
 }

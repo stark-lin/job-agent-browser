@@ -30,7 +30,7 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings 和独立的 Inbox 网页邮箱视图已实现，其余六个功能入口仍为占位。新增能力优先放进现有入口。
+常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、独立 Inbox 网页邮箱及基础 Ask AI 对话已实现，其余五个功能入口仍为占位。新增能力优先放进现有入口。
 
 ### Inbox 初版
 
@@ -50,7 +50,7 @@ Shell 提供以下全局能力：
 | Browser | 打开 URL；管理网页 Session / Cookie；文件上传下载；获取网页内容；接收粘贴的 URL 或网页内容 |
 | Agent | 提供常驻 Agent 按钮；将当前页面、当前职位或选中文字交给 AI |
 
-全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者复用共享上下文和已配置的 AI 能力。
+全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。基础 Ask AI 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每次对话可覆盖。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
 
 ## 四、Anything is URL
 
@@ -160,7 +160,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 **Find Jobs → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
-这是完整功能的扩展顺序。Tailor Resume 所需的最小 AI 接入与配置能力必须在阶段 6 前就绪；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
+这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；定制简历仍需业务编排和上下文集成；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
 基础里程碑为：
 
@@ -172,7 +172,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 后续产品设计、界面设计和开发规划以本文为参考。本文取代此前的产品方向，当前实现情况继续单独记录。
 
-本基线确定产品结构和开发方向。详细页面布局、职位提取方式、AI 接入协议和后续邮箱深度集成方式仍留待实现时确定。已实现的数据模型、状态、SQL 迁移及状态转换规则归数据架构管理。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
+本基线确定产品结构和开发方向。详细页面布局、职位提取方式和后续邮箱深度集成方式仍留待实现时确定。已实现通用 AI 契约归属[代码架构](code-architecture.zh-CN.md)，调用审计及存储归属[数据架构](data-architecture.zh-CN.md)。已实现的数据模型、状态、SQL 迁移及状态转换规则归数据架构管理。如果九个入口、URL 模型、Shared Context、Local First 原则或能力组合方式发生变化，应同步更新中英文文档，再作为新的基线。
 
 ## 相关文档
 

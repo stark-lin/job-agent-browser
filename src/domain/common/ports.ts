@@ -1,6 +1,7 @@
 import type { ErrorCode } from './errors'
 
 export type TargetType = 'company' | 'job' | 'job_source' | 'job_event' | 'profile' | 'profile_item' | 'fact' | 'generation_run' | 'artifact' | 'artifact_fact'
+export type AuditTargetType = TargetType | 'ai_request'
 export interface Page { limit?: number; offset?: number }
 export interface PageResult<T> { items: T[]; total: number }
 export interface Reference { type: TargetType; id: string; status: 'ACTIVE' | 'DELETED'; deletedAt: string | null }
@@ -15,10 +16,10 @@ export interface AuditEntry {
   id: string; sequence: number; eventType: string; action: 'CREATE' | 'UPDATE' | 'DELETE'
   timestamp: string; component: string; location: string; source: string; requestId: string
   status: 'SUCCESS' | 'FAILURE'; error: ErrorCode | null; actorId: string
-  targetType: TargetType; targetId: string | null; transactionId: string
+  targetType: AuditTargetType; targetId: string | null; transactionId: string
 }
 export interface AuditFilter extends Page {
-  targetType?: TargetType; targetId?: string; requestId?: string; transactionId?: string
+  targetType?: AuditTargetType; targetId?: string; requestId?: string; transactionId?: string
   status?: 'SUCCESS' | 'FAILURE'; from?: string; to?: string
 }
 export interface AuditReader { list(input: unknown): PageResult<AuditEntry> }

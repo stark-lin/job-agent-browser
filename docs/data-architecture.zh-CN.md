@@ -1,6 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 执行、编译及业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
+用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 对话和调用审计**已实现**；AI 业务生成、编译及业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
 
 语言：简体中文 · [English](data-architecture.md)
 
@@ -8,9 +8,9 @@
 
 [Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；页面骨架不实现业务流程。
 
-[版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 11 张业务表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
+[版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 11 张数据表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
 
-[共享 ER 图](diagrams/data-model.md) 描述已实现模型。具体 SQL 类型、默认值、可空性、约束及索引以[建表定义](../src/platform/database/migrations/schema.ts) 为准。JSON 使用校验后的 TEXT 列；SQL 表使用 STRICT。Applications 和 Calendar 基于 Job 与 JobEvent，不另建申请或日历表。
+[共享 ER 图](diagrams/data-model.md) 描述已实现模型。具体 SQL 类型、默认值、可空性、约束及索引以[建表定义](../src/platform/database/migrations/schema.ts)和[版本 2 审计迁移](../src/platform/database/migrations/ai-audit.ts)为准；后者保留原记录及 15 个审计字段，扩充固定错误码。JSON 使用校验后的 TEXT 列；SQL 表使用 STRICT。Applications 和 Calendar 基于 Job 与 JobEvent，不另建申请或日历表。
 
 | 表 | 职责 |
 | --- | --- |
@@ -73,11 +73,15 @@
 | 结果 | `status`, `error` | `SUCCESS / FAILURE`；仅错误码 |
 | 身份 | `actor_id`, `target_type`, `target_id` | 不透明的主体与业务对象标识 |
 
-补充字段为 `id`、递增 `sequence` 和 `transaction_id`。ArtifactFact 目标将三个不透明主键 ID 编码为 JSON 数组字符串。USER、AI 和 SYSTEM 使用固定本地主体标识；来源为 `RENDERER / GENERATOR / STARTUP`。这是本地单用户身份方案，不是多用户认证。公开 DTO 字段使用 camelCase。
+补充字段为 `id`、递增 `sequence` 和 `transaction_id`。ArtifactFact 目标将三个不透明主键 ID 编码为 JSON 数组字符串。USER、AI 和 SYSTEM 使用固定本地主体标识；来源为 `RENDERER / GENERATOR / STARTUP / AI_CLIENT`。这是本地单用户身份方案，不是多用户认证。公开 DTO 字段使用 camelCase。
 
 审计不保留前后值、任意元数据、业务正文、提示词、凭据、原始异常消息、堆栈、实际文件路径或网页 URL。SQL 授权器和触发器拒绝审计更新/删除及伪造插入。缺少内部上下文时拒绝业务写入。成功操作没有实际变更记录时不生成成功审计；生成门控拒绝是成功的持久化操作，任务状态变为 FAILED。
 
 失败写入先回滚，再通过独立事务追加一条失败审计。失败记录沿用请求 ID，其事务 ID 属于失败审计事务。已知时包含校验后的目标 ID，否则为空。无效业务写入参数也会审计，但不复制输入。失败审计无法持久化时返回 `AUDIT_UNAVAILABLE`，不声称已记录。不可信/未知 IPC 请求在执行业务前拒绝。配置/密钥使用独立文件适配器，不将凭据写入 SQLite 或审计。
+
+**已实现 AI 调用审计：**[Transactions](../src/platform/database/transactions.ts)中的 Main 内部 `recordAI` 能力写入 `AI_STREAM_START`、`CREATE`、组件 `ai`、位置 `chat.stream`、来源 `AI_CLIENT` 和主体 `local-user`。`targetType = ai_request`；目标/请求 ID 为同一个生成的不透明请求 UUID，不映射业务对象。时间、记录 ID 和事务 ID 由数据库层生成。[审计查询](../src/platform/database/audit-reader.ts)接受此逻辑目标，不将其视为业务实体/表。
+
+每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。对话历史只在页面内存中，不新增 AI 运行/消息表。
 
 ## 五、API 契约与访问
 
@@ -116,8 +120,8 @@
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
 | `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / 删除 ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → 审计，序号倒序 |
-| `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题或邮箱配置 → 带版本的 Preferences |
-| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | OpenAI 服务商；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
+| `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题、邮箱或 `ai` 配置 → 带版本的 Preferences |
+| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 通过 `provider` 指定 Provider 实例 ID；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
 
 ```ts
 const saved = await window.data.jobs.saveJob({
@@ -138,10 +142,14 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 | `INVALID_STATE` | 不允许的生命周期转换、生成阶段或操作 |
 | `STORAGE_BUSY` | 数据库锁争用超过等待上限 |
 | `STORAGE_UNAVAILABLE` | 存储操作无法完成；不暴露原始错误详情 |
-| `AUDIT_UNAVAILABLE` | 失败操作无法持久记录失败审计；不报告成功 |
+| `AUDIT_UNAVAILABLE` | 必需的业务/调用审计无法提交；操作报告失败 |
 | `NOT_IMPLEMENTED` | 非生产后端未提供存储适配器 |
 | `ENCRYPTION_UNAVAILABLE` | 操作系统加密不可用；拒绝保存密钥 |
-| `FORBIDDEN` | IPC 调用方不是可信的顶层 Renderer 文档 |
+| `FORBIDDEN` | IPC 调用方不是可信的顶层 Renderer 文档或请求所有者 |
+| `AI_NOT_CONFIGURED`, `AI_AUTH_FAILED`, `AI_RATE_LIMITED` | 缺少 Provider/模型/密钥、身份验证被拒或限流 |
+| `AI_PROVIDER_FAILED`, `AI_PROTOCOL_ERROR`, `AI_CONNECT_FAILED`, `AI_TIMEOUT`, `AI_CANCELLED` | 服务商、流格式、网络、超时或取消结果 |
+
+独立的 [AI API](../src/shared/ai.ts)暴露 `window.ai.start`、`cancel` 和 `onEvent`，不扩展同步数据分发，也不暴露审计写入。流式运行与生命周期行为归属[当前架构](architecture.zh-CN.md)。
 
 ## 六、配置、密钥与待完成工作
 
@@ -149,9 +157,11 @@ Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` �
 
 [偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
 
-[密钥](../src/platform/storage/secrets.ts) 仅保存带版本的 OpenAI 密文，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。配置密钥不验证服务访问或执行 AI。
+[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS Base URL（仅 localhost/回环允许 HTTP）、明确的密钥需求、每个实例最多 100 个手填模型 ID 和可空的全局 Provider/模型默认值。Base URL 保留路径前缀，拒绝凭据、查询参数和片段。不含 `ai` 的旧版本 1 偏好在内存中获得默认值，保存前不改写文件。Settings 移除 Provider 前须先删除其密钥，配置移除在保存后生效。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 调用、提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
+[密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
+
+[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、工具、结构化输出集成、AI 业务生成、提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
 
 - [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。

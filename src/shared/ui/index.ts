@@ -7,3 +7,4 @@ export { FormField, Select, SectionCard, PageHeading, StatusMessage } from './Fo
 export { Dialog } from './Dialog'
 export { Sidebar, NavigationGroup, NavigationItem } from './Sidebar'
 export { Glyph, type GlyphName } from './Glyph'
+export { TextArea } from './TextArea'

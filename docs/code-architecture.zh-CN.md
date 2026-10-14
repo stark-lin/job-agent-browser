@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界和后续交付约束。状态：React 组装/路由、混合导航、Platform 运行入口及分层业务存储**已实现**。业务页面流程和 AI/文件集成仍为**占位 / 规划**。已验证行为由[当前架构](architecture.zh-CN.md)管理。
+用途：定义源码职责、依赖边界和后续交付约束。状态：React 组装/路由、混合导航、Platform 运行入口、AI 基础设施/对话及分层业务存储**已实现**。业务页面流程、AI 业务生成与文件集成仍为**占位 / 规划**。已验证行为由[当前架构](architecture.zh-CN.md)管理。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -27,6 +27,7 @@ Shared UI 同时拥有[权威 Design Tokens](../src/shared/ui/design-tokens.json
 ```text
 src/
 ├── app/
+│   ├── ai/
 │   ├── navigation/
 │   └── context/
 ├── pages/
@@ -69,7 +70,7 @@ src/
     └── types/
 ```
 
-Home、Browser、Inbox 和 Settings 为已实现页面。其余六个功能入口仍为占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
+Home、Browser、Inbox、Ask AI 和 Settings 为已实现页面。其余五个功能入口仍为占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
 
 ## 三、依赖与进程组装
 
@@ -117,11 +118,11 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 | Profile、ProfileItem 与 Fact | `domain/candidate/`，UI 在 `pages/profile/` |
 | GenerationRun、Artifact 与溯源 | `domain/resume/`，UI 在 `pages/tailor-resume/` |
 | SQLite、迁移、Repository 与审计持久化 | Main 侧 `platform/database/` |
-| AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`；配置/密钥已实现，AI 执行及输出集成仍为规划 |
+| AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`；AI 对话/配置/密钥已实现，AI 业务生成及输出集成仍为规划 |
 
 Domain 定义 Repository/提取接口。具体 SQLite Repository 和占位[通用提取器](../src/platform/browser/extractors/generic.ts)归 Platform。网页快照必须是普通数据，不传 DOM/Electron 对象。网站专属提取延后；保存部分数据前校验 Job 必需字段。
 
-AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
+[Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
 ## 六、质量与后续交付
 
@@ -129,7 +130,7 @@ AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方
 
 公开业务能力保留在 [DataContract](../src/platform/electron/data-contract.ts)，Repository、事务上下文、审计写入及生成阶段持久化仍为私有实现。存储模块分离迁移、事务/审计控制、映射和领域适配；Domain 服务管理业务校验。
 
-Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbox 复用配置的网页邮箱，不建立邮件数据库。AI 执行、编译和其余业务表单为后续工作，不因页面骨架可访问就视为完成。历史恢复/淘汰同样延后。
+Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbox 复用配置的网页邮箱，不建立邮件数据库。AI 业务生成、编译和其余业务表单为后续工作，不因页面骨架可访问就视为完成。历史恢复/淘汰同样延后。
 
 行为、接口、目录或配置变化时同步更新所属文档和两种语言。未来迁移保留构建产物、SQLite/审计行为和 Session 分区。规模需要时再引入 Product Areas；不要求完整 DDD。
 

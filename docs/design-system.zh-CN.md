@@ -1,6 +1,6 @@
 # 组件库与设计规范
 
-用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Settings 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
+用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Ask AI、Settings 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
 
 语言：简体中文 · [English](design-system.md)
 
@@ -27,6 +27,7 @@
 | 已实现组件 | 支持用途 | 实现 |
 | --- | --- | --- |
 | `Button`, `IconButton` | 操作、图标与浏览器标签变体；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
+| `TextArea` | 多行模型 ID 和聊天输入；最小高度使用 96px Token，支持缩放/焦点/禁用/错误状态 | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
 | `TextInput` | 默认字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `Glyph` | Home 与工作区导航复用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | 通用侧栏组合、分组标题及带当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
@@ -122,6 +123,7 @@ npm run quality
 | [Browser smoke](../scripts/browser-smoke.cjs) | Home 在 320/640/1200px 下的表现、卡片最小高度、溢出、中央卡片尺寸，以及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
 | [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、响应式宽度及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
+| [AI smoke](../scripts/ai-smoke.cjs) | Provider 表单、中央多行输入、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
 | [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings/Home 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
 

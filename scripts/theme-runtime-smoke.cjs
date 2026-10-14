@@ -30,7 +30,7 @@ app.once('browser-window-created', (_event, window) => {
       }
       const waitState = (check, label) => waitFor(async () => check(await read()), label)
       const frames = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-      const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 3'), 'theme Settings forms')
+      const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 4'), 'theme Settings forms')
       const field = async (selector, value, type) => {
         await evaluate(`(() => {
           const input = document.querySelector(${JSON.stringify(selector)});

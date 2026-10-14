@@ -2,9 +2,10 @@ import type { DatabaseSync } from 'node:sqlite'
 import { createHash } from 'node:crypto'
 import { initialSchema } from './schema'
 import { auditTriggers } from './audit-triggers'
+import { aiAuditMigration } from './ai-audit'
 
 export interface Migration { version: number; sql: string }
-export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }]
+export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration }]
 
 /** Startup only, before repositories are constructed. Never silently repair or reset a database. */
 export function migrate(db: DatabaseSync, steps: readonly Migration[] = migrations): void {

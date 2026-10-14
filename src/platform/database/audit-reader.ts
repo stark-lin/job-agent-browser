@@ -1,4 +1,4 @@
-import type { AuditEntry, AuditReader, References, TargetType } from '../../domain/common/ports'
+import type { AuditEntry, AuditReader, AuditTargetType, References } from '../../domain/common/ports'
 import * as v from '../../domain/common/validation'
 import { fail } from '../../domain/common/errors'
 import type { UnitOfWork } from '../../domain/common/ports'
@@ -6,7 +6,7 @@ import type { SQLInputValue } from 'node:sqlite'
 import { entityTables } from './migrations/audit-triggers'
 import type { Store } from './repositories/store'
 
-const targetType = v.choice(Object.keys(entityTables) as TargetType[])
+const targetType = v.choice([...Object.keys(entityTables), 'ai_request'] as AuditTargetType[])
 const filter = v.object({
   ...v.pageFields, targetType: v.optional(v.nullable(targetType), null), targetId: v.optional(v.nullable(v.text(120, 1)), null),
   requestId: v.optionalId, transactionId: v.optionalId, status: v.optional(v.nullable(v.choice(['SUCCESS', 'FAILURE'])), null),

@@ -16,7 +16,7 @@ app.once('browser-window-created', (_event, window) => {
         const browser = await window.browser.getState();
         await window.browser.navigate('app://settings');
         await new Promise(resolve => {
-          const check = () => document.querySelectorAll('.settings-page form').length === 3 && document.documentElement.lang === 'zh-CN' ? resolve() : setTimeout(check, 10);
+          const check = () => document.querySelectorAll('.settings-page form').length === 4 && document.documentElement.lang === 'zh-CN' ? resolve() : setTimeout(check, 10);
           check();
         });
         return {preferences,key,browser,theme:document.documentElement.dataset.theme,colorScheme:getComputedStyle(document.documentElement).colorScheme,language:document.documentElement.lang,title:document.querySelector('h1').textContent,
@@ -37,7 +37,7 @@ app.once('browser-window-created', (_event, window) => {
         assert.equal(result.key.value.configured, true)
         const file = readFileSync(resolve(process.env.JOB_BROWSER_SMOKE_DATA, 'secrets.enc'), 'utf8')
         assert.equal(file.includes('smoke-key-restart'), false)
-        assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).openai, 'base64')), 'smoke-key-restart')
+        assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).providers.openai, 'base64')), 'smoke-key-restart')
       }
       console.log('Settings restart smoke passed: persisted language/theme/mailbox restored before startup and encrypted key restored without exposing it to UI.')
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) })

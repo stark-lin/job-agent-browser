@@ -68,9 +68,9 @@ export interface DataContract {
     savePreferences: Endpoint<PreferencePatch, Preferences>
   }
   secrets: {
-    hasProviderKey: Endpoint<{ provider: 'openai' }, { configured: boolean; available: boolean }>
-    saveProviderKey: Endpoint<{ provider: 'openai'; apiKey: string }, { configured: boolean; available: boolean }>
-    deleteProviderKey: Endpoint<{ provider: 'openai' }, { configured: boolean; available: boolean }>
+    hasProviderKey: Endpoint<{ provider: string }, { configured: boolean; available: boolean }>
+    saveProviderKey: Endpoint<{ provider: string; apiKey: string }, { configured: boolean; available: boolean }>
+    deleteProviderKey: Endpoint<{ provider: string }, { configured: boolean; available: boolean }>
   }
 }
 

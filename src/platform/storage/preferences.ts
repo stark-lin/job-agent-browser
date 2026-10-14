@@ -1,11 +1,8 @@
 import { fail } from '../../domain/common/errors'
 import { defaultPreferences, type Mailbox, type Preferences } from '../../shared/settings'
 import { readJSON, writeJSON } from './files'
-
-export function object(input: unknown, keys: string[]): Record<string, unknown> {
-  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !keys.includes(key))) return fail('INVALID_INPUT')
-  return input as Record<string, unknown>
-}
+import { object } from './validation'
+import { aiPreferences } from './ai-preferences'
 
 export function mailbox(input: unknown): Mailbox {
   const value = object(input, ['provider', 'url'])
@@ -23,12 +20,13 @@ export function mailbox(input: unknown): Mailbox {
 }
 
 function merge(input: unknown, current: Preferences): Preferences {
-  const value = object(input, ['language', 'theme', 'mailbox'])
+  const value = object(input, ['language', 'theme', 'mailbox', 'ai'])
   if ('language' in value && value.language !== 'en' && value.language !== 'zh-CN') return fail('INVALID_INPUT')
   if ('theme' in value && value.theme !== 'light' && value.theme !== 'dark' && value.theme !== 'system') return fail('INVALID_INPUT')
   return { ...current, language: 'language' in value ? value.language as Preferences['language'] : current.language,
     theme: 'theme' in value ? value.theme as Preferences['theme'] : current.theme,
-    mailbox: 'mailbox' in value ? mailbox(value.mailbox) : current.mailbox }
+    mailbox: 'mailbox' in value ? mailbox(value.mailbox) : current.mailbox,
+    ai: 'ai' in value ? aiPreferences(value.ai) : structuredClone(current.ai) }
 }
 
 export function createPreferences(path: string, onSaved: (value: Preferences) => void = () => {}) {
@@ -36,9 +34,9 @@ export function createPreferences(path: string, onSaved: (value: Preferences) =>
     try {
       const stored = readJSON(path)
       if (stored === undefined) return structuredClone(defaultPreferences)
-      const value = object(stored, ['version', 'theme', 'language', 'mailbox'])
+      const value = object(stored, ['version', 'theme', 'language', 'mailbox', 'ai'])
       if (value.version !== 1 || !('theme' in value) || !('language' in value) || !('mailbox' in value)) return fail('STORAGE_UNAVAILABLE')
-      return merge({ theme: value.theme, language: value.language, mailbox: value.mailbox }, defaultPreferences)
+      return merge({ theme: value.theme, language: value.language, mailbox: value.mailbox, ...('ai' in value ? { ai: value.ai } : {}) }, defaultPreferences)
     } catch { return fail('STORAGE_UNAVAILABLE') }
   }
   return {

@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createBackend } from '../../database/backend'
 import { trustedDataSender, registerDataIPC } from './data-ipc'
+import { createAIService, type AIService } from '../../ai'
+import { registerAIIPC } from './ai-ipc'
 import {
   BROWSER_BACK,
   BROWSER_CREATE_TAB,
@@ -24,6 +26,8 @@ import type { BrowserManager } from '../../browser/browserManager'
 let browser: BrowserManager | undefined
 let backend: ReturnType<typeof createBackend> | undefined
 let preferences: ReturnType<typeof createPreferences>
+let ai: AIService | undefined
+let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
 app.whenReady().then(async () => {
@@ -41,6 +45,14 @@ app.whenReady().then(async () => {
   })
   backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
   registerDataIPC(backend, join(__dirname, '../renderer/index.html'))
+  ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
+  registerAIIPC(ai, join(__dirname, '../renderer/index.html'))
+  app.on('web-contents-created', (_event, contents) => {
+    const owner = contents.id
+    contents.on('destroyed', () => ai?.disposeOwner(owner))
+    contents.on('render-process-gone', () => ai?.disposeOwner(owner))
+    contents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) ai?.disposeOwner(owner) })
+  })
   const created = createMainWindow(getInboxURL)
   browser = created.browser
 
@@ -56,7 +68,12 @@ app.whenReady().then(async () => {
   app.quit()
 })
 
-app.on('will-quit', () => { backend?.close(); backend = undefined })
+app.on('will-quit', event => {
+  // Windows have already passed their unsaved-settings guards at this point.
+  if (!ai || shuttingDown) { backend?.close(); backend = undefined; return }
+  event.preventDefault(); shuttingDown = true
+  void ai.dispose().finally(() => { backend?.close(); backend = undefined; app.quit() })
+})
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {
   assertTrustedRenderer(event)

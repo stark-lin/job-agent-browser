@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-面向求职的本地优先桌面工作空间。状态：统一 React App、九个可访问 Home 入口、每标签混合导航及带自动审计和类型化 IPC 的分层 SQLite 业务后端**已实现**。设置和独立的 Inbox 网页邮箱视图**已实现**；其余六个功能入口为**占位**；业务流程、AI 执行与编译仍为**规划**。
+面向求职的本地优先桌面工作空间。状态：统一 React App、九个可访问 Home 入口、每标签混合导航及带自动审计和类型化 IPC 的分层 SQLite 业务后端**已实现**。设置、独立 Inbox 网页邮箱及兼容 OpenAI 的 SSE 对话**已实现**；其余五个功能入口为**占位**；业务流程与编译仍为**规划**。
 
 语言：简体中文 · [English](README.md)
 
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-首次开发启动时，`predev` 辅助程序下载 Electron 二进制文件。Home 九个卡片均可访问。Browser 打开可输入 URL、域名或搜索词的空白工作区，Settings 支持语言及浅色/暗夜/跟随系统外观持久化、加密 API 密钥和邮箱配置；其他功能在流程尚不可用时显示待实现内容。只有 Browser 显示标签栏和地址控件；所有功能共用左侧工作区导航；已配置的 Inbox 显示网页邮箱，不显示应用顶部条。侧栏主页入口替代邮箱退出按钮。Home/新标签隐藏浏览器栏及内部 URL；Back/Forward 在每个标签内遍历内部页面与网站。导航规则、快捷键、运行细节及源码依据见[当前架构](docs/architecture.zh-CN.md)。
+首次开发启动时，`predev` 辅助程序下载 Electron 二进制文件。Home 九个卡片均可访问。Browser 打开可输入 URL、域名或搜索词的空白工作区，Settings 支持语言及浅色/暗夜/跟随系统外观持久化、多个 AI Provider、加密 API 密钥和邮箱配置；Ask AI 通过所选 Provider/模型流式对话；其他功能在流程尚不可用时显示待实现内容。只有 Browser 显示标签栏和地址控件；所有功能共用左侧工作区导航；已配置的 Inbox 显示网页邮箱，不显示应用顶部条。侧栏主页入口替代邮箱退出按钮。Home/新标签隐藏浏览器栏及内部 URL；Back/Forward 在每个标签内遍历内部页面与网站。导航规则、快捷键、运行细节及源码依据见[当前架构](docs/architecture.zh-CN.md)。
 
 ## 验证与构建
 
@@ -25,7 +25,7 @@ npm run test:smoke
 npm run test:theme
 ```
 
-构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、混合历史、视图生命周期、Settings、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台安装包仍未配置。
+构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、混合历史、视图生命周期、Settings、AI SSE 对话、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台安装包仍未配置。
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 

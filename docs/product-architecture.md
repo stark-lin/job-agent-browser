@@ -30,7 +30,7 @@ The rows represent three groups:
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings and the dedicated Inbox webmail view are implemented; six other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
+A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, dedicated Inbox webmail and basic Ask AI chat are implemented; five other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
 
 ### Initial Inbox
 
@@ -50,7 +50,7 @@ The shell provides these global capabilities:
 | Browser | Open URLs; maintain web sessions and cookies; upload and download files; retrieve page content; accept pasted URLs or page content |
 | Agent | Keep an Agent button available; send the current page, current job, or selected text to AI |
 
-The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both use shared context and the configured AI capability.
+The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both are planned to use shared context and the configured AI capability. Basic Ask AI chat already supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each conversation can override it. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
 
 ## 4. Anything is URL
 
@@ -160,7 +160,7 @@ Stage 1 establishes page hosting and navigation controls; Stage 3 completes the 
 
 **Find Jobs → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
-This is the order for expanding the full features. The minimal AI connection and configuration needed for Tailor Resume must be available by Stage 6; mailbox entry configuration must ship alongside Inbox.
+This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Tailor Resume still needs business orchestration and context integration; mailbox entry configuration must ship alongside Inbox.
 
 The foundation milestone is:
 
@@ -172,7 +172,7 @@ The current foundation implements stages 1–3 and reference-only App Context. B
 
 Use this document as the reference for subsequent product design, interface design, and development planning. It supersedes the earlier product direction while keeping the current implementation documented separately.
 
-The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods, AI integration contracts, and future deeper email integrations remain implementation decisions. The implemented data model, statuses, SQL migrations and transition rules are owned by the data architecture. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
+The baseline fixes the product structure and development direction. Detailed page layouts, extraction methods and future deeper email integrations remain implementation decisions. The implemented generic AI contract is owned by [code architecture](code-architecture.md); call audit and storage are owned by [data architecture](data-architecture.md). The implemented data model, statuses, SQL migrations and transition rules are owned by the data architecture. Any change to the nine entry points, URL model, Shared Context, local-first approach, or capability composition should be reflected in both language versions before it becomes the new baseline.
 
 ## Related documents
 

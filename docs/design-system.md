@@ -1,6 +1,6 @@
 # Component Library and Design System
 
-Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Settings and placeholder pages. Remaining business feature pages are **Scaffolded**; business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
+Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Ask AI, Settings and placeholder pages. Remaining business feature pages are **Scaffolded**; business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
 
 Language: English · [简体中文](design-system.zh-CN.md)
 
@@ -27,6 +27,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | Implemented component | Supported use | Implementation |
 | --- | --- | --- |
 | `Button`, `IconButton` | Action, icon and browser-tab variants; callers supply labels and handlers | [Button.tsx](../src/shared/ui/Button.tsx) |
+| `TextArea` | Multiline model IDs and chat input; 96px token minimum, resize/focus/disabled/error states | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
 | `TextInput` | Default field or bare input inside a styled wrapper | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `Glyph` | Shared named SVG symbols used by Home and workspace navigation | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | Generic sidebar composition, group headings and named native buttons with current-page state | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
@@ -122,6 +123,7 @@ npm run quality
 | [Browser smoke](../scripts/browser-smoke.cjs) | Home at 320/640/1200px, minimum card height, overflow, central card geometry and rendered chrome meeting native bounds | Not a complete gallery, accessibility or visual-regression suite |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | Full-content native bounds, no app chrome, resizing, redirects, history and load recovery | Uses local fixtures; does not certify provider websites |
 | [Sidebar smoke](../scripts/sidebar-smoke.cjs) | All destinations, active state, keyboard activation, responsive width and native-view clearance | Does not certify all assistive technology |
+| [AI smoke](../scripts/ai-smoke.cjs) | Provider forms, central multiline input, real SSE/IPC, cancellation and 320/640/1200px overflow checks | Local fixtures do not certify third-party provider behavior |
 | [Settings smoke](../scripts/settings-smoke.cjs) | Real forms, labels, 40px controls, 16px panels, 320/640/1200px layout, language, validation and key lifecycle | Does not certify screen-reader behavior or provider access |
 | [Theme smoke](../scripts/theme-smoke.cjs) and [restart smoke](../scripts/settings-restart-smoke.cjs) | Draft/save/failure/discard, simulated native appearance updates, unchanged navigation/native bounds, Settings/Home geometry at 320/640/1200px, all gallery element geometry and persisted dark startup | Does not automate actual OS settings, certify every visual state or prove every startup frame is flash-free |
 

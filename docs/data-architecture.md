@@ -1,6 +1,6 @@
 # V1 Data Architecture and API
 
-Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI execution, compilation and business workflows remain **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
+Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI chat and call audit are **Implemented**; AI business generation, compilation and business workflows remain **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
@@ -8,9 +8,9 @@ Language: English · [简体中文](data-architecture.zh-CN.md)
 
 [Main](../src/platform/electron/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface. [App Context](../src/app/context/appContext.ts) holds nullable Job/Profile/Artifact IDs rather than entity copies; page skeletons do not implement business workflows.
 
-[Versioned migrations](../src/platform/database/migrations/index.ts) create 11 business tables plus `schema_migrations` in a transaction. Recorded checksums detect changed migrations; newer schemas or mismatches fail startup without resetting data. A storage startup error prevents the window/API from opening. UUID v4 IDs are generated internally and cannot be reused after successful deletion. Times are UTC ISO strings; calendar dates use `YYYY-MM-DD`.
+[Versioned migrations](../src/platform/database/migrations/index.ts) create 11 data tables plus `schema_migrations` in a transaction. Recorded checksums detect changed migrations; newer schemas or mismatches fail startup without resetting data. A storage startup error prevents the window/API from opening. UUID v4 IDs are generated internally and cannot be reused after successful deletion. Times are UTC ISO strings; calendar dates use `YYYY-MM-DD`.
 
-The [shared ER diagram](diagrams/data-model.md) describes the implemented model. Concrete SQL types, defaults, nullability, checks and indexes live in [the schema](../src/platform/database/migrations/schema.ts). JSON uses validated TEXT columns; SQL tables are STRICT. Applications and Calendar use Job and JobEvent, without separate application/calendar tables.
+The [shared ER diagram](diagrams/data-model.md) describes the implemented model. Concrete SQL types, defaults, nullability, checks and indexes live in [the schema](../src/platform/database/migrations/schema.ts) and [version-2 audit migration](../src/platform/database/migrations/ai-audit.ts), which preserves existing records and the 15 audit columns while extending fixed error codes. JSON uses validated TEXT columns; SQL tables are STRICT. Applications and Calendar use Job and JobEvent, without separate application/calendar tables.
 
 | Tables | Ownership |
 | --- | --- |
@@ -73,11 +73,15 @@ Hard deletion removes source entities while preserving historical generated outp
 | Outcome | `status`, `error` | `SUCCESS / FAILURE`; error code only |
 | Identity | `actor_id`, `target_type`, `target_id` | Opaque subject and business object identifiers |
 
-Additional fields are `id`, monotonically increasing `sequence` and `transaction_id`. ArtifactFact targets encode their three opaque key IDs as a JSON array string. USER, AI and SYSTEM use fixed local identifiers; source is `RENDERER / GENERATOR / STARTUP`. This is a local single-user identity scheme, not multi-user authentication. Public DTO fields use camelCase.
+Additional fields are `id`, monotonically increasing `sequence` and `transaction_id`. ArtifactFact targets encode their three opaque key IDs as a JSON array string. USER, AI and SYSTEM use fixed local identifiers; source is `RENDERER / GENERATOR / STARTUP / AI_CLIENT`. This is a local single-user identity scheme, not multi-user authentication. Public DTO fields use camelCase.
 
 No before/after values, arbitrary metadata, business bodies, prompts, credentials, raw exception messages, stack traces, physical paths or page URLs are retained in audit. An SQL authorizer and triggers reject audit updates/deletions and forged inserts. Business writes without the internal context are rejected. Successful no-op operations with no changed rows create no success record; a generation gate rejection is a successful persistence operation whose run state becomes FAILED.
 
 Failed writes first roll back, then append one failure audit in a separate transaction. The failure retains its request ID; its transaction ID belongs to the failure-audit transaction. A validated target ID is included when known, otherwise null. Invalid business write input is audited without copying input. If failure audit cannot persist, return `AUDIT_UNAVAILABLE`; do not claim it was recorded. Untrusted/unknown IPC requests are rejected before business execution. Settings/secrets use separate file adapters and never place credentials in SQLite or audit.
+
+**Implemented AI call audit:** the Main-internal `recordAI` capability in [Transactions](../src/platform/database/transactions.ts) writes `AI_STREAM_START`, `CREATE`, component `ai`, location `chat.stream`, source `AI_CLIENT` and actor `local-user`. `targetType = ai_request`; target/request IDs are the same generated opaque request UUID, with no business-object mapping. Time, record ID and transaction ID are database-layer generated. [Audit queries](../src/platform/database/audit-reader.ts) accept this logical target without treating it as a business entity/table.
+
+Each accepted request attempts one audit: the first valid SSE chunk commits `SUCCESS` before content is forwarded; startup failure/cancellation commits `FAILURE` with a fixed code. Success means the stream started, not that output completed. Post-start completion, failure and cancellation add no call audit. A manual retry creates a new request. Audit failure stops forwarding/aborts the request and reports `AUDIT_UNAVAILABLE`; the external call may already have occurred. No provider/model/URL, usage, duration, message, prompt, output, business snapshot or extra metadata is persisted. Chat history remains page-memory only; no AI run/message tables are added.
 
 ## 5. API contract and access
 
@@ -116,8 +120,8 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
 | `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / deleted ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → audit entries, newest sequence first |
-| `settings.get`, `settings.savePreferences` | `{}` / partial language, `light / dark / system` theme or mailbox → versioned Preferences |
-| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | OpenAI provider; save also accepts `apiKey` → `{ configured, available }`, never a key |
+| `settings.get`, `settings.savePreferences` | `{}` / partial language, `light / dark / system` theme, mailbox or `ai` configuration → versioned Preferences |
+| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | Provider instance ID as `provider`; save also accepts `apiKey` → `{ configured, available }`, never a key |
 
 ```ts
 const saved = await window.data.jobs.saveJob({
@@ -138,10 +142,14 @@ The API offers no raw SQL/table CRUD, unrestricted filters, transaction manageme
 | `INVALID_STATE` | Disallowed lifecycle transition, generation stage or operation |
 | `STORAGE_BUSY` | Database lock contention exceeded the wait limit |
 | `STORAGE_UNAVAILABLE` | Storage operation could not complete; raw error details are withheld |
-| `AUDIT_UNAVAILABLE` | Failed operation could not durably record failure audit; no success is reported |
+| `AUDIT_UNAVAILABLE` | Required business/call audit could not be committed; the operation reports failure |
 | `NOT_IMPLEMENTED` | Storage adapter was not supplied to a non-production backend |
 | `ENCRYPTION_UNAVAILABLE` | OS-backed encryption is unavailable; key saving is refused |
-| `FORBIDDEN` | IPC caller is not the trusted top-level renderer document |
+| `FORBIDDEN` | IPC caller is not the trusted top-level renderer document or request owner |
+| `AI_NOT_CONFIGURED`, `AI_AUTH_FAILED`, `AI_RATE_LIMITED` | Missing provider/model/key, rejected authorization or rate limit |
+| `AI_PROVIDER_FAILED`, `AI_PROTOCOL_ERROR`, `AI_CONNECT_FAILED`, `AI_TIMEOUT`, `AI_CANCELLED` | Provider, stream format, transport, timeout or cancellation outcome |
+
+The separate [AI API](../src/shared/ai.ts) exposes `window.ai.start`, `cancel` and `onEvent`; it does not extend synchronous data dispatch or expose an audit writer. Runtime streaming and lifecycle behavior are owned by [current architecture](architecture.md).
 
 ## 6. Settings, secrets and remaining work
 
@@ -149,9 +157,11 @@ Main owns `database.sqlite`, its auxiliary files, `userData/settings.json` and `
 
 [Preferences](../src/platform/storage/preferences.ts) validate version 1, English/Simplified Chinese, a `light / dark / system` theme and optional Gmail/Outlook/custom HTTPS webmail without embedded credentials. Existing version-1 light files remain compatible; the version stays 1. Light remains the default. Store the preference (including `system`), not its resolved color scheme; unrelated partial saves preserve it. Apply saved preferences only after successful atomic replacement. Missing files use defaults without writing. Partial saves merge the latest file; malformed/future files fail without resetting. [Atomic replacement](../src/platform/storage/files.ts) uses a private temporary file and rename; failed writes preserve previous data.
 
-[Secrets](../src/platform/storage/secrets.ts) store only versioned OpenAI ciphertext, encrypted by Electron `safeStorage` at [Main composition](../src/platform/electron/main/index.ts). Unavailable encryption (including Linux `basic_text`) refuses saves; deletion remains available. The API returns configuration/encryption status, never decrypted keys. Keys stay outside ordinary preferences, SQLite, snapshots and audit; file preferences/key operations do not append business audit. Key configuration does not verify provider access or execute AI.
+[AI preferences](../src/platform/storage/ai-preferences.ts) validate up to 20 named Provider instances, HTTPS Base URLs (HTTP only for localhost/loopback), explicit key requirements, up to 100 manually entered model IDs each and a nullable global provider/model default. Base URLs retain path prefixes but reject credentials, query strings and fragments. Old version-1 preferences without `ai` gain defaults in memory and are not rewritten until saved. Removing a provider in Settings requires deleting its key first; configuration removal takes effect on Save.
 
-[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI calls, extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
+[Secrets](../src/platform/storage/secrets.ts) store version-2 ciphertext maps keyed by Provider instance ID, encrypted by Electron `safeStorage` at [Main composition](../src/platform/electron/main/index.ts). Unavailable encryption (including Linux `basic_text`) refuses saves; deletion remains available. The API returns configuration/encryption status, never decrypted keys. Keys stay outside ordinary preferences, SQLite, snapshots and audit; file preferences/key operations do not append business audit. Version-1 OpenAI ciphertext remains readable and upgrades atomically on the next key write without decrypting unrelated keys. Only the internal AI service can read plaintext through the injected capability; the public bridge returns status. Saving configuration/keys makes no model request; the explicit connection test sends a short prompt to the saved provider/model and can incur charges.
+
+[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI chat uses local fixtures in [AI tests](../tests/ai.test.ts) and [production smoke](../scripts/ai-smoke.cjs); live third-party compatibility and account permissions remain unverified. Model discovery, tools, structured-output integration, AI business generation, extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
 
 - [Current architecture](architecture.md): runtime initialization and process boundaries.
 - [Code architecture](code-architecture.md): source ownership and quality checks.

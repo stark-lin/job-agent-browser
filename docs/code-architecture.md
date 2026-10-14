@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and remaining delivery constraints. Status: React composition/routing, mixed navigation, Platform runtime entries and layered business storage are **Implemented**. Business-page workflows and AI/file integrations remain **Scaffolded / Planned**. Verified behavior is owned by [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and remaining delivery constraints. Status: React composition/routing, mixed navigation, Platform runtime entries, AI infrastructure/chat and layered business storage are **Implemented**. Business-page workflows, AI business generation and file integration remain **Scaffolded / Planned**. Verified behavior is owned by [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -27,6 +27,7 @@ Shared UI also owns [canonical design tokens](../src/shared/ui/design-tokens.jso
 ```text
 src/
 ├── app/
+│   ├── ai/
 │   ├── navigation/
 │   └── context/
 ├── pages/
@@ -69,7 +70,7 @@ src/
     └── types/
 ```
 
-Home, Browser, Inbox and Settings are implemented pages. Six other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
+Home, Browser, Inbox, Ask AI and Settings are implemented pages. Five other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
 
 ## 3. Dependencies and process composition
 
@@ -117,11 +118,11 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 | Profile, ProfileItem and Fact | `domain/candidate/`; UI in `pages/profile/` |
 | GenerationRun, Artifact and provenance | `domain/resume/`; UI in `pages/tailor-resume/` |
 | SQLite, migrations, repositories and audit persistence | Main-side `platform/database/` |
-| AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; settings/secrets are implemented, AI execution and output integration remain planned |
+| AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; AI chat/settings/secrets are implemented; AI business generation and output integration remain planned |
 
 Domain defines repository/extraction interfaces. Concrete SQLite repositories and the scaffolded [generic extractor](../src/platform/browser/extractors/generic.ts) belong to Platform. Page snapshots must be plain data, never DOM/Electron objects. Site-specific extraction is deferred; validate required Job fields before saving partial data.
 
-AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
+The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, timeout and the injected database audit capability; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
 
 ## 6. Quality and future delivery
 
@@ -129,7 +130,7 @@ AI contracts must not expose provider SDK types to pages. Business-specific cont
 
 Keep business capabilities in [DataContract](../src/platform/electron/data-contract.ts); repositories, transaction contexts, audit writers and generation-stage persistence remain private. Storage modules separate migrations, transaction/audit control, mapping and domain adapters; Domain services own business validation.
 
-Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Inbox reuses configured webmail without a mail database. AI execution, compilation and remaining business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
+Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Inbox reuses configured webmail without a mail database. AI business generation, compilation and remaining business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
 
 Update the owning document and both language editions with behavior, interface, directory or configuration changes. Preserve build output, SQLite/audit behavior and Session partition during future migrations. Add Product Areas only when scale requires them; full DDD remains unnecessary.
 

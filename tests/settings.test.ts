@@ -108,14 +108,14 @@ test('keys are encrypted, replaceable and removable; API returns only status and
   assert.deepEqual(saved, { ok: true, value: { configured: true, available: true } })
   let body = readFileSync(path, 'utf8')
   assert.equal(body.includes('PRIVATE_KEY_ONE'), false)
-  assert.equal(protector.decrypt(Buffer.from(JSON.parse(body).openai, 'base64')), 'PRIVATE_KEY_ONE')
+  assert.equal(protector.decrypt(Buffer.from(JSON.parse(body).providers.openai, 'base64')), 'PRIVATE_KEY_ONE')
   secrets.saveProviderKey({ provider: 'openai', apiKey: 'PRIVATE_KEY_TWO' })
   body = readFileSync(path, 'utf8')
-  assert.equal(protector.decrypt(Buffer.from(JSON.parse(body).openai, 'base64')), 'PRIVATE_KEY_TWO')
+  assert.equal(protector.decrypt(Buffer.from(JSON.parse(body).providers.openai, 'base64')), 'PRIVATE_KEY_TWO')
   assert.deepEqual(createSecrets(path, protector).hasProviderKey({ provider: 'openai' }), { configured: true, available: true })
   assert.equal(JSON.stringify(backend.dispatch('audit', 'list', {})).includes('PRIVATE_KEY'), false)
   assert.deepEqual(secrets.deleteProviderKey({ provider: 'openai' }), { configured: false, available: true })
-  assert.equal(JSON.parse(readFileSync(path, 'utf8')).openai, null)
+  assert.equal(JSON.parse(readFileSync(path, 'utf8')).providers.openai, undefined)
 })
 
 test('unavailable encryption and encryption failures preserve the key; invalid input is rejected', t => {
@@ -127,9 +127,49 @@ test('unavailable encryption and encryption failures preserve the key; invalid i
   assert.throws(() => unavailable.saveProviderKey({ provider: 'openai', apiKey: 'REPLACEMENT' }), { code: 'ENCRYPTION_UNAVAILABLE' })
   const broken = createSecrets(path, { ...protector, encrypt: () => { throw new Error('Encryption failed') } })
   assert.throws(() => broken.saveProviderKey({ provider: 'openai', apiKey: 'REPLACEMENT' }))
-  for (const input of [{ provider: 'other', apiKey: 'KEY' }, { provider: 'openai', apiKey: '' }, { provider: 'openai', apiKey: 'two words' }, { provider: 'openai', apiKey: 'KEY', extra: true }]) {
+  for (const input of [{ provider: '__proto__', apiKey: 'KEY' }, { provider: 'openai', apiKey: '' }, { provider: 'openai', apiKey: 'two words' }, { provider: 'openai', apiKey: 'KEY', extra: true }]) {
     assert.throws(() => service.saveProviderKey(input), { code: 'INVALID_INPUT' })
   }
   assert.equal(readFileSync(path, 'utf8'), before)
   assert.deepEqual(unavailable.deleteProviderKey({ provider: 'openai' }), { configured: false, available: false })
+})
+
+
+test('legacy OpenAI ciphertext migrates on write without decrypting other providers', t => {
+  const path = join(temporary(t), 'secrets.enc'), protector = protection()
+  const old = JSON.stringify({ version: 1, openai: protector.encrypt('LEGACY_PRIVATE_KEY').toString('base64') })
+  writeFileSync(path, old)
+  const service = createSecrets(path, protector)
+  assert.equal(service.readProviderKey('openai'), 'LEGACY_PRIVATE_KEY')
+  assert.equal(readFileSync(path, 'utf8'), old)
+  service.saveProviderKey({ provider: 'company', apiKey: 'COMPANY_PRIVATE_KEY' })
+  assert.equal(createSecrets(path, protector).readProviderKey('openai'), 'LEGACY_PRIVATE_KEY')
+  assert.equal(service.readProviderKey('company'), 'COMPANY_PRIVATE_KEY')
+  service.deleteProviderKey({ provider: 'company' })
+  assert.equal(service.readProviderKey('company'), null)
+  assert.equal(service.readProviderKey('openai'), 'LEGACY_PRIVATE_KEY')
+  assert.equal(readFileSync(path, 'utf8').includes('PRIVATE_KEY'), false)
+})
+
+test('old settings gain AI defaults; custom provider configuration persists and validates atomically', t => {
+  const path = join(temporary(t), 'settings.json')
+  const legacy = { version: 1, theme: defaultPreferences.theme, language: defaultPreferences.language, mailbox: defaultPreferences.mailbox }
+  writeFileSync(path, JSON.stringify(legacy))
+  const service = createPreferences(path)
+  assert.deepEqual(service.get({}).ai, defaultPreferences.ai)
+  assert.equal(readFileSync(path, 'utf8'), JSON.stringify(legacy))
+  const ai = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234/gateway/v1/', requiresKey: false, models: ['custom/model'], defaultModel: 'custom/model' }], default: { providerId: 'local', modelId: 'custom/model' } }
+  service.savePreferences({ ai })
+  const restored = createPreferences(path).get({})
+  assert.equal(restored.ai.providers[0].baseURL, 'http://127.0.0.1:1234/gateway/v1')
+  assert.deepEqual(restored.ai.default, ai.default)
+  assert.deepEqual(service.savePreferences({ theme: 'dark' }).ai, restored.ai)
+  const before = readFileSync(path, 'utf8')
+  for (const invalid of [
+    { ...ai, default: { providerId: 'missing', modelId: 'custom/model' } },
+    { ...ai, providers: [...ai.providers, ...ai.providers] },
+    ...['http://example.com/v1', 'https://user:pass@example.com', 'https://example.com/v1?token=secret', 'file:///tmp'].map(baseURL => ({ ...ai, providers: [{ ...ai.providers[0], baseURL }] })),
+    { ...ai, providers: [{ ...ai.providers[0], models: ['duplicate', 'duplicate'] }] }
+  ]) assert.throws(() => service.savePreferences({ ai: invalid }), { code: 'INVALID_INPUT' })
+  assert.equal(readFileSync(path, 'utf8'), before)
 })

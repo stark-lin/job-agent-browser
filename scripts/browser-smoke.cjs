@@ -234,6 +234,7 @@ module.exports = async function browserSmoke(window) {
     assert.equal(views().length, 0)
     await require('./navigation-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut })
     await require('./sidebar-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut })
+    await require('./ai-smoke.cjs')({ window, call, evaluate, waitFor })
     await require('./settings-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin })
     console.log('Browser smoke passed: tab UI/lifecycle, independent histories and page state, Home visibility, native bounds, shortcuts, URL input, pop-ups, isolation and load errors.')
   } finally {

@@ -5,14 +5,15 @@ import type { DataAPI } from '../platform/electron/data-contract'
 import { NavigationStore } from './navigation/navigationStore'
 import { ContextStore } from './context/contextStore'
 import type { AppContext } from './context/appContext'
+import type { AIAPI } from '../shared/ai'
 
-interface Services { navigation: NavigationStore; context: ContextStore; data: DataAPI }
+interface Services { navigation: NavigationStore; context: ContextStore; data: DataAPI; ai: AIAPI }
 const ServicesContext = createContext<Services | null>(null)
 
-export function AppProviders({ children, browser = window.browser, data = window.data }: {
-  children: ReactNode; browser?: BrowserAPI; data?: DataAPI
+export function AppProviders({ children, browser = window.browser, data = window.data, ai = window.ai }: {
+  children: ReactNode; browser?: BrowserAPI; data?: DataAPI; ai?: AIAPI
 }) {
-  const [services] = useState<Services>(() => ({ navigation: new NavigationStore(browser), context: new ContextStore(), data }))
+  const [services] = useState<Services>(() => ({ navigation: new NavigationStore(browser), context: new ContextStore(), data, ai }))
   useEffect(() => services.navigation.start(), [services])
   return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>
 }

@@ -28,6 +28,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   createGenerationService(repo.resumes, system, runtime).recoverInterrupted()
   return {
     generation,
+    recordAI: database.transactions.recordAI.bind(database.transactions),
     dispatch(namespace: unknown, method: unknown, input: unknown): Result<unknown> {
       if (typeof namespace !== 'string' || typeof method !== 'string' || !Object.hasOwn(methodNames, namespace)) return { ok: false, error: 'INVALID_INPUT' }
       const group = namespace as keyof typeof methodNames

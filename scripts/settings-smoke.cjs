@@ -5,7 +5,7 @@ const { resolve } = require('node:path')
 
 module.exports = async function settingsSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin }) {
   const frames = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-  const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 3'), 'Settings forms ready')
+  const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 4'), 'Settings forms ready')
   const field = async (selector, value, type = 'input') => {
     await evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(selector)});
@@ -65,7 +65,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   // Invalid URLs receive field feedback and never persist.
   await field('.settings-sections > section:nth-child(3) select', 'custom', 'select')
   await field('.settings-sections > section:nth-child(3) input', 'https://user:password@example.com')
-  await submit(2)
+  await submit(3)
   await waitFor(() => evaluate('!!document.querySelector("input[aria-invalid=true]")'), 'invalid mailbox feedback')
   assert.equal((await data('settings', 'get', {})).value.mailbox.provider, 'none')
 
@@ -100,7 +100,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   assert.equal(await evaluate('document.querySelector(".settings-sections > section:nth-child(3) select").value'), 'none')
   await field('.settings-sections > section:nth-child(3) select', 'gmail', 'select')
   assert.equal(await evaluate('document.querySelector(".settings-sections > section:nth-child(3) input").value'), 'https://mail.google.com/')
-  await submit(2)
+  await submit(3)
   await waitFor(async () => (await data('settings', 'get', {})).value.mailbox.provider === 'gmail', 'saved mailbox')
   // Cancel network loading: verify routing without relying on an external website.
   const webSession = session.fromPartition('persist:job-agent-browser')
@@ -122,12 +122,12 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   const status = (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value
   if (status.available) {
     await field('.settings-page input[type=password]', 'smoke-key-disposable')
-    await submit(1)
+    await submit(2)
     await waitFor(async () => (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'encrypted key save')
     await waitFor(() => evaluate('document.querySelector("input[type=password]").value === ""'), 'key cleared from UI')
     const file = readFileSync(resolve(process.env.JOB_BROWSER_SMOKE_DATA, 'secrets.enc'), 'utf8')
     assert.equal(file.includes('smoke-key-disposable'), false)
-    assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).openai, 'base64')), 'smoke-key-disposable')
+    assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).providers.openai, 'base64')), 'smoke-key-disposable')
     await evaluate('[...document.querySelectorAll("button")].find(button => button.textContent === "Delete key").click()')
     await waitFor(() => evaluate('document.querySelector("dialog").open'), 'delete confirmation dialog')
     await evaluate('document.querySelector("dialog .ui-button--danger").click()')

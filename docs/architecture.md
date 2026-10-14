@@ -1,6 +1,6 @@
 # Current Runtime Architecture
 
-Purpose: record verified runtime behavior. Status: **Implemented** React application composition, nine accessible entries, per-tab mixed navigation, browser foundation, Settings and business storage. Business workflows, AI execution and compilation remain **Planned**; remaining feature-page UI is **Scaffolded**.
+Purpose: record verified runtime behavior. Status: **Implemented** React application composition, nine accessible entries, per-tab mixed navigation, browser foundation, Settings, OpenAI-compatible SSE chat and business storage. Business workflows and compilation remain **Planned**; remaining feature-page UI is **Scaffolded**.
 
 Language: English · [简体中文](architecture.zh-CN.md)
 
@@ -9,14 +9,15 @@ Language: English · [简体中文](architecture.zh-CN.md)
 [Build configuration](../electron.vite.config.ts) selects [Main](../src/platform/electron/main/index.ts), [Preload](../src/platform/electron/preload/index.ts), and the [Renderer HTML entry](../src/renderer/index.html). The [package entry](../package.json) remains `out/main/index.js`.
 
 ```text
-React App → Page → window.browser / window.data → Preload → IPC → Main
-                                                               ├── Mixed history + WebContentsView → Session
-                                                               └── Domain services → SQLite + audit
+React App → Page → Preload → IPC → Main
+                                  ├── Mixed history + WebContentsView → Session
+                                  ├── Domain services → SQLite + audit
+                                  └── AI service → Provider SSE
 ```
 
-The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
+The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data/AI bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
 
-[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. [Settings](../src/pages/settings/SettingsPage.tsx) implements local preferences and encrypted-key management. [Inbox](../src/pages/inbox/InboxPage.tsx) owns a full-content webmail surface, configuration guidance and load recovery. Six other feature entries remain scaffolded.
+[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. [Settings](../src/pages/settings/SettingsPage.tsx) implements local preferences and encrypted-key management. [Inbox](../src/pages/inbox/InboxPage.tsx) owns a full-content webmail surface, configuration guidance and load recovery. [Ask AI](../src/pages/ai/AskAIPage.tsx) implements streaming chat; five other feature entries remain scaffolded.
 
 ## 2. Routes and mixed history
 
@@ -52,12 +53,18 @@ Follow system responds to native appearance updates; explicit Light/Dark overrid
 
 [App Context](../src/app/context/appContext.ts) exposes the active page's tab/title/destination and nullable Job, Profile and Artifact IDs. The [reference store](../src/app/context/contextStore.ts) starts empty; it does not copy entities, extract page content or automatically select business records.
 
+**Implemented AI:** [Main-owned service](../src/platform/ai/service.ts) snapshots the selected provider, model and credential at request creation. The [compatible adapter](../src/platform/ai/compatible.ts) posts Chat Completions requests beneath the configured Base URL and consumes SSE; redirects are rejected. Remote endpoints require HTTPS; loopback HTTP supports local services. No automatic retry, cross-provider fallback, tools, structured-output capability probing or model discovery is implemented.
+
+[AI IPC](../src/platform/electron/main/ai-ipc.ts) exposes only start/cancel and returns events to the initiating trusted frame. [Renderer coordination](../src/app/ai/streamClient.ts) subscribes before invocation, buffers early events and removes subscriptions on terminal events or page disposal. The service bounds requests and context/output sizes, applies a 120-second total timeout and cancels requests on renderer navigation/destruction or shutdown. Provider SSE remains in Main; incremental IPC drives the UI.
+
+[Chat](../src/pages/ai/useChat.ts) inherits the saved default, allows provider/model overrides and displays completed, failed or stopped responses. New chat clears messages; leaving the page cancels the request and clears memory-only history. Existing messages retain their response model labels when switching models. [AI Settings](../src/pages/settings/AISettingsSection.tsx) manages provider instances, manual model IDs and an explicit short streaming connection test. Automatic Job/Profile/page context and business generation remain planned. Audit and credential persistence are owned by [data architecture](data-architecture.md).
+
 ## 4. Session, security and storage
 
 Remote views share `persist:job-agent-browser`, retaining website storage across restarts. Permission requests are denied; there is no multi-profile selector.
 
 - [Trusted window](../src/platform/electron/main/window.ts) and [remote views](../src/platform/browser/webSegment.ts) disable Node integration and enable context isolation and sandboxing; remote web security remains enabled.
-- Browser and data IPC require the owning trusted document and top frame, and validate inputs. [Preload](../src/platform/electron/preload/index.ts) exposes named operations, never raw `ipcRenderer`.
+- Browser, data and AI IPC require the owning trusted document and top frame, and validate inputs. [Preload](../src/platform/electron/preload/index.ts) exposes named operations, never raw `ipcRenderer`.
 - Remote main-frame navigation/redirects permit HTTP(S) only. HTTP(S) pop-ups create an app tab; native pop-ups and other schemes are denied. Remote pages cannot enter internal routes or access browser/data bridges.
 - [Trusted HTML](../src/renderer/index.html) retains its CSP. Trusted UI external links use the operating-system browser through window creation.
 
@@ -73,9 +80,9 @@ Main opens storage and registers data handlers before creating the window, close
 
 ## 6. Verification and limitations
 
-[Integration tests](../tests/audit.test.ts) verify storage/privacy guarantees; [navigation-store tests](../tests/navigation-store.test.ts) cover subscription ordering and StrictMode cleanup. [Electron smoke](../scripts/smoke.cjs) exercises built Main/Preload, IPC and sender rejection. [Browser smoke](../scripts/browser-smoke.cjs) covers tabs, bounds, shortcuts, isolation and failures; [navigation smoke](../scripts/navigation-smoke.cjs) covers feature entry UI, mixed traversal, branching/disposal, SPA/duplicate history, reload, stale visibility and loading races. [Theme smoke](../scripts/theme-smoke.cjs) verifies color-only geometry, saved/draft themes, native updates and unchanged navigation. [Settings smoke](../scripts/settings-smoke.cjs) verifies real forms, bilingual reload, responsive geometry, validation, leave confirmation, Inbox routing and the encrypted-key lifecycle; [restart smoke](../scripts/settings-restart-smoke.cjs) verifies restoration in a fresh production process. [Inbox smoke](../scripts/inbox-smoke.cjs) verifies zero-inset native bounds, absence of app top bars, redirects/history/reload/pop-ups, retained drafts, resizing, isolation and load recovery using local fixtures. [Sidebar smoke](../scripts/sidebar-smoke.cjs) verifies all destinations, active state, keyboard activation, responsive geometry and short-window reachability. [Window-close smoke](../scripts/window-close-smoke.cjs) verifies release of retained views after the owning window closes. Commands are indexed in README.
+[AI tests](../tests/ai.test.ts) and [AI smoke](../scripts/ai-smoke.cjs) verify local compatible SSE, startup-only audit, cancellation, provider configuration and real IPC. [Integration tests](../tests/audit.test.ts) verify storage/privacy guarantees; [navigation-store tests](../tests/navigation-store.test.ts) cover subscription ordering and StrictMode cleanup. [Electron smoke](../scripts/smoke.cjs) exercises built Main/Preload, IPC and sender rejection. [Browser smoke](../scripts/browser-smoke.cjs) covers tabs, bounds, shortcuts, isolation and failures; [navigation smoke](../scripts/navigation-smoke.cjs) covers feature entry UI, mixed traversal, branching/disposal, SPA/duplicate history, reload, stale visibility and loading races. [Theme smoke](../scripts/theme-smoke.cjs) verifies color-only geometry, saved/draft themes, native updates and unchanged navigation. [Settings smoke](../scripts/settings-smoke.cjs) verifies real forms, bilingual reload, responsive geometry, validation, leave confirmation, Inbox routing and the encrypted-key lifecycle; [restart smoke](../scripts/settings-restart-smoke.cjs) verifies restoration in a fresh production process. [Inbox smoke](../scripts/inbox-smoke.cjs) verifies zero-inset native bounds, absence of app top bars, redirects/history/reload/pop-ups, retained drafts, resizing, isolation and load recovery using local fixtures. [Sidebar smoke](../scripts/sidebar-smoke.cjs) verifies all destinations, active state, keyboard activation, responsive geometry and short-window reachability. [Window-close smoke](../scripts/window-close-smoke.cjs) verifies release of retained views after the owning window closes. Commands are indexed in README.
 
-Tab histories and context references are memory-only. Retained web segments are released by branching or closing tabs/windows; automatic eviction and cross-restart restoration are not implemented. Business workflows, page extraction, AI generation execution, compilation, full Shared Context capture, installers remain unimplemented.
+Tab histories and context references are memory-only. Retained web segments are released by branching or closing tabs/windows; automatic eviction and cross-restart restoration are not implemented. Business workflows, page extraction, AI business generation, compilation, full Shared Context capture, installers remain unimplemented.
 
 ## 7. Related documents
 

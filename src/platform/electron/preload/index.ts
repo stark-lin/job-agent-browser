@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { createDataBridge } from './data-bridge'
 import { DATA_CALL } from '../../../shared/ipc'
+import { AI_START, AI_CANCEL, AI_EVENT, type AIEvent } from '../../../shared/ai'
+import { createAIBridge } from './ai-bridge'
 import {
   BROWSER_BACK,
   BROWSER_CREATE_TAB,
@@ -41,3 +43,11 @@ const browserAPI: BrowserAPI = {
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
 contextBridge.exposeInMainWorld('data', createDataBridge((group, method, input) => ipcRenderer.invoke(DATA_CALL, group, method, input)))
+contextBridge.exposeInMainWorld('ai', createAIBridge(
+  (operation, input) => ipcRenderer.invoke(operation === 'start' ? AI_START : AI_CANCEL, input),
+  callback => {
+    const listener = (_event: Electron.IpcRendererEvent, message: AIEvent) => callback(message)
+    ipcRenderer.on(AI_EVENT, listener)
+    return () => ipcRenderer.removeListener(AI_EVENT, listener)
+  }
+))
