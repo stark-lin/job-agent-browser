@@ -5,7 +5,7 @@ const { resolve } = require('node:path')
 
 module.exports = async function settingsSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin }) {
   const frames = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-  const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 4'), 'Settings forms ready')
+  const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings forms ready')
   const field = async (selector, value, type = 'input') => {
     await evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(selector)});
@@ -15,7 +15,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     await frames()
   }
   const data = async (group, method, input) => evaluate(`window.data.${group}.${method}(${JSON.stringify(input)})`)
-  const submit = index => evaluate(`document.querySelectorAll('.settings-page form')[${index}].requestSubmit()`)
+  const submit = index => evaluate(`document.querySelectorAll('.settings-page form:not([data-audit-filters])')[${index}].requestSubmit()`)
   const capture = async name => {
     mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     await frames()
@@ -31,14 +31,18 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
       labels: [...document.querySelectorAll('.ui-field-label')].every(label => !!document.getElementById(label.htmlFor)) };
   })()`)
   assert.deepEqual(geometry, { padding: '24px', radius: '16px', height: 40, labels: true })
+  await require('./audit-viewer-smoke.cjs')({ window, call, evaluate, waitFor, field, data, capture })
+  await formsReady()
   await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data })
   await capture('settings-en.png')
 
   // Change through React controls and the production IPC, then reload the renderer.
-  await field('.settings-page form select', 'zh-CN', 'select')
+  await field('.settings-page form:not([data-audit-filters]) select', 'zh-CN', 'select')
   await submit(0)
   await waitFor(() => evaluate('document.documentElement.lang === "zh-CN" && document.querySelector("h1").textContent === "设置"'), 'saved Chinese UI')
   await waitState(state => state.language === 'zh-CN' && active(state).title === '设置', 'Main language follows saved preference')
+  assert.equal(await evaluate('document.querySelector("[data-audit-viewer] h2").textContent'), '审计日志')
+  assert.equal(await evaluate('document.querySelector("[data-audit-viewer] button[type=submit]").textContent'), '查询日志')
   assert.equal((await data('settings', 'get', {})).value.language, 'zh-CN')
   await capture('settings-zh.png')
   const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve))
@@ -59,7 +63,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     }
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
 
-  await field('.settings-page form select', 'en', 'select')
+  await field('.settings-page form:not([data-audit-filters]) select', 'en', 'select')
   await submit(0)
   await waitFor(() => evaluate('document.documentElement.lang === "en"'), 'English restored')
   // Invalid URLs receive field feedback and never persist.
@@ -129,7 +133,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     assert.equal(file.includes('smoke-key-disposable'), false)
     assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).providers.openai, 'base64')), 'smoke-key-disposable')
     await evaluate('[...document.querySelectorAll("button")].find(button => button.textContent === "Delete key").click()')
-    await waitFor(() => evaluate('document.querySelector("dialog").open'), 'delete confirmation dialog')
+    await waitFor(() => evaluate('document.querySelector("dialog:has(.ui-button--danger)").open'), 'delete confirmation dialog')
     await evaluate('document.querySelector("dialog .ui-button--danger").click()')
     await waitFor(async () => !(await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'key deletion')
   }

@@ -679,3 +679,19 @@ tbody tr:last-child td { border-bottom: 0; }
 .workspace-navigation-heading { margin: var(--space-2) var(--space-1) var(--space-1); font-size: var(--font-xs); line-height: var(--line-xs); color: var(--muted); }
 .workspace-navigation-item { display: flex; align-items: center; width: 100%; min-height: var(--control-md); padding: var(--space-1); background: transparent; color: var(--text); border: 0; border-radius: var(--radius-sm); font-size: var(--font-sm); line-height: var(--line-sm); text-align: left; cursor: pointer; }
 .workspace-navigation-item[aria-current="page"] { background: var(--primary-soft); color: var(--primary-hover); font-weight: var(--weight-semibold); }
+
+/* Read-only tables and metadata, shared by Settings and the reference gallery. */
+.ui-table-scroll { max-width: 100%; overflow: auto; border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); }
+.ui-data-table { width: 100%; min-width: var(--table-min-width); border-collapse: collapse; table-layout: fixed; }
+.ui-data-table th, .ui-data-table td { padding: var(--space-2); text-align: left; border-bottom: var(--border-width) solid var(--line); font-size: var(--font-xs); line-height: var(--line-sm); overflow-wrap: anywhere; }
+.ui-data-table th { background: var(--bg); color: var(--muted); font-weight: var(--weight-semibold); }
+.ui-data-table tbody tr { height: var(--list-row-height); }
+.ui-data-table tbody tr:hover { background: var(--hover); }
+.ui-data-table tbody tr:last-child td { border-bottom: 0; }
+.ui-badge { display: inline-flex; align-items: center; padding: 0 var(--space-1); min-height: var(--control-sm); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--bg); font-size: var(--font-xs); line-height: var(--line-xs); font-weight: var(--weight-semibold); }
+.ui-badge--success { background: var(--success-bg); border-color: var(--success-line); }
+.ui-badge--error { background: var(--danger-bg); border-color: var(--danger-line); color: var(--danger); }
+.ui-details-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.ui-details-list dt { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-sm); }
+.ui-details-list dd { margin: 0; color: var(--text); font-size: var(--font-sm); line-height: var(--line-sm); overflow-wrap: anywhere; }
+.ui-dialog-content { margin-top: var(--space-2); }

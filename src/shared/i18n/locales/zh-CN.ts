@@ -54,6 +54,22 @@ export const zhCN = {
     save: '保存更改', saveKey: '保存密钥', replaceKey: '替换密钥', deleteKey: '删除密钥', saving: '正在保存…', saved: '更改已保存。', keySaved: '密钥已安全保存。', keyDeleted: '密钥已删除。', deleteTitle: '删除已保存的 API 密钥？', deleteDescription: '你可以稍后添加新的密钥。', cancel: '取消',
     unsaved: '有未保存的更改', loading: '正在加载设置…', loadFailed: '无法加载设置。', saveFailed: '无法保存更改。之前的设置仍然保留。', retry: '重试', discardTitle: '放弃更改并离开？', discardDescription: '未保存的设置将被丢弃。', discard: '放弃更改', stay: '继续编辑', local: '保存在本地', localDescription: '偏好设置和加密密钥保存在此设备上。网站登录由浏览器单独管理。'
   },
+  audit: {
+    title: '审计日志', description: '查看本地审计记录，最新记录优先。查看和筛选不会产生审计记录。',
+    scope: '设置与密钥保存不产生审计记录。AI 成功表示流已启动，不代表响应完成。日志仅包含元数据。',
+    targetType: '目标类型', target: '目标', targetId: '目标 ID', status: '状态', all: '全部',
+    from: '开始时间', to: '结束时间', localTime: '本地时间，包含边界时刻。', advanced: '高级筛选', exactMatch: '精确匹配 ID。',
+    requestId: '请求 ID', transactionId: '事务 ID', query: '查询日志', reset: '重置', refresh: '刷新',
+    time: '时间', event: '事件', action: '操作', details: '审计详情', viewDetails: '查看详情', viewEntry: '查看第 {{sequence}} 条审计记录',
+    recordId: '记录 ID', sequence: '序号', errorCode: '错误码', component: '组件', location: '位置', source: '来源', actor: '执行者',
+    detailDescription: '审计元数据。此处不存储业务内容、提示词、响应或密钥。', close: '关闭', noValue: '无',
+    loading: '正在加载审计记录…', loadFailed: '无法加载审计记录。', empty: '暂无审计记录。', noMatches: '没有符合筛选条件的记录。',
+    pagination: '共 {{total}} 条记录 · 第 {{page}} / {{pages}} 页', previous: '上一页', next: '下一页',
+    invalidId: '请输入精确目标 ID（最多 120 个字符），请求和事务 ID 必须为有效 UUID。',
+    invalidTime: '请输入有效的本地日期和时间。', invalidRange: '结束时间不得早于开始时间。',
+    statuses: { SUCCESS: '成功', FAILURE: '失败' }, actions: { CREATE: '创建', UPDATE: '更新', DELETE: '删除' },
+    targets: { company: '公司', job: '职位', job_source: '职位来源', job_event: '职位事件', profile: '个人资料', profile_item: '资料条目', fact: '事实', generation_run: '生成任务', artifact: '产物', artifact_fact: '产物事实', ai_request: 'AI 请求' }
+  },
   ai: {
   "model": "模型",
   "subtitle": "使用你选择的 Provider 和模型对话。",

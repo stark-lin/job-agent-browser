@@ -36,7 +36,8 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | `FormField`, `Select` | Associated labels, help/errors and native selection | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `SectionCard`, `PageHeading` | Shared panel and page heading presentation | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `StatusMessage` | Neutral, information, success and error feedback | [Form.tsx](../src/shared/ui/Form.tsx) |
-| `Dialog` | Native modal focus containment; page-owned actions and cancellation | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
+| `Dialog` | Native modal focus containment, optional body content and page-owned actions/cancellation | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
+| `DataTable`, `Badge`, `DetailsList` | Named scroll region with column headers, metadata rows and text-labelled neutral/success/error badges | [DataTable.tsx](../src/shared/ui/DataTable.tsx) |
 | `PlaceholderPage` | Explicit coming-soon layout with page-provided actions | [PlaceholderPage.tsx](../src/shared/ui/PlaceholderPage.tsx) |
 
 - Add missing primitives or variants to `src/shared/ui/` and export them centrally before page use. Gallery-only forms, badges, job cards, feedback, dialogs and tables still need central React implementations where not represented by the existing primitives.
@@ -90,6 +91,7 @@ These are requirements for UI additions and changes; they do not establish full 
 - Sidebar items retain their complete accessible name and native tooltip when labels are hidden; use `aria-current="page"` for the active destination. Settings remains reachable in the fixed footer while the middle groups scroll.
 - Give every control an accessible name. `IconButton` requires `aria-label`; inputs need an associated label or accessible name. `Icon` is decorative by default, so communicate meaning through the owning control or explicitly configure its accessible semantics.
 - Settings composes 40px fields in 16px-radius panels with 24px padding (16px at narrow widths); page CSS owns layout only. Success feedback uses readable text on the success background/border. The gallery Settings example references these shared rules.
+- The Settings Audit Viewer composes central `DataTable`, `Badge`, `DetailsList` and `Dialog` content. The table has 64px minimum rows, wrapping IDs, visible status text and a keyboard-focusable horizontal scroll region; it never expands the page width. Metadata dialogs scroll within the viewport. The Tables gallery includes the audit reference.
 - Preserve native keyboard activation, disabled behavior and visible focus. A bare `TextInput` must live in a wrapper providing a visible focus treatment, as in [AddressBar](../src/pages/browser/AddressBar.tsx); its own outline is intentionally suppressed.
 - Keep tab selection, keyboard focus and selected state aligned; [TabStrip](../src/pages/browser/TabStrip.tsx) owns its keyboard handling. Announce errors with appropriate text/roles, and keep long labels readable without hiding the full meaning.
 - Distinguish loading, empty, success and error states. Do not make a reference example look like an implemented operation; page copy belongs to the [i18n catalog](../src/shared/i18n/locales/en.ts).
@@ -124,6 +126,7 @@ npm run quality
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | Full-content native bounds, no app chrome, resizing, redirects, history and load recovery | Uses local fixtures; does not certify provider websites |
 | [Sidebar smoke](../scripts/sidebar-smoke.cjs) | All destinations, active state, keyboard activation, responsive width and native-view clearance | Does not certify all assistive technology |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider forms, central multiline input, real SSE/IPC, cancellation and 320/640/1200px overflow checks | Local fixtures do not certify third-party provider behavior |
+| [Audit Viewer smoke](../scripts/audit-viewer-smoke.cjs) | Filters, pagination, metadata dialogs, keyboard dismissal, no page overflow at 320/640/1200px and read-only/error/loading states | Does not certify screen readers or a snapshot across pages during concurrent writes |
 | [Settings smoke](../scripts/settings-smoke.cjs) | Real forms, labels, 40px controls, 16px panels, 320/640/1200px layout, language, validation and key lifecycle | Does not certify screen-reader behavior or provider access |
 | [Theme smoke](../scripts/theme-smoke.cjs) and [restart smoke](../scripts/settings-restart-smoke.cjs) | Draft/save/failure/discard, simulated native appearance updates, unchanged navigation/native bounds, Settings/Home geometry at 320/640/1200px, all gallery element geometry and persisted dark startup | Does not automate actual OS settings, certify every visual state or prove every startup frame is flash-free |
 

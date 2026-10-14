@@ -504,6 +504,22 @@
             </table>
           </div>
         </div>
+        <div class="demo">
+          <div class="demo-label">Audit Viewer · DataTable / Badge / DetailsList</div>
+          <div class="demo-stage vstack">
+            <div class="ui-table-scroll" role="region" aria-label="Audit Viewer" tabindex="0">
+              <table class="ui-data-table" aria-label="Audit Viewer">
+                <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Target</th><th scope="col">Status</th><th scope="col">Details</th></tr></thead>
+                <tbody>
+                  <tr><td>14/10/2026, 12:30:00</td><td>AI_STREAM_START<br>Create</td><td>AI request<br>00000000-0000-4000-8000-000000000001</td><td><span class="ui-badge ui-badge--success">Success</span></td><td><button class="btn btn-sm">View details</button></td></tr>
+                  <tr><td>14/10/2026, 12:29:00</td><td>PROFILE_CREATE<br>Create</td><td>Profile<br>None</td><td><span class="ui-badge ui-badge--error">Failure</span></td><td><button class="btn btn-sm">View details</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted">Read-only metadata. Settings and key saves are not audited. AI success means streaming started.</p>
+            <dl class="ui-details-list"><div><dt>Error code</dt><dd>INVALID_INPUT</dd></div><div><dt>Request ID</dt><dd>00000000-0000-4000-8000-000000000002</dd></div></dl>
+          </div>
+        </div>
       </section>
     </main>
   </div>

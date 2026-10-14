@@ -37,7 +37,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     await internal(page)
     await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), page !== 'settings' && page !== 'inbox' && page !== 'ai')
-    if (page === 'settings') await waitFor(() => evaluate('document.querySelectorAll(".settings-page form").length === 4'), 'Settings forms')
+    if (page === 'settings') await waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings forms')
     else if (page !== 'ai') assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
     if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {

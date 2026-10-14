@@ -95,6 +95,22 @@ export const en = {
     discard: 'Discard changes', stay: 'Keep editing',
     local: 'Stored locally', localDescription: 'Preferences and encrypted keys stay on this device. Website sign-ins are managed separately by the browser.'
   },
+  audit: {
+    title: 'Audit Viewer', description: 'Read local audit records, newest first. Viewing and filtering do not create records.',
+    scope: 'Settings and key saves are not audited. AI success means streaming started; it does not confirm completion. Logs contain metadata only.',
+    targetType: 'Target type', target: 'Target', targetId: 'Target ID', status: 'Status', all: 'All',
+    from: 'From', to: 'To', localTime: 'Local time; inclusive boundary.', advanced: 'Advanced filters', exactMatch: 'Exact ID match.',
+    requestId: 'Request ID', transactionId: 'Transaction ID', query: 'Search logs', reset: 'Reset', refresh: 'Refresh',
+    time: 'Time', event: 'Event', action: 'Action', details: 'Audit details', viewDetails: 'View details', viewEntry: 'View audit record {{sequence}}',
+    recordId: 'Record ID', sequence: 'Sequence', errorCode: 'Error code', component: 'Component', location: 'Location', source: 'Source', actor: 'Actor',
+    detailDescription: 'Audit metadata. Business content, prompts, responses and keys are not stored here.', close: 'Close', noValue: 'None',
+    loading: 'Loading audit records…', loadFailed: 'Audit records could not be loaded.', empty: 'No audit records yet.', noMatches: 'No records match these filters.',
+    pagination: '{{total}} records · Page {{page}} of {{pages}}', previous: 'Previous page', next: 'Next page',
+    invalidId: 'Enter an exact target ID (up to 120 characters) or a valid UUID for request and transaction IDs.',
+    invalidTime: 'Enter a valid local date and time.', invalidRange: 'The end time must be at or after the start time.',
+    statuses: { SUCCESS: 'Success', FAILURE: 'Failure' }, actions: { CREATE: 'Create', UPDATE: 'Update', DELETE: 'Delete' },
+    targets: { company: 'Company', job: 'Job', job_source: 'Job source', job_event: 'Job event', profile: 'Profile', profile_item: 'Profile item', fact: 'Fact', generation_run: 'Generation run', artifact: 'Artifact', artifact_fact: 'Artifact fact', ai_request: 'AI request' }
+  },
   ai: {
   "model": "Model",
   "subtitle": "Chat using your selected provider and model.",

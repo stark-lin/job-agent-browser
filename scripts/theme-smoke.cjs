@@ -4,13 +4,13 @@ const { chmodSync, mkdirSync, statSync, writeFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 
 module.exports = async function themeSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data }) {
-  const selector = '.settings-page form select:nth-of-type(1)'
+  const selector = '.settings-page form:not([data-audit-filters]) select:nth-of-type(1)'
   const appearance = '.settings-fields .ui-field:nth-child(2) select'
   const applied = theme => waitFor(() => evaluate(`document.documentElement.dataset.theme === '${theme}' && getComputedStyle(document.documentElement).colorScheme === '${theme}'`), `applied ${theme}`)
   const save = async theme => {
     await field(appearance, theme, 'select')
     await submit(0)
-    await waitFor(() => evaluate("document.querySelector('.settings-page form button[type=submit]').disabled && document.querySelector('.settings-page form button[type=submit]').textContent === 'Save changes'"), 'theme form saved')
+    await waitFor(() => evaluate("document.querySelector('.settings-page form:not([data-audit-filters]) button[type=submit]').disabled && document.querySelector('.settings-page form:not([data-audit-filters]) button[type=submit]').textContent === 'Save changes'"), 'theme form saved')
     assert.equal((await data('settings', 'get', {})).value.theme, theme)
     if (theme !== 'system') await applied(theme)
   }

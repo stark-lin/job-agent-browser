@@ -36,7 +36,8 @@
 | `FormField`, `Select` | 关联标签、帮助/错误及原生选择 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `SectionCard`, `PageHeading` | 共享面板及页面标题外观 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `StatusMessage` | 中性、信息、成功及错误反馈 | [Form.tsx](../src/shared/ui/Form.tsx) |
-| `Dialog` | 原生模态焦点约束；页面管理操作及取消 | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
+| `Dialog` | 原生模态焦点约束、可选正文；页面管理操作及取消 | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
+| `DataTable`、`Badge`、`DetailsList` | 命名滚动区、列标题、元数据列表及带文字的中性/成功/错误徽章 | [DataTable.tsx](../src/shared/ui/DataTable.tsx) |
 | `PlaceholderPage` | 明确的待实现布局，操作由页面提供 | [PlaceholderPage.tsx](../src/shared/ui/PlaceholderPage.tsx) |
 
 - 缺少基础组件或变体时，先加入 `src/shared/ui/` 并从中央入口导出，再用于页面。仅存在展示示例的表单、徽章、职位卡片、反馈、对话框和表格，若未由现有基础组件表达，仍需中央 React 实现。
@@ -90,6 +91,7 @@
 - 侧栏隐藏文字时仍保留完整无障碍名称及原生提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，底部固定的 Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
 - Settings 在 16px 圆角面板中组合 40px 字段，内边距为 24px（窄屏为 16px）；页面 CSS 仅管理布局。成功反馈使用可读文字及成功背景/边框。展示库 Settings 示例引用这些共享规则。
+- Settings 审计查看器组合中央 `DataTable`、`Badge`、`DetailsList` 和 `Dialog` 正文。表格行至少 64px，ID 可换行，状态带文字，横向滚动区可通过键盘聚焦，不撑宽页面。元数据弹窗在视口内滚动。Tables 展示库包含审计参考。
 - 保留原生键盘激活、禁用行为和可见焦点。裸 `TextInput` 必须位于提供可见焦点反馈的容器中，参见 [AddressBar](../src/pages/browser/AddressBar.tsx)；其自身描边按设计被移除。
 - 标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
 - 区分加载、空状态、成功与错误。不得让参考示例看起来像已实现操作；页面文案归属 [i18n 资源](../src/shared/i18n/locales/en.ts)。
@@ -124,6 +126,7 @@ npm run quality
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
 | [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、响应式宽度及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider 表单、中央多行输入、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
+| [审计查看器 smoke](../scripts/audit-viewer-smoke.cjs) | 筛选、分页、元数据弹窗、键盘关闭、320/640/1200px 页面无溢出及只读/错误/加载状态 | 不认证读屏或并发写入时跨页快照一致性 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
 | [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings/Home 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
 

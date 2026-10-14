@@ -45,6 +45,8 @@ React App → Page → Preload → IPC → Main
 
 [Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、历史遍历、标签切换/关闭及窗口关闭前确认放弃未保存设置；通过标签/目标标识忽略过期草稿登记。已配置的 `app://inbox` 在写入历史前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
 
+**已实现审计查看器：**[Settings 审计区块](../src/pages/settings/AuditViewerSection.tsx)通过[查看器 hook](../src/pages/settings/useAuditViewer.ts)独立于偏好表单加载，提供每页 25 条、显式筛选/刷新、元数据详情、空状态/错误/重试，并丢弃过期响应。筛选仅在页面内存中保留，不标记偏好为未保存。读取语义与审计范围归属[数据架构](data-architecture.zh-CN.md#四审计与事务)。
+
 **已实现主题：**Settings 通过现有中央 `Select` 提供浅色、暗夜及跟随系统。主题与语言属于通用设置草稿：成功写入后点击保存生效；保存失败及放弃草稿保留当前主题。默认仍为浅色，偏好存储语义归属[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)。
 
 [Main](../src/platform/electron/main/index.ts) 在创建窗口前应用保存的主题。[主题适配](../src/platform/electron/main/theme.ts)设置 Electron `nativeTheme.themeSource`；[BrowserManager](../src/platform/browser/browserManager.ts) 在原生外观变化时发布实际 `BrowserState.theme`，不改变导航目标/历史。[App ThemeProvider](../src/app/theme.tsx) 在 React 绘制更新前应用根节点主题，生成 CSS 在首个快照到达前使用原生颜色偏好。[窗口](../src/platform/electron/main/window.ts)及保留的 [WebSegments](../src/platform/browser/webSegment.ts)使用生成的主题背景；窗口持有一个监听，更新全部保留视图，并在窗口释放时清理。重新创建的窗口继承当前原生主题。
@@ -80,7 +82,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 六、验证与限制
 
-[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
 标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。业务流程、网页提取、AI 业务生成、编译、完整 Shared Context 捕获、安装包仍未实现。
 

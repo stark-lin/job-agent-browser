@@ -83,6 +83,8 @@
 
 每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。对话历史只在页面内存中，不新增 AI 运行/消息表。
 
+**已实现审计浏览：**只读 [Settings 查看器](../src/pages/settings/AuditViewerSection.tsx)使用 `audit.list`，不更改数据库结构或 IPC。默认每页 25 条，按序号倒序排列。类型/状态、目标/请求/事务 ID 精确匹配及包含边界的时间范围组合现有筛选。[筛选转换](../src/pages/settings/audit-filters.ts)校验 ID/范围，并将本地日期时间转换为规范 UTC；详情同时显示本地化时间和存储的 UTC 值。刷新/重置/应用筛选均回到第一页。分页使用 offset，新增写入可能移动后续页记录，应刷新获取最新顺序。不提供导出、自动轮询、日志修改或业务内容重建。设置/密钥写入仍不进入审计，AI 成功仍仅表示启动。
+
 ## 五、API 契约与访问
 
 沙盒 [Preload](../src/platform/electron/preload/index.ts) 暴露 `window.data`。完整类型化输入/输出在 [DataContract](../src/platform/electron/data-contract.ts)；字段/枚举定义保留在所链接的 Domain 类型中。[Main IPC](../src/platform/electron/main/data-ipc.ts) 要求自有窗口、顶层 frame 及精确匹配的可信 Renderer 文档。外部网页/子 frame 无权访问数据。

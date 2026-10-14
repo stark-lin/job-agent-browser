@@ -137,7 +137,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-status--success { color: var(--text); border: var(--border-width) solid var(--success-line); background: var(--success-bg); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
 .ui-status--error { color: var(--danger); }
 .ui-status--info { color: var(--info); }
-.ui-dialog { width: min(var(--dialog-width), calc(100% - var(--space-4))); padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-dialog); }
+.ui-dialog { max-height: calc(100% - var(--space-4)); overflow-y: auto; width: min(var(--dialog-width), calc(100% - var(--space-4))); padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-dialog); }
 .ui-dialog::backdrop { background: var(--backdrop); }
 .ui-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); }
 .ui-sidebar { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; padding: var(--space-2) var(--space-1); background: var(--panel-solid); border-right: var(--border-width) solid var(--line); }
@@ -164,3 +164,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-textarea:focus { border-color: var(--primary); box-shadow: var(--focus-shadow); }
 .ui-textarea[aria-invalid="true"] { border-color: var(--danger); }
 .ui-textarea:disabled { background: var(--bg); color: var(--muted); cursor: default; }
+
+/* Read-only tables and metadata, shared by Settings and the reference gallery. */
+.ui-table-scroll { max-width: 100%; overflow: auto; border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); }
+.ui-data-table { width: 100%; min-width: var(--table-min-width); border-collapse: collapse; table-layout: fixed; }
+.ui-data-table th, .ui-data-table td { padding: var(--space-2); text-align: left; border-bottom: var(--border-width) solid var(--line); font-size: var(--font-xs); line-height: var(--line-sm); overflow-wrap: anywhere; }
+.ui-data-table th { background: var(--bg); color: var(--muted); font-weight: var(--weight-semibold); }
+.ui-data-table tbody tr { height: var(--list-row-height); }
+.ui-data-table tbody tr:hover { background: var(--hover); }
+.ui-data-table tbody tr:last-child td { border-bottom: 0; }
+.ui-badge { display: inline-flex; align-items: center; padding: 0 var(--space-1); min-height: var(--control-sm); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--bg); font-size: var(--font-xs); line-height: var(--line-xs); font-weight: var(--weight-semibold); }
+.ui-badge--success { background: var(--success-bg); border-color: var(--success-line); }
+.ui-badge--error { background: var(--danger-bg); border-color: var(--danger-line); color: var(--danger); }
+.ui-details-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.ui-details-list dt { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-sm); }
+.ui-details-list dd { margin: 0; color: var(--text); font-size: var(--font-sm); line-height: var(--line-sm); overflow-wrap: anywhere; }
+.ui-dialog-content { margin-top: var(--space-2); }

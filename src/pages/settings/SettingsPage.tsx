@@ -5,6 +5,7 @@ import { useNavigation } from '../../app/navigation/navigate'
 import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
+import { AuditViewerSection } from './AuditViewerSection'
 import './settings.css'
 
 export function SettingsPage() {
@@ -57,6 +58,7 @@ export function SettingsPage() {
         </SectionCard>
         <div className="settings-stack"><StatusMessage>{t($ => $.settings.local)}</StatusMessage><StatusMessage>{t($ => $.settings.localDescription)}</StatusMessage></div>
       </div>}
+      <AuditViewerSection />
     </div>
   </main>
 }
