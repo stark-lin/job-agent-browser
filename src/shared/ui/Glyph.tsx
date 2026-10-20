@@ -1,9 +1,10 @@
 import { Icon } from './Icon'
 import type { ReactNode } from 'react'
 
-export type GlyphName = 'home' | 'search' | 'document' | 'presentation' | 'list' | 'mail' | 'person' | 'globe' | 'sparkles' | 'settings'
+export type GlyphName = 'home' | 'plus' | 'search' | 'document' | 'presentation' | 'list' | 'mail' | 'person' | 'globe' | 'sparkles' | 'settings'
 
 const glyphs = {
+  plus: <path d="M12 5v14M5 12h14" />,
   home: <><path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3z" /></>,
   search: <><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></>,
   document: <><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></>,

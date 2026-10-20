@@ -19,9 +19,11 @@
     "design:check": "node scripts/design-system.cjs",
     "test:smoke": "npm run build && node scripts/run-smoke.cjs",
     "test:theme": "npm run build && node scripts/run-smoke.cjs --theme",
+    "test:jobs": "npm run build && node scripts/run-smoke.cjs --jobs",
     "check": "npm run typecheck && npm run quality && npm test && npm run build"
   },
   "dependencies": {
+    "htmlparser2": "^10.1.0",
     "i18next": "^26.4.2",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.2.0",

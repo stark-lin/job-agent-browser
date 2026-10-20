@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界和后续交付约束。状态：React 组装/路由、混合导航、Platform 运行入口、AI 基础设施/对话及分层业务存储**已实现**。个人资料编辑/PDF 导入**已实现**；其余业务页面流程、AI 简历生成与输出文件集成仍为**占位 / 规划**。已验证行为由[当前架构](architecture.zh-CN.md)管理。
+用途：定义源码职责、依赖边界和后续交付约束。状态：React 组装/路由、混合导航、Platform 运行入口、AI 基础设施/对话及分层业务存储**已实现**。个人资料编辑/PDF 导入、新增工作及申请记录基础列表**已实现**；其余业务页面流程、AI 简历生成与输出文件集成仍为**占位 / 规划**。已验证行为由[当前架构](architecture.zh-CN.md)管理。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -59,6 +59,7 @@ src/
 │   │   └── repositories/
 │   ├── filesystem/
 │   ├── profile-import/
+│   ├── job-import/
 │   ├── storage/
 │   └── ai/
 ├── renderer/
@@ -71,7 +72,7 @@ src/
     └── types/
 ```
 
-Home、Browser、Inbox、Ask AI、Profile 和 Settings 为已实现页面。其余四个功能入口仍为占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
+Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job 和 Applications 为已实现页面。其余两个功能入口仍为占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
 
 ## 三、依赖与进程组装
 
@@ -97,7 +98,7 @@ Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Rep
 
 Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览器栏和全部内部 URL。Browser 和 Inbox 通过[展示 hook](../src/app/navigation/useNativePresentation.ts) 确认各自原生视图，携带活动标签与目标，避免旧确认覆盖其他页面。Inbox 不渲染 Browser 控件。UI URL 和历史规则由产品架构管理，运行细节由当前架构管理。
 
-[App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录，通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。Profile 解析并更新当前 Profile ID；自动填充 Job/Artifact 及内容/选区捕获仍为规划。
+[App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录，通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。Profile 解析并更新当前 Profile ID；新增工作保存及申请记录选择会更新 Job ID；自动填充 Artifact 及内容/选区捕获仍为规划。
 
 Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
 
@@ -106,7 +107,7 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 - App 管理常驻工作区侧栏和功能导航元数据；Pages 管理各自流程按钮、位置、启用/加载状态及处理函数。侧栏复用相同导航 API 和离开保护，不提供全局 Back/Next/Forward 栏。
 - Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页，不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward 工具栏。
 - 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用混合页面历史。业务操作和链接仍由所属页面管理。
-- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx) 提供回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
+- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作和回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
 ## 五、数据与能力归属
 
@@ -121,11 +122,13 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 | SQLite、迁移、Repository 与审计持久化 | Main 侧 `platform/database/` |
 | AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`；AI 对话/配置/密钥已实现，AI 业务生成及输出集成仍为规划 |
 
-Domain 定义 Repository/提取接口。具体 SQLite Repository 和占位[通用提取器](../src/platform/browser/extractors/generic.ts)归 Platform。网页快照必须是普通数据，不传 DOM/Electron 对象。网站专属提取延后；保存部分数据前校验 Job 必需字段。
+Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.extractor.ts)。[URL 读取器](../src/platform/job-import/url-reader.ts)、HTML 解析和 AI 提取实现归 `platform/job-import/`；Browser 后续适配器复用相同普通数据快照，不传 DOM/Electron 对象。页面通过[异步桥接](../src/platform/electron/job-import-contract.ts)协调任务；数据库接口继续只处理确认后的保存。
 
 [Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
 [Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和确认草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名保留在 Shared。
+
+新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 
 ## 六、质量与后续交付
 

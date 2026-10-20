@@ -437,3 +437,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .ui-details-list dt { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-sm); }
 .ui-details-list dd { margin: 0; color: var(--text); font-size: var(--font-sm); line-height: var(--line-sm); overflow-wrap: anywhere; white-space: pre-wrap; }
 .ui-dialog-content { margin-top: var(--space-2); }
+
+/* Business source links mirror the central ExternalLink primitive. */
+.external-link { color: var(--primary-hover); text-decoration: underline; overflow-wrap: anywhere; }
+.external-link:hover { color: var(--primary); }

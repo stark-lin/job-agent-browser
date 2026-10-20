@@ -1,6 +1,6 @@
 # Component Library and Design System
 
-Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Ask AI, Profile, Settings and placeholder pages. Remaining business feature pages are **Scaffolded**; remaining business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
+Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and placeholder pages. Remaining business feature pages are **Scaffolded**; remaining business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
 
 Language: English · [简体中文](design-system.zh-CN.md)
 
@@ -31,6 +31,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | `Checkbox` | Native keyboard/focus/disabled behavior, associated wrapping label, 40px minimum target and 16px check control; independent import confirmation | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
 | `TextInput` | Default field or bare input inside a styled wrapper | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | Comma-separated lists using `TextInput` presentation; retains trailing delimiters while typing and resets on external value changes | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
+| `ExternalLink` | Business source HTTP(S) links; reject credentials/other schemes and open externally | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
 | `Glyph` | Shared named SVG symbols used by Home and workspace navigation | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | Generic sidebar composition, group headings and named native buttons with current-page state | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG glyph and neutral/primary icon container | [Icon.tsx](../src/shared/ui/Icon.tsx) |
@@ -46,7 +47,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 - Keep reusable appearance, sizes, visual states and accessibility defaults in the central library. Page CSS may arrange components with shared tokens; it must not duplicate control styles, redefine `.ui-*` selectors or bypass the library with inline styles.
 - Pages own placement, business data, enabled/loading state, navigation and event handlers. Shared UI accepts props and composition slots; it must not import App/Page/Domain/Platform behavior. A `className` is for composition, not a second component skin.
 
-[HomeTile](../src/pages/home/HomeTile.tsx), [Browser controls](../src/pages/browser/BrowserControls.tsx), [AddressBar](../src/pages/browser/AddressBar.tsx) and [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx) and [SettingsPage](../src/pages/settings/SettingsPage.tsx) show current consumption. Do not copy gallery markup into a page or import a private implementation file instead of the public entry.
+[HomeTile](../src/pages/home/HomeTile.tsx), [Browser controls](../src/pages/browser/BrowserControls.tsx), [AddressBar](../src/pages/browser/AddressBar.tsx) and [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) and [SettingsPage](../src/pages/settings/SettingsPage.tsx) show current consumption. Add Job uses the central `plus` glyph; Applications uses the shared table, badge and details dialog. Do not copy gallery markup into a page or import a private implementation file instead of the public entry.
 
 ## 3. Layout, geometry and typography
 

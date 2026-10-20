@@ -8,6 +8,6 @@ export const featureGroups = [
 ] as const
 export const features = featureGroups.flatMap(group => [...group.pages])
 export const pageIcons = {
-  home: 'home', find: 'search', resume: 'document', interview: 'presentation', applications: 'list',
+  home: 'home', find: 'plus', resume: 'document', interview: 'presentation', applications: 'list',
   inbox: 'mail', profile: 'person', browser: 'globe', ai: 'sparkles', settings: 'settings'
 } as const satisfies Record<InternalPage, GlyphName>

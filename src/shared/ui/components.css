@@ -180,6 +180,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-details-list dt { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-sm); }
 .ui-details-list dd { margin: 0; color: var(--text); font-size: var(--font-sm); line-height: var(--line-sm); overflow-wrap: anywhere; white-space: pre-wrap; }
 .ui-dialog-content { margin-top: var(--space-2); }
+.ui-external-link { color: var(--primary-hover); text-decoration: underline; overflow-wrap: anywhere; }
+.ui-external-link:hover { color: var(--primary); }
 .ui-checkbox { display: flex; align-items: center; gap: var(--space-1); min-height: var(--control-md); padding-block: var(--space-1); font-size: var(--font-sm); line-height: var(--line-sm); cursor: pointer; overflow-wrap: anywhere; }
 .ui-checkbox input { width: var(--icon-size); height: var(--icon-size); flex: 0 0 auto; margin: 0; accent-color: var(--primary); }
 .ui-checkbox:has(input:disabled) { color: var(--muted); cursor: default; }

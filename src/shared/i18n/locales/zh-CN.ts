@@ -4,18 +4,138 @@ type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translati
 export const zhCN = {
   app: { title: 'Job Agent Browser', loadingWorkspace: '正在加载工作区…' },
   navigation: {
-    pages: { home: '主页', find: '寻找工作', resume: '定制简历', interview: '面试准备', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
+    pages: { home: '主页', find: '新增工作', resume: '定制简历', interview: '面试准备', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
     back: '后退', home: '主页', forward: '前进', goHome: '回到主页', goBack: '返回', goForward: '前进',
     pageNavigation: '页面导航', openSettings: '打开设置', workspaceNavigation: '工作区导航',
     sections: { search: '求职', manage: '管理', tools: '工具' }
   },
   home: {
     brand: 'Job Browser', heading: '你想做什么？', subtitle: '在一个工作区中完成求职所需的一切。', footer: '专注于整个求职过程的工作区。', comingSoon: '{{label}} — 即将推出',
-    cards: { find: '搜索和浏览工作机会', resume: '为特定职位调整简历', interview: '为特定职位准备面试', applications: '通过列表或日历跟踪申请', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
+    cards: { find: '手工新增或从职位 URL 导入', resume: '为特定职位调整简历', interview: '为特定职位准备面试', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
   },
   features: {
     comingSoon: '即将推出', notImplemented: '此功能尚未实现。',
-    descriptions: { find: '搜索和浏览工作机会。', resume: '为特定职位调整简历。', interview: '为特定职位准备面试。', applications: '通过列表或日历跟踪申请。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
+    descriptions: { find: '手工新增或从职位 URL 导入。', resume: '为特定职位调整简历。', interview: '为特定职位准备面试。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
+  },
+  jobs: {
+    discardTitle: '放弃本次新增工作？',
+    discardDescription: '未保存的工作内容将被丢弃，正在进行的解析也会停止。',
+    "subtitle": "手工填写，或通过职位 URL 导入。核对字段后保存。",
+    "importTitle": "从 URL 导入",
+    "importHelp": "一次导入一个公开职位页面。网页文字会发送给下方显示的服务商和模型。访问受限或无法读取时会报错，你仍可手工填写。",
+    "url": "职位 URL（选填）",
+    "selectedModel": "AI：{{provider}} / {{model}}",
+    "noAI": "在设置中选择默认服务商和模型后，即可解析 URL。手工填写无需配置 AI。",
+    "parse": "AI 解析",
+    "cancelParse": "取消解析",
+    "reading": "正在读取职位页面…",
+    "parsing": "正在使用 AI 解析职位信息…",
+    "parsed": "已填入空缺字段，并保留已有内容。请核对后保存。",
+    "basic": "职位信息",
+    "fields": {
+      "title": "职位名称",
+      "companyNameRaw": "公司名称",
+      "description": "职位描述",
+      "locationText": "工作地点",
+      "employmentType": "雇佣类型",
+      "notes": "备注"
+    },
+    "locations": "工作地点明细",
+    "locationEntry": "地点 {{number}}",
+    "locationFields": {
+      "text": "地点原文",
+      "city": "城市",
+      "state": "州／地区",
+      "country": "国家",
+      "mode": "办公模式"
+    },
+    "modes": {
+      "ONSITE": "现场办公",
+      "HYBRID": "混合办公",
+      "REMOTE": "远程办公"
+    },
+    "addLocation": "新增地点",
+    "remove": "移除",
+    "salary": "薪资",
+    "includeSalary": "填写薪资明细",
+    "salaryFields": {
+      "min": "最低金额",
+      "max": "最高金额",
+      "currency": "币种",
+      "period": "计薪周期",
+      "text": "薪资原文"
+    },
+    "currencyHelp": "使用三字母代码，例如 AUD 或 USD。",
+    "periods": {
+      "HOUR": "每小时",
+      "DAY": "每天",
+      "WEEK": "每周",
+      "MONTH": "每月",
+      "YEAR": "每年"
+    },
+    "requirements": "任职要求",
+    "requirementEntry": "要求 {{number}}",
+    "requirementFields": {
+      "text": "要求内容",
+      "type": "要求类型",
+      "keywords": "关键词（逗号分隔）"
+    },
+    "requirementTypes": {
+      "REQUIRED": "必备",
+      "PREFERRED": "优先",
+      "OTHER": "其他"
+    },
+    "addRequirement": "新增要求",
+    "initialStatus": "保存后的申请状态为「未开始申请」。",
+    "save": "保存工作",
+    "saving": "正在保存…",
+    "status": "申请状态",
+    "statuses": {
+      "NOT_STARTED": "未开始申请",
+      "PREPARING": "准备中",
+      "APPLIED": "已申请",
+      "INTERVIEW": "面试中",
+      "OFFER": "已获录用意向",
+      "ACCEPTED": "已接受",
+      "REJECTED": "已拒绝",
+      "WITHDRAWN": "已撤回"
+    },
+    "listHelp": "查看已保存的工作及申请状态。",
+    "savedJobs": "已保存工作",
+    "search": "搜索职位名称或公司",
+    "allStatuses": "全部状态",
+    "applyFilters": "应用筛选",
+    "refresh": "刷新",
+    "loading": "正在加载工作…",
+    "loadFailed": "无法加载已保存的工作数据，请重试。",
+    "retry": "重试",
+    "empty": "没有符合条件的工作，请新增工作或调整筛选。",
+    "savedAt": "保存时间",
+    "details": "工作详情",
+    "detailsHelp": "查看已保存的字段及来源链接。",
+    "viewDetails": "查看详情",
+    "viewJob": "查看 {{title}}",
+    "pagination": "共 {{total}} 个工作 · 第 {{page}} 页，共 {{pages}} 页",
+    "previous": "上一页",
+    "next": "下一页",
+    "sources": "来源",
+    "noSource": "手工录入，未提供来源 URL。",
+    "close": "关闭",
+    "errors": {
+      "JOB_SAVED_NAV_FAILED": "工作已保存，请打开申请记录查看，无需再次保存。",
+      "INVALID_INPUT": "请检查职位名称、公司名称、URL、薪资范围及字段长度。",
+      "STORAGE_BUSY": "存储正忙，请重试保存。",
+      "STORAGE_UNAVAILABLE": "无法保存本地数据，已保留填写内容。",
+      "AUDIT_UNAVAILABLE": "无法保存必需的审计记录，工作未创建。",
+      "NOT_FOUND": "关联记录已不存在，请重新加载后重试。",
+      "CONFLICT": "存在数据冲突，无法保存工作。",
+      "JOB_ACCESS_RESTRICTED": "该页面需要登录、验证或限制访问，请手工填写。",
+      "JOB_FETCH_FAILED": "无法读取该职位 URL，请检查地址后重试，或手工填写。",
+      "JOB_FETCH_TIMEOUT": "读取页面超时，请重试或手工填写。",
+      "JOB_CONTENT_TOO_LARGE": "页面超过导入上限（2 MB HTML、60,000 个正文字符或 40,000 个元数据字符），请手工填写。",
+      "JOB_NO_CONTENT": "未找到可读取的职位内容，请手工填写。",
+      "JOB_INVALID_OUTPUT": "AI 返回的内容不符合职位字段结构，请重新解析或手工填写。"
+    }
   },
   browser: {
     tabs: '浏览器标签页', closeTab: '关闭标签页', closeNamedTab: '关闭 {{title}}', newTab: '新建标签页', addressLabel: '搜索或输入网址', addressPlaceholder: '搜索或输入网址…', emptyHeading: '开始探索', emptyDescription: '在上方搜索内容或输入网址。'

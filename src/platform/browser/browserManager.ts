@@ -66,13 +66,14 @@ export class BrowserManager {
     const tab = this.requireTab(this.activeTabId)
     const destination = this.tabState(tab).destination
     if (presentation.tabId === tab.id && presentation.targetId === this.targetId(tab) && destination.kind === 'internal' &&
-      (destination.page === 'settings' || destination.page === 'profile')) this.unsaved = unsaved
+      (destination.page === 'settings' || destination.page === 'profile' || destination.page === 'find')) this.unsaved = unsaved
   }
 
   private leaveDialog(): Electron.MessageBoxOptions {
     const destination = this.tabState(this.requireTab(this.activeTabId)).destination
     const profile = destination.kind === 'internal' && destination.page === 'profile'
-    return { type: 'question', title: profile ? t($ => $.profile.discardTitle) : t($ => $.settings.discardTitle), message: profile ? t($ => $.profile.discardDescription) : t($ => $.settings.discardDescription),
+    const job = destination.kind === 'internal' && destination.page === 'find'
+    return { type: 'question', title: profile ? t($ => $.profile.discardTitle) : job ? t($ => $.jobs.discardTitle) : t($ => $.settings.discardTitle), message: profile ? t($ => $.profile.discardDescription) : job ? t($ => $.jobs.discardDescription) : t($ => $.settings.discardDescription),
       buttons: [t($ => $.settings.stay), t($ => $.settings.discard)], defaultId: 0, cancelId: 0, noLink: true }
   }
 

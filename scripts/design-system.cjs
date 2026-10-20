@@ -129,7 +129,8 @@ const html = read('docs/components/job-browser-component-library-8px.html')
 assert.deepEqual([...html.matchAll(/<section class="section" id="([^"]+)"/g)].map((match) => match[1]),
   ['foundations', 'buttons', 'forms', 'navigation', 'badges', 'cards', 'job', 'feedback', 'overlays', 'tables'])
 for (const [, inline] of html.matchAll(/style="([^"]+)"/g)) checkDeclarations(inline + ';', 'gallery inline style')
-for (const [, href] of html.matchAll(/(?:href|src)="([^"#][^"]*)"/g)) {
+for (const [, attribute, href] of html.matchAll(/(href|src)="([^"#][^"]*)"/g)) {
+  if (attribute === 'href' && /^https?:\/\//.test(href)) continue
   assert(fs.existsSync(path.resolve(root, 'docs/components', href)), `Gallery: missing asset ${href}`)
 }
 console.log('Design system checks passed: generated assets, color-only themes, 8px geometry, spacing tokens, semantic colors and 10 gallery categories.')

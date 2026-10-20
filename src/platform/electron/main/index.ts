@@ -10,6 +10,9 @@ import { createAIService, type AIService } from '../../ai'
 import { registerAIIPC } from './ai-ipc'
 import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
 import { registerProfileImportIPC } from './profile-import-ipc'
+import { createJobImporter, type JobImporter } from '../../job-import/service'
+import { createURLReader } from '../../job-import/url-reader'
+import { registerJobImportIPC } from './job-import-ipc'
 import type { ImportSaved } from '../../../domain/candidate/import.types'
 import type { Result } from '../../../shared/ipc'
 import {
@@ -32,6 +35,7 @@ let backend: ReturnType<typeof createBackend> | undefined
 let preferences: ReturnType<typeof createPreferences>
 let ai: AIService | undefined
 let profileImporter: ProfileImporter | undefined
+let jobImporter: JobImporter | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -51,12 +55,14 @@ app.whenReady().then(async () => {
   backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
   profileImporter = createProfileImporter({ ai, apply: input => backend!.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
+  jobImporter = createJobImporter({ ai, reader: createURLReader() })
   registerDataIPC(backend, join(__dirname, '../renderer/index.html'), profileImporter)
   registerProfileImportIPC(profileImporter, join(__dirname, '../renderer/index.html'))
   registerAIIPC(ai, join(__dirname, '../renderer/index.html'))
+  registerJobImportIPC(jobImporter, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id
-    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner) }
+    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner) }
     contents.on('destroyed', disposeOwner)
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
@@ -78,6 +84,7 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', event => {
   profileImporter?.dispose()
+  jobImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (!ai || shuttingDown) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useNavigation } from './navigation/navigate'
 import { HomePage } from '../pages/home/HomePage'
 import { BrowserPage } from '../pages/browser'
-import { FindJobsPage } from '../pages/find-jobs'
+import { AddJobPage } from '../pages/find-jobs'
 import { TailorResumePage } from '../pages/tailor-resume'
 import { InterviewPrepPage } from '../pages/interview-prep'
 import { ApplicationsPage } from '../pages/applications'
@@ -15,7 +15,7 @@ import { isBrowserDestination, isInboxDestination } from '../shared/navigation'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 
 const featurePages = {
-  find: FindJobsPage, resume: TailorResumePage, interview: InterviewPrepPage,
+  find: AddJobPage, resume: TailorResumePage, interview: InterviewPrepPage,
   applications: ApplicationsPage, inbox: InboxPage, profile: ProfilePage,
   ai: AskAIPage, settings: SettingsPage
 }

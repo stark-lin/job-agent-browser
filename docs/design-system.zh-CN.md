@@ -1,6 +1,6 @@
 # 组件库与设计规范
 
-用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Ask AI、Profile、Settings 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；其余业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
+用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；其余业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
 
 语言：简体中文 · [English](design-system.md)
 
@@ -31,6 +31,7 @@
 | `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立导入确认 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
 | `TextInput` | 默认字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
+| `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
 | `Glyph` | Home 与工作区导航复用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | 通用侧栏组合、分组标题及带当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
@@ -46,7 +47,7 @@
 - 通用外观、尺寸、视觉状态和无障碍默认行为归中央库。页面 CSS 可通过共享 Tokens 安排布局，不得复制控件样式、重写 `.ui-*` 选择器或通过内联样式绕过中央库。
 - 页面管理位置、业务数据、启用/加载状态、导航和事件处理。Shared UI 通过 props 与组合插槽接收配置，不得导入 App/Page/Domain/Platform 行为。`className` 用于组合，不用于另建组件外观。
 
-[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx) 和 [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx)及 [SettingsPage](../src/pages/settings/SettingsPage.tsx) 展示当前引用方式。不得将展示库结构复制到页面，或用私有实现文件导入代替公共入口。
+[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx) 和 [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx)及 [SettingsPage](../src/pages/settings/SettingsPage.tsx) 展示当前引用方式；新增工作入口复用中央 `plus` 图标，申请记录复用表格、徽标及详情弹窗。不得将展示库结构复制到页面，或用私有实现文件导入代替公共入口。
 
 ## 三、布局、尺寸与排版
 

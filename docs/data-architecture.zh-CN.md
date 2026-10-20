@@ -1,6 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 对话和调用审计**已实现**；个人资料编辑和经核对的 PDF 提取**已实现**；AI 简历生成、编译及其余业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
+用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 对话和调用审计**已实现**；个人资料编辑、经核对的 PDF 提取、新增工作和申请记录基础列表**已实现**；AI 简历生成、编译及其余业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
 
 语言：简体中文 · [English](data-architecture.md)
 
@@ -22,7 +22,9 @@
 
 ## 二、业务规则
 
-[职位用例](../src/domain/job/job.service.ts) 接收白名单详情。来源 URL 移除片段并排序查询参数，清洗内容计算哈希；重复匹配/合并和网页提取仍为规划。归档独立于申请状态。删除 Company 会解除 Job 关联并保留原始公司名称。
+[职位用例](../src/domain/job/job.service.ts) 接收白名单详情。来源 URL 移除片段并排序查询参数，清洗内容计算哈希；公开 URL 提取已实现，重复匹配/合并仍为规划。归档独立于申请状态。删除 Company 会解除 Job 关联并保留原始公司名称。
+
+[新增工作](../src/pages/find-jobs/AddJobPage.tsx) 继续使用 `jobs.saveJob` 原子保存职位及可选来源，不增加表或迁移。名称和公司必填；新职位为 `NOT_STARTED`，申请/关闭时间为空，不创建状态事件。解析草稿不写入业务表；保存时才保留来源正文及提取的 JobPosting 元数据。手工录入可不提供 URL。
 
 [申请用例](../src/domain/application/application.service.ts) 原子写入状态变化及时间线事件。允许的状态转换如下：
 
@@ -164,6 +166,8 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 独立的 [AI API](../src/shared/ai.ts)暴露 `window.ai.start`、`cancel` 和 `onEvent`，不扩展同步数据分发，也不暴露审计写入。流式运行与生命周期行为归属[当前架构](architecture.zh-CN.md)。
 
+[职位导入桥接](../src/platform/electron/job-import-contract.ts) 暴露 `window.jobImport.start/cancel/onEvent`，与同步业务分发分离。新读取/解析错误仅属于该桥接，不扩充数据库审计错误码；AI 调用沿用既有启动审计，网页和模型输出不会写入审计。
+
 ## 六、配置、密钥与待完成工作
 
 Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。`userData/artifacts/` 下的编译成品仍为规划。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
@@ -174,7 +178,7 @@ Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` �
 
 [密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、工具、结构化输出集成、AI 业务生成、提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
+[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、工具、结构化输出集成、AI 业务生成、登录态网页提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
 
 - [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。

@@ -20,17 +20,19 @@ The app opens to a simple grid of feature entry points, without a complex dashbo
 
 | | | |
 | --- | --- | --- |
-| Find Jobs | Tailor Resume | Interview Prep |
+| Add Job | Tailor Resume | Interview Prep |
 | Applications | Inbox | My Profile |
 | Browser | Ask AI | Settings |
 
 The rows represent three groups:
 
-- **Job-seeking actions:** Find Jobs → Tailor Resume → Interview Prep.
+- **Job-seeking actions:** Add Job → Tailor Resume → Interview Prep.
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, basic Ask AI chat and Profile editing/PDF import are implemented; four other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
+A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, basic Ask AI chat and Profile editing/PDF import are implemented; Add Job and the Applications list are implemented; two other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
+
+Initial Add Job supports manual entry or one public-URL AI import, reviewed saving as `NOT_STARTED` and navigation to Applications. Restricted access reports an error; authenticated Browser capture and deduplication remain planned. Runtime details belong to [current architecture](architecture.md).
 
 ### Initial Inbox
 
@@ -59,7 +61,7 @@ Internal features and internet pages are addressed through URLs.
 | Internal URL | Destination |
 | --- | --- |
 | `app://home` | Home |
-| `app://find` | Find Jobs |
+| `app://find` | Add Job |
 | `app://resume` | Tailor Resume |
 | `app://interview` | Interview Prep |
 | `app://applications` | Applications |
@@ -74,7 +76,7 @@ External destinations retain their existing website URLs.
 A single navigation journey can therefore cross internal pages and websites:
 
 ```text
-Home → Find Jobs → LinkedIn Job → Tailor Resume → Company Application
+Home → Add Job → Applications → Tailor Resume → Company Application
 ```
 
 Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Home has no Back button; other business pages provide Go home as their only page navigation button, and keyboard history navigation remains available. Browser retains its own Home/Back/Forward controls. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
@@ -112,7 +114,7 @@ The nine entry points are not nine independent systems. Features compose shared 
 
 | Feature | Composition |
 | --- | --- |
-| Find Jobs | Browser + Job Capture |
+| Add Job | Manual entry + public URL import; authenticated Browser capture remains planned |
 | Tailor Resume | Job Context + Profile + Resume + AI |
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
@@ -160,7 +162,7 @@ The first phase does not need to implement all nine features in full.
 
 Stage 1 establishes page hosting and navigation controls; Stage 3 completes the unified URL and history behavior. After the first resume-tailoring workflow, progressively fill out:
 
-**Find Jobs → Applications → Interview Prep → Inbox → Ask AI → Settings**
+**Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
 This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Tailor Resume still needs business orchestration and context integration; mailbox entry configuration must ship alongside Inbox.
 

@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and remaining delivery constraints. Status: React composition/routing, mixed navigation, Platform runtime entries, AI infrastructure/chat and layered business storage are **Implemented**. Profile editing/PDF import is **Implemented**; remaining business-page workflows, AI resume generation and output-file integration are **Scaffolded / Planned**. Verified behavior is owned by [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and remaining delivery constraints. Status: React composition/routing, mixed navigation, Platform runtime entries, AI infrastructure/chat and layered business storage are **Implemented**. Profile editing/PDF import, Add Job and the Applications list are **Implemented**; remaining business-page workflows, AI resume generation and output-file integration are **Scaffolded / Planned**. Verified behavior is owned by [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -59,6 +59,7 @@ src/
 │   │   └── repositories/
 │   ├── filesystem/
 │   ├── profile-import/
+│   ├── job-import/
 │   ├── storage/
 │   └── ai/
 ├── renderer/
@@ -71,7 +72,7 @@ src/
     └── types/
 ```
 
-Home, Browser, Inbox, Ask AI, Profile and Settings are implemented pages. Four other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
+Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job and Applications are implemented pages. Two other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
 
 ## 3. Dependencies and process composition
 
@@ -97,7 +98,7 @@ The framework-free [Destination](../src/shared/navigation.ts) contract is shared
 
 Browser owns its tab strip/address/controls; other internal pages hide the entire browser bar and all internal URLs. Browser and Inbox acknowledge their own native surfaces through the [presentation hook](../src/app/navigation/useNativePresentation.ts), identifying the active tab and target so old acknowledgments cannot cover another page. Inbox never renders Browser controls. UI URLs and history rules are owned by product architecture; runtime details are owned by current architecture.
 
-[App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge. Applications uses a Job ID, not a separate persisted Application entity. Profile resolves and updates its current Profile ID; automatic Job/Artifact population and content/selection capture remain planned.
+[App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge. Applications uses a Job ID, not a separate persisted Application entity. Profile resolves and updates its current Profile ID; saving Add Job and selecting Applications details update the Job ID. Automatic Artifact population and content/selection capture remain planned.
 
 Home invokes navigation only. Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
 
@@ -106,7 +107,7 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 - App owns the persistent workspace sidebar and feature navigation metadata; Pages own their workflow buttons, placement, enabled/loading state and handlers. The sidebar uses the same navigation API and leave guard, without a global Back/Next/Forward bar.
 - Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button; do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward toolbar.
 - Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than mixed page history. Business actions and links remain page-owned.
-- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [FindJobsPage](../src/pages/find-jobs/FindJobsPage.tsx) supplies Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
+- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
 
 ## 5. Data and capability placement
 
@@ -121,11 +122,13 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 | SQLite, migrations, repositories and audit persistence | Main-side `platform/database/` |
 | AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; AI chat/settings/secrets are implemented; AI business generation and output integration remain planned |
 
-Domain defines repository/extraction interfaces. Concrete SQLite repositories and the scaffolded [generic extractor](../src/platform/browser/extractors/generic.ts) belong to Platform. Page snapshots must be plain data, never DOM/Electron objects. Site-specific extraction is deferred; validate required Job fields before saving partial data.
+Domain defines repository and [snapshot reader/extractor interfaces](../src/domain/job/job.extractor.ts). The [URL reader](../src/platform/job-import/url-reader.ts), HTML parsing and AI extraction belong to `platform/job-import/`; future Browser adapters share the same plain-data snapshot, never DOM/Electron objects. Pages coordinate tasks through the [asynchronous bridge](../src/platform/electron/job-import-contract.ts); database methods still handle only confirmed saves.
 
 The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, timeout and the injected database audit capability; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
 
 [Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and confirmation drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names live in Shared.
+
+Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/useUnsavedGuard.ts); job forms, empty-field filling and Applications querying remain page-owned.
 
 ## 6. Quality and future delivery
 

@@ -1,6 +1,6 @@
 # V1 Data Architecture and API
 
-Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI chat and call audit are **Implemented**; Profile editing and reviewed PDF extraction are **Implemented**; AI resume generation, compilation and remaining business workflows are **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
+Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI chat and call audit are **Implemented**; Profile editing, reviewed PDF extraction, Add Job and the Applications list are **Implemented**; AI resume generation, compilation and remaining business workflows are **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
@@ -22,7 +22,9 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 
 ## 2. Business rules
 
-[Job use cases](../src/domain/job/job.service.ts) accept allowlisted details. Sources normalize URL fragments/query order and hash cleaned content; duplicate matching/merging and page extraction remain planned. Archiving is independent of application status. Deleting a Company detaches Jobs and preserves their raw company names.
+[Job use cases](../src/domain/job/job.service.ts) accept allowlisted details. Sources normalize URL fragments/query order and hash cleaned content; public-URL extraction is implemented; duplicate matching/merging remain planned. Archiving is independent of application status. Deleting a Company detaches Jobs and preserves their raw company names.
+
+[Add Job](../src/pages/find-jobs/AddJobPage.tsx) reuses `jobs.saveJob` to save the job and optional source atomically, without new tables or migrations. Title/company are required; new jobs are `NOT_STARTED` with null application/closure dates and no status event. Parsing drafts do not write business tables; source text and extracted JobPosting metadata are retained only on Save. Manual entry may omit the URL.
 
 [Application use cases](../src/domain/application/application.service.ts) write status changes and timeline events atomically. Allowed transitions are:
 
@@ -164,6 +166,8 @@ The API offers no raw SQL/table CRUD, unrestricted filters, transaction manageme
 
 The separate [AI API](../src/shared/ai.ts) exposes `window.ai.start`, `cancel` and `onEvent`; it does not extend synchronous data dispatch or expose an audit writer. Runtime streaming and lifecycle behavior are owned by [current architecture](architecture.md).
 
+[The job import bridge](../src/platform/electron/job-import-contract.ts) exposes `window.jobImport.start/cancel/onEvent`, separately from synchronous business dispatch. New read/parse errors belong only to this bridge, without extending database audit codes. AI calls reuse startup audit; page/model content is not copied into audit.
+
 ## 6. Settings, secrets and remaining work
 
 Main owns `database.sqlite`, its auxiliary files, `userData/settings.json` and `userData/secrets.enc`. Compiled artifacts under `userData/artifacts/` remain planned. Electron Session separately owns website cookies/storage. Ordinary business audit cannot be disabled.
@@ -174,7 +178,7 @@ Main owns `database.sqlite`, its auxiliary files, `userData/settings.json` and `
 
 [Secrets](../src/platform/storage/secrets.ts) store version-2 ciphertext maps keyed by Provider instance ID, encrypted by Electron `safeStorage` at [Main composition](../src/platform/electron/main/index.ts). Unavailable encryption (including Linux `basic_text`) refuses saves; deletion remains available. The API returns configuration/encryption status, never decrypted keys. Keys stay outside ordinary preferences, SQLite, snapshots and audit; file preferences/key operations do not append business audit. Version-1 OpenAI ciphertext remains readable and upgrades atomically on the next key write without decrypting unrelated keys. Only the internal AI service can read plaintext through the injected capability; the public bridge returns status. Saving configuration/keys makes no model request; the explicit connection test sends a short prompt to the saved provider/model and can incur charges.
 
-[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI chat uses local fixtures in [AI tests](../tests/ai.test.ts) and [production smoke](../scripts/ai-smoke.cjs); live third-party compatibility and account permissions remain unverified. Model discovery, tools, structured-output integration, AI business generation, extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
+[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI chat uses local fixtures in [AI tests](../tests/ai.test.ts) and [production smoke](../scripts/ai-smoke.cjs); live third-party compatibility and account permissions remain unverified. Model discovery, tools, structured-output integration, AI business generation, authenticated page extraction/deduplication, compilation, remaining business UI and full privacy purge remain unimplemented.
 
 - [Current architecture](architecture.md): runtime initialization and process boundaries.
 - [Code architecture](code-architecture.md): source ownership and quality checks.

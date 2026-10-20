@@ -7,14 +7,15 @@ import { ContextStore } from './context/contextStore'
 import type { AppContext } from './context/appContext'
 import type { AIAPI } from '../shared/ai'
 import type { ProfileImportAPI } from '../platform/electron/profile-import-contract'
+import type { JobImportAPI } from '../platform/electron/job-import-contract'
 
-interface Services { navigation: NavigationStore; context: ContextStore; data: DataAPI; ai: AIAPI; profileImport: ProfileImportAPI }
+interface Services { navigation: NavigationStore; context: ContextStore; data: DataAPI; ai: AIAPI; profileImport: ProfileImportAPI; jobImport: JobImportAPI }
 const ServicesContext = createContext<Services | null>(null)
 
-export function AppProviders({ children, browser = window.browser, data = window.data, ai = window.ai, profileImport = window.profileImport }: {
-  children: ReactNode; browser?: BrowserAPI; data?: DataAPI; ai?: AIAPI; profileImport?: ProfileImportAPI
+export function AppProviders({ children, browser = window.browser, data = window.data, ai = window.ai, profileImport = window.profileImport, jobImport = window.jobImport }: {
+  children: ReactNode; browser?: BrowserAPI; data?: DataAPI; ai?: AIAPI; profileImport?: ProfileImportAPI; jobImport?: JobImportAPI
 }) {
-  const [services] = useState<Services>(() => ({ navigation: new NavigationStore(browser), context: new ContextStore(), data, ai, profileImport }))
+  const [services] = useState<Services>(() => ({ navigation: new NavigationStore(browser), context: new ContextStore(), data, ai, profileImport, jobImport }))
   useEffect(() => services.navigation.start(), [services])
   return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>
 }

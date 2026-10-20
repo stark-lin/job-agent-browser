@@ -20,17 +20,19 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 
 | | | |
 | --- | --- | --- |
-| Find Jobs（找工作） | Tailor Resume（定制简历） | Interview Prep（面试准备） |
+| Add Job（新增工作） | Tailor Resume（定制简历） | Interview Prep（面试准备） |
 | Applications（申请管理） | Inbox（收件箱） | My Profile（个人资料） |
 | Browser（浏览器） | Ask AI（询问 AI） | Settings（设置） |
 
 三行分别对应：
 
-- **求职动作：** Find Jobs → Tailor Resume → Interview Prep。
+- **求职动作：** Add Job → Tailor Resume → Interview Prep。
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、基础 Ask AI 对话和 Profile 编辑/PDF 导入已实现，其余四个功能入口仍为占位。新增能力优先放进现有入口。
+常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、基础 Ask AI 对话和 Profile 编辑/PDF 导入已实现，新增工作和申请记录基础列表已实现，其余两个功能入口仍为占位。新增能力优先放进现有入口。
+
+新增工作初版支持手工录入或单个公开 URL AI 导入，核对后保存为 `NOT_STARTED` 并进入申请记录。访问受限时报错；登录态 Browser 采集及职位去重仍为规划，运行细节见[当前架构](architecture.zh-CN.md)。
 
 ### Inbox 初版
 
@@ -59,7 +61,7 @@ Shell 提供以下全局能力：
 | 内部 URL | 页面 |
 | --- | --- |
 | `app://home` | Home |
-| `app://find` | Find Jobs |
+| `app://find` | Add Job |
 | `app://resume` | Tailor Resume |
 | `app://interview` | Interview Prep |
 | `app://applications` | Applications |
@@ -74,7 +76,7 @@ Shell 提供以下全局能力：
 一次完整导航可以连续经过内部页面和外部网站：
 
 ```text
-Home → Find Jobs → LinkedIn Job → Tailor Resume → Company Application
+Home → Add Job → Applications → Tailor Resume → Company Application
 ```
 
 每个标签具有独立的内部页面/网站混合历史。Home 在当前标签新增历史，切换标签不新增历史。启动、新建或关闭最后一个标签后打开 Home。Browser 卡片打开空白工作区，访问网站前地址框为空。Home 不显示 Back 按钮，其他业务页面的页面导航按钮只保留回到主页，键盘历史导航仍可用。Browser 保留自己的 Home/Back/Forward 控件。按钮归属遵循[代码架构](code-architecture.zh-CN.md#页面按钮归属)。运行实现细节归当前架构管理。
@@ -112,7 +114,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 | 功能 | 能力组合 |
 | --- | --- |
-| Find Jobs | Browser + Job Capture |
+| Add Job | 手工录入 + 公开 URL 导入；登录态 Browser 采集仍为规划 |
 | Tailor Resume | Job Context + Profile + Resume + AI |
 | Interview Prep | Job Context + Profile + AI |
 | Ask AI | Current Context + Configured AI |
@@ -160,7 +162,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 阶段 1 建立页面承载能力和导航控件，阶段 3 完成统一 URL 与历史行为。首个定制简历工作流完成后，再逐步完善：
 
-**Find Jobs → Applications → Interview Prep → Inbox → Ask AI → Settings**
+**Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
 这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；定制简历仍需业务编排和上下文集成；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 

@@ -3,6 +3,8 @@ import { createDataBridge } from './data-bridge'
 import { DATA_CALL } from '../../../shared/ipc'
 import { AI_START, AI_CANCEL, AI_EVENT, type AIEvent } from '../../../shared/ai'
 import { createAIBridge } from './ai-bridge'
+import type { JobImportAPI, JobImportEvent } from '../job-import-contract'
+import { JOB_IMPORT_START, JOB_IMPORT_CANCEL, JOB_IMPORT_EVENT } from '../../../shared/job-import'
 import type { ProfileImportAPI, ImportEvent } from '../profile-import-contract'
 import { PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
 import {
@@ -44,6 +46,15 @@ const browserAPI: BrowserAPI = {
 }
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
+const jobImport: JobImportAPI = {
+  start: input => ipcRenderer.invoke(JOB_IMPORT_START, input), cancel: input => ipcRenderer.invoke(JOB_IMPORT_CANCEL, input),
+  onEvent: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, message: JobImportEvent) => callback(message)
+    ipcRenderer.on(JOB_IMPORT_EVENT, listener)
+    return () => ipcRenderer.removeListener(JOB_IMPORT_EVENT, listener)
+  }
+}
+contextBridge.exposeInMainWorld('jobImport', jobImport)
 const profileImport: ProfileImportAPI = {
   selectPdf: () => ipcRenderer.invoke(PROFILE_IMPORT_SELECT),
   start: input => ipcRenderer.invoke(PROFILE_IMPORT_START, input), cancel: input => ipcRenderer.invoke(PROFILE_IMPORT_CANCEL, input),

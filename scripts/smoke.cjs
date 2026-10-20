@@ -44,6 +44,9 @@ app.on('browser-window-created', (_event, window) => {
       const denied = await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','jobs','listJobs',{})")
       assert.deepEqual(denied, { ok: false, error: 'FORBIDDEN' })
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('ai:start',{})"), { ok: false, error: 'FORBIDDEN' })
+      for (const channel of ['job-import:start', 'job-import:cancel']) {
+        assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke(${JSON.stringify(channel)},{})`), { ok: false, error: 'FORBIDDEN' })
+      }
       for (const channel of ['profile-import:select', 'profile-import:start', 'profile-import:cancel', 'profile-import:discard']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke(${JSON.stringify(channel)},{})`), { ok: false, error: 'FORBIDDEN' })
       }

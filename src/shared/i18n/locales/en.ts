@@ -6,7 +6,7 @@ export const en = {
   },
   navigation: {
     pages: {
-      home: 'Home', find: 'Find Jobs', resume: 'Tailor Resume', interview: 'Interview Prep',
+      home: 'Home', find: 'Add Job', resume: 'Tailor Resume', interview: 'Interview Prep',
       applications: 'Applications', inbox: 'Inbox', profile: 'My Profile',
       browser: 'Browser', ai: 'Ask AI', settings: 'Settings'
     },
@@ -22,8 +22,8 @@ export const en = {
     footer: 'A focused workspace for the whole job search.',
     comingSoon: '{{label}} — Coming soon',
     cards: {
-      find: 'Search and browse opportunities', resume: 'Adapt your resume to a role',
-      interview: 'Prepare for a specific role', applications: 'Track applications in list or calendar view',
+      find: 'Add manually or import from a job URL', resume: 'Adapt your resume to a role',
+      interview: 'Prepare for a specific role', applications: 'Review saved jobs and application status',
       inbox: 'Hiring emails and application updates', profile: 'Resume, experience and preferences',
       browser: 'Open the web freely', ai: 'Work with your job-search context',
       settings: 'AI, browser and app preferences'
@@ -32,11 +32,131 @@ export const en = {
   features: {
     comingSoon: 'Coming soon', notImplemented: 'This feature is not implemented yet.',
     descriptions: {
-      find: 'Search and browse opportunities.', resume: 'Adapt your resume to a role.',
-      interview: 'Prepare for a specific role.', applications: 'Track applications in list or calendar view.',
+      find: 'Add manually or import from a job URL.', resume: 'Adapt your resume to a role.',
+      interview: 'Prepare for a specific role.', applications: 'Review saved jobs and application status.',
       inbox: 'Job-seeking email will open your configured webmail.',
       profile: 'Manage your resume, experience and preferences.',
       ai: 'Work with your job-search context.', settings: 'Configure AI, browser and application preferences.'
+    }
+  },
+  jobs: {
+    discardTitle: 'Discard this job draft?',
+    discardDescription: 'Unsaved job details will be discarded and any active parsing will stop.',
+    "subtitle": "Add a job manually or import its details from a URL. Review the fields before saving.",
+    "importTitle": "Import from URL",
+    "importHelp": "Import one public job page. Page text is sent to the provider and model shown below. Restricted or unreadable pages report an error; you can still enter details manually.",
+    "url": "Job URL (optional)",
+    "selectedModel": "AI: {{provider}} / {{model}}",
+    "noAI": "Set a default provider and model in Settings to parse a URL. Manual entry is available without AI.",
+    "parse": "Parse with AI",
+    "cancelParse": "Cancel parsing",
+    "reading": "Reading job page…",
+    "parsing": "Parsing job details with AI…",
+    "parsed": "Empty fields have been filled. Existing entries were preserved. Review the details before saving.",
+    "basic": "Job details",
+    "fields": {
+      "title": "Job title",
+      "companyNameRaw": "Company name",
+      "description": "Job description",
+      "locationText": "Location",
+      "employmentType": "Employment type",
+      "notes": "Notes"
+    },
+    "locations": "Work locations",
+    "locationEntry": "Location {{number}}",
+    "locationFields": {
+      "text": "Location wording",
+      "city": "City",
+      "state": "State / region",
+      "country": "Country",
+      "mode": "Work mode"
+    },
+    "modes": {
+      "ONSITE": "On-site",
+      "HYBRID": "Hybrid",
+      "REMOTE": "Remote"
+    },
+    "addLocation": "Add location",
+    "remove": "Remove",
+    "salary": "Salary",
+    "includeSalary": "Add salary details",
+    "salaryFields": {
+      "min": "Minimum",
+      "max": "Maximum",
+      "currency": "Currency",
+      "period": "Pay period",
+      "text": "Salary wording"
+    },
+    "currencyHelp": "Three-letter code, for example AUD or USD.",
+    "periods": {
+      "HOUR": "Per hour",
+      "DAY": "Per day",
+      "WEEK": "Per week",
+      "MONTH": "Per month",
+      "YEAR": "Per year"
+    },
+    "requirements": "Requirements",
+    "requirementEntry": "Requirement {{number}}",
+    "requirementFields": {
+      "text": "Requirement",
+      "type": "Requirement type",
+      "keywords": "Keywords (comma separated)"
+    },
+    "requirementTypes": {
+      "REQUIRED": "Required",
+      "PREFERRED": "Preferred",
+      "OTHER": "Other"
+    },
+    "addRequirement": "Add requirement",
+    "initialStatus": "Saved jobs start as Not started.",
+    "save": "Save job",
+    "saving": "Saving…",
+    "status": "Application status",
+    "statuses": {
+      "NOT_STARTED": "Not started",
+      "PREPARING": "Preparing",
+      "APPLIED": "Applied",
+      "INTERVIEW": "Interview",
+      "OFFER": "Offer",
+      "ACCEPTED": "Accepted",
+      "REJECTED": "Rejected",
+      "WITHDRAWN": "Withdrawn"
+    },
+    "listHelp": "Review saved jobs and their application status.",
+    "savedJobs": "Saved jobs",
+    "search": "Search job title or company",
+    "allStatuses": "All statuses",
+    "applyFilters": "Apply filters",
+    "refresh": "Refresh",
+    "loading": "Loading jobs…",
+    "loadFailed": "Unable to load the saved job data. Please retry.",
+    "retry": "Retry",
+    "empty": "No matching saved jobs. Add a job or adjust the filters.",
+    "savedAt": "Saved at",
+    "details": "Job details",
+    "detailsHelp": "View the saved fields and source links.",
+    "viewDetails": "View details",
+    "viewJob": "View {{title}}",
+    "pagination": "{{total}} jobs · Page {{page}} of {{pages}}",
+    "previous": "Previous",
+    "next": "Next",
+    "sources": "Sources",
+    "noSource": "Entered manually without a source URL.",
+    "close": "Close",
+    "errors": {
+      "JOB_SAVED_NAV_FAILED": "The job was saved. Open Applications to view it; do not save it again.",
+      "INVALID_INPUT": "Check the job title, company name, URL, salary range and field limits.",
+      "STORAGE_BUSY": "Storage is busy. Retry saving.",
+      "STORAGE_UNAVAILABLE": "Unable to save local data. Your entries have been retained.",
+      "AUDIT_UNAVAILABLE": "The required audit could not be saved. The job was not created.",
+      "NOT_FOUND": "A related record no longer exists. Reload and try again.",
+      "CONFLICT": "The job could not be saved due to a data conflict.",
+      "JOB_ACCESS_RESTRICTED": "This page requires login, verification or restricts access. Enter the job manually.",
+      "JOB_FETCH_FAILED": "Unable to read this job URL. Check the address and retry or enter the job manually.",
+      "JOB_FETCH_TIMEOUT": "Reading the page timed out. Retry or enter the job manually.",
+      "JOB_CONTENT_TOO_LARGE": "The page exceeds the import limit (2 MB HTML, 60,000 text characters or 40,000 metadata characters). Enter the job manually.",
+      "JOB_NO_CONTENT": "No readable job posting was found. Enter the job manually.",
+      "JOB_INVALID_OUTPUT": "The AI response does not match the job fields. Retry parsing or enter the job manually."
     }
   },
   browser: {
