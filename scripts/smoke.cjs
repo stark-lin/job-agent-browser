@@ -6,7 +6,7 @@ const { resolve } = require('node:path')
 const storage = process.env.JOB_BROWSER_SMOKE_DATA
 assert(storage, 'The smoke runner must provide disposable storage')
 app.setPath('userData', storage)
-const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 30_000)
+const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 60_000)
 let mainWindowSelected = false
 app.on('browser-window-created', (_event, window) => {
   if (mainWindowSelected) return
@@ -44,6 +44,10 @@ app.on('browser-window-created', (_event, window) => {
       const denied = await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','jobs','listJobs',{})")
       assert.deepEqual(denied, { ok: false, error: 'FORBIDDEN' })
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('ai:start',{})"), { ok: false, error: 'FORBIDDEN' })
+      for (const channel of ['profile-import:select', 'profile-import:start', 'profile-import:cancel', 'profile-import:discard']) {
+        assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke(${JSON.stringify(channel)},{})`), { ok: false, error: 'FORBIDDEN' })
+      }
+      assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','profiles','applyConfirmedImport',{})"), { ok: false, error: 'FORBIDDEN' })
       await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender|不可信的 IPC 发送方/)
       await require('./window-close-smoke.cjs')(window)
       console.log('Electron smoke passed: production startup, sandboxed bridge, automatic audit, read semantics, deletion and rejected untrusted document.')

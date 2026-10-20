@@ -8,6 +8,10 @@ import { createBackend } from '../../database/backend'
 import { trustedDataSender, registerDataIPC } from './data-ipc'
 import { createAIService, type AIService } from '../../ai'
 import { registerAIIPC } from './ai-ipc'
+import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
+import { registerProfileImportIPC } from './profile-import-ipc'
+import type { ImportSaved } from '../../../domain/candidate/import.types'
+import type { Result } from '../../../shared/ipc'
 import {
   BROWSER_BACK,
   BROWSER_CREATE_TAB,
@@ -27,6 +31,7 @@ let browser: BrowserManager | undefined
 let backend: ReturnType<typeof createBackend> | undefined
 let preferences: ReturnType<typeof createPreferences>
 let ai: AIService | undefined
+let profileImporter: ProfileImporter | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -44,14 +49,17 @@ app.whenReady().then(async () => {
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)
   })
   backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
-  registerDataIPC(backend, join(__dirname, '../renderer/index.html'))
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
+  profileImporter = createProfileImporter({ ai, apply: input => backend!.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
+  registerDataIPC(backend, join(__dirname, '../renderer/index.html'), profileImporter)
+  registerProfileImportIPC(profileImporter, join(__dirname, '../renderer/index.html'))
   registerAIIPC(ai, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id
-    contents.on('destroyed', () => ai?.disposeOwner(owner))
-    contents.on('render-process-gone', () => ai?.disposeOwner(owner))
-    contents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) ai?.disposeOwner(owner) })
+    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner) }
+    contents.on('destroyed', disposeOwner)
+    contents.on('render-process-gone', disposeOwner)
+    contents.on('did-navigate', disposeOwner)
   })
   const created = createMainWindow(getInboxURL)
   browser = created.browser
@@ -69,6 +77,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('will-quit', event => {
+  profileImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (!ai || shuttingDown) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true

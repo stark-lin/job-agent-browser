@@ -103,6 +103,37 @@ export const zhCN = {
     "AI_CANCELLED": "请求已停止。"
   }
 },
+  profile: {
+    subtitle: '维护共享求职资料。每条经历、项目和教育记录可包含多个独立核实的事实。',
+    basic: '基本信息', independent: '独立事实', noProfile: '保存姓名以创建资料，或导入 PDF。', empty: '暂无记录。',
+    add: '新增', edit: '编辑', remove: '删除', cancel: '取消', save: '保存', saving: '保存中…', saved: '已保存', retry: '重试',
+    loading: '正在加载个人资料…', loadFailed: '无法完整加载个人资料。', invalid: '请检查必填字段、链接和日期。',
+    confirm: '确认内容属实', confirmed: '已确认', unverified: '待核实', addFact: '新增事实', facts: '事实',
+    deleteTitle: '删除这项内容？', deleteItem: '将删除该条目、{{items}} 条后代条目和 {{facts}} 条关联事实。历史生成快照仍会保留。',
+    deleteFact: '该事实将从个人资料中删除。历史生成快照仍会保留。',
+    discardTitle: '放弃个人资料修改？', discardDescription: '未保存的编辑和 PDF 导入草稿将被丢弃，正在进行的解析任务也会取消。',
+    name: '姓名', email: '邮箱', phone: '电话', location: '所在地', links: '个人链接', label: '链接名称', url: '网址',
+    type: '条目类型', title: '名称', organization: '组织', role: '角色', summary: '背景简介',
+    startDate: '开始日期', endDate: '结束日期', dateHelp: '使用 YYYY、YYYY-MM 或 YYYY-MM-DD，保留缺失的月份和日期。', current: '至今',
+    employmentType: '雇佣类型', technologies: '技术栈', degree: '学位', major: '专业', gpa: 'GPA',
+    kind: '事实类别', content: '事实内容', tags: '标签（逗号分隔）', evidence: '原文片段及页码', belongsTo: '所属条目',
+    types: { EXPERIENCE: '工作经历', PROJECT: '项目', EDUCATION: '教育' },
+    kinds: { ACHIEVEMENT: '成果', RESPONSIBILITY: '职责', SKILL: '技能', AWARD: '奖项', CERTIFICATION: '证书', COURSE: '课程', LANGUAGE: '语言', OTHER: '其他' },
+    upload: '上传 PDF 并解析', importTitle: '导入 PDF 简历', importHelp: '提取的简历文字将发送给下方显示的服务与模型。上限：10 MB、20 页、60,000 个提取字符。扫描件需要包含可选文字。',
+    provider: '服务商', model: '模型', noAI: '请先在设置中选择全局服务商和模型。', settings: '打开设置',
+    extracting: '正在提取 PDF 文字…', parsing: '正在使用 AI 解析简历…', progress: '正在提取第 {{page}} 页，共 {{pages}} 页',
+    stop: '停止解析', discard: '放弃导入', discardImportTitle: '放弃本次导入？', discardImportDescription: '剩余草稿将被丢弃，已经保存的内容继续保留。',
+    review: '核对解析内容', reviewHelp: '逐项编辑、忽略或确认条目和事实。确认条目不会自动确认其事实，只保存已确认内容。',
+    confirmEntry: '确认条目信息', confirmField: '应用此字段', confirmLink: '新增此链接', ignore: '忽略',
+    existing: '现有值：{{value}}', emptyValue: '（空）', savedEntry: '条目已保存', parentRequired: '请先确认所属条目，再确认该事实。',
+    invalidFact: '请核对事实及其原文片段后再确认。', saveConfirmed: '保存已确认内容', noConfirmed: '请至少确认一个有效字段、条目或事实。',
+    nameRequired: '创建个人资料需要已确认的姓名。', parseAgain: '重新解析', importSaved: '已保存确认内容，可继续核对下方剩余内容。',
+    errors: { PDF_TOO_LARGE: 'PDF 超过 10 MB。', PDF_TOO_MANY_PAGES: 'PDF 超过 20 页。', PDF_TOO_MUCH_TEXT: 'PDF 提取文字超过 60,000 个字符。',
+      PDF_ENCRYPTED: '暂不支持有密码的 PDF，请上传解除保护的副本。', PDF_INVALID: 'PDF 无效或无法读取。', PDF_NO_TEXT: '未找到可选文字，暂不支持 OCR。',
+      IMPORT_INVALID_OUTPUT: 'AI 返回的内容不符合简历结构，请手动重新解析。', IMPORT_NOT_FOUND: '导入会话已失效，请重新选择 PDF。',
+      INVALID_INPUT: '请检查字段、日期和已选内容。', NOT_FOUND: '关联的个人资料或条目已被删除，请重新加载。', CONFLICT: '内容与当前资料或导入会话冲突。',
+      INVALID_STATE: '当前导入状态无法保存。', STORAGE_BUSY: '存储正忙，请重试保存。', STORAGE_UNAVAILABLE: '无法保存本地数据。', NOT_IMPLEMENTED: '存储不可用。' }
+  },
   errors: {
     unknownPage: '未知的应用页面。', providersUnavailable: '应用服务不可用。', actionFailed: '无法完成此操作。', storageTitle: '存储不可用', storageMessage: '无法打开本地数据或设置。已保存的文件未被重置。', navigationInput: '导航输入必须为文本。', visibilityInput: '浏览器可见性必须为布尔值。', presentationInput: '浏览器展示必须指定标签页和目标。', tabIdInput: '标签页 ID 必须为文本。', browserNotReady: '浏览器尚未就绪。', untrustedSender: '不可信的 IPC 发送方。', emptyAddress: '请输入网址或搜索词。', unsupportedProtocol: '只能打开 HTTP 和 HTTPS 页面。', invalidAddress: '请输入有效的网址。', tabUnavailable: '标签页已不可用。', loadFailed: '无法加载此页面。请检查网址和网络连接。', historySyncFailed: '无法同步浏览器历史记录。'
   }

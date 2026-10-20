@@ -6,7 +6,8 @@ export interface Profile extends Contact { id: string; updatedAt: string }
 export interface ItemDetails {
   type: typeof itemTypes[number]; title: string; organization: string; role: string; location: string
   startDate: string | null; endDate: string | null; summary: string; sortOrder: number
-  metadata: { employmentType?: string; technologies?: string[]; url?: string; degree?: string; major?: string; gpa?: string }
+  metadata: { employmentType?: string; technologies?: string[]; url?: string; degree?: string; major?: string; gpa?: string
+    startDateText?: string; endDateText?: string; isCurrent?: boolean }
 }
 export type ItemInput = Pick<ItemDetails, 'type' | 'title'> & Partial<Omit<ItemDetails, 'type' | 'title'>>
 export interface ProfileItem extends ItemDetails { id: string; profileId: string; parentItemId: string | null }

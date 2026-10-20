@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 应用组装、九个可访问入口、每标签混合导航、浏览器基础、Settings、兼容 OpenAI 的 SSE 对话及业务存储**已实现**。业务流程与编译仍为**规划**；其余业务页面 UI 为**占位**。
+用途：记录已验证的运行行为。状态：React 应用组装、九个可访问入口、每标签混合导航、浏览器基础、Settings、个人资料编辑/PDF 导入、兼容 OpenAI 的 SSE 对话及业务存储**已实现**。其余业务流程与编译仍为**规划**；其余业务页面 UI 为**占位**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -17,7 +17,7 @@ React App → Page → Preload → IPC → Main
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据/AI 桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现流式对话，其余五个功能入口仍为占位。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现流式对话。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，其余四个功能入口仍为占位。
 
 ## 二、路由与混合历史
 
@@ -43,7 +43,7 @@ React App → Page → Preload → IPC → Main
 
 [快捷键](../src/platform/browser/shortcuts.ts) 在可信 Renderer 和原生网页中生效：macOS 的 `Cmd+T/W` 或其他平台的 `Ctrl+T/W` 新建/关闭标签；`Ctrl+Tab` 和 `Ctrl+Shift+Tab` 切换标签。`Cmd+L`/`Ctrl+L` 仅在 Browser 聚焦并选择地址。`Alt+Left/Right` 遍历混合历史，也适用于没有浏览器栏的内部页面。
 
-[Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、历史遍历、标签切换/关闭及窗口关闭前确认放弃未保存设置；通过标签/目标标识忽略过期草稿登记。已配置的 `app://inbox` 在写入历史前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
+[Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、历史遍历、标签切换/关闭及窗口关闭前确认放弃未保存的设置和个人资料；通过标签/目标标识忽略过期草稿登记。刷新保护在导航提交前保留当前目标/草稿，取消刷新保留导入会话，已确认关闭不重复询问。已配置的 `app://inbox` 在写入历史前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
 
 **已实现审计查看器：**[Settings 审计区块](../src/pages/settings/AuditViewerSection.tsx)通过[查看器 hook](../src/pages/settings/useAuditViewer.ts)独立于偏好表单加载，提供每页 25 条、显式筛选/刷新、元数据详情、空状态/错误/重试，并丢弃过期响应。筛选仅在页面内存中保留，不标记偏好为未保存。读取语义与审计范围归属[数据架构](data-architecture.zh-CN.md#四审计与事务)。
 
@@ -53,13 +53,19 @@ React App → Page → Preload → IPC → Main
 
 跟随系统响应原生外观变化；明确选择浅色/暗夜时覆盖系统。Browser/Inbox 远程文档接收 Chromium 颜色偏好，外观由网站自身控制，不注入强制改色。主题样式只修改颜色，规则由[设计规范](design-system.zh-CN.md#四语义色规则)管理。[独立主题运行器](../scripts/theme-runtime-smoke.cjs) 验证这些行为，包括 macOS 窗口重建；命令仍归属 README。启动背景匹配减少闪屏；完整逐帧验证和 Windows/Linux 的原生外观检查仍未验证。
 
-[App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体、提取网页内容或自动选择业务记录。
+[App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体或提取网页内容。Profile 优先加载有效的引用记录，否则选择最近更新的 Profile，并在加载/保存后同步共享 ID。
 
 **已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。[兼容适配器](../src/platform/ai/compatible.ts)在配置的 Base URL 下调用 Chat Completions 并消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。尚未实现自动重试、跨 Provider 回退、工具、结构化输出能力探测或模型发现。
 
 [AI IPC](../src/platform/electron/main/ai-ipc.ts)只暴露启动/取消，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，设置 120 秒总超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
 [对话](../src/pages/ai/useChat.ts)继承已保存默认值，可覆盖 Provider/模型，并展示完成、失败或停止状态。新对话清空消息；离开页面取消请求并清除仅存内存的历史。切换模型后已有消息保留响应模型标签。[AI 设置](../src/pages/settings/AISettingsSection.tsx)管理 Provider 实例、手填模型 ID，以及显式发起的短流式连接测试。自动 Job/Profile/网页上下文和业务生成仍为规划。审计和凭据持久化归属[数据架构](data-architecture.zh-CN.md)。
+
+**已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与确认语义归属[数据架构](data-architecture.zh-CN.md)。
+
+[导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/profile-import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
+
+Main 将带页码文字发送给已展示的全局默认 Provider/模型，复用 AI 超时、取消和启动审计。[草稿解析](../src/platform/profile-import/draft.ts)校验 JSON，将多个事实归入同一条目，并检查原文片段是否存在于对应页面。原始流不作为已解析资料展示，重试由用户手动发起。原始 PDF、完整文字和未保存草稿不持久化，离页、刷新、崩溃和窗口销毁会释放会话。OCR、原始文件管理和真实第三方 Provider 兼容性认证尚未实现。
 
 ## 四、会话、安全与存储
 
@@ -82,9 +88,9 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 六、验证与限制
 
-[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、证据、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
-标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。业务流程、网页提取、AI 业务生成、编译、完整 Shared Context 捕获、安装包仍未实现。
+标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、网页提取、AI 简历生成、编译、完整 Shared Context 捕获及安装包仍未实现。
 
 ## 七、相关文档
 

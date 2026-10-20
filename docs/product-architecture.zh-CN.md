@@ -30,7 +30,7 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、独立 Inbox 网页邮箱及基础 Ask AI 对话已实现，其余五个功能入口仍为占位。新增能力优先放进现有入口。
+常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、基础 Ask AI 对话和 Profile 编辑/PDF 导入已实现，其余四个功能入口仍为占位。新增能力优先放进现有入口。
 
 ### Inbox 初版
 
@@ -100,9 +100,11 @@ MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部�
 
 [V1 数据架构](data-architecture.zh-CN.md) 负责已实现的 11 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
 
-Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
+Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。每条经历、项目或教育条目可包含多个独立事实，未关联条目的事实直接归属 Profile。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
 
 SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化、Electron Session、配置和加密密钥已实现；编译输出仍为规划，见[当前架构](architecture.zh-CN.md)。
+
+已采用的 Profile 范围包含手动编辑和 PDF 提取，字段、条目及每个事实均需明确确认。再次上传在确认后新增材料，不自动查重、合并或替换。OCR、原始文件管理、求职偏好和简历导出属于后续范围；交付状态归属[当前架构](architecture.zh-CN.md)。
 
 ## 七、功能通过能力组合实现
 
@@ -166,7 +168,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 > 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
 
-当前基础实现已完成阶段 1–3 和仅含引用的 App Context。业务流程及完整上下文捕获仍为规划，可访问页面骨架不代表 MVP 完成。
+当前基础实现已完成阶段 1–3、阶段 4 中的 Profile 编辑/经核对的 PDF 导入，以及仅含引用的 App Context。其余简历/职位流程及完整上下文捕获仍为规划，可访问页面骨架不代表 MVP 完成。
 
 ## 十一、基线使用规则
 

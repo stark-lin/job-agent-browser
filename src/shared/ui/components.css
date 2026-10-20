@@ -123,7 +123,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-page-heading p { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--font-sm); line-height: var(--line-sm); }
 .ui-section-card { padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-lg); background: var(--panel); }
 .ui-section-heading { margin-bottom: var(--space-3); }
-.ui-section-heading h2, .ui-dialog h2 { margin: 0; font-size: var(--font-lg); line-height: var(--line-lg); font-weight: var(--weight-semibold); }
+.ui-section-heading h2, .ui-dialog h2 { margin: 0; font-size: var(--font-lg); line-height: var(--line-lg); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .ui-section-heading p, .ui-dialog p { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--font-sm); line-height: var(--line-sm); }
 .ui-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .ui-field-label { font-size: var(--font-sm); line-height: var(--line-sm); font-weight: var(--weight-medium); }
@@ -178,5 +178,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-badge--error { background: var(--danger-bg); border-color: var(--danger-line); color: var(--danger); }
 .ui-details-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .ui-details-list dt { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-sm); }
-.ui-details-list dd { margin: 0; color: var(--text); font-size: var(--font-sm); line-height: var(--line-sm); overflow-wrap: anywhere; }
+.ui-details-list dd { margin: 0; color: var(--text); font-size: var(--font-sm); line-height: var(--line-sm); overflow-wrap: anywhere; white-space: pre-wrap; }
 .ui-dialog-content { margin-top: var(--space-2); }
+.ui-checkbox { display: flex; align-items: center; gap: var(--space-1); min-height: var(--control-md); padding-block: var(--space-1); font-size: var(--font-sm); line-height: var(--line-sm); cursor: pointer; overflow-wrap: anywhere; }
+.ui-checkbox input { width: var(--icon-size); height: var(--icon-size); flex: 0 0 auto; margin: 0; accent-color: var(--primary); }
+.ui-checkbox:has(input:disabled) { color: var(--muted); cursor: default; }

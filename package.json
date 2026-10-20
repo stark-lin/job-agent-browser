@@ -4,7 +4,7 @@
   "private": true,
   "description": "An agent-native desktop browser foundation for Job Agent Browser.",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.13.0"
   },
   "main": "out/main/index.js",
   "scripts": {
@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "i18next": "^26.4.2",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-i18next": "^17.0.16"

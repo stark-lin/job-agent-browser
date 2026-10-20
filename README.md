@@ -1,19 +1,19 @@
 # Job Agent Browser
 
-A local-first desktop workspace for job seeking. Status: **Implemented** unified React App, nine accessible Home entries, per-tab mixed navigation and layered SQLite business backend with automatic audit and typed IPC. Settings, dedicated Inbox webmail and OpenAI-compatible SSE chat are **Implemented**; five other feature entries are **Scaffolded**; business workflows and compilation remain **Planned**.
+A local-first desktop workspace for job seeking. Status: **Implemented** unified React App, nine accessible Home entries, per-tab mixed navigation and layered SQLite business backend with automatic audit and typed IPC. Settings, Inbox webmail, AI chat and personal-profile editing/PDF import are **Implemented**; four other feature entries are **Scaffolded**; remaining business workflows and compilation are **Planned**.
 
 Language: English · [简体中文](README.zh-CN.md)
 
 ## Quick start
 
-Requires Node.js 22.12 or newer and npm, as declared in [package.json](package.json).
+Requires Node.js 22.13 or newer and npm, as declared in [package.json](package.json).
 
 ```sh
 npm install
 npm run dev
 ```
 
-The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI streams chat through the selected provider/model; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left workspace sidebar; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
+The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI streams chat through the selected provider/model; My Profile manages entries with multiple facts and reviewed PDF imports; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left workspace sidebar; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
 
 ## Validation and build
 
@@ -25,7 +25,7 @@ npm run test:smoke
 npm run test:theme
 ```
 
-The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
+The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 

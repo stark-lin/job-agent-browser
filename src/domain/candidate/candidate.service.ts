@@ -4,10 +4,11 @@ import * as v from '../common/validation'
 import { contact } from './candidate.validation'
 import { createItemService } from './item.service'
 import { createFactService } from './fact.service'
+import { createImportService } from './import.service'
 
 export function createCandidateService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   return {
-    ...createItemService(repo, tx, runtime), ...createFactService(repo, tx, runtime),
+    ...createItemService(repo, tx, runtime), ...createFactService(repo, tx, runtime), ...createImportService(repo, tx, runtime),
     createProfile(input: unknown) {
       return tx.write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => {
         const profile = { ...contact(input), id: runtime.id(), updatedAt: runtime.now() }

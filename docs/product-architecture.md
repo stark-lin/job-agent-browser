@@ -30,7 +30,7 @@ The rows represent three groups:
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, dedicated Inbox webmail and basic Ask AI chat are implemented; five other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
+A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, basic Ask AI chat and Profile editing/PDF import are implemented; four other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
 
 ### Initial Inbox
 
@@ -100,9 +100,11 @@ The MVP is local first and does not require a complex backend. Local storage is 
 
 The [V1 data architecture](data-architecture.md) owns the implemented 11-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
 
-Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
+Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. Each experience, project or education item can contain multiple independent facts; standalone facts belong directly to the Profile. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
 SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence, Electron Session, settings and encrypted secrets are implemented; compiled outputs remain planned, as recorded in the [current architecture](architecture.md).
+
+The adopted Profile scope includes manual editing and PDF extraction with explicit per-field, per-entry and per-fact confirmation. Repeated uploads add confirmed material without automatic deduplication, merging or replacement. OCR, original-file management, job preferences and resume export are later work; delivery status belongs to [current architecture](architecture.md).
 
 ## 7. Compose capabilities instead of duplicating infrastructure
 
@@ -166,7 +168,7 @@ The foundation milestone is:
 
 > Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
 
-The current foundation implements stages 1–3 and reference-only App Context. Business workflows and full context capture remain planned; accessible page skeletons do not complete the MVP.
+The current foundation implements stages 1–3, Profile editing/reviewed PDF import from Stage 4 and reference-only App Context. Remaining resume/job workflows and full context capture are planned; accessible page skeletons do not complete the MVP.
 
 ## 11. How to use this baseline
 

@@ -1,6 +1,6 @@
 # 设计纲要
 
-用途：提供 Job Agent Browser 的视觉方向和 UI 设计入口。状态：浅色/暗色配色基础、中央 UI 基础组件、Home、Browser、Inbox 与 Settings 展示均**已实现**；其余业务功能页面为**占位**，其流程仍为**规划**。具体组件规则归属[设计规范](docs/design-system.zh-CN.md)。
+用途：提供 Job Agent Browser 的视觉方向和 UI 设计入口。状态：浅色/暗色配色基础、中央 UI 基础组件、Home、Browser、Inbox、Profile 与 Settings 展示均**已实现**；其余业务功能页面为**占位**，其流程仍为**规划**。具体组件规则归属[设计规范](docs/design-system.zh-CN.md)。
 
 语言：简体中文 · [English](DESIGN.md)
 

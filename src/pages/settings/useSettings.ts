@@ -54,7 +54,7 @@ export function useSettings() {
   useEffect(() => {
     if (!tabId || !targetId) return
     void navigation.api.setUnsaved(dirty, { tabId, targetId }).catch(() => { /* A closing renderer may outlive its native window. */ })
-    const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = 'unsaved' } }
     window.addEventListener('beforeunload', beforeUnload)
     return () => {
       window.removeEventListener('beforeunload', beforeUnload)

@@ -1,0 +1,5 @@
+export const PROFILE_IMPORT_SELECT = 'profile-import:select'
+export const PROFILE_IMPORT_START = 'profile-import:start'
+export const PROFILE_IMPORT_CANCEL = 'profile-import:cancel'
+export const PROFILE_IMPORT_DISCARD = 'profile-import:discard'
+export const PROFILE_IMPORT_EVENT = 'profile-import:event'

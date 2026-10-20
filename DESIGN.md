@@ -1,6 +1,6 @@
 # Design Brief
 
-Purpose: provide the visual direction and starting point for UI design in Job Agent Browser. Status: **Implemented** light/dark color foundations, central UI primitives, Home, Browser, Inbox and Settings presentation; remaining business feature pages are **Scaffolded** and their workflows remain **Planned**. Detailed component rules belong to the [design-system specification](docs/design-system.md).
+Purpose: provide the visual direction and starting point for UI design in Job Agent Browser. Status: **Implemented** light/dark color foundations, central UI primitives, Home, Browser, Inbox, Profile and Settings presentation; remaining business feature pages are **Scaffolded** and their workflows remain **Planned**. Detailed component rules belong to the [design-system specification](docs/design-system.md).
 
 Language: English · [简体中文](DESIGN.zh-CN.md)
 

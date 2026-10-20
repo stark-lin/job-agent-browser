@@ -1,6 +1,6 @@
 # Component Library and Design System
 
-Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Ask AI, Settings and placeholder pages. Remaining business feature pages are **Scaffolded**; business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
+Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Ask AI, Profile, Settings and placeholder pages. Remaining business feature pages are **Scaffolded**; remaining business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
 
 Language: English · [简体中文](design-system.zh-CN.md)
 
@@ -28,7 +28,9 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | --- | --- | --- |
 | `Button`, `IconButton` | Action, icon and browser-tab variants; callers supply labels and handlers | [Button.tsx](../src/shared/ui/Button.tsx) |
 | `TextArea` | Multiline model IDs and chat input; 96px token minimum, resize/focus/disabled/error states | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
+| `Checkbox` | Native keyboard/focus/disabled behavior, associated wrapping label, 40px minimum target and 16px check control; independent import confirmation | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
 | `TextInput` | Default field or bare input inside a styled wrapper | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
+| `ListInput` | Comma-separated lists using `TextInput` presentation; retains trailing delimiters while typing and resets on external value changes | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `Glyph` | Shared named SVG symbols used by Home and workspace navigation | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | Generic sidebar composition, group headings and named native buttons with current-page state | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG glyph and neutral/primary icon container | [Icon.tsx](../src/shared/ui/Icon.tsx) |
@@ -91,6 +93,7 @@ These are requirements for UI additions and changes; they do not establish full 
 - Sidebar items retain their complete accessible name and native tooltip when labels are hidden; use `aria-current="page"` for the active destination. Settings remains reachable in the fixed footer while the middle groups scroll.
 - Give every control an accessible name. `IconButton` requires `aria-label`; inputs need an associated label or accessible name. `Icon` is decorative by default, so communicate meaning through the owning control or explicitly configure its accessible semantics.
 - Settings composes 40px fields in 16px-radius panels with 24px padding (16px at narrow widths); page CSS owns layout only. Success feedback uses readable text on the success background/border. The gallery Settings example references these shared rules.
+- Profile composes central cards, fields, checkboxes, badges and dialogs. An entry owns a nested list of independent facts; entry confirmation never checks all children. Editing a draft clears affected confirmations, and saved parents stay visible while child facts remain. Labels wrap at narrow widths; page CSS owns layout only. The Forms gallery includes confirmation states.
 - The Settings Audit Viewer composes central `DataTable`, `Badge`, `DetailsList` and `Dialog` content. The table has 64px minimum rows, wrapping IDs, visible status text and a keyboard-focusable horizontal scroll region; it never expands the page width. Metadata dialogs scroll within the viewport. The Tables gallery includes the audit reference.
 - Preserve native keyboard activation, disabled behavior and visible focus. A bare `TextInput` must live in a wrapper providing a visible focus treatment, as in [AddressBar](../src/pages/browser/AddressBar.tsx); its own outline is intentionally suppressed.
 - Keep tab selection, keyboard focus and selected state aligned; [TabStrip](../src/pages/browser/TabStrip.tsx) owns its keyboard handling. Announce errors with appropriate text/roles, and keep long labels readable without hiding the full meaning.
@@ -127,6 +130,7 @@ npm run quality
 | [Sidebar smoke](../scripts/sidebar-smoke.cjs) | All destinations, active state, keyboard activation, responsive width and native-view clearance | Does not certify all assistive technology |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider forms, central multiline input, real SSE/IPC, cancellation and 320/640/1200px overflow checks | Local fixtures do not certify third-party provider behavior |
 | [Audit Viewer smoke](../scripts/audit-viewer-smoke.cjs) | Filters, pagination, metadata dialogs, keyboard dismissal, no page overflow at 320/640/1200px and read-only/error/loading states | Does not certify screen readers or a snapshot across pages during concurrent writes |
+| [Profile smoke](../scripts/profile-smoke.cjs) | Manual entries/facts, built PDF Worker/SSE, per-item confirmation, partial saves, reload/pagination, bilingual light/dark layout at 320/640/1200px and leave guards | Uses generated PDFs/local AI fixtures; does not certify third-party Providers, arbitrary PDF layouts or screen readers |
 | [Settings smoke](../scripts/settings-smoke.cjs) | Real forms, labels, 40px controls, 16px panels, 320/640/1200px layout, language, validation and key lifecycle | Does not certify screen-reader behavior or provider access |
 | [Theme smoke](../scripts/theme-smoke.cjs) and [restart smoke](../scripts/settings-restart-smoke.cjs) | Draft/save/failure/discard, simulated native appearance updates, unchanged navigation/native bounds, Settings/Home geometry at 320/640/1200px, all gallery element geometry and persisted dark startup | Does not automate actual OS settings, certify every visual state or prove every startup frame is flash-free |
 

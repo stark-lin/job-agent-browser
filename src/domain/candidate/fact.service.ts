@@ -5,6 +5,13 @@ import * as v from '../common/validation'
 import { factDetails } from './candidate.validation'
 import type { Fact } from './candidate.types'
 
+/** Shared confirmation operation; caller owns the surrounding business transaction. */
+export function confirmFactRecord(repo: CandidateRepository, runtime: Runtime, id: string): Fact {
+  const fact = { ...repo.getFact(id), verificationStatus: 'CONFIRMED' as const, updatedAt: runtime.now() }
+  repo.saveFact(fact)
+  return fact
+}
+
 export function createFactService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   function checkItem(profileId: string, itemId: string | null) {
     if (itemId && repo.getItem(itemId).profileId !== profileId) fail('CONFLICT')
@@ -34,11 +41,7 @@ export function createFactService(repo: CandidateRepository, tx: UnitOfWork, run
     },
     confirmFact(input: unknown) {
       return tx.write({ event: 'FACT_CONFIRM', action: 'UPDATE', target: 'fact' }, () => {
-        const { id } = v.byId(input), fact = repo.getFact(id)
-        fact.verificationStatus = 'CONFIRMED'
-        fact.updatedAt = runtime.now()
-        repo.saveFact(fact)
-        return fact
+        return confirmFactRecord(repo, runtime, v.byId(input).id)
       })
     },
     deleteFact(input: unknown) {

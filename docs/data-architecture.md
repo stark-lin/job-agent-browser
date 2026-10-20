@@ -1,12 +1,12 @@
 # V1 Data Architecture and API
 
-Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI chat and call audit are **Implemented**; AI business generation, compilation and business workflows remain **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
+Purpose: define the implemented local storage model and public business API. Status: **Implemented** SQLite storage, transactional audit, business validation and IPC; AI chat and call audit are **Implemented**; Profile editing and reviewed PDF extraction are **Implemented**; AI resume generation, compilation and remaining business workflows are **Planned**; Settings and encrypted secrets are **Implemented**; remaining business UI is **Scaffolded**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
 ## 1. Runtime and storage
 
-[Main](../src/platform/electron/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface. [App Context](../src/app/context/appContext.ts) holds nullable Job/Profile/Artifact IDs rather than entity copies; page skeletons do not implement business workflows.
+[Main](../src/platform/electron/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface. [App Context](../src/app/context/appContext.ts) holds nullable Job/Profile/Artifact IDs rather than entity copies; Profile initializes the shared Profile ID when selecting or saving its current record.
 
 [Versioned migrations](../src/platform/database/migrations/index.ts) create 11 data tables plus `schema_migrations` in a transaction. Recorded checksums detect changed migrations; newer schemas or mismatches fail startup without resetting data. A storage startup error prevents the window/API from opening. UUID v4 IDs are generated internally and cannot be reused after successful deletion. Times are UTC ISO strings; calendar dates use `YYYY-MM-DD`.
 
@@ -38,6 +38,14 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 Archived Jobs reject status changes and scheduling/rescheduling. `APPLIED` sets the application time; terminal states set the closed time. System-created status events cannot be independently deleted. Calendar bounds are inclusive and filter schedule start times. Email synchronization/events remain planned.
 
 [Candidate use cases](../src/domain/candidate/candidate.service.ts) enforce same-profile parent/fact references, acyclic item nesting, valid date ranges and immutable item type. Item kinds are `EXPERIENCE / PROJECT / EDUCATION`. Fact kinds are `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`. New or edited facts are `UNVERIFIED`; only `confirmFact` marks them `CONFIRMED`.
+
+Each `ProfileItem` owns zero or more independently selectable Facts; each Fact belongs to one Profile and optionally one item in it. `parentItemId` relates items to items. Standalone skills/languages use a null `profileItemId`; fact kind does not determine ownership. `summary` stores background, while responsibilities/achievements remain individual Facts. Ordinary edits, including ownership changes, invalidate confirmation through the [fact service](../src/domain/candidate/fact.service.ts).
+
+[Item validation](../src/domain/candidate/candidate.validation.ts) supports `metadata.startDateText` / `endDateText` (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`) and `isCurrent`. Import/manual UI writes day columns only for complete dates, validates ranges and never supplies missing months/days. Existing records with day columns and older metadata remain readable; this extension uses the existing JSON column without editing recorded migrations.
+
+[Confirmed import](../src/domain/candidate/import.service.ts) applies only selected contact fields, appends links and inserts selected items/Facts in one transaction. New profiles require a selected name. Each Fact reuses the ordinary confirmation operation within that transaction. Returned records include draft-to-item/fact ID mappings. The [Main session](../src/platform/profile-import/service.ts) validates file/task ownership, limits existing parent references to its saved mappings and caches per-batch receipts. Same-batch retries return the saved result; changed payloads or consumed draft IDs conflict. Later batches may attach remaining Facts to a previously saved item; deleted parents fail the whole batch. A new upload creates a new session and permits duplicate content after confirmation. Receipts are memory-only, scoped to a window and cleared with the session.
+
+Import creates `PROFILE_IMPORT` audit events for each changed record under a shared request/transaction; failure rolls all business rows and success audits back. Session/owner/replay checks precede business dispatch and do not create business audits; accepted transaction failures use ordinary failure audit. Only saved Fact excerpts/page numbers enter `evidence`; PDF bytes, full text and unsaved drafts stay in memory. AI audit retains its existing startup-only meaning.
 
 ## 3. Generation, output and deletion
 
@@ -106,6 +114,7 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → deleted ID / Companies |
 | `profiles.createProfile`, `profiles.editContact` | Contact details / `{ id, details }` → Profile |
 | `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / deleted ID / Profiles |
+| `profiles.applyConfirmedImport` | Confirmed subset + session/batch IDs → saved Profile/items/Facts and draft-ID mappings; owner-checked, atomic |
 | `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
 | `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
 | `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → deleted ID / ProfileItems |
@@ -150,6 +159,8 @@ The API offers no raw SQL/table CRUD, unrestricted filters, transaction manageme
 | `FORBIDDEN` | IPC caller is not the trusted top-level renderer document or request owner |
 | `AI_NOT_CONFIGURED`, `AI_AUTH_FAILED`, `AI_RATE_LIMITED` | Missing provider/model/key, rejected authorization or rate limit |
 | `AI_PROVIDER_FAILED`, `AI_PROTOCOL_ERROR`, `AI_CONNECT_FAILED`, `AI_TIMEOUT`, `AI_CANCELLED` | Provider, stream format, transport, timeout or cancellation outcome |
+
+[The PDF import bridge](../src/platform/electron/profile-import-contract.ts) exposes `window.profileImport.selectPdf/start/cancel/discard/onEvent`, returning only a file summary, task stages, draft or fixed error codes; it offers no path-reading operation. Asynchronous file/network work stays outside synchronous business transactions.
 
 The separate [AI API](../src/shared/ai.ts) exposes `window.ai.start`, `cancel` and `onEvent`; it does not extend synchronous data dispatch or expose an audit writer. Runtime streaming and lifecycle behavior are owned by [current architecture](architecture.md).
 

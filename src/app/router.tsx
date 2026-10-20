@@ -32,7 +32,7 @@ export function AppRouter() {
     page = <HomePage onNavigate={(target) => void openPage(target)} />
   } else if (destination.kind === 'internal' && destination.page !== 'browser' && destination.page !== 'home') {
     const Page = featurePages[destination.page]
-    page = <Page />
+    page = <Page key={active.targetId} />
   }
   return <div className="app-shell"><WorkspaceSidebar /><div className="app-content">
     {page}{error && !isBrowserDestination(destination) && !isInboxDestination(destination) ? <div className="app-error" role="alert">{error}</div> : null}

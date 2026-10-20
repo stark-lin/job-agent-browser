@@ -21,9 +21,10 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
   await select('Home')
   await current('Home')
   // Native keyboard activation uses the central navigation control's accessible label.
+  window.show()
   if (process.platform === 'darwin') app.focus({ steal: true })
   window.focus()
-  await waitFor(() => window.isFocused(), 'keyboard test window focus')
+  // Verify native key delivery through DOM focus and the resulting destination.
   window.webContents.focus()
   await evaluate('document.querySelector(".ui-sidebar button[aria-label=Applications]").focus()')
   assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Applications')

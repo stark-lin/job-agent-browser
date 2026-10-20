@@ -3,6 +3,8 @@ import { createDataBridge } from './data-bridge'
 import { DATA_CALL } from '../../../shared/ipc'
 import { AI_START, AI_CANCEL, AI_EVENT, type AIEvent } from '../../../shared/ai'
 import { createAIBridge } from './ai-bridge'
+import type { ProfileImportAPI, ImportEvent } from '../profile-import-contract'
+import { PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
 import {
   BROWSER_BACK,
   BROWSER_CREATE_TAB,
@@ -42,6 +44,17 @@ const browserAPI: BrowserAPI = {
 }
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
+const profileImport: ProfileImportAPI = {
+  selectPdf: () => ipcRenderer.invoke(PROFILE_IMPORT_SELECT),
+  start: input => ipcRenderer.invoke(PROFILE_IMPORT_START, input), cancel: input => ipcRenderer.invoke(PROFILE_IMPORT_CANCEL, input),
+  discard: input => ipcRenderer.invoke(PROFILE_IMPORT_DISCARD, input),
+  onEvent: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, message: ImportEvent) => callback(message)
+    ipcRenderer.on(PROFILE_IMPORT_EVENT, listener)
+    return () => ipcRenderer.removeListener(PROFILE_IMPORT_EVENT, listener)
+  }
+}
+contextBridge.exposeInMainWorld('profileImport', profileImport)
 contextBridge.exposeInMainWorld('data', createDataBridge((group, method, input) => ipcRenderer.invoke(DATA_CALL, group, method, input)))
 contextBridge.exposeInMainWorld('ai', createAIBridge(
   (operation, input) => ipcRenderer.invoke(operation === 'start' ? AI_START : AI_CANCEL, input),

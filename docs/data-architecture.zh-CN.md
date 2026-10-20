@@ -1,12 +1,12 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 对话和调用审计**已实现**；AI 业务生成、编译及业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
+用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 对话和调用审计**已实现**；个人资料编辑和经核对的 PDF 提取**已实现**；AI 简历生成、编译及其余业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
 
 语言：简体中文 · [English](data-architecture.md)
 
 ## 一、运行与存储
 
-[Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；页面骨架不实现业务流程。
+[Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；Profile 选择或保存当前记录时同步共享 Profile ID。
 
 [版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 11 张数据表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
 
@@ -38,6 +38,14 @@
 归档 Job 拒绝变更状态及安排/调整日程。`APPLIED` 设置申请时间，终态设置关闭时间。系统生成的状态事件不能单独删除。日历范围包含两端，按日程开始时间筛选。邮件同步/事件仍为规划。
 
 [个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。新建或修改事实为 `UNVERIFIED`，只有 `confirmFact` 将其标记为 `CONFIRMED`。
+
+每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。普通编辑（包括修改归属）通过[事实服务](../src/domain/candidate/fact.service.ts)使确认失效。
+
+[条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。已有日级日期及旧 metadata 继续可读；扩展使用现有 JSON 列，不修改已记录的迁移。
+
+[确认导入](../src/domain/candidate/import.service.ts)在一个事务中只应用已选联系方式字段、追加链接并插入已选条目/事实。新资料需要已选姓名；每个 Fact 在该事务内复用普通确认操作。返回记录包含草稿到条目/事实 ID 的映射。[Main 会话](../src/platform/profile-import/service.ts)校验文件/任务归属，将已有父项引用限制为本次已保存映射，并按批次缓存回执。同批重试返回已保存结果；变更载荷或重用已消费草稿 ID 报冲突。后续批次可把剩余 Fact 关联到此前已保存条目，父项被删除时整批失败。再次上传创建新会话，允许确认后新增重复内容。回执只存内存，归属当前窗口，并随会话清理。
+
+导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。只有已保存 Fact 的原文片段/页码进入 `evidence`，PDF 字节、完整文字和未保存草稿只存内存。AI 审计继续只表示请求启动。
 
 ## 三、生成、成品与删除
 
@@ -106,6 +114,7 @@
 | `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → 删除 ID / Companies |
 | `profiles.createProfile`, `profiles.editContact` | 联系方式详情 / `{ id, details }` → Profile |
 | `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / 删除 ID / Profiles |
+| `profiles.applyConfirmedImport` | 已确认子集及会话/批次 ID → 已保存 Profile/条目/事实和草稿 ID 映射；校验归属，原子保存 |
 | `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
 | `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
 | `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → 删除 ID / ProfileItems |
@@ -150,6 +159,8 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 | `FORBIDDEN` | IPC 调用方不是可信的顶层 Renderer 文档或请求所有者 |
 | `AI_NOT_CONFIGURED`, `AI_AUTH_FAILED`, `AI_RATE_LIMITED` | 缺少 Provider/模型/密钥、身份验证被拒或限流 |
 | `AI_PROVIDER_FAILED`, `AI_PROTOCOL_ERROR`, `AI_CONNECT_FAILED`, `AI_TIMEOUT`, `AI_CANCELLED` | 服务商、流格式、网络、超时或取消结果 |
+
+[PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)暴露 `window.profileImport.selectPdf/start/cancel/discard/onEvent`，仅返回文件摘要、任务阶段、草稿或固定错误码，不提供路径读取。异步文件/网络操作与同步业务事务分离。
 
 独立的 [AI API](../src/shared/ai.ts)暴露 `window.ai.start`、`cancel` 和 `onEvent`，不扩展同步数据分发，也不暴露审计写入。流式运行与生命周期行为归属[当前架构](architecture.zh-CN.md)。
 

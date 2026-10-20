@@ -18,14 +18,16 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
   }
   assert.equal((await data('profiles', 'createProfile', { name: '' })).ok, false)
   const before = (await data('audit', 'list', {})).value.total
+  const recordCount = (await data('audit', 'list', { targetType: 'profile', status: 'SUCCESS' })).value.total
+  const pageCount = Math.ceil(recordCount / 25)
   await input('targetType', 'profile', 'select'); await input('status', 'SUCCESS', 'select'); await search()
   assert.equal(await evaluate(`document.querySelectorAll('${root} tbody tr').length`), 25)
-  assert((await text()).includes('27 records · Page 1 of 2'))
+  assert((await text()).includes(`${recordCount} records · Page 1 of ${pageCount}`))
   await click('Next page'); await ready()
-  assert.equal(await evaluate(`document.querySelectorAll('${root} tbody tr').length`), 2)
-  assert((await text()).includes('Page 2 of 2'))
+  assert.equal(await evaluate(`document.querySelectorAll('${root} tbody tr').length`), Math.min(25, recordCount - 25))
+  assert((await text()).includes(`Page 2 of ${pageCount}`))
   await click('Refresh'); await ready()
-  assert((await text()).includes('Page 1 of 2'))
+  assert((await text()).includes(`Page 1 of ${pageCount}`))
   await click('View details')
   assert.equal(await evaluate(`document.querySelector('${root} dialog').open`), true)
   assert.equal(await evaluate(`document.querySelectorAll('${root} dialog dt').length`), 15)

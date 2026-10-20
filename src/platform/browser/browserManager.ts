@@ -19,6 +19,7 @@ export class BrowserManager {
   private visible = false
   private unsaved = false
   private confirming = false
+  private rendererLoading = false
 
   constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null) {
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
@@ -40,15 +41,18 @@ export class BrowserManager {
       void this.confirmLeave().then(allowed => { if (allowed && !window.isDestroyed()) window.close() })
     })
     window.webContents.on('will-prevent-unload', event => {
-      if (dialog.showMessageBoxSync(window, this.leaveDialog()) === 1) { this.unsaved = false; event.preventDefault() }
+      if (!this.unsaved || dialog.showMessageBoxSync(window, this.leaveDialog()) === 1) { this.unsaved = false; event.preventDefault() }
     })
     this.shortcuts(window.webContents)
     window.webContents.on('did-start-loading', () => {
-      // Invalidate acknowledgments from the previous renderer document as well
-      // as hiding its views until the new React tree has committed.
+      // Keep the current React draft/target until beforeunload permits a commit.
+      this.rendererLoading = true; this.updateVisibility()
+    })
+    window.webContents.on('did-navigate', () => {
       const tab = this.tabs.get(this.activeTabId)
       if (tab) this.transition(tab)
     })
+    window.webContents.on('did-stop-loading', () => { this.rendererLoading = false; this.updateVisibility() })
     window.on('resize', () => this.layout())
     window.on('closed', () => {
       i18n.off('languageChanged', languageChanged)
@@ -62,11 +66,13 @@ export class BrowserManager {
     const tab = this.requireTab(this.activeTabId)
     const destination = this.tabState(tab).destination
     if (presentation.tabId === tab.id && presentation.targetId === this.targetId(tab) && destination.kind === 'internal' &&
-      destination.page === 'settings') this.unsaved = unsaved
+      (destination.page === 'settings' || destination.page === 'profile')) this.unsaved = unsaved
   }
 
   private leaveDialog(): Electron.MessageBoxOptions {
-    return { type: 'question', title: t($ => $.settings.discardTitle), message: t($ => $.settings.discardDescription),
+    const destination = this.tabState(this.requireTab(this.activeTabId)).destination
+    const profile = destination.kind === 'internal' && destination.page === 'profile'
+    return { type: 'question', title: profile ? t($ => $.profile.discardTitle) : t($ => $.settings.discardTitle), message: profile ? t($ => $.profile.discardDescription) : t($ => $.settings.discardDescription),
       buttons: [t($ => $.settings.stay), t($ => $.settings.discard)], defaultId: 0, cancelId: 0, noLink: true }
   }
 
@@ -217,7 +223,7 @@ export class BrowserManager {
 
   private updateVisibility(): void {
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
-      if (item.kind === 'web') item.segment.view.setVisible(this.visible && tab.id === this.activeTabId && item === tab.history.current)
+      if (item.kind === 'web') item.segment.view.setVisible(!this.rendererLoading && this.visible && tab.id === this.activeTabId && item === tab.history.current)
     }
     if (!this.window.isDestroyed()) this.layout()
   }

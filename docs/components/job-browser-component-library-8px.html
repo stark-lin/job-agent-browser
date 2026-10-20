@@ -216,10 +216,18 @@
         </div>
 
         <div class="demo">
-          <div class="demo-label">Selection</div>
+          <div class="demo-label">ListInput · comma-separated values</div>
+          <div class="demo-stage">
+            <label class="field"><span class="field-label">Tags (comma separated)</span><input class="control" value="SQL, TypeScript, " aria-describedby="list-input-help" /><span id="list-input-help" class="field-help">The application retains a trailing delimiter while you enter the next value.</span></label>
+          </div>
+        </div>
+
+        <div class="demo">
+          <div class="demo-label">Checkbox · independent confirmation</div>
           <div class="demo-stage stack">
-            <label class="check-row"><input type="checkbox" checked /> Include remote roles</label>
-            <label class="check-row"><input type="checkbox" /> Include internships</label>
+            <label class="check-row"><input type="checkbox" checked /><span>Confirm entry information</span></label>
+            <label class="check-row"><input type="checkbox" /><span>I confirm this fact is accurate</span></label>
+            <label class="check-row"><input type="checkbox" disabled /><span>Confirm the parent entry before confirming this fact.</span></label>
             <button class="check-row" style="border:0;background:transparent;padding:0" role="switch" aria-checked="true" onclick="const s=this.querySelector('.switch');s.classList.toggle('on');this.setAttribute('aria-checked',s.classList.contains('on'))">
               <span class="switch on"></span> AI suggestions
             </button>
