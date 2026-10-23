@@ -441,3 +441,9 @@ tbody tr:last-child td { border-bottom: 0; }
 /* Business source links mirror the central ExternalLink primitive. */
 .external-link { color: var(--primary-hover); text-decoration: underline; overflow-wrap: anywhere; }
 .external-link:hover { color: var(--primary); }
+
+.ui-document-preview { width: 100%; height: var(--document-preview-height); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.ui-stage-progress { display: flex; flex-wrap: wrap; gap: var(--space-1); padding: 0; margin: 0; list-style-position: inside; }
+.ui-stage-progress li { padding: var(--space-1); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: var(--font-xs); }
+.ui-stage-progress .is-current { background: var(--primary-soft); border-color: var(--primary-line); color: var(--primary); }
+.ui-stage-progress .is-done { background: var(--success-bg); color: var(--success); }

@@ -111,7 +111,6 @@ erDiagram
         text content
         json tags_json
         text evidence
-        string verification_status
         datetime created_at
         datetime updated_at
     }
@@ -121,6 +120,8 @@ erDiagram
         string job_id
         string type
         string status
+        string stage
+        string language
         json input_snapshot_json
         json scores_json
         json gate_json
@@ -141,6 +142,7 @@ erDiagram
         string title
         json content_json
         string template_id
+        json output_json
         json output_files_json
         datetime created_at
         datetime updated_at

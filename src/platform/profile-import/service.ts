@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import * as v from '../../domain/common/validation'
 import { fail } from '../../domain/common/errors'
-import { confirmedImport } from '../../domain/candidate/import.validation'
-import type { ConfirmedImport, ImportDraft, ImportSaved } from '../../domain/candidate/import.types'
+import { applyImportInput } from '../../domain/candidate/import.validation'
+import type { ApplyImport, ImportDraft, ImportSaved } from '../../domain/candidate/import.types'
 import type { Result } from '../../shared/ipc'
 import type { AIChoice } from '../../shared/ai'
 import type { AIService } from '../ai'
@@ -20,7 +20,7 @@ interface Session {
 }
 interface Dependencies {
   ai: Pick<AIService, 'start' | 'cancel'>
-  apply(input: ConfirmedImport): Result<ImportSaved>
+  apply(input: ApplyImport): Result<ImportSaved>
   extract?: (bytes: Uint8Array, signal: AbortSignal, progress: (page: number, pages: number) => void) => Promise<PdfPage[]>
 }
 const choice = v.object({ providerId: v.text(100, 1), modelId: v.text(200, 1) })
@@ -117,7 +117,7 @@ export function createProfileImporter(deps: Dependencies) {
       }
     },
     apply(owner: number, input: unknown): Result<ImportSaved> {
-      const args = confirmedImport(input), session = ownedSession(owner, args.sessionId), encoded = JSON.stringify(args)
+      const args = applyImportInput(input), session = ownedSession(owner, args.sessionId), encoded = JSON.stringify(args)
       const receipt = session.receipts.get(args.batchId)
       if (receipt) { if (receipt.input !== encoded) fail('CONFLICT'); return { ok: true, value: structuredClone(receipt.result) } }
       if (session.state !== 'ready' || !session.draft) fail('INVALID_STATE')

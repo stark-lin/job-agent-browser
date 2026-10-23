@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界和后续交付约束。状态：React 组装/路由、混合导航、Platform 运行入口、AI 基础设施/对话及分层业务存储**已实现**。个人资料编辑/PDF 导入、新增工作及申请记录基础列表**已实现**；其余业务页面流程、AI 简历生成与输出文件集成仍为**占位 / 规划**。已验证行为由[当前架构](architecture.zh-CN.md)管理。
+用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile/职位流程及带 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -75,7 +75,7 @@ src/
     └── tools/
 ```
 
-Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job 和 Applications 为已实现页面。其余两个功能入口仍为占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
+Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Interview Prep 仍为占位。局部模块按需创建，目录/文件本身不代表行为实现。
 
 ## 三、依赖与进程组装
 
@@ -101,7 +101,7 @@ Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Rep
 
 Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览器栏和全部内部 URL。Browser 和 Inbox 通过[展示 hook](../src/app/navigation/useNativePresentation.ts) 确认各自原生视图，携带活动标签与目标，避免旧确认覆盖其他页面。Inbox 不渲染 Browser 控件。UI URL 和历史规则由产品架构管理，运行细节由当前架构管理。
 
-[App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录，通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。Profile 解析并更新当前 Profile ID；新增工作保存及申请记录选择会更新 Job ID；自动填充 Artifact 及内容/选区捕获仍为规划。
+[App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录，通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。Profile 解析并更新当前 Profile ID；新增工作保存及申请记录选择会更新 Job ID；定制简历同步 Artifact ID；自动页面内容/选区捕获仍为规划。
 
 Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
 
@@ -123,7 +123,7 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 | Profile、ProfileItem 与 Fact | `domain/candidate/`，UI 在 `pages/profile/` |
 | GenerationRun、Artifact 与溯源 | `domain/resume/`，UI 在 `pages/tailor-resume/` |
 | SQLite、迁移、Repository 与审计持久化 | Main 侧 `platform/database/` |
-| AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`；AI 对话/配置/密钥已实现，AI 业务生成及输出集成仍为规划 |
+| AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`；AI 对话/配置/密钥已实现，简历生成/输出位于 `platform/agent/` 及 `platform/resume-output/` |
 
 Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.extractor.ts)。[URL 读取器](../src/platform/job-import/url-reader.ts)、HTML 解析和 AI 提取实现归 `platform/job-import/`；Browser 后续适配器复用相同普通数据快照，不传 DOM/Electron 对象。页面通过[异步桥接](../src/platform/electron/job-import-contract.ts)协调任务；数据库接口继续只处理确认后的保存。
 
@@ -131,9 +131,11 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared Tools](../src/shared/tools/index.ts)管理仅类型的 Agent 契约，Main 使用其 Registry 实现。[Platform Tools](../src/platform/tools/capabilities.ts)为 read/write 操作封装审计，只有 [Platform MCP](../src/platform/mcp/runtime.ts)可导入 MCP SDK 并绑定外部能力。Renderer 不得导入工具运行时。具体契约/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)，原生写入仍是 Agent Registry 之外的可信 Main 能力。
 
-[Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和确认草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名保留在 Shared。
+[Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名保留在 Shared。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
+
+简历保留八个核心概念：[AgentModel](../src/shared/agent/index.ts)、[AgentLoop](../src/platform/agent/loop.ts)、[ToolScope](../src/shared/tools/tool.types.ts)、[ResumeAgent](../src/domain/resume/resume.agent.ts)、[GenerationService](../src/domain/resume/generation.service.ts)、[ResumeDocument](../src/domain/resume/resume.types.ts)、[HTMLCompiler](../src/platform/resume-output/compiler.ts) 和 [PDFExporter](../src/platform/resume-output/exporter.ts)。Domain 管理工作流/校验，通过注入阶段 runner 执行；Main 管理 Provider/Scope/生命周期/输出组装。[Resume IPC](../src/platform/electron/resume-contract.ts)独立于 DataContract 及对话，页面 hook 只协调展示。
 
 ## 六、质量与后续交付
 
@@ -141,7 +143,7 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 公开业务能力保留在 [DataContract](../src/platform/electron/data-contract.ts)，Repository、事务上下文、审计写入及生成阶段持久化仍为私有实现。存储模块分离迁移、事务/审计控制、映射和领域适配；Domain 服务管理业务校验。
 
-Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbox 复用配置的网页邮箱，不建立邮件数据库。AI 业务生成、编译和其余业务表单为后续工作，不因页面骨架可访问就视为完成。历史恢复/淘汰同样延后。
+Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbox 复用配置的网页邮箱，不建立邮件数据库。其余业务表单为后续工作，不因页面骨架可访问就视为完成。历史恢复/淘汰同样延后。
 
 行为、接口、目录或配置变化时同步更新所属文档和两种语言。未来迁移保留构建产物、SQLite/审计行为和 Session 分区。规模需要时再引入 Product Areas；不要求完整 DDD。
 

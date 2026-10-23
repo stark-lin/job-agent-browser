@@ -48,20 +48,22 @@ export class Transactions {
   }
 
   /** Main-internal capability. No payload, provider configuration or arbitrary audit fields accepted. */
-  recordAI(requestId: string, error: ErrorCode | null): void {
+  recordAI(requestId: string, error: ErrorCode | null): void { this.recordModel(requestId, error, false) }
+  recordAgentModel(requestId: string, error: ErrorCode | null): void { this.recordModel(requestId, error, true) }
+  private recordModel(requestId: string, error: ErrorCode | null, agent: boolean): void {
     id(requestId)
     if (this.context || this.db.isTransaction) throw new DataError('INVALID_STATE')
     const allowed: readonly ErrorCode[] = ['INVALID_INPUT', 'ENCRYPTION_UNAVAILABLE', 'STORAGE_UNAVAILABLE', 'AI_NOT_CONFIGURED',
       'AI_AUTH_FAILED', 'AI_RATE_LIMITED', 'AI_PROVIDER_FAILED', 'AI_PROTOCOL_ERROR', 'AI_CONNECT_FAILED', 'AI_TIMEOUT', 'AI_CANCELLED']
     if (error !== null && !allowed.includes(error)) throw new DataError('INVALID_INPUT')
-    const context: Context = { event: 'AI_STREAM_START', action: 'CREATE', target: 'ai_request', targetId: requestId,
-      active: error === null ? 'SUCCESS' : 'FAILURE', actorId: 'local-user', source: 'AI_CLIENT', requestId, transactionId: randomUUID() }
+    const context: Context = { event: agent ? 'AGENT_MODEL_RESULT' : 'AI_STREAM_START', action: 'CREATE', target: 'ai_request', targetId: requestId,
+      active: error === null ? 'SUCCESS' : 'FAILURE', actorId: agent ? 'resume-agent' : 'local-user', source: agent ? 'GENERATOR' : 'AI_CLIENT', requestId, transactionId: randomUUID() }
     this.context = context
     try {
       this.db.exec('BEGIN IMMEDIATE')
       this.aiInsert = true
       this.db.prepare(`INSERT INTO audit_logs(id,event_type,action,timestamp,component,location,source,request_id,status,error,actor_id,target_type,target_id,transaction_id)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(randomUUID(), context.event, context.action, new Date().toISOString(), 'ai', 'chat.stream',
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(randomUUID(), context.event, context.action, new Date().toISOString(), 'ai', agent ? 'agent.model' : 'chat.stream',
           context.source, context.requestId, context.active, error, context.actorId, context.target, context.targetId!, context.transactionId)
       this.db.exec('COMMIT')
     } catch {

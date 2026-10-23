@@ -106,7 +106,7 @@ Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。�
 
 SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化、Electron Session、配置和加密密钥已实现；编译输出仍为规划，见[当前架构](architecture.zh-CN.md)。
 
-已采用的 Profile 范围包含手动编辑和 PDF 提取，字段、条目及每个事实均需明确确认。再次上传在确认后新增材料，不自动查重、合并或替换。OCR、原始文件管理、求职偏好和简历导出属于后续范围；交付状态归属[当前架构](architecture.zh-CN.md)。
+已采用的 Profile 范围包含手动编辑和 PDF 提取，支持编辑、忽略及显式保存。全部已保存事实可参与 Resume V1；重复上传新增材料，不自动查重/合并。Resume V1 使用唯一 A4 单栏模板并输出 HTML/PDF。OCR、原始文件管理、求职偏好、多模板、富文本编辑及自动申请仍为规划；交付状态归属[当前架构](architecture.zh-CN.md)。
 
 ## 七、功能通过能力组合实现
 
@@ -164,15 +164,15 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 **Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
-这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；定制简历仍需业务编排和上下文集成；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
+这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；Resume V1 已实现业务编排及引用上下文；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
-[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供受限、带审计的 Native/stdio 能力。工具后续里程碑是接入首个真实服务及其所需 Transport/凭据，再实现模型 Tool Calling 和一个业务 Agent；这些工作不替代上述分阶段产品流程。
+[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供受限、带审计的 Native/stdio 能力。工具后续里程碑是接入首个真实服务及其所需 Transport/凭据，Resume V1 已实现模型 Tool Calling 及一个业务 Agent；这些工作不替代上述分阶段产品流程。
 
 基础里程碑为：
 
 > 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
 
-当前基础实现已完成阶段 1–3、阶段 4 中的 Profile 编辑/经核对的 PDF 导入，以及仅含引用的 App Context。其余简历/职位流程及完整上下文捕获仍为规划，可访问页面骨架不代表 MVP 完成。
+当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手动/公开 URL 职位采集、Applications 列表、Resume V1 HTML/PDF 及引用型 App Context。更多流程及完整页面上下文捕获仍为规划，可访问页面骨架不代表 MVP 完成。
 
 ## 十一、基线使用规则
 

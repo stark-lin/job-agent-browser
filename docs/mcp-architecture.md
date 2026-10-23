@@ -1,6 +1,6 @@
 # Tools and MCP Runtime
 
-Purpose: define capability registration, scoped execution and MCP integration. Status: **Implemented** Main-owned Native/stdio MCP tooling and audited read/write capabilities; model Tool Calling, business Agent loops, Browser tools and remote transports are **Planned**.
+Purpose: define capability registration, scoped execution and MCP integration. Status: **Implemented** Main-owned Native/stdio tools, audited capabilities, compatible AgentModel/AgentLoop and ResumeAgent snapshot tools. Browser tools and remote transports remain **Planned**.
 
 Language: English · [简体中文](mcp-architecture.zh-CN.md)
 
@@ -18,7 +18,7 @@ Main-bound caller → ToolScope → validated Tool binding
 
 [Native bindings](../src/platform/tools/native.ts) explicitly expose `job.get`, `job.list`, `profile.get`, `profile.list_facts` and `artifact.get`. The Main-only `job.set_archived` write capability reuses the Domain service but is not registered for Agents. Generation persistence, transactions, raw SQL and secrets are never tool bindings. Storage/audit semantics belong to [data architecture](data-architecture.md#4-audit-and-transactions).
 
-The current [AI SSE adapter](../src/platform/ai/compatible.ts) still rejects model tool calls. Registering tools does not implement Resume/Discovery/Interview loops or give chat access to business data.
+The [AI SSE adapter](../src/platform/ai/compatible.ts) retains chat streaming without tools. [AgentModel](../src/shared/agent/index.ts) separately defines non-streaming messages, call batches, final text, cancellation and errors; [compatible adaptation](../src/platform/agent/compatible.ts) shares configuration/HTTP foundations and maps dotted names injectively to provider names. Each accepted model call records one fixed outcome audit, without prompt/output persistence.
 
 ## 2. Registration and scopes
 
@@ -27,6 +27,10 @@ The [Registry](../src/shared/tools/registry.ts) rejects duplicate names and rese
 [Policies](../src/shared/tools/policy.ts) require `allow`; an empty array grants nothing. Patterns support exact names or a trailing namespace wildcard such as `profile.*`. Deny takes priority; `*.delete` and arbitrary glob patterns are invalid. Risks are ordered `READ < COMPUTE < WRITE < EXTERNAL_ACTION`; the default maximum is `READ`.
 
 A scope captures approved entries, policy and Main-bound caller identity at creation. New tools never appear in an existing scope. Removal/replacement revokes old entries and active calls; old scopes cannot silently bind to a reconnected tool. Scope disposal and caller cancellation stop active calls. The application runtime accepts only `READ / COMPUTE` scopes pending a future confirmation mechanism.
+
+The generic [AgentLoop](../src/platform/agent/loop.ts) permits at most 8 model calls per stage. It records one complete assistant call list, then executes tools sequentially and appends corresponding observations. Ordinary tool errors may be observations; cancellation and audit failure terminate immediately. Empty/illegal output, duplicate call IDs and exhaustion fail explicitly. There are no automatic retries, fallback, planner, memory or parallel tools.
+
+[Resume scopes](../src/platform/agent/snapshot-tools.ts) use a private task registry containing only `job.get`, `profile.get` and paginated `profile.list_facts`, all bound to immutable run inputs and fixed object IDs. No live reads, external MCP tools or Artifact/status writes are offered. Domain receives only an injected stage runner; Main disposes the scope on completion/cancellation. Resume lifecycle and provenance belong to [data architecture](data-architecture.md).
 
 ## 3. Provider review and adaptation
 
@@ -81,7 +85,7 @@ Main starts optional connections in the background. On disconnect it revokes too
 
 The [runtime smoke](../scripts/run-mcp-smoke.cjs) bundles the actual composition modules as CJS with external production dependencies and runs them inside Electron's Node runtime. It verifies Native/MCP execution, write audit, cancellation, disconnect/reconnect, restart recovery and child-process cleanup with disposable storage. Commands are indexed in [README](../README.md).
 
-**Planned:** first real-service integration with its required transport/credentials, followed by model Tool Calling and one business Agent consuming a scope. HTTP/OAuth, Browser adapters, resource/prompt support, multimodal results, high-risk confirmations, automatic installation and the capability-audit viewer are not implemented. No third-party account or Windows/Linux runtime compatibility is certified by local fixture tests.
+**Planned:** first real-service integration with its required transport/credentials, while the first business Agent now uses private snapshot scopes. HTTP/OAuth, Browser adapters, resource/prompt support, multimodal results, high-risk confirmations, automatic installation and the capability-audit viewer are not implemented. No third-party account or Windows/Linux runtime compatibility is certified by local fixture tests.
 
 ## Related documents
 

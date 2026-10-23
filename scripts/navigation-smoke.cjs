@@ -36,7 +36,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     await evaluate(`(() => { [...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === ${JSON.stringify(title)}).click() })()`)
     await internal(page)
     await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
-    assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications'].includes(page))
+    assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume'].includes(page))
     if (page === 'settings') await waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings forms')
     else if (page !== 'ai') assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
     if (page === 'profile') await capture('internal-page.png')

@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { createResumeBridge } from './resume-bridge'
+import { RESUME_CALL, RESUME_EVENT, type ResumeEvent } from '../resume-contract'
 import { createDataBridge } from './data-bridge'
 import { DATA_CALL } from '../../../shared/ipc'
 import { AI_START, AI_CANCEL, AI_EVENT, type AIEvent } from '../../../shared/ai'
@@ -75,3 +77,9 @@ contextBridge.exposeInMainWorld('ai', createAIBridge(
     return () => ipcRenderer.removeListener(AI_EVENT, listener)
   }
 ))
+
+contextBridge.exposeInMainWorld('resume', createResumeBridge((method, input) => ipcRenderer.invoke(RESUME_CALL, method, input), callback => {
+  const listener = (_event: Electron.IpcRendererEvent, message: ResumeEvent) => callback(message)
+  ipcRenderer.on(RESUME_EVENT, listener)
+  return () => ipcRenderer.removeListener(RESUME_EVENT, listener)
+}))

@@ -26,7 +26,7 @@ export function registerDataIPC(backend: ReturnType<typeof composeBackend>, rend
     const window = BrowserWindow.fromWebContents(event.sender)
     const sender: Sender = { windowOwned: Boolean(window), mainFrame: event.senderFrame === event.sender.mainFrame, url: event.senderFrame?.url ?? '' }
     if (!trustedDataSender(sender, expectedURL)) return { ok: false, error: 'FORBIDDEN' }
-    if (group === 'profiles' && method === 'applyConfirmedImport') {
+    if (group === 'profiles' && method === 'applyImport') {
       try { return importer ? importer.apply(event.sender.id, input) : { ok: false, error: 'FORBIDDEN' } }
       catch (error) { return { ok: false, error: error instanceof ImportFailure && error.code === 'IMPORT_NOT_FOUND' ? 'NOT_FOUND' : errorCode(error) } }
     }

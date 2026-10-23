@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, DetailsList, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Button, DetailsList, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { Contact, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
@@ -57,8 +57,7 @@ export function ProfilePage() {
       <DetailsList items={[{ label: t($ => $.profile.content), value: entry.content },
         ...(entry.tags.length ? [{ label: t($ => $.profile.tags), value: entry.tags.join(', ') }] : []),
         ...(entry.evidence ? [{ label: t($ => $.profile.evidence), value: entry.evidence }] : [])]} />
-      <div className="profile-actions"><Badge tone={entry.verificationStatus === 'CONFIRMED' ? 'success' : 'neutral'}>{entry.verificationStatus === 'CONFIRMED' ? t($ => $.profile.confirmed) : t($ => $.profile.unverified)}</Badge>
-        {entry.verificationStatus === 'UNVERIFIED' && <Button disabled={manualDisabled} onClick={() => void state.perform(() => data.profiles.confirmFact({ id: entry.id }))}>{t($ => $.profile.confirm)}</Button>}
+      <div className="profile-actions">
         <Button disabled={manualDisabled} onClick={() => beginFact({ kind: entry.kind, content: entry.content, tags: entry.tags, evidence: entry.evidence }, entry.profileItemId, entry.id)}>{t($ => $.profile.edit)}</Button>
         <Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'fact', id: entry.id })}>{t($ => $.profile.remove)}</Button></div>
     </div></SectionCard>

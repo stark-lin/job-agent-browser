@@ -50,8 +50,9 @@ app.on('browser-window-created', (_event, window) => {
       for (const channel of ['profile-import:select', 'profile-import:start', 'profile-import:cancel', 'profile-import:discard']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke(${JSON.stringify(channel)},{})`), { ok: false, error: 'FORBIDDEN' })
       }
-      assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','profiles','applyConfirmedImport',{})"), { ok: false, error: 'FORBIDDEN' })
+      assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','profiles','applyImport',{})"), { ok: false, error: 'FORBIDDEN' })
       await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender|不可信的 IPC 发送方/)
+      assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('resume:call','start',{})"), { ok: false, error: 'FORBIDDEN' })
       await require('./window-close-smoke.cjs')(window)
       console.log('Electron smoke passed: production startup, sandboxed bridge, automatic audit, read semantics, deletion and rejected untrusted document.')
       // Main's earlier will-quit listener closes SQLite first. Avoid waiting on Chromium helpers.

@@ -21,6 +21,7 @@ export function createMainWindow(getInboxURL: () => string | null = () => null):
     }
   })
   window.removeMenu()
+  window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame) event.preventDefault() })
 
   const browser = new BrowserManager(window, getInboxURL)
 

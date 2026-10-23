@@ -43,12 +43,12 @@ CREATE TABLE facts (
   profile_item_id TEXT REFERENCES profile_items(id) ON DELETE CASCADE,
   kind TEXT NOT NULL CHECK(kind IN ('ACHIEVEMENT','RESPONSIBILITY','SKILL','AWARD','CERTIFICATION','COURSE','LANGUAGE','OTHER')),
   content TEXT NOT NULL, ${json('tags_json')}, evidence TEXT NOT NULL,
-  verification_status TEXT NOT NULL CHECK(verification_status IN ('UNVERIFIED','CONFIRMED')),
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 ) STRICT;
 CREATE TABLE generation_runs (
   id TEXT PRIMARY KEY, job_id TEXT NOT NULL, type TEXT NOT NULL CHECK(type = 'RESUME'),
   status TEXT NOT NULL CHECK(status IN ('PENDING','RUNNING','SUCCEEDED','FAILED','CANCELLED','INTERRUPTED')),
+  stage TEXT NOT NULL, language TEXT CHECK(language IN ('en','zh-CN')),
   ${json('input_snapshot_json')}, ${json('scores_json', true)}, ${json('gate_json', true)}, ${json('selection_json', true)},
   ${json('draft_json', true)}, ${json('polished_json', true)}, ${json('config_json')}, error TEXT,
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL, finished_at TEXT
@@ -56,7 +56,7 @@ CREATE TABLE generation_runs (
 CREATE TABLE artifacts (
   id TEXT PRIMARY KEY, generation_run_id TEXT NOT NULL UNIQUE REFERENCES generation_runs(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK(type = 'RESUME'), title TEXT NOT NULL, ${json('content_json')},
-  template_id TEXT NOT NULL, ${json('output_files_json')}, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  template_id TEXT NOT NULL, ${json('output_json')}, ${json('output_files_json')}, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 ) STRICT;
 CREATE TABLE artifact_facts (
   artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE, block_id TEXT NOT NULL, fact_id TEXT NOT NULL,

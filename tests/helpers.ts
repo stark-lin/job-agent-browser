@@ -28,17 +28,18 @@ export async function seed(t: TestContext) {
 }
 
 export async function published(t: TestContext) {
-  const f = await seed(t), run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id, factIds: [f.fact.id] }))
+  const f = await seed(t), run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
   const blockId = randomUUID()
-  const content = { schemaVersion: 1 as const, header: { name: 'PRIVATE_PERSON', email: '', phone: '', location: '', links: [] },
-    summary: { id: blockId, text: 'PRIVATE_RESUME_BODY' }, sections: [] }
+  const content = { schemaVersion: 1 as const, language: 'en' as const,
+    basics: { name: f.profile.name, email: f.profile.email, phone: f.profile.phone, location: f.profile.location, links: f.profile.links },
+    summary: { id: blockId, text: 'PRIVATE_RESUME_BODY', factIds: [f.fact.id] }, experience: [], projects: [], education: [], skills: [] }
   f.backend.generation.start({ id: run.id })
-  f.backend.generation.recordScores({ id: run.id, scores: [{ factId: f.fact.id, score: 95, reason: 'PRIVATE_SCORE_REASON' }] })
+  f.backend.generation.recordScores({ id: run.id, language: 'en', scores: [{ factId: f.fact.id, score: 95, reason: 'PRIVATE_SCORE_REASON' }] })
   f.backend.generation.recordGate({ id: run.id, gate: { passed: true, reason: '', missingRequirements: [] } })
   f.backend.generation.selectEvidence({ id: run.id, selection: { factIds: [f.fact.id], itemIds: [f.item.id], wordBudget: 500 } })
   f.backend.generation.saveDraft({ id: run.id, content })
   f.backend.generation.savePolished({ id: run.id, content })
   const provenance = [{ blockId, factIds: [f.fact.id] }]
-  const artifact = f.backend.generation.publishArtifact({ id: run.id, title: 'PRIVATE_ARTIFACT_TITLE', provenance })
+  const artifact = f.backend.generation.publishArtifact({ id: run.id, title: 'PRIVATE_ARTIFACT_TITLE' })
   return { ...f, run, artifact, content, provenance }
 }

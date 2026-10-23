@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | `Button`, `IconButton` | 操作、图标与浏览器标签变体；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
 | `TextArea` | 多行模型 ID 和聊天输入；最小高度使用 96px Token，支持缩放/焦点/禁用/错误状态 | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
-| `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立导入确认 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
+| `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立忽略控件 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
 | `TextInput` | 默认字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
@@ -42,6 +42,7 @@
 | `Dialog` | 原生模态焦点约束、可选正文；页面管理操作及取消 | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
 | `DataTable`、`Badge`、`DetailsList` | 命名滚动区、列标题、元数据列表及带文字的中性/成功/错误徽章 | [DataTable.tsx](../src/shared/ui/DataTable.tsx) |
 | `PlaceholderPage` | 明确的待实现布局，操作由页面提供 | [PlaceholderPage.tsx](../src/shared/ui/PlaceholderPage.tsx) |
+| `StageProgress` / `DocumentPreview` | 带当前步骤语义的业务阶段列表；隔离来源且禁脚本的 iframe，共享高度 640px，由 Main 阻止导航 | [StageProgress.tsx](../src/shared/ui/StageProgress.tsx)、[DocumentPreview.tsx](../src/shared/ui/DocumentPreview.tsx) |
 
 - 缺少基础组件或变体时，先加入 `src/shared/ui/` 并从中央入口导出，再用于页面。仅存在展示示例的表单、徽章、职位卡片、反馈、对话框和表格，若未由现有基础组件表达，仍需中央 React 实现。
 - 通用外观、尺寸、视觉状态和无障碍默认行为归中央库。页面 CSS 可通过共享 Tokens 安排布局，不得复制控件样式、重写 `.ui-*` 选择器或通过内联样式绕过中央库。
@@ -94,8 +95,9 @@
 - 侧栏隐藏文字时仍保留完整无障碍名称及原生提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，底部固定的 Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
 - Settings 在 16px 圆角面板中组合 40px 字段，内边距为 24px（窄屏为 16px）；页面 CSS 仅管理布局。成功反馈使用可读文字及成功背景/边框。展示库 Settings 示例引用这些共享规则。
-- Profile 组合中央卡片、字段、复选框、徽章和弹窗，条目内嵌多个独立事实；确认条目不自动勾选子项。编辑草稿取消受影响的确认，仍有剩余事实时保留已保存父项。窄屏标签可换行，页面 CSS 仅管理布局。Forms 展示库包含确认状态。
+- Profile 组合中央卡片、字段、忽略复选框、状态标记和对话框。保存提交有效且未忽略内容，无效内容聚焦编辑器。忽略父项排除子事实，部分导入保留已保存父项。窄屏标签换行，Forms 图库展示忽略状态。
 - Settings 审计查看器组合中央 `DataTable`、`Badge`、`DetailsList` 和 `Dialog` 正文。表格行至少 64px，ID 可换行，状态带文字，横向滚动区可通过键盘聚焦，不撑宽页面。元数据弹窗在视口内滚动。Tables 展示库包含审计参考。
+- Tailor Resume 组合中央选择字段、操作、阶段进度、来源详情和文档预览。页面 CSS 只管理布局，输出重试、取消及系统保存明确显示状态。Feedback 图库包含这两个原语，PDF 排版由固定输出模板管理。
 - 保留原生键盘激活、禁用行为和可见焦点。裸 `TextInput` 必须位于提供可见焦点反馈的容器中，参见 [AddressBar](../src/pages/browser/AddressBar.tsx)；其自身描边按设计被移除。
 - 标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
 - 区分加载、空状态、成功与错误。不得让参考示例看起来像已实现操作；页面文案归属 [i18n 资源](../src/shared/i18n/locales/en.ts)。
@@ -131,7 +133,7 @@ npm run quality
 | [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、响应式宽度及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider 表单、中央多行输入、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
 | [审计查看器 smoke](../scripts/audit-viewer-smoke.cjs) | 筛选、分页、元数据弹窗、键盘关闭、320/640/1200px 页面无溢出及只读/错误/加载状态 | 不认证读屏或并发写入时跨页快照一致性 |
-| [个人资料 smoke](../scripts/profile-smoke.cjs) | 手动条目/事实、构建后的 PDF Worker/SSE、逐项确认、分批保存、重载/分页、320/640/1200px 双语浅/暗布局及离开保护 | 使用生成 PDF/本地 AI 样本，不认证第三方 Provider、任意 PDF 排版或读屏器 |
+| [个人资料 smoke](../scripts/profile-smoke.cjs) | 手动条目/事实、构建后的 PDF Worker/SSE、显式保存/忽略、分批保存、重载/分页、320/640/1200px 双语浅/暗布局及离开保护 | 使用生成 PDF/本地 AI 样本，不认证第三方 Provider、任意 PDF 排版或读屏器 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
 | [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings/Home 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
 

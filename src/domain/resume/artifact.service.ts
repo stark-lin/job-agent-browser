@@ -1,7 +1,8 @@
 import type { ResumeRepository } from './resume.repository'
 import type { References, Runtime, UnitOfWork } from '../common/ports'
-import * as v from '../common/validation'
+import { documentProvenance } from './document'
 import * as check from './resume.validation'
+import * as v from '../common/validation'
 import { snapshotReferences } from './references'
 
 export function createArtifactService(repo: ResumeRepository, tx: UnitOfWork, runtime: Runtime, refs: References) {
@@ -14,12 +15,12 @@ export function createArtifactService(repo: ResumeRepository, tx: UnitOfWork, ru
     }) },
     editArtifact(input: unknown) {
       return tx.write({ event: 'ARTIFACT_EDIT', action: 'UPDATE', target: 'artifact' }, () => {
-        const args = v.object({ id: v.id, title: v.text(500, 1), content: check.content, provenance: check.provenance })(input)
+        const args = v.object({ id: v.id, title: v.text(500, 1), content: check.content })(input)
         const artifact = repo.getArtifact(args.id), run = repo.getRun(artifact.generationRunId)
-        check.validateContent(run, args.content, args.provenance)
-        Object.assign(artifact, { title: args.title, content: args.content, updatedAt: runtime.now(), outputFiles: [] })
+        check.validateContent(run, args.content, true)
+        Object.assign(artifact, { title: args.title, content: args.content, updatedAt: runtime.now(), outputFiles: [], output: { status: 'PENDING', error: null, pages: null } })
         repo.saveArtifact(artifact)
-        repo.replaceLinks(artifact.id, args.provenance.flatMap((link) => link.factIds.map((factId) => ({ artifactId: artifact.id, blockId: link.blockId, factId }))))
+        repo.replaceLinks(artifact.id, documentProvenance(args.content).flatMap(link => link.factIds.map(factId => ({ artifactId: artifact.id, blockId: link.blockId, factId }))))
         return artifact
       })
     },

@@ -130,6 +130,7 @@
   --skeleton-base: #e9e9e5;
   --skeleton-highlight: #f4f4f1;
   --gallery-backdrop: rgba(23,23,23,.14);
+  --document-preview-height: 640px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {

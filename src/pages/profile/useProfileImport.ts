@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useServices } from '../../app/providers'
 import type { AIChoice, AISettings } from '../../shared/ai'
-import type { ConfirmedImport, ImportDraft } from '../../domain/candidate/import.types'
+import type { ApplyImport, ImportDraft } from '../../domain/candidate/import.types'
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { ImportEvent, ImportTask, PdfSelection } from '../../platform/electron/profile-import-contract'
-import { confirmedSelection, savedSelection } from './import-state'
+import { importError, importSelection, savedSelection } from './import-state'
 
 export function useProfileImport(profile: Profile | null, onSaved: (profile: Profile) => Promise<void>) {
   const { data, profileImport, context } = useServices()
@@ -13,7 +13,7 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
   const [progress, setProgress] = useState({ page: 0, pages: 0 }), [error, setError] = useState(''), [saved, setSaved] = useState(false), [saving, setSaving] = useState(false)
   const [frozen, setFrozen] = useState(false)
   const file = useRef<PdfSelection | null>(null), task = useRef<ImportTask | null>(null), alive = useRef(true), lock = useRef(false)
-  const pending = useRef<ConfirmedImport | null>(null), early = useRef<ImportEvent[]>([]), starting = useRef(false)
+  const pending = useRef<ApplyImport | null>(null), early = useRef<ImportEvent[]>([]), starting = useRef(false)
   const selected = useRef<AIChoice | null>(null), [choice, setChoice] = useState<AIChoice | null>(null)
   const importedProfileId = useRef<string | null>(null)
   function event(message: ImportEvent) {
@@ -67,12 +67,19 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
   }
   async function save() {
     if (!draft || !task.current || lock.current) return
-    const input = pending.current ?? confirmedSelection(draft, task.current.sessionId, crypto.randomUUID(), profile?.id ?? importedProfileId.current)
-    if (!Object.keys(input.contact).length && !input.items.length && !input.facts.length && !input.links.length) { setError('noConfirmed'); return }
+    const invalid = importError(draft)
+    if (!pending.current && invalid) {
+      setError('INVALID_INPUT')
+      const editor = document.querySelector(`[data-import-id="${invalid}"]`)
+      editor?.scrollIntoView({ block: 'center' }); editor?.querySelector<HTMLElement>('input, textarea, select')?.focus()
+      return
+    }
+    const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), profile?.id ?? importedProfileId.current)
+    if (!Object.keys(input.contact).length && !input.items.length && !input.facts.length && !input.links.length) { setError('noContent'); return }
     if (!input.profileId && !input.contact.name?.trim()) { setError('nameRequired'); return }
     lock.current = true; setSaving(true); setError(''); pending.current = input; setFrozen(true)
     try {
-      const result = await data.profiles.applyConfirmedImport(input)
+      const result = await data.profiles.applyImport(input)
       if (!alive.current) return
       if (!result.ok) { setError(result.error); pending.current = null; setFrozen(false); return }
       importedProfileId.current = result.value.profile.id

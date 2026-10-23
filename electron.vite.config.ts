@@ -2,12 +2,13 @@ import { en } from './src/shared/i18n/locales/en'
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
-import { copyFileSync, mkdirSync } from 'node:fs'
+import { copyFileSync, mkdirSync, cpSync } from 'node:fs'
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin(), { name: 'profile-pdf-worker', writeBundle() {
       mkdirSync(resolve(__dirname, 'out/main'), { recursive: true })
+      cpSync(resolve(__dirname, 'resources/fonts'), resolve(__dirname, 'out/main/fonts'), { recursive: true })
       copyFileSync(resolve(__dirname, 'src/platform/profile-import/pdf-worker.mjs'), resolve(__dirname, 'out/main/pdf-worker.mjs'))
     } }],
     build: {

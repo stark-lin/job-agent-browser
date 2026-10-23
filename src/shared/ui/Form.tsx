@@ -16,9 +16,9 @@ export function Select({ className = '', ...props }: ComponentPropsWithRef<'sele
   return <select {...props} className={`ui-select ${className}`.trim()} />
 }
 
-export function SectionCard({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+export function SectionCard({ title, description, children, ...props }: Omit<ComponentPropsWithRef<'section'>, 'title'> & { title: string; description?: string; children: ReactNode }) {
   const id = useId()
-  return <section className="ui-section-card" aria-labelledby={id}>
+  return <section {...props} className="ui-section-card" aria-labelledby={id}>
     <div className="ui-section-heading"><h2 id={id}>{title}</h2>{description && <p>{description}</p>}</div>
     {children}
   </section>

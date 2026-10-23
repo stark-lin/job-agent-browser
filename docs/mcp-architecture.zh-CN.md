@@ -1,6 +1,6 @@
 # 工具与 MCP 运行时
 
-用途：定义能力注册、受限执行和 MCP 接入。状态：Main 管理的 Native/stdio MCP 工具及带审计的 read/write 能力**已实现**；模型 Tool Calling、业务 Agent Loop、Browser 工具及远程 Transport 仍为**规划**。
+用途：定义能力注册、受限执行及 MCP 集成。状态：Main 管理的 Native/stdio 工具、审计能力、兼容 AgentModel/AgentLoop 和 ResumeAgent 快照工具均**已实现**。Browser 工具及远程 Transport 仍为**规划**。
 
 语言：简体中文 · [English](mcp-architecture.md)
 
@@ -18,7 +18,7 @@ Main-bound caller → ToolScope → validated Tool binding
 
 [原生绑定](../src/platform/tools/native.ts)明确提供 `job.get`、`job.list`、`profile.get`、`profile.list_facts` 和 `artifact.get`。仅 Main 可用的 `job.set_archived` 写能力复用 Domain Service，但不向 Agent 注册。生成阶段持久化、事务、原始 SQL 和 Secret 永不成为工具绑定。存储/审计语义归属[数据架构](data-architecture.zh-CN.md#四审计与事务)。
 
-现有 [AI SSE 适配器](../src/platform/ai/compatible.ts)仍拒绝模型工具调用。注册工具不代表已实现 Resume/Discovery/Interview Loop，也不会使对话自动获得业务数据访问权。
+[AI SSE 适配器](../src/platform/ai/compatible.ts)保留无工具的流式对话。[AgentModel](../src/shared/agent/index.ts)独立定义非流式消息、工具批次、最终文本、取消及错误；[兼容适配](../src/platform/agent/compatible.ts)共享配置/HTTP 基础，将含点名称无冲突地映射为 Provider 名称。每个已接受模型调用记录一次固定结果审计，不持久化提示词/输出。
 
 ## 二、注册与 Scope
 
@@ -27,6 +27,10 @@ Main-bound caller → ToolScope → validated Tool binding
 [策略](../src/shared/tools/policy.ts)要求明确提供 `allow`，空数组不授予能力。仅支持完整名称或 `profile.*` 形式的尾部命名空间通配符。Deny 优先，`*.delete` 和任意 glob 模式无效。风险顺序为 `READ < COMPUTE < WRITE < EXTERNAL_ACTION`，默认最高风险为 `READ`。
 
 Scope 在创建时固定允许的条目、策略及 Main 绑定的调用身份，新工具不会进入已有 Scope。移除/替换撤销旧条目和进行中的调用；旧 Scope 不会自动绑定重连后的工具。释放 Scope 或取消调用方会终止当前调用。在确认机制实现前，应用运行时仅接受 `READ / COMPUTE` Scope。
+
+通用 [AgentLoop](../src/platform/agent/loop.ts)每阶段最多调用模型 8 次。先记录完整 assistant 调用列表，再顺序执行工具并追加对应 observation。普通工具错误可作为 observation；取消和审计失败立即终止。空/非法输出、重复 call ID 及超限明确失败。不提供自动重试、fallback、planner、memory 或并行工具。
+
+[Resume Scope](../src/platform/agent/snapshot-tools.ts)使用任务私有 Registry，仅注册 `job.get`、`profile.get` 及分页 `profile.list_facts`，绑定不可变输入及固定对象 ID。不开放实时读取、外部 MCP 工具或 Artifact/状态写入。Domain 只获得注入的阶段 runner，Main 在完成/取消时释放 Scope。简历生命周期及溯源归属[数据架构](data-architecture.zh-CN.md)。
 
 ## 三、Provider 审核与转换
 

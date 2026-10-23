@@ -223,11 +223,11 @@
         </div>
 
         <div class="demo">
-          <div class="demo-label">Checkbox · independent confirmation</div>
+          <div class="demo-label">Checkbox · ignore imported content</div>
           <div class="demo-stage stack">
-            <label class="check-row"><input type="checkbox" checked /><span>Confirm entry information</span></label>
-            <label class="check-row"><input type="checkbox" /><span>I confirm this fact is accurate</span></label>
-            <label class="check-row"><input type="checkbox" disabled /><span>Confirm the parent entry before confirming this fact.</span></label>
+            <label class="check-row"><input type="checkbox" checked /><span>Ignore entry and its facts</span></label>
+            <label class="check-row"><input type="checkbox" /><span>Ignore this fact</span></label>
+            <label class="check-row"><input type="checkbox" disabled /><span>Parent entry is ignored.</span></label>
             <button class="check-row" style="border:0;background:transparent;padding:0" role="switch" aria-checked="true" onclick="const s=this.querySelector('.switch');s.classList.toggle('on');this.setAttribute('aria-checked',s.classList.contains('on'))">
               <span class="switch on"></span> AI suggestions
             </button>
@@ -468,6 +468,14 @@
             <div class="skeleton" style="width:76%"></div>
             <div class="skeleton" style="width:64%"></div>
           </div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">StageProgress · business stages</div>
+          <div class="demo-stage"><ol class="ui-stage-progress" aria-label="Generation progress"><li class="is-done">Score evidence</li><li class="is-current" aria-current="step">Write draft</li><li>Build HTML / PDF</li></ol></div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">DocumentPreview · isolated document</div>
+          <div class="demo-stage"><iframe class="ui-document-preview" title="Document preview sample" sandbox="" referrerpolicy="no-referrer" srcdoc="&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src 'none'; script-src 'none'&quot;&gt;&lt;h1&gt;Resume preview&lt;/h1&gt;&lt;p&gt;Static document container sample.&lt;/p&gt;"></iframe></div>
         </div>
       </section>
 

@@ -1,6 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储模型和公开业务 API。状态：SQLite 存储、事务审计、业务校验和 IPC **已实现**；AI 对话和调用审计**已实现**；个人资料编辑、经核对的 PDF 提取、新增工作和申请记录基础列表**已实现**；AI 简历生成、编译及其余业务流程仍为**规划**，配置和加密密钥**已实现**；其余业务 UI 为**占位**。
+用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位/申请以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume Agent V1 均**已实现**。其余产品流程为**规划**。
 
 语言：简体中文 · [English](data-architecture.md)
 
@@ -8,7 +8,7 @@
 
 [Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；Profile 选择或保存当前记录时同步共享 Profile ID。
 
-[版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 12 张数据表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
+[版本化迁移](../src/platform/database/migrations/index.ts)在修改日志模式/结构之前识别数据库世代 `0x4a415632`。只接受空库或相同世代；旧库报 `INCOMPATIBLE_DATABASE_GENERATION`，不重置、删除或迁移。开发/验收必须使用独立 userData。同世代使用事务迁移及校验和；未来版本和校验不匹配使启动失败。UUID v4 ID 删除后不可复用；时间为 UTC ISO 字符串。
 
 [共享 ER 图](diagrams/data-model.md) 描述已实现模型。具体 SQL 类型、默认值、可空性、约束及索引以[建表定义](../src/platform/database/migrations/schema.ts)和[版本 2 审计迁移](../src/platform/database/migrations/ai-audit.ts)为准；后者保留原记录及 15 个审计字段，扩充固定错误码。JSON 使用校验后的 TEXT 列；SQL 表使用 STRICT。Applications 和 Calendar 基于 Job 与 JobEvent，不另建申请或日历表。
 
@@ -40,25 +40,25 @@
 
 归档 Job 拒绝变更状态及安排/调整日程。`APPLIED` 设置申请时间，终态设置关闭时间。系统生成的状态事件不能单独删除。日历范围包含两端，按日程开始时间筛选。邮件同步/事件仍为规划。
 
-[个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。新建或修改事实为 `UNVERIFIED`，只有 `confirmFact` 将其标记为 `CONFIRMED`。
+[个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。全部已保存 Fact 均可参与生成，不存在确认状态、数据库列或确认操作。
 
-每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。普通编辑（包括修改归属）通过[事实服务](../src/domain/candidate/fact.service.ts)使确认失效。
+每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。
 
-[条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。已有日级日期及旧 metadata 继续可读；扩展使用现有 JSON 列，不修改已记录的迁移。
+[条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。新数据库世代通过 JSON metadata 保留部分日期精度。
 
-[确认导入](../src/domain/candidate/import.service.ts)在一个事务中只应用已选联系方式字段、追加链接并插入已选条目/事实。新资料需要已选姓名；每个 Fact 在该事务内复用普通确认操作。返回记录包含草稿到条目/事实 ID 的映射。[Main 会话](../src/platform/profile-import/service.ts)校验文件/任务归属，将已有父项引用限制为本次已保存映射，并按批次缓存回执。同批重试返回已保存结果；变更载荷或重用已消费草稿 ID 报冲突。后续批次可把剩余 Fact 关联到此前已保存条目，父项被删除时整批失败。再次上传创建新会话，允许确认后新增重复内容。回执只存内存，归属当前窗口，并随会话清理。
+[显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦其编辑器。忽略父项会排除其事实。新资料需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
 
 导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。只有已保存 Fact 的原文片段/页码进入 `evidence`，PDF 字节、完整文字和未保存草稿只存内存。AI 审计继续只表示请求启动。
 
 ## 三、生成、成品与删除
 
-[简历请求](../src/domain/resume/resume.service.ts) 保存版本 1 的 Job、Profile、入选 Fact、入选条目及必要祖先快照。拒绝空事实选择、跨资料证据及归档职位。未经确认的事实在快照中保留原状态。默认配置为模板 `default` 和 500 词；输入及配置不可修改。
+[简历请求](../src/domain/resume/resume.service.ts)原子收集 Job、Profile、全部已保存 Fact 及关联条目快照。空证据及归档职位失败。配置固定 `default-v1`、默认 500 词预算及所选 Provider/模型，凭据不进入快照。[Domain ResumeAgent](../src/domain/resume/resume.agent.ts)通过注入的阶段 runner 执行评分 → 门控 → 筛选 → 草稿 → 校验 → 润色 → 校验 → 发布。评分持久化 `factId / score / reason` 及跟随职位职责/要求的输出语言；无法判断时默认英文。
 
-[仅 Main 可调用的生成服务](../src/domain/resume/generation.service.ts) 持久化开始 → 评分 → 门控 → 筛选 → 初稿 → 润色 → 校验成品。它不调用 AI 或编译器。状态为 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。门控失败停止任务。启动时将残留 `RUNNING` 任务标记为 `INTERRUPTED` 并记录 SYSTEM 审计。重试通过当前输入创建新任务。运行中的任务须先取消才能删除。
+[仅 Main 可调用的 GenerationService](../src/domain/resume/generation.service.ts)持久化阶段；模型只获得快照读取工具，不能发布或写状态。状态为 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。门控拒绝保存原因/缺失证据并停止。启动中断残留的待开始/运行任务；重试新建 run。发布原子创建唯一 Artifact 并标记 `SUCCEEDED`；后续输出失败/取消保留成品。
 
-[成品校验](../src/domain/resume/resume.validation.ts) 检查内容 ID 唯一、入选快照引用、每个内容块的完整溯源及所选词数预算。每次任务最多一个 Artifact。内容与溯源原子编辑，并清空过期输出文件引用。Main 内部输出记录接受各一个相对 PDF 和 DOCX 路径；编译及文件系统一致性仍为规划。
+[ResumeDocument](../src/domain/resume/resume.types.ts)是 draft/polished/Artifact 唯一结构：语言、应用复制的基本信息及条目元数据、summary、experience/projects/education bullet 及 skills。每条生成表述包含稳定 UUID、文字和非空 `factIds`。[校验](../src/domain/resume/resume.validation.ts)强制唯一 ID、入选快照引用、条目归属、基本信息不变及语言感知预算；中日韩字符逐字计数。润色不能新增表述 ID、条目或扩大草稿表述的引用。`artifact_facts` 从表述派生，调用方不再提交独立溯源。引用合法不代表语义真实；[人工核对样本](../tests/fixtures/resume-evidence.json)明确将虚构数字及扩张职责标为无证据支持。
 
-硬删除移除来源实体，同时保留历史生成结果及不可变快照。历史仍包含业务内容，删除不等于隐私清除。`getRun`、`listRuns` 与 `getArtifact` 返回的引用包含 `ACTIVE / DELETED` 和 `deletedAt`，仅成功删除审计确立已删除状态。
+[输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
 
 | 删除对象 | 结果 |
 | --- | --- |
@@ -94,6 +94,8 @@
 
 每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。对话历史只在页面内存中，不新增 AI 运行/消息表。
 
+**Agent 模型审计：**每次非流式调用通过 `recordAgentModel` 尝试记录一次固定 `AGENT_MODEL_RESULT` 结果；组件 `ai`、位置 `agent.model`、来源 `GENERATOR`、主体 `resume-agent`。仅保存不透明请求 ID 及固定结果，不保存提示词、输出、密钥或隐藏推理。审计失败终止执行。
+
 **已实现审计浏览：**只读 [Settings 查看器](../src/pages/settings/AuditViewerSection.tsx)使用 `audit.list`，不更改数据库结构或 IPC。默认每页 25 条，按序号倒序排列。类型/状态、目标/请求/事务 ID 精确匹配及包含边界的时间范围组合现有筛选。[筛选转换](../src/pages/settings/audit-filters.ts)校验 ID/范围，并将本地日期时间转换为规范 UTC；详情同时显示本地化时间和存储的 UTC 值。刷新/重置/应用筛选均回到第一页。分页使用 offset，新增写入可能移动后续页记录，应刷新获取最新顺序。不提供导出、自动轮询、日志修改或业务内容重建。设置/密钥写入仍不进入审计，AI 成功仍仅表示启动。
 
 **已实现能力审计：**[read/write 封装](../src/platform/tools/capabilities.ts)校验参数并提交 `START`，然后调用 Domain Service 或 MCP Client，最后提交唯一的 `END`，包含成功/固定错误和耗时。工具绑定不自行写审计。原生写入复用现有业务事务，每个变更行只产生一次业务变更审计，另有独立的能力访问/结果记录；外部网络等待不占用 SQLite 事务。
@@ -108,7 +110,7 @@
 
 每个方法接收一个输入对象，返回 `{ ok: true, value }` 或 `{ ok: false, error }`。已实现的业务接口拒绝未知字段，包括注入的审计/事务字段。详情编辑方法替换允许的详情，应用类型约定的默认值，不是任意字段 patch。列表使用 `limit`（默认 25，最大 100）及 `offset`（默认 0，最大 1000000），返回 `{ items, total }` 并稳定排序。多表读取使用一致性读事务。
 
-可选详情文本及可选 URL 默认空字符串，数组默认空数组，可空 ID/日期/薪资默认空值，条目顺序默认 0。必填来源/联系方式链接 URL 必须使用 HTTP(S) 且不含凭据。内容须至少包含一个文本块；词数预算统计摘要/要点块中按空白分隔的词。具体结构及上限由 Domain 校验模块执行。
+可选详情文本及可选 URL 默认空字符串，数组默认空数组，可空 ID/日期/薪资默认空值，条目顺序默认 0。必填来源/联系方式链接 URL 必须使用 HTTP(S) 且不含凭据。ResumeDocument 至少包含一条有来源表述；预算使用统一的语言感知计数函数。具体结构及上限由 Domain 校验模块执行。
 
 | 命名空间 / 方法 | 输入及结果 / 行为 |
 | --- | --- |
@@ -123,22 +125,22 @@
 | `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → 删除 ID / Companies |
 | `profiles.createProfile`, `profiles.editContact` | 联系方式详情 / `{ id, details }` → Profile |
 | `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / 删除 ID / Profiles |
-| `profiles.applyConfirmedImport` | 已确认子集及会话/批次 ID → 已保存 Profile/条目/事实和草稿 ID 映射；校验归属，原子保存 |
+| `profiles.applyImport` | 显式子集及会话/批次 ID → 已保存 Profile/条目/事实和草稿 ID 映射；校验归属，原子保存 |
 | `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
 | `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
 | `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → 删除 ID / ProfileItems |
 | `profiles.addFact`, `profiles.editFact` | `{ profileId, profileItemId?, details }` / `{ id, profileItemId?, details }` → Fact |
-| `profiles.confirmFact`, `profiles.deleteFact`, `profiles.listFacts` | `{ id }` / `{ profileId }` + Page → Fact / 删除 ID / Facts |
+| `profiles.deleteFact`, `profiles.listFacts` | `{ id }` / `{ profileId }` + Page → 删除 ID / Facts |
 | `applications.changeStatus` | `{ jobId, status }` → Job，内部记录状态事件 |
 | `applications.scheduleEvent` | `{ jobId, type, title, description?, startsAt, endsAt? }` → 日程事件 |
 | `applications.rescheduleEvent` | `{ id, startsAt, endsAt? }` → 日程事件 |
 | `applications.addNote`, `applications.deleteEvent` | `{ jobId, text }` / `{ id }` → 事件 / 删除 ID |
 | `applications.listEvents`, `applications.listCalendar` | `{ jobId }` / `{ from, to }` + Page → 事件 |
-| `resumes.createRun` | `{ jobId, profileId, factIds, itemIds?, config? }` → GenerationRun |
+| `resumes.createRun` | `{ jobId, profileId, config? }` → GenerationRun |
 | `resumes.cancelRun`, `resumes.deleteRun`, `resumes.getRun` | `{ id }` → 任务 / 删除 ID / `{ run, references }` |
 | `resumes.listRuns` | Page + `jobId?` → `{ run, references }` 列表，包含已删除 Job 的历史 |
 | `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
-| `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content, provenance }` / `{ id }` → Artifact / 删除 ID |
+| `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content }` / `{ id }` → Artifact / 删除 ID |
 | `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → 审计，序号倒序 |
 | `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题、邮箱或 `ai` 配置 → 带版本的 Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 通过 `provider` 指定 Provider 实例 ID；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
@@ -171,13 +173,13 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 [PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)暴露 `window.profileImport.selectPdf/start/cancel/discard/onEvent`，仅返回文件摘要、任务阶段、草稿或固定错误码，不提供路径读取。异步文件/网络操作与同步业务事务分离。
 
-独立的 [AI API](../src/shared/ai.ts)暴露 `window.ai.start`、`cancel` 和 `onEvent`，不扩展同步数据分发，也不暴露审计写入。流式运行与生命周期行为归属[当前架构](architecture.zh-CN.md)。
+独立的 [AI API](../src/shared/ai.ts)保留流式对话。[简历 IPC](../src/platform/electron/resume-contract.ts)暴露 `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`；事件携带 run ID 和递增序号，不显示隐藏推理。每个窗口只允许一个活动任务；页面导航保留任务，窗口释放取消。发布前取消终止 run，发布后只停止输出。导出打开系统保存对话框并复制已有 PDF。
 
 [职位导入桥接](../src/platform/electron/job-import-contract.ts) 暴露 `window.jobImport.start/cancel/onEvent`，与同步业务分发分离。新读取/解析错误仅属于该桥接，不扩充数据库审计错误码；AI 调用沿用既有启动审计，网页和模型输出不会写入审计。
 
 ## 六、配置、密钥与待完成工作
 
-Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。`userData/artifacts/` 下的编译成品仍为规划。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
+Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。编译后的 HTML/PDF 成品保存在 `userData/artifacts/`。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
 
 可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#四配置与生命周期)管理配置示例和限制。
 
@@ -187,7 +189,7 @@ Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` �
 
 [密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、模型 Tool Calling、结构化输出集成、AI 业务生成、登录态网页提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
+[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、严格结构化输出协商、登录态网页提取/查重、其余业务 UI 和完整隐私清除尚未实现。简历 Provider 兼容性通过本地样本验证，真实 Provider 仍未验证。
 
 - [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。

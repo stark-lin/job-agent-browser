@@ -14,24 +14,14 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
     ...createArtifactService(repo, tx, runtime, refs),
     createRun(input: unknown) {
       return tx.write({ event: 'GENERATION_CREATE', action: 'CREATE', target: 'generation_run' }, () => {
-        const args = v.object({ jobId: v.id, profileId: v.id, factIds: v.array(v.id), itemIds: v.optional(v.array(v.id), []), config: v.optional(check.config, check.config({})) })(input)
-        v.unique(args.factIds); v.unique(args.itemIds)
-        if (!args.factIds.length) fail('INVALID_INPUT')
+        const args = v.object({ jobId: v.id, profileId: v.id, config: v.optional(check.config, check.config({})) })(input)
         const job = jobs.get(args.jobId), profile = candidate.getProfile(args.profileId)
         if (job.archivedAt) fail('INVALID_STATE')
-        const facts = args.factIds.map((id) => candidate.getFact(id))
-        if (facts.some((fact) => fact.profileId !== profile.id)) fail('CONFLICT')
-        const itemIds = new Set([...args.itemIds, ...facts.flatMap((fact) => fact.profileItemId ? [fact.profileItemId] : [])])
-        // Include ancestors so a historical snapshot remains understandable after deletion.
-        for (const id of itemIds) {
-          const item = candidate.getItem(id)
-          if (item.profileId !== profile.id) fail('CONFLICT')
-          if (item.parentItemId) itemIds.add(item.parentItemId)
-          if (itemIds.size > 1000) fail('CONFLICT')
-        }
+        const facts = candidate.allFacts(profile.id), items = candidate.allItems(profile.id)
+        if (!facts.length) fail('INVALID_INPUT')
         const now = runtime.now()
-        const run: GenerationRun = { id: runtime.id(), jobId: job.id, type: 'RESUME', status: 'PENDING',
-          inputSnapshot: { schemaVersion: 1, job, profile, facts, items: [...itemIds].map((id) => candidate.getItem(id)) },
+        const run: GenerationRun = { id: runtime.id(), jobId: job.id, type: 'RESUME', status: 'PENDING', stage: 'snapshot', language: null,
+          inputSnapshot: { schemaVersion: 1, job, profile, facts, items },
           scores: null, gate: null, selection: null, draft: null, polished: null, config: args.config, error: null,
           createdAt: now, updatedAt: now, finishedAt: null }
         repo.insertRun(run)

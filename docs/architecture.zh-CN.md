@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 应用组装、九个可访问入口、每标签混合导航、浏览器基础、Settings、个人资料编辑/PDF 导入、新增工作/申请记录、兼容 OpenAI 的 SSE 对话及业务存储**已实现**。其余业务流程与编译仍为**规划**；其余业务页面 UI 为**占位**。
+用途：记录已验证的运行行为。状态：React 组装、混合导航、设置、个人资料编辑/PDF 导入、职位/申请、流式对话及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**，更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -18,7 +18,7 @@ React App → Page → Preload → IPC → Main
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据/AI 桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现流式对话。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，其余两个功能入口仍为占位。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现流式对话。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；面试准备仍为占位。
 
 ## 二、路由与混合历史
 
@@ -56,13 +56,13 @@ React App → Page → Preload → IPC → Main
 
 [App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体或提取网页内容。Profile 优先加载有效的引用记录，否则选择最近更新的 Profile，并在加载/保存后同步共享 ID。
 
-**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。[兼容适配器](../src/platform/ai/compatible.ts)在配置的 Base URL 下调用 Chat Completions 并消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。尚未实现自动重试、跨 Provider 回退、模型 Tool Calling、结构化输出能力探测或模型发现。
+**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。[兼容适配器](../src/platform/ai/compatible.ts)在配置的 Base URL 下调用 Chat Completions 并消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。尚未实现自动重试、跨 Provider 回退、结构化输出能力探测或模型发现。
 
 [AI IPC](../src/platform/electron/main/ai-ipc.ts)只暴露启动/取消，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，设置 120 秒总超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
-[对话](../src/pages/ai/useChat.ts)继承已保存默认值，可覆盖 Provider/模型，并展示完成、失败或停止状态。新对话清空消息；离开页面取消请求并清除仅存内存的历史。切换模型后已有消息保留响应模型标签。[AI 设置](../src/pages/settings/AISettingsSection.tsx)管理 Provider 实例、手填模型 ID，以及显式发起的短流式连接测试。自动 Job/Profile/网页上下文和业务生成仍为规划。审计和凭据持久化归属[数据架构](data-architecture.zh-CN.md)。
+[对话](../src/pages/ai/useChat.ts)继承已保存默认值，可覆盖 Provider/模型，并展示完成、失败或停止状态。新对话清空消息；离开页面取消请求并清除仅存内存的历史。切换模型后已有消息保留响应模型标签。[AI 设置](../src/pages/settings/AISettingsSection.tsx)管理 Provider 实例、手填模型 ID，以及显式发起的短流式连接测试。对话自动上下文仍为规划；简历生成使用独立的 Main 执行路径。审计和凭据持久化归属[数据架构](data-architecture.zh-CN.md)。
 
-**已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与确认语义归属[数据架构](data-architecture.zh-CN.md)。
+**已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与显式保存语义归属[数据架构](data-architecture.zh-CN.md)。
 
 [导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/profile-import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
 
@@ -76,6 +76,8 @@ Main 将带页码文字发送给已展示的全局默认 Provider/模型，复�
 
 [申请记录](../src/pages/applications/ApplicationsPage.tsx)显示未归档工作，支持名称/公司搜索、状态筛选、25 条分页、手动刷新及只读详情/来源。保存后更新共享 Job ID，跳转并打开新职位详情；跳转失败时不重复提交已保存记录。状态编辑、日历和去重仍为规划。
 
+**已实现 Resume Agent V1：**[Main 任务](../src/platform/agent/resume-tasks.ts)在启动 [Domain 工作流](../src/domain/resume/resume.agent.ts)前固定默认 Provider/模型并收集不可变输入。[异步桥接](../src/platform/electron/resume-contract.ts)驱动[定制简历](../src/pages/tailor-resume/TailorResumePage.tsx)，返回页面恢复任务，每窗口限制一个活动任务，窗口销毁取消工作。输出失败独立重试，发布继续保持成功。[数据架构](data-architecture.zh-CN.md#三生成成品与删除)管理文档、溯源、输出与恢复语义；[MCP 架构](mcp-architecture.zh-CN.md)管理 AgentModel/AgentLoop 及快照 Scope 边界。
+
 ## 四、会话、安全与存储
 
 远程视图共享 `persist:job-agent-browser`，网站存储跨重启保留。权限请求被拒绝；没有多资料选择器。
@@ -87,7 +89,7 @@ Main 将带页码文字发送给已展示的全局默认 Provider/模型，复�
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
-**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)通过[工具运行时](../src/platform/mcp/runtime.ts)组装原生读取及可选 stdio Server，在后台启动外部连接，退出时完成工具/AI 清理后再关闭 SQLite。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、Scope、审核 Schema、有界执行及生命周期。暂不提供 Renderer 工具桥接、模型 Tool Calling 或业务 Agent Loop。
+**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)通过[工具运行时](../src/platform/mcp/runtime.ts)组装原生读取及可选 stdio Server，在后台启动外部连接，退出时完成工具/AI 清理后再关闭 SQLite。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、Scope、审核 Schema、有界执行及生命周期。暂不提供 Renderer 工具桥接或 Renderer 通用工具执行。
 
 ## 五、国际化
 
@@ -101,7 +103,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 [个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、证据、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
-标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、AI 简历生成、编译、完整 Shared Context 捕获及安装包仍未实现。
+标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获及安装包仍未实现。
 
 [职位导入测试](../tests/job-import.test.ts)覆盖 HTML 清洗、访问限制、超时/取消、字段白名单、手工值保留及初始状态；[新增工作 smoke](../scripts/job-smoke.cjs)通过本地 HTML/SSE 服务验证真实桥接、保存跳转、申请记录及双语主题布局。真实第三方招聘站点和账号兼容性未验证。
 

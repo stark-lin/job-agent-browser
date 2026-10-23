@@ -4,6 +4,7 @@ import type { Artifact, GenerationRun } from './resume.types'
 import { fail } from '../common/errors'
 import * as v from '../common/validation'
 import * as check from './resume.validation'
+import { documentProvenance } from './document'
 
 /** Main-only persistence steps. They perform no AI/network work and are never exposed over IPC. */
 export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, runtime: Runtime) {
@@ -18,17 +19,17 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       return tx.write({ event: 'GENERATION_START', action: 'UPDATE', target: 'generation_run' }, () => {
         const run = repo.getRun(v.byId(input).id)
         if (run.status !== 'PENDING') fail('INVALID_STATE')
-        run.status = 'RUNNING'
+        run.status = 'RUNNING'; run.stage = 'score'
         return save(run)
       })
     },
     recordScores(input: unknown) {
       return tx.write({ event: 'GENERATION_SCORE', action: 'UPDATE', target: 'generation_run' }, () => {
-        const args = v.object({ id: v.id, scores: check.scores })(input), run = running(args.id)
+        const args = v.object({ id: v.id, scores: check.scores, language: check.language })(input), run = running(args.id)
         if (run.scores) fail('INVALID_STATE')
         v.unique(args.scores.map((score) => score.factId))
         if (args.scores.length !== run.inputSnapshot.facts.length || args.scores.some((score) => !run.inputSnapshot.facts.some((fact) => fact.id === score.factId))) fail('CONFLICT')
-        run.scores = args.scores
+        run.scores = args.scores; run.language = args.language; run.stage = 'gate'
         return save(run)
       })
     },
@@ -36,7 +37,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       return tx.write({ event: 'GENERATION_GATE', action: 'UPDATE', target: 'generation_run' }, () => {
         const args = v.object({ id: v.id, gate: check.gate })(input), run = running(args.id)
         if (!run.scores || run.gate) fail('INVALID_STATE')
-        run.gate = args.gate
+        run.gate = args.gate; run.stage = 'select'
         if (!args.gate.passed) { run.status = 'FAILED'; run.error = 'GATE_REJECTED'; run.finishedAt = runtime.now() }
         return save(run)
       })
@@ -48,7 +49,11 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
         v.unique(args.selection.factIds); v.unique(args.selection.itemIds)
         if (!args.selection.factIds.length || args.selection.wordBudget > run.config.targetWordCount) fail('CONFLICT')
         if (args.selection.factIds.some((id) => !run.inputSnapshot.facts.some((fact) => fact.id === id)) || args.selection.itemIds.some((id) => !run.inputSnapshot.items.some((item) => item.id === id))) fail('CONFLICT')
-        run.selection = args.selection
+        for (const id of args.selection.factIds) {
+          const fact = run.inputSnapshot.facts.find(fact => fact.id === id)!
+          if (fact.profileItemId && !args.selection.itemIds.includes(fact.profileItemId)) fail('CONFLICT')
+        }
+        run.selection = args.selection; run.stage = 'draft'
         return save(run)
       })
     },
@@ -57,7 +62,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
         const args = v.object({ id: v.id, content: check.content })(input), run = running(args.id)
         if (!run.selection || run.draft) fail('INVALID_STATE')
         check.validateContent(run, args.content)
-        run.draft = args.content
+        run.draft = args.content; run.stage = 'polish'
         return save(run)
       })
     },
@@ -65,22 +70,22 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       return tx.write({ event: 'GENERATION_POLISH', action: 'UPDATE', target: 'generation_run' }, () => {
         const args = v.object({ id: v.id, content: check.content })(input), run = running(args.id)
         if (!run.draft || run.polished) fail('INVALID_STATE')
-        check.validateContent(run, args.content)
-        run.polished = args.content
+        check.validateContent(run, args.content, true)
+        run.polished = args.content; run.stage = 'publish'
         return save(run)
       })
     },
     publishArtifact(input: unknown) {
       return tx.write({ event: 'GENERATION_PUBLISH', action: 'CREATE', target: 'artifact' }, () => {
-        const args = v.object({ id: v.id, title: v.text(500, 1), provenance: check.provenance })(input), run = running(args.id)
+        const args = v.object({ id: v.id, title: v.text(500, 1) })(input), run = running(args.id)
         if (!run.polished || repo.artifactForRun(run.id)) fail('INVALID_STATE')
-        check.validateContent(run, run.polished, args.provenance)
+        check.validateContent(run, run.polished, true)
         const now = runtime.now()
         const artifact: Artifact = { id: runtime.id(), generationRunId: run.id, type: 'RESUME', title: args.title, content: run.polished,
-          templateId: run.config.templateId, outputFiles: [], createdAt: now, updatedAt: now }
+          templateId: run.config.templateId, outputFiles: [], output: { status: 'PENDING', error: null, pages: null }, createdAt: now, updatedAt: now }
         repo.insertArtifact(artifact)
-        repo.replaceLinks(artifact.id, args.provenance.flatMap((link) => link.factIds.map((factId) => ({ artifactId: artifact.id, blockId: link.blockId, factId }))))
-        run.status = 'SUCCEEDED'; run.finishedAt = now
+        repo.replaceLinks(artifact.id, documentProvenance(run.polished).flatMap((link) => link.factIds.map((factId) => ({ artifactId: artifact.id, blockId: link.blockId, factId }))))
+        run.status = 'SUCCEEDED'; run.stage = 'output'; run.finishedAt = now
         save(run)
         return artifact
       })
@@ -95,9 +100,18 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
         return artifact
       })
     },
+    recordOutputState(input: unknown) {
+      return tx.write({ event: 'ARTIFACT_OUTPUT_STATE', action: 'UPDATE', target: 'artifact' }, () => {
+        const args = v.object({ id: v.id, output: check.outputState })(input), artifact = repo.getArtifact(args.id)
+        artifact.output = args.output; artifact.updatedAt = runtime.now()
+        repo.saveArtifact(artifact)
+        return artifact
+      })
+    },
     failRun(input: unknown) {
       return tx.write({ event: 'GENERATION_FAIL', action: 'UPDATE', target: 'generation_run' }, () => {
-        const args = v.object({ id: v.id, error: v.choice(['PROVIDER_FAILED', 'VALIDATION_FAILED', 'COMPILATION_FAILED']) })(input), run = running(args.id)
+        const args = v.object({ id: v.id, error: v.choice(['PROVIDER_FAILED', 'VALIDATION_FAILED', 'COMPILATION_FAILED', 'AGENT_PROTOCOL_ERROR', 'AGENT_STEP_LIMIT', 'AGENT_TIMEOUT', 'AI_AUTH_FAILED', 'AI_RATE_LIMITED', 'AI_PROVIDER_FAILED', 'AI_CONNECT_FAILED', 'AUDIT_UNAVAILABLE']) })(input), run = repo.getRun(args.id)
+        if (!['PENDING', 'RUNNING'].includes(run.status)) fail('INVALID_STATE')
         run.status = 'FAILED'; run.error = args.error; run.finishedAt = runtime.now()
         return save(run)
       })

@@ -19,8 +19,8 @@ const output = v.object({ contact: v.object({ name: v.optionalText(300), email: 
 export function parseImportDraft(text: string, pages: PdfPage[]): ImportDraft {
   try {
     const raw = output(JSON.parse(text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')))
-    const draft: ImportDraft = { contact: Object.fromEntries(Object.entries(raw.contact).map(([key, value]) => [key, { value, confirmed: false, ignored: false }])) as ImportDraft['contact'],
-      links: raw.links.map(link => ({ ...link, draftId: randomUUID(), confirmed: false, ignored: false })), items: [], facts: [] }
+    const draft: ImportDraft = { contact: Object.fromEntries(Object.entries(raw.contact).map(([key, value]) => [key, { value, ignored: false }])) as ImportDraft['contact'],
+      links: raw.links.map(link => ({ ...link, draftId: randomUUID(), ignored: false })), items: [], facts: [] }
     function fact(entry: v.Parsed<typeof rawFact>, itemDraftId: string | null): DraftFact {
       const normalized = (value: string) => value.replace(/\s+/g, ' ').trim()
       const excerpt = pages.find(page => page.page === entry.source.page)
@@ -28,7 +28,7 @@ export function parseImportDraft(text: string, pages: PdfPage[]): ImportDraft {
       let error = sourceError
       const details = { kind: entry.kind, content: entry.content, tags: entry.tags, evidence: `Page ${entry.source.page}\n${entry.source.quote}` }
       try { factDetails(details) } catch { error = true }
-      return { draftId: randomUUID(), itemDraftId, profileItemId: null, details, confirmed: false, ignored: false, error, sourceError }
+      return { draftId: randomUUID(), itemDraftId, profileItemId: null, details, ignored: false, error, sourceError }
     }
     for (const entry of raw.items) {
       const draftId = randomUUID(), { facts, startDateText, endDateText, isCurrent, employmentType, technologies, url, degree, major, gpa, ...details } = entry
@@ -36,7 +36,7 @@ export function parseImportDraft(text: string, pages: PdfPage[]): ImportDraft {
         metadata: { startDateText, endDateText, isCurrent, employmentType, technologies, url, degree, major, gpa } }
       let error = false
       try { validateItemDates(itemDetails(value)) } catch { error = true }
-      draft.items.push({ draftId, details: value, confirmed: false, ignored: false, error, savedId: null })
+      draft.items.push({ draftId, details: value, ignored: false, error, savedId: null })
       draft.facts.push(...facts.map(entry => fact(entry, draftId)))
     }
     draft.facts.push(...raw.facts.map(entry => fact(entry, null)))

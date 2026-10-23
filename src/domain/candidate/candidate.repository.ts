@@ -13,6 +13,7 @@ export interface CandidateRepository {
   insertItem(item: ProfileItem): void
   saveItem(item: ProfileItem): void
   removeItem(id: string): void
+  allFacts(profileId: string): Fact[]
   getFact(id: string): Fact
   facts(profileId: string, limit: number, offset: number): PageResult<Fact>
   insertFact(fact: Fact): void

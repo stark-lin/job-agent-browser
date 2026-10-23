@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-A local-first desktop workspace for job seeking. Status: **Implemented** unified React App, nine accessible Home entries, per-tab mixed navigation and layered SQLite business backend with automatic audit and typed IPC. Settings, Inbox webmail, AI chat and personal-profile editing/PDF import are **Implemented**; Add Job (manual/public-URL AI import) and the Applications list are **Implemented**; two other feature entries are **Scaffolded**; remaining business workflows and compilation are **Planned**.
+A local-first desktop workspace for job seeking. Status: **Implemented** React navigation, Browser/Inbox, Settings, streaming AI, SQLite/audit, Profile editing/PDF import, job capture/applications and Resume Agent V1 with HTML/PDF. Interview Prep remains **Scaffolded**; additional product workflows remain **Planned**.
 
 Language: English · [简体中文](README.zh-CN.md)
 
@@ -10,7 +10,7 @@ Requires Node.js 22.13 or newer and npm, as declared in [package.json](package.j
 
 ```sh
 npm install
-npm run dev
+JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 ```
 
 The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI streams chat through the selected provider/model; My Profile manages entries with multiple facts and reviewed PDF imports; Add Job supports manual/public-URL AI import and opens Applications after saving as Not started; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left workspace sidebar; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
@@ -25,11 +25,15 @@ npm run test:smoke
 npm run test:theme
 npm run test:jobs
 npm run test:mcp
+npm run test:agent
+npm run test:profile
 ```
 
 The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL parsing, Applications and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
 
-`test:mcp` runs scoped tool/audited read-write tests plus a bundled Electron runtime with a real stdio MCP fixture; it needs no external account or graphical desktop. The bundled runtime smoke also runs in `check`. Main-owned MCP capabilities are implemented; model Tool Calling and business Agent integration remain planned. See [MCP architecture](docs/mcp-architecture.md).
+`test:mcp` runs scoped tool/audited read-write tests plus a bundled Electron runtime with a real stdio MCP fixture; it needs no external account or graphical desktop. The bundled runtime smoke also runs in `check`. Main-owned MCP capabilities are implemented; ResumeAgent uses a separate snapshot-bound scope. See [MCP architecture](docs/mcp-architecture.md).
+
+`test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. Live-provider compatibility and Windows/Linux PDF rendering remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 

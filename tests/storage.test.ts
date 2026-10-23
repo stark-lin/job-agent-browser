@@ -3,7 +3,7 @@ import { Transactions } from '../src/platform/database/transactions'
 import { composeBackend } from '../src/platform/database/backend'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { constants, DatabaseSync } from 'node:sqlite'
@@ -49,8 +49,8 @@ test('data survives reopen and interrupted generation is recovered with SYSTEM a
   const path = tempDatabase(t), first = fixture(t, path)
   const job = value(await first.api.jobs.saveJob({ details: { title: 'Persisted', companyNameRaw: 'Company' } }))
   const profile = value(await first.api.profiles.createProfile({ name: 'Person' }))
-  const fact = value(await first.api.profiles.addFact({ profileId: profile.id, details: { kind: 'SKILL', content: 'TypeScript' } }))
-  const run = value(await first.api.resumes.createRun({ jobId: job.id, profileId: profile.id, factIds: [fact.id] }))
+  value(await first.api.profiles.addFact({ profileId: profile.id, details: { kind: 'SKILL', content: 'TypeScript' } }))
+  const run = value(await first.api.resumes.createRun({ jobId: job.id, profileId: profile.id }))
   first.backend.generation.start({ id: run.id })
   first.backend.close()
   const second = fixture(t, path)
@@ -102,9 +102,9 @@ test('nested and asynchronous transaction callbacks cannot partially commit', as
   assert.equal(value(await f.api.jobs.getJob({ id: f.job.id })).title, 'PRIVATE_JOB_TITLE')
 })
 
-test('version-1 database upgrade preserves business rows, audit sequences and existing migration checksums', t => {
+test('matching-generation version-1 upgrade preserves business rows, audit sequences and existing migration checksums', t => {
   const path = tempDatabase(t), connection = new DatabaseSync(path)
-  // Recreate the previously shipped database, then open it with the new runtime.
+  // Exercise incremental initialization within the new schema generation.
   const transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 1)); transactions.protectAudit()
   const old = composeBackend({ connection, transactions, close: () => connection.close() })
@@ -126,7 +126,7 @@ test('version-1 database upgrade preserves business rows, audit sequences and ex
   assert.throws(() => next.connection.exec('INSERT INTO audit_logs SELECT * FROM audit_logs LIMIT 1'))
 })
 
-test('version-2 upgrade adds capability audit without changing historical rows or migration checksums', t => {
+test('matching-generation version-2 upgrade adds capability audit without changing historical rows or migration checksums', t => {
   const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 2)); transactions.protectAudit()
   const old = composeBackend({ connection, transactions, close: () => connection.close() })
@@ -141,4 +141,13 @@ test('version-2 upgrade adds capability audit without changing historical rows o
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=2 ORDER BY version').all(), versions)
   assert.equal(next.connection.prepare('SELECT count(*) count FROM capability_audit').get()?.count, 0)
   assert.equal(next.connection.prepare('SELECT count(*) count FROM jobs').get()?.count, 1)
+})
+
+test('legacy generation is rejected before journal/schema writes and bytes remain unchanged', t => {
+  const path = tempDatabase(t), old = new DatabaseSync(path)
+  old.exec("CREATE TABLE facts(id TEXT, verification_status TEXT); INSERT INTO facts VALUES ('old', 'CONFIRMED')")
+  old.close()
+  const bytes = readFileSync(path)
+  assert.throws(() => openDatabase(path), /INCOMPATIBLE_DATABASE_GENERATION/)
+  assert.deepEqual(readFileSync(path), bytes)
 })

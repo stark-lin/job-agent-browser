@@ -15,7 +15,7 @@ export function ProfileImport({ profile, onDirty, onSaved, disabled }: { profile
   useEffect(() => { onDirty(dirty); return () => onDirty(false) }, [dirty, onDirty])
   const provider = state.settings?.providers.find(provider => provider.id === state.choice?.providerId)
   const configured = Boolean(provider && state.choice && provider.models.includes(state.choice.modelId))
-  const error = state.error === 'nameRequired' ? t($ => $.profile.nameRequired) : state.error === 'noConfirmed' ? t($ => $.profile.noConfirmed)
+  const error = state.error === 'nameRequired' ? t($ => $.profile.nameRequired) : state.error === 'noContent' ? t($ => $.profile.noContent)
     : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })
   return <SectionCard title={t($ => $.profile.importTitle)} description={t($ => $.profile.importHelp)}><div className="profile-stack">
     {configured ? <DetailsList items={[{ label: t($ => $.profile.provider), value: provider!.name }, { label: t($ => $.profile.model), value: state.choice!.modelId }]} /> : <><StatusMessage>{t($ => $.profile.noAI)}</StatusMessage><div><Button onClick={() => void openPage('settings')}>{t($ => $.profile.settings)}</Button></div></>}
@@ -27,7 +27,7 @@ export function ProfileImport({ profile, onDirty, onSaved, disabled }: { profile
       {state.stage === 'failed' && state.hasFile && <Button disabled={disabled} onClick={() => void state.start()}>{t($ => $.profile.parseAgain)}</Button>}
       {busy && state.stage !== 'selecting' && <Button onClick={state.stop}>{t($ => $.profile.stop)}</Button>}
       {state.hasFile && <Button disabled={state.saving} onClick={() => setDiscard(true)}>{t($ => $.profile.discard)}</Button>}
-      {state.draft && <Button variant="primary" disabled={disabled || state.saving} onClick={() => void state.save()}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.saveConfirmed)}</Button>}
+      {state.draft && <Button variant="primary" disabled={disabled || state.saving} onClick={() => void state.save()}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.saveImport)}</Button>}
     </div>
     {state.draft && <ImportReview draft={state.draft} setDraft={state.setDraft} profile={profile} disabled={disabled || state.saving || state.frozen} />}
     <Dialog open={discard} title={t($ => $.profile.discardImportTitle)} description={t($ => $.profile.discardImportDescription)} onClose={() => setDiscard(false)}><Button onClick={() => setDiscard(false)}>{t($ => $.profile.cancel)}</Button><Button variant="danger" onClick={() => { setDiscard(false); void state.discard() }}>{t($ => $.profile.discard)}</Button></Dialog>

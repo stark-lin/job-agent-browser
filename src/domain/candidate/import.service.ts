@@ -3,17 +3,16 @@ import type { Runtime, UnitOfWork } from '../common/ports'
 import { fail } from '../common/errors'
 import { unique } from '../common/validation'
 import { contact, itemDetails, factDetails, validateItemDates } from './candidate.validation'
-import { confirmedImport } from './import.validation'
+import { applyImportInput } from './import.validation'
 import type { ImportSaved } from './import.types'
 import type { Fact, Profile } from './candidate.types'
-import { confirmFactRecord } from './fact.service'
 
-/** One transaction for the complete confirmed subset; session ownership/replay lives in Main. */
+/** One transaction for the explicitly saved subset; session ownership/replay lives in Main. */
 export function createImportService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   return {
-    applyConfirmedImport(input: unknown): ImportSaved {
+    applyImport(input: unknown): ImportSaved {
       return tx.write({ event: 'PROFILE_IMPORT', action: 'CREATE', target: 'profile' }, () => {
-        const args = confirmedImport(input)
+        const args = applyImportInput(input)
         if (!Object.values(args.contact).some(value => value !== undefined) && !args.items.length && !args.facts.length && !args.links.length) fail('INVALID_INPUT')
         unique([...args.items, ...args.facts, ...args.links].map(entry => entry.draftId))
         const patch = Object.fromEntries(Object.entries(args.contact).filter(([, value]) => value !== undefined))
@@ -40,10 +39,10 @@ export function createImportService(repo: CandidateRepository, tx: UnitOfWork, r
           if (itemId && repo.getItem(itemId).profileId !== profile.id) fail('CONFLICT')
           const now = runtime.now()
           const fact: Fact = { ...factDetails(entry.details), id: runtime.id(), profileId: profile.id, profileItemId: itemId ?? null,
-            verificationStatus: 'UNVERIFIED', createdAt: now, updatedAt: now }
+            createdAt: now, updatedAt: now }
           repo.insertFact(fact)
           factIds[entry.draftId] = fact.id
-          return confirmFactRecord(repo, runtime, fact.id)
+          return fact
         })
         return { profile, items, facts, itemIds, factIds }
       })

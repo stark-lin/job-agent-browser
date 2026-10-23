@@ -185,3 +185,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-checkbox { display: flex; align-items: center; gap: var(--space-1); min-height: var(--control-md); padding-block: var(--space-1); font-size: var(--font-sm); line-height: var(--line-sm); cursor: pointer; overflow-wrap: anywhere; }
 .ui-checkbox input { width: var(--icon-size); height: var(--icon-size); flex: 0 0 auto; margin: 0; accent-color: var(--primary); }
 .ui-checkbox:has(input:disabled) { color: var(--muted); cursor: default; }
+
+.ui-document-preview { width: 100%; height: var(--document-preview-height); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.ui-stage-progress { display: flex; flex-wrap: wrap; gap: var(--space-1); padding: 0; margin: 0; list-style-position: inside; }
+.ui-stage-progress li { padding: var(--space-1); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: var(--font-xs); }
+.ui-stage-progress .is-current { background: var(--primary-soft); border-color: var(--primary-line); color: var(--primary); }
+.ui-stage-progress .is-done { background: var(--success-bg); color: var(--success); }

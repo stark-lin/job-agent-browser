@@ -4,9 +4,9 @@ import type { ErrorCode } from '../../domain/common/errors'
 import type { AuditEntry, AuditFilter, Page, PageResult } from '../../domain/common/ports'
 import type { ApplicationStatus, Company, CompanyInput, Job, JobFilter, JobInput, JobSource, SourceInput } from '../../domain/job/job.types'
 import type { ContactInput, Fact, FactInput, ItemInput, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
-import type { ConfirmedImport, ImportSaved } from '../../domain/candidate/import.types'
+import type { ApplyImport, ImportSaved } from '../../domain/candidate/import.types'
 import type { JobEvent, ScheduleInput } from '../../domain/application/application.types'
-import type { Artifact, ArtifactView, CreateRunInput, GenerationRun, Provenance, ResumeContent, RunView } from '../../domain/resume/resume.types'
+import type { Artifact, ArtifactView, CreateRunInput, GenerationRun, ResumeDocument, RunView } from '../../domain/resume/resume.types'
 
 type Id = { id: string }
 type Endpoint<I, O> = [input: I, output: O]
@@ -28,7 +28,7 @@ export interface DataContract {
     listCompanies: Endpoint<Page, PageResult<Company>>
   }
   profiles: {
-    applyConfirmedImport: Endpoint<ConfirmedImport, ImportSaved>
+    applyImport: Endpoint<ApplyImport, ImportSaved>
     createProfile: Endpoint<ContactInput, Profile>
     editContact: Endpoint<{ id: string; details: ContactInput }, Profile>
     deleteProfile: Endpoint<Id, Id>
@@ -41,7 +41,6 @@ export interface DataContract {
     listItems: Endpoint<{ profileId: string } & Page, PageResult<ProfileItem>>
     addFact: Endpoint<{ profileId: string; profileItemId?: string | null; details: FactInput }, Fact>
     editFact: Endpoint<{ id: string; profileItemId?: string | null; details: FactInput }, Fact>
-    confirmFact: Endpoint<Id, Fact>
     deleteFact: Endpoint<Id, Id>
     listFacts: Endpoint<{ profileId: string } & Page, PageResult<Fact>>
   }
@@ -61,7 +60,7 @@ export interface DataContract {
     getRun: Endpoint<Id, RunView>
     listRuns: Endpoint<{ jobId?: string | null } & Page, PageResult<RunView>>
     getArtifact: Endpoint<Id, ArtifactView>
-    editArtifact: Endpoint<{ id: string; title: string; content: ResumeContent; provenance: Provenance[] }, Artifact>
+    editArtifact: Endpoint<{ id: string; title: string; content: ResumeDocument }, Artifact>
     deleteArtifact: Endpoint<Id, Id>
   }
   audit: { list: Endpoint<AuditFilter, PageResult<AuditEntry>> }
@@ -90,7 +89,7 @@ export type ServiceContract = {
 // This is the sole allowlist used by the sandboxed bridge and Main dispatcher.
 export const methodNames = {
   jobs: ['saveJob', 'updateDetails', 'attachSource', 'setArchived', 'deleteJob', 'getJob', 'listJobs', 'listSources', 'registerCompany', 'updateCompany', 'deleteCompany', 'listCompanies'],
-  profiles: ['createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'confirmFact', 'deleteFact', 'listFacts', 'applyConfirmedImport'],
+  profiles: ['createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
   applications: ['changeStatus', 'scheduleEvent', 'rescheduleEvent', 'addNote', 'deleteEvent', 'listEvents', 'listCalendar'],
   resumes: ['createRun', 'cancelRun', 'deleteRun', 'getRun', 'listRuns', 'getArtifact', 'editArtifact', 'deleteArtifact'],
   audit: ['list'], settings: ['get', 'savePreferences'], secrets: ['hasProviderKey', 'saveProviderKey', 'deleteProviderKey']

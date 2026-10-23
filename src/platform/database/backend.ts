@@ -31,9 +31,12 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   const capabilities = createAuditedCapabilities(database.transactions.capabilities.sink)
   return {
     generation,
+    resumes: services.resumes,
+    artifactForRun: (id: string) => user.read(() => repo.resumes.artifactForRun(id)),
     capabilities,
     toolAudit: database.transactions.capabilities,
     toolCapabilities: createNativeCapabilities(services, capabilities),
+    recordAgentModel: database.transactions.recordAgentModel.bind(database.transactions),
     recordAI: database.transactions.recordAI.bind(database.transactions),
     dispatch(namespace: unknown, method: unknown, input: unknown): Result<unknown> {
       if (typeof namespace !== 'string' || typeof method !== 'string' || !Object.hasOwn(methodNames, namespace)) return { ok: false, error: 'INVALID_INPUT' }

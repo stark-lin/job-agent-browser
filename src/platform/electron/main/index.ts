@@ -10,6 +10,8 @@ import { createAIService, type AIService } from '../../ai'
 import { registerAIIPC } from './ai-ipc'
 import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
 import { registerProfileImportIPC } from './profile-import-ipc'
+import { createResumeTasks, type ResumeTasks } from '../../agent/resume-tasks'
+import { registerResumeIPC } from './resume-ipc'
 import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
 import { registerJobImportIPC } from './job-import-ipc'
@@ -39,8 +41,11 @@ let ai: AIService | undefined
 let profileImporter: ProfileImporter | undefined
 let jobImporter: JobImporter | undefined
 let tools: ToolRuntime | undefined
+let resumes: ResumeTasks | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
+
+if (process.env.JOB_BROWSER_USER_DATA) app.setPath('userData', process.env.JOB_BROWSER_USER_DATA)
 
 app.whenReady().then(async () => {
   const directory = app.getPath('userData')
@@ -61,15 +66,18 @@ app.whenReady().then(async () => {
   // Optional external capabilities never delay window creation or reject the application startup.
   void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
-  profileImporter = createProfileImporter({ ai, apply: input => backend!.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
+  profileImporter = createProfileImporter({ ai, apply: input => backend!.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
   jobImporter = createJobImporter({ ai, reader: createURLReader() })
+  resumes = createResumeTasks({ backend, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
+    directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
+  registerResumeIPC(resumes, join(__dirname, '../renderer/index.html'))
   registerDataIPC(backend, join(__dirname, '../renderer/index.html'), profileImporter)
   registerProfileImportIPC(profileImporter, join(__dirname, '../renderer/index.html'))
   registerAIIPC(ai, join(__dirname, '../renderer/index.html'))
   registerJobImportIPC(jobImporter, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id
-    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner) }
+    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner) }
     contents.on('destroyed', disposeOwner)
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
@@ -83,9 +91,9 @@ app.whenReady().then(async () => {
       browser = next.browser
     }
   })
-}).catch(() => {
+}).catch((error: unknown) => {
   // Do not show raw SQLite errors/paths; initialization failure must never silently reset user data.
-  dialog.showErrorBox(t($ => $.errors.storageTitle), t($ => $.errors.storageMessage))
+  dialog.showErrorBox(t($ => $.errors.storageTitle), error instanceof Error && error.message.startsWith('INCOMPATIBLE_DATABASE_GENERATION') ? t($ => $.errors.databaseGeneration) : t($ => $.errors.storageMessage))
   app.quit()
 })
 
@@ -94,9 +102,9 @@ app.on('will-quit', event => {
   jobImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (shuttingDown) return
-  if (!ai && !tools) { backend?.close(); backend = undefined; return }
+  if (!ai && !tools && !resumes) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([ai?.dispose(), tools?.dispose()]).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([ai?.dispose(), tools?.dispose(), resumes?.dispose()]).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {

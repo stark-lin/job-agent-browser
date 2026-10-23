@@ -1,3 +1,4 @@
+import type { ResumeAPI } from '../platform/electron/resume-contract'
 import type { BrowserAPI } from '../shared/browser'
 import type { DataAPI } from '../platform/electron/data-contract'
 import type { AIAPI } from '../shared/ai'
@@ -6,6 +7,7 @@ import type { JobImportAPI } from '../platform/electron/job-import-contract'
 
 declare global {
   interface Window {
+    resume: ResumeAPI
     browser: BrowserAPI
     data: DataAPI
     ai: AIAPI

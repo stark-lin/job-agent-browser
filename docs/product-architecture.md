@@ -104,9 +104,9 @@ The [V1 data architecture](data-architecture.md) owns the implemented 12-table m
 
 Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. Each experience, project or education item can contain multiple independent facts; standalone facts belong directly to the Profile. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
-SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence, Electron Session, settings and encrypted secrets are implemented; compiled outputs remain planned, as recorded in the [current architecture](architecture.md).
+SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence, Electron Session, settings and encrypted secrets are implemented; Resume V1 HTML/PDF outputs are implemented, as recorded in the [current architecture](architecture.md).
 
-The adopted Profile scope includes manual editing and PDF extraction with explicit per-field, per-entry and per-fact confirmation. Repeated uploads add confirmed material without automatic deduplication, merging or replacement. OCR, original-file management, job preferences and resume export are later work; delivery status belongs to [current architecture](architecture.md).
+The adopted Profile scope includes manual editing and PDF extraction with editing, ignore controls and explicit saving. All saved facts may participate in Resume V1; repeated uploads add material without automatic deduplication/merging. Resume V1 uses one A4 single-column template and produces HTML/PDF. OCR, original-file management, job preferences, multiple templates, rich editing and automatic applications remain planned; delivery status belongs to [current architecture](architecture.md).
 
 ## 7. Compose capabilities instead of duplicating infrastructure
 
@@ -164,15 +164,15 @@ Stage 1 establishes page hosting and navigation controls; Stage 3 completes the 
 
 **Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
-This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Tailor Resume still needs business orchestration and context integration; mailbox entry configuration must ship alongside Inbox.
+This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Resume V1 now implements business orchestration and reference context; mailbox entry configuration must ship alongside Inbox.
 
-The [MCP foundation](mcp-architecture.md) now supplies scoped, audited Native/stdio capabilities. The next tooling milestones are one real-service integration with its required transport/credentials, then model Tool Calling and one business Agent; these do not replace the staged product workflows above.
+The [MCP foundation](mcp-architecture.md) now supplies scoped, audited Native/stdio capabilities. The next tooling milestones are one real-service integration with its required transport/credentials, Resume V1 now provides model Tool Calling and one business Agent; these do not replace the staged product workflows above.
 
 The foundation milestone is:
 
 > Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
 
-The current foundation implements stages 1–3, Profile editing/reviewed PDF import from Stage 4 and reference-only App Context. Remaining resume/job workflows and full context capture are planned; accessible page skeletons do not complete the MVP.
+Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual/public-URL Job capture, Applications listing, Resume V1 HTML/PDF and reference-only App Context. Additional workflows and full page-context capture remain planned; accessible page skeletons do not complete the MVP.
 
 ## 11. How to use this baseline
 

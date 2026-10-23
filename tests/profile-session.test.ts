@@ -6,7 +6,7 @@ import { createProfileImporter } from '../src/platform/profile-import/service'
 import type { AIService } from '../src/platform/ai'
 import type { AIEvent } from '../src/shared/ai'
 import type { ImportEvent } from '../src/platform/electron/profile-import-contract'
-import type { ConfirmedImport, ImportDraft, ImportSaved } from '../src/domain/candidate/import.types'
+import type { ApplyImport, ImportDraft, ImportSaved } from '../src/domain/candidate/import.types'
 import type { Result } from '../src/shared/ipc'
 
 const pages = [{ page: 1, text: 'First fact\nSecond fact' }]
@@ -32,13 +32,13 @@ async function ready(importer: ReturnType<typeof createProfileImporter>, owner: 
   const result = await done
   return { ...task, draft: result.draft }
 }
-function selection(draft: ImportDraft, sessionId: string): ConfirmedImport {
+function selection(draft: ImportDraft, sessionId: string): ApplyImport {
   return { sessionId, batchId: randomUUID(), profileId: null, contact: { name: 'Candidate' }, links: [], items: draft.items.map(({ draftId, details }) => ({ draftId, details })),
     facts: [draft.facts[0]].map(({ draftId, itemDraftId, details }) => ({ draftId, itemDraftId, details, profileItemId: null })) }
 }
 test('session saves parent once, attaches remaining facts later and replays uncertain saves without duplicate writes', async t => {
   const f = fixture(t), mock = aiFixture()
-  const importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
+  const importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
   t.after(() => importer.dispose())
   const file = importer.select(1, new Uint8Array([1])), task = await ready(importer, 1, file.fileId), first = selection(task.draft, task.sessionId)
   const saved = value(importer.apply(1, first)), count = value(await f.api.audit.list({})).total
@@ -47,14 +47,14 @@ test('session saves parent once, attaches remaining facts later and replays unce
   assert.throws(() => importer.apply(1, { ...first, contact: { name: 'Different' } }), /CONFLICT/)
   assert.throws(() => importer.apply(1, { ...first, batchId: randomUUID(), profileId: saved.profile.id }), /CONFLICT/)
   const { draftId, itemDraftId, details } = task.draft.facts[1]
-  const second: ConfirmedImport = { ...first, batchId: randomUUID(), profileId: saved.profile.id, contact: {}, items: [], facts: [{ draftId, itemDraftId, details, profileItemId: null }] }
+  const second: ApplyImport = { ...first, batchId: randomUUID(), profileId: saved.profile.id, contact: {}, items: [], facts: [{ draftId, itemDraftId, details, profileItemId: null }] }
   const later = value(importer.apply(1, second))
   assert.equal(later.items.length, 0); assert.equal(later.facts[0].profileItemId, saved.items[0].id)
   assert.equal(value(await f.api.profiles.listItems({ profileId: saved.profile.id })).total, 1)
   assert.equal(value(await f.api.profiles.listFacts({ profileId: saved.profile.id })).total, 2)
 })
 test('file/task ownership is enforced and deleted saved parents block later facts', async t => {
-  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
+  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
   t.after(() => importer.dispose())
   const file = importer.select(1, new Uint8Array([1]))
   assert.throws(() => importer.start(2, { fileId: file.fileId, choice }, () => {}), /FORBIDDEN/)
@@ -80,8 +80,8 @@ test('cancel/discard suppress late AI results and release sessions', async () =>
   assert.throws(() => importer.cancel(1, { sessionId: task.sessionId }), /IMPORT_NOT_FOUND/)
   importer.dispose()
 })
-test('uploading identical content again creates new IDs after explicit confirmation', async t => {
-  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
+test('uploading identical content again creates new IDs after explicit saving', async t => {
+  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
   t.after(() => importer.dispose())
   const one = importer.select(1, new Uint8Array([1])), first = await ready(importer, 1, one.fileId)
   const saved = value(importer.apply(1, selection(first.draft, first.sessionId)))
@@ -103,7 +103,7 @@ test('AI failures and malformed output require an explicit retry and do not writ
       return { requestId }
     }, cancel() {}
   }
-  const importer = createProfileImporter({ ai, extract: async () => structuredClone(pages), apply: () => assert.fail('no unconfirmed writes') })
+  const importer = createProfileImporter({ ai, extract: async () => structuredClone(pages), apply: () => assert.fail('no implicit writes') })
   const file = importer.select(1, new Uint8Array([1]))
   const failure = () => new Promise<ImportEvent>(resolve => { completed = resolve })
   let done = failure()

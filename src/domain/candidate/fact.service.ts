@@ -5,13 +5,6 @@ import * as v from '../common/validation'
 import { factDetails } from './candidate.validation'
 import type { Fact } from './candidate.types'
 
-/** Shared confirmation operation; caller owns the surrounding business transaction. */
-export function confirmFactRecord(repo: CandidateRepository, runtime: Runtime, id: string): Fact {
-  const fact = { ...repo.getFact(id), verificationStatus: 'CONFIRMED' as const, updatedAt: runtime.now() }
-  repo.saveFact(fact)
-  return fact
-}
-
 export function createFactService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   function checkItem(profileId: string, itemId: string | null) {
     if (itemId && repo.getItem(itemId).profileId !== profileId) fail('CONFLICT')
@@ -23,7 +16,7 @@ export function createFactService(repo: CandidateRepository, tx: UnitOfWork, run
         repo.getProfile(args.profileId)
         checkItem(args.profileId, args.profileItemId)
         const now = runtime.now()
-        const fact: Fact = { ...args.details, id: runtime.id(), profileId: args.profileId, profileItemId: args.profileItemId, verificationStatus: 'UNVERIFIED', createdAt: now, updatedAt: now }
+        const fact: Fact = { ...args.details, id: runtime.id(), profileId: args.profileId, profileItemId: args.profileItemId, createdAt: now, updatedAt: now }
         repo.insertFact(fact)
         return fact
       })
@@ -33,15 +26,9 @@ export function createFactService(repo: CandidateRepository, tx: UnitOfWork, run
         const args = v.object({ id: v.id, profileItemId: v.optionalId, details: factDetails })(input)
         const current = repo.getFact(args.id)
         checkItem(current.profileId, args.profileItemId)
-        // Editing evidence or content invalidates the previous confirmation.
-        const fact: Fact = { ...current, ...args.details, profileItemId: args.profileItemId, verificationStatus: 'UNVERIFIED', updatedAt: runtime.now() }
+        const fact: Fact = { ...current, ...args.details, profileItemId: args.profileItemId, updatedAt: runtime.now() }
         repo.saveFact(fact)
         return fact
-      })
-    },
-    confirmFact(input: unknown) {
-      return tx.write({ event: 'FACT_CONFIRM', action: 'UPDATE', target: 'fact' }, () => {
-        return confirmFactRecord(repo, runtime, v.byId(input).id)
       })
     },
     deleteFact(input: unknown) {

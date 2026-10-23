@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-面向求职的本地优先桌面工作空间。状态：统一 React App、九个可访问 Home 入口、每标签混合导航及带自动审计和类型化 IPC 的分层 SQLite 业务后端**已实现**。设置、Inbox 网页邮箱、AI 对话及个人资料编辑/PDF 导入**已实现**；新增工作（手工录入和公开 URL AI 导入）及申请记录基础列表**已实现**；其余两个功能入口为**占位**；其余业务流程与编译仍为**规划**。
+面向求职的本地优先桌面工作空间。状态：React 导航、Browser/Inbox、设置、流式 AI、SQLite/审计、个人资料编辑/PDF 导入、职位采集/申请及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**；更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](README.md)
 
@@ -10,7 +10,7 @@
 
 ```sh
 npm install
-npm run dev
+JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 ```
 
 首次开发启动时，`predev` 辅助程序下载 Electron 二进制文件。Home 九个卡片均可访问。Browser 打开可输入 URL、域名或搜索词的空白工作区，Settings 支持语言及浅色/暗夜/跟随系统外观持久化、多个 AI Provider、加密 API 密钥和邮箱配置；Ask AI 通过所选 Provider/模型流式对话；My Profile 管理包含多个事实的履历条目及经核对的 PDF 导入；新增工作支持手工录入或公开 URL AI 导入，保存为未开始申请后进入申请记录；其他功能在流程尚不可用时显示待实现内容。只有 Browser 显示标签栏和地址控件；所有功能共用左侧工作区导航；已配置的 Inbox 显示网页邮箱，不显示应用顶部条。侧栏主页入口替代邮箱退出按钮。Home/新标签隐藏浏览器栏及内部 URL；Back/Forward 在每个标签内遍历内部页面与网站。导航规则、快捷键、运行细节及源码依据见[当前架构](docs/architecture.zh-CN.md)。
@@ -25,11 +25,15 @@ npm run test:smoke
 npm run test:theme
 npm run test:jobs
 npm run test:mcp
+npm run test:agent
+npm run test:profile
 ```
 
 构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、混合历史、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL 解析、申请记录及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台安装包仍未配置。
 
-`test:mcp` 执行受限工具/带审计 read-write 测试，以及使用真实 stdio MCP 样本的打包 Electron 运行时，无需外部账号或图形桌面。该打包运行时 smoke 也纳入 `check`。Main 管理的 MCP 能力已实现；模型 Tool Calling 和业务 Agent 接入仍为规划，见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
+`test:mcp` 执行受限工具/带审计 read-write 测试，以及使用真实 stdio MCP 样本的打包 Electron 运行时，无需外部账号或图形桌面。该打包运行时 smoke 也纳入 `check`。Main 管理的 MCP 能力已实现；ResumeAgent 使用独立且绑定快照的 Scope，见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
+
+`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。真实 Provider 兼容性及 Windows/Linux PDF 渲染仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 

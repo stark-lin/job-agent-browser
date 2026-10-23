@@ -1,0 +1,4 @@
+.resume-page { height: 100%; overflow: auto; padding: var(--space-3); }
+.resume-content { display: flex; flex-direction: column; gap: var(--space-3); max-width: var(--content-width); margin: 0 auto; min-width: 0; }
+.resume-stack { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.resume-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }

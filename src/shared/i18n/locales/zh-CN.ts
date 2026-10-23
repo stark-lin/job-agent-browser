@@ -223,12 +223,79 @@ export const zhCN = {
     "AI_CANCELLED": "请求已停止。"
   }
 },
+  resume: {
+    "subtitle": "使用已保存的事实生成定制简历。简历语言跟随职位主体语言。",
+    "inputs": "职位与个人资料",
+    "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词预算",
+    "job": "职位",
+    "profile": "个人资料",
+    "chooseJob": "选择已保存的职位",
+    "chooseProfile": "选择个人资料",
+    "start": "定制简历",
+    "regenerate": "生成新版本",
+    "cancel": "取消任务",
+    "settings": "AI 设置",
+    "history": "生成历史",
+    "progress": "生成进度",
+    "reason": "原因",
+    "missing": "缺失的证据",
+    "export": "另存 PDF",
+    "retryOutput": "重建 HTML / PDF",
+    "saved": "PDF 已保存。",
+    "preview": "简历预览",
+    "pages": "页数：{{count}}",
+    "sources": "表述来源",
+    "stages": {
+        "score": "事实评分",
+        "gate": "覆盖检查",
+        "select": "证据筛选",
+        "draft": "撰写草稿",
+        "validate-draft": "校验草稿",
+        "polish": "润色",
+        "validate-polish": "校验润色",
+        "publish": "发布",
+        "output": "生成 HTML / PDF"
+    },
+    "statuses": {
+        "PENDING": "待开始",
+        "RUNNING": "正在生成…",
+        "SUCCEEDED": "简历已生成",
+        "FAILED": "生成失败",
+        "CANCELLED": "已取消",
+        "INTERRUPTED": "生成中断，请生成新版本重试。"
+    },
+    "outputs": {
+        "PENDING": "等待输出",
+        "RUNNING": "正在生成预览和 PDF…",
+        "READY": "预览和 PDF 已就绪",
+        "FAILED": "输出失败，可直接重建，无需再次调用模型。",
+        "CANCELLED": "输出已取消，已生成的简历仍然保留。"
+    },
+    "errors": {
+        "INVALID_INPUT": "请选择有效职位及包含已保存事实的个人资料；保存导入前请修正无效内容。",
+        "INVALID_STATE": "另一个任务正在运行，或当前操作不可用。",
+        "FORBIDDEN": "该任务属于另一个窗口。",
+        "NOT_FOUND": "职位、个人资料或简历成品已被删除。",
+        "STORAGE_UNAVAILABLE": "本地存储不可用。",
+        "VALIDATION_FAILED": "模型返回的内容无效或不受支持，请生成新版本。",
+        "GATE_REJECTED": "现有证据不足以支持此职位，请检查缺失的证据。",
+        "PROCESS_INTERRUPTED": "生成已中断，请生成新版本。",
+        "AGENT_PROTOCOL_ERROR": "模型响应或工具协议无效。",
+        "AGENT_STEP_LIMIT": "模型超出每阶段 8 次调用上限。",
+        "AGENT_TIMEOUT": "模型请求超时。",
+        "AGENT_CANCELLED": "生成已取消。",
+        "OUTPUT_FAILED": "HTML / PDF 输出失败，简历仍然保留，请重建输出。",
+        "OUTPUT_INTERRUPTED": "输出已中断，可直接重建，无需重新生成内容。",
+        "OUTPUT_MISSING": "输出文件缺失，请重建 HTML / PDF。",
+        "AUDIT_UNAVAILABLE": "审计存储不可用，已停止生成。"
+    }
+},
   profile: {
     subtitle: '维护共享求职资料。每条经历、项目和教育记录可包含多个独立核实的事实。',
     basic: '基本信息', independent: '独立事实', noProfile: '保存姓名以创建资料，或导入 PDF。', empty: '暂无记录。',
     add: '新增', edit: '编辑', remove: '删除', cancel: '取消', save: '保存', saving: '保存中…', saved: '已保存', retry: '重试',
     loading: '正在加载个人资料…', loadFailed: '无法完整加载个人资料。', invalid: '请检查必填字段、链接和日期。',
-    confirm: '确认内容属实', confirmed: '已确认', unverified: '待核实', addFact: '新增事实', facts: '事实',
+    addFact: '新增事实', facts: '事实',
     deleteTitle: '删除这项内容？', deleteItem: '将删除该条目、{{items}} 条后代条目和 {{facts}} 条关联事实。历史生成快照仍会保留。',
     deleteFact: '该事实将从个人资料中删除。历史生成快照仍会保留。',
     discardTitle: '放弃个人资料修改？', discardDescription: '未保存的编辑和 PDF 导入草稿将被丢弃，正在进行的解析任务也会取消。',
@@ -243,11 +310,11 @@ export const zhCN = {
     provider: '服务商', model: '模型', noAI: '请先在设置中选择全局服务商和模型。', settings: '打开设置',
     extracting: '正在提取 PDF 文字…', parsing: '正在使用 AI 解析简历…', progress: '正在提取第 {{page}} 页，共 {{pages}} 页',
     stop: '停止解析', discard: '放弃导入', discardImportTitle: '放弃本次导入？', discardImportDescription: '剩余草稿将被丢弃，已经保存的内容继续保留。',
-    review: '核对解析内容', reviewHelp: '逐项编辑、忽略或确认条目和事实。确认条目不会自动确认其事实，只保存已确认内容。',
-    confirmEntry: '确认条目信息', confirmField: '应用此字段', confirmLink: '新增此链接', ignore: '忽略',
-    existing: '现有值：{{value}}', emptyValue: '（空）', savedEntry: '条目已保存', parentRequired: '请先确认所属条目，再确认该事实。',
-    invalidFact: '请核对事实及其原文片段后再确认。', saveConfirmed: '保存已确认内容', noConfirmed: '请至少确认一个有效字段、条目或事实。',
-    nameRequired: '创建个人资料需要已确认的姓名。', parseAgain: '重新解析', importSaved: '已保存确认内容，可继续核对下方剩余内容。',
+    review: '核对解析内容', reviewHelp: '编辑或忽略提取的内容，然后保存。所有有效且未忽略的内容都会保存。',
+    ignore: '忽略',
+    existing: '现有值：{{value}}', emptyValue: '（空）', savedEntry: '条目已保存', parentRequired: '请先修正或忽略所属条目，再保存该事实。',
+    invalidFact: '请核对事实及其原文片段后再保存。', saveImport: '保存导入内容', noContent: '没有可保存的内容。',
+    nameRequired: '创建个人资料需要填写姓名。', parseAgain: '重新解析', importSaved: '已保存导入内容，可继续核对下方剩余内容。',
     errors: { PDF_TOO_LARGE: 'PDF 超过 10 MB。', PDF_TOO_MANY_PAGES: 'PDF 超过 20 页。', PDF_TOO_MUCH_TEXT: 'PDF 提取文字超过 60,000 个字符。',
       PDF_ENCRYPTED: '暂不支持有密码的 PDF，请上传解除保护的副本。', PDF_INVALID: 'PDF 无效或无法读取。', PDF_NO_TEXT: '未找到可选文字，暂不支持 OCR。',
       IMPORT_INVALID_OUTPUT: 'AI 返回的内容不符合简历结构，请手动重新解析。', IMPORT_NOT_FOUND: '导入会话已失效，请重新选择 PDF。',
@@ -255,6 +322,6 @@ export const zhCN = {
       INVALID_STATE: '当前导入状态无法保存。', STORAGE_BUSY: '存储正忙，请重试保存。', STORAGE_UNAVAILABLE: '无法保存本地数据。', NOT_IMPLEMENTED: '存储不可用。' }
   },
   errors: {
-    unknownPage: '未知的应用页面。', providersUnavailable: '应用服务不可用。', actionFailed: '无法完成此操作。', storageTitle: '存储不可用', storageMessage: '无法打开本地数据或设置。已保存的文件未被重置。', navigationInput: '导航输入必须为文本。', visibilityInput: '浏览器可见性必须为布尔值。', presentationInput: '浏览器展示必须指定标签页和目标。', tabIdInput: '标签页 ID 必须为文本。', browserNotReady: '浏览器尚未就绪。', untrustedSender: '不可信的 IPC 发送方。', emptyAddress: '请输入网址或搜索词。', unsupportedProtocol: '只能打开 HTTP 和 HTTPS 页面。', invalidAddress: '请输入有效的网址。', tabUnavailable: '标签页已不可用。', loadFailed: '无法加载此页面。请检查网址和网络连接。', historySyncFailed: '无法同步浏览器历史记录。'
+    unknownPage: '未知的应用页面。', providersUnavailable: '应用服务不可用。', actionFailed: '无法完成此操作。', storageTitle: '存储不可用', databaseGeneration: '此数据库与 Resume Agent V1 不兼容。请使用独立的 userData 目录；原数据库未被修改。', storageMessage: '无法打开本地数据或设置。已保存的文件未被重置。', navigationInput: '导航输入必须为文本。', visibilityInput: '浏览器可见性必须为布尔值。', presentationInput: '浏览器展示必须指定标签页和目标。', tabIdInput: '标签页 ID 必须为文本。', browserNotReady: '浏览器尚未就绪。', untrustedSender: '不可信的 IPC 发送方。', emptyAddress: '请输入网址或搜索词。', unsupportedProtocol: '只能打开 HTTP 和 HTTPS 页面。', invalidAddress: '请输入有效的网址。', tabUnavailable: '标签页已不可用。', loadFailed: '无法加载此页面。请检查网址和网络连接。', historySyncFailed: '无法同步浏览器历史记录。'
   }
 } satisfies Translation<typeof en>

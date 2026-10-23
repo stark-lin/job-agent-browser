@@ -1,4 +1,5 @@
 import { fail } from '../../domain/common/errors'
+import { postChat } from './transport'
 import type { AIMessage, AIProvider } from '../../shared/ai'
 
 export type Fetch = typeof fetch
@@ -6,15 +7,7 @@ export interface ChatRequest { provider: AIProvider; model: string; key: string 
 
 /** Parse SSE frames independently of network chunks, including split UTF-8 and CRLF. */
 export async function streamChat(request: ChatRequest, signal: AbortSignal, onStart: () => void, onText: (text: string) => void, transport: Fetch = fetch): Promise<void> {
-  const response = await transport(`${request.provider.baseURL}/chat/completions`, {
-    method: 'POST', redirect: 'error', signal,
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(request.key ? { Authorization: `Bearer ${request.key}` } : {}) },
-    body: JSON.stringify({ model: request.model, messages: request.messages, stream: true })
-  })
-  if (!response.ok) {
-    await response.body?.cancel()
-    return fail(response.status === 401 || response.status === 403 ? 'AI_AUTH_FAILED' : response.status === 429 ? 'AI_RATE_LIMITED' : 'AI_PROVIDER_FAILED')
-  }
+  const response = await postChat(request, { messages: request.messages }, signal, true, transport)
   if (!response.body || !response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
     await response.body?.cancel()
     return fail('AI_PROTOCOL_ERROR')

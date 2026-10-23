@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and remaining delivery constraints. Status: React composition/routing, mixed navigation, Platform runtime entries, AI infrastructure/chat and layered business storage are **Implemented**. Profile editing/PDF import, Add Job and the Applications list are **Implemented**; remaining business-page workflows, AI resume generation and output-file integration are **Scaffolded / Planned**. Verified behavior is owned by [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, mixed navigation, Platform entries, chat/AI, layered storage, Profile/job flows and Resume Agent V1 with HTML/PDF. Interview Prep remains **Scaffolded**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -75,7 +75,7 @@ src/
     └── tools/
 ```
 
-Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job and Applications are implemented pages. Two other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
+Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Interview Prep remains scaffolded. Local modules are created only when used; files/directories alone do not establish behavior.
 
 ## 3. Dependencies and process composition
 
@@ -101,7 +101,7 @@ The framework-free [Destination](../src/shared/navigation.ts) contract is shared
 
 Browser owns its tab strip/address/controls; other internal pages hide the entire browser bar and all internal URLs. Browser and Inbox acknowledge their own native surfaces through the [presentation hook](../src/app/navigation/useNativePresentation.ts), identifying the active tab and target so old acknowledgments cannot cover another page. Inbox never renders Browser controls. UI URLs and history rules are owned by product architecture; runtime details are owned by current architecture.
 
-[App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge. Applications uses a Job ID, not a separate persisted Application entity. Profile resolves and updates its current Profile ID; saving Add Job and selecting Applications details update the Job ID. Automatic Artifact population and content/selection capture remain planned.
+[App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge. Applications uses a Job ID, not a separate persisted Application entity. Profile resolves and updates its current Profile ID; saving Add Job and selecting Applications details update the Job ID. Tailor Resume populates the Artifact ID; automatic page content/selection capture remains planned.
 
 Home invokes navigation only. Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
 
@@ -123,7 +123,7 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 | Profile, ProfileItem and Fact | `domain/candidate/`; UI in `pages/profile/` |
 | GenerationRun, Artifact and provenance | `domain/resume/`; UI in `pages/tailor-resume/` |
 | SQLite, migrations, repositories and audit persistence | Main-side `platform/database/` |
-| AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; AI chat/settings/secrets are implemented; AI business generation and output integration remain planned |
+| AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; AI chat/settings/secrets are implemented; Resume generation/output live in `platform/agent/` and `platform/resume-output/` |
 
 Domain defines repository and [snapshot reader/extractor interfaces](../src/domain/job/job.extractor.ts). The [URL reader](../src/platform/job-import/url-reader.ts), HTML parsing and AI extraction belong to `platform/job-import/`; future Browser adapters share the same plain-data snapshot, never DOM/Electron objects. Pages coordinate tasks through the [asynchronous bridge](../src/platform/electron/job-import-contract.ts); database methods still handle only confirmed saves.
 
@@ -131,9 +131,11 @@ The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types
 
 [Shared Tools](../src/shared/tools/index.ts) owns type-only Agent contracts; Main uses its Registry implementation. [Platform Tools](../src/platform/tools/capabilities.ts) wraps read/write operations with audit; [Platform MCP](../src/platform/mcp/runtime.ts) alone imports the MCP SDK and binds external capabilities. Renderer cannot import the tool runtime. The [MCP architecture](mcp-architecture.md) owns detailed contracts/lifecycle; native writes remain trusted Main capabilities outside the Agent registry.
 
-[Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and confirmation drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names live in Shared.
+[Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and editable import drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names live in Shared.
 
 Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/useUnsavedGuard.ts); job forms, empty-field filling and Applications querying remain page-owned.
+
+Resume keeps eight core concepts: [AgentModel](../src/shared/agent/index.ts), [AgentLoop](../src/platform/agent/loop.ts), [ToolScope](../src/shared/tools/tool.types.ts), [ResumeAgent](../src/domain/resume/resume.agent.ts), [GenerationService](../src/domain/resume/generation.service.ts), [ResumeDocument](../src/domain/resume/resume.types.ts), [HTMLCompiler](../src/platform/resume-output/compiler.ts) and [PDFExporter](../src/platform/resume-output/exporter.ts). Domain owns workflow/validation and depends on an injected stage runner; Main owns provider/scope/lifecycle/output composition. [Resume IPC](../src/platform/electron/resume-contract.ts) is asynchronous and separate from DataContract and chat; page hooks coordinate presentation only.
 
 ## 6. Quality and future delivery
 
@@ -141,7 +143,7 @@ Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/us
 
 Keep business capabilities in [DataContract](../src/platform/electron/data-contract.ts); repositories, transaction contexts, audit writers and generation-stage persistence remain private. Storage modules separate migrations, transaction/audit control, mapping and domain adapters; Domain services own business validation.
 
-Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Inbox reuses configured webmail without a mail database. AI business generation, compilation and remaining business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
+Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Inbox reuses configured webmail without a mail database. Remaining business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
 
 Update the owning document and both language editions with behavior, interface, directory or configuration changes. Preserve build output, SQLite/audit behavior and Session partition during future migrations. Add Product Areas only when scale requires them; full DDD remains unnecessary.
 

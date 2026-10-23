@@ -1,0 +1,17 @@
+{
+  "review": "Manually reviewed semantic examples; reference validation alone is not a truth test.",
+  "cases": [
+    {
+      "fact": "Implemented TypeScript API tests for the payments service.",
+      "supported": "Wrote TypeScript tests for the payments API.",
+      "unsupported": "Led a team of 12 engineers and increased payments revenue by 50%.",
+      "issues": ["invented team size", "invented commercial metric", "expanded leadership responsibility"]
+    },
+    {
+      "fact": "参与中文服务的测试与文档整理。",
+      "supported": "参与中文服务测试并整理文档。",
+      "unsupported": "独立负责整个平台架构，使性能提升 80%。",
+      "issues": ["expanded ownership", "invented performance metric"]
+    }
+  ]
+}

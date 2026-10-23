@@ -3,6 +3,7 @@ const { resolve } = require('node:path')
 const { mkdtempSync, rmSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const env = { ...process.env }
+delete env.JOB_BROWSER_USER_DATA
 delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_RENDERER_URL
 env.JOB_BROWSER_SMOKE_DATA = mkdtempSync(resolve(tmpdir(), 'job-browser-smoke-'))
