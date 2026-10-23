@@ -12,7 +12,8 @@ Language: English · [简体中文](architecture.zh-CN.md)
 React App → Page → Preload → IPC → Main
                                   ├── Mixed history + WebContentsView → Session
                                   ├── Domain services → SQLite + audit
-                                  └── AI service → Provider SSE
+                                  ├── AI service → Provider SSE
+                                  └── ToolScope → audited capability → Domain / MCP stdio
 ```
 
 The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data/AI bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
@@ -55,7 +56,7 @@ Follow system responds to native appearance updates; explicit Light/Dark overrid
 
 [App Context](../src/app/context/appContext.ts) exposes the active page's tab/title/destination and nullable Job, Profile and Artifact IDs. The [reference store](../src/app/context/contextStore.ts) starts empty and does not copy entities or extract page content. Profile selects its valid referenced record, otherwise the most recently updated Profile, and updates the shared ID after loading/saving.
 
-**Implemented AI:** [Main-owned service](../src/platform/ai/service.ts) snapshots the selected provider, model and credential at request creation. The [compatible adapter](../src/platform/ai/compatible.ts) posts Chat Completions requests beneath the configured Base URL and consumes SSE; redirects are rejected. Remote endpoints require HTTPS; loopback HTTP supports local services. No automatic retry, cross-provider fallback, tools, structured-output capability probing or model discovery is implemented.
+**Implemented AI:** [Main-owned service](../src/platform/ai/service.ts) snapshots the selected provider, model and credential at request creation. The [compatible adapter](../src/platform/ai/compatible.ts) posts Chat Completions requests beneath the configured Base URL and consumes SSE; redirects are rejected. Remote endpoints require HTTPS; loopback HTTP supports local services. No automatic retry, cross-provider fallback, model Tool Calling, structured-output capability probing or model discovery is implemented.
 
 [AI IPC](../src/platform/electron/main/ai-ipc.ts) exposes only start/cancel and returns events to the initiating trusted frame. [Renderer coordination](../src/app/ai/streamClient.ts) subscribes before invocation, buffers early events and removes subscriptions on terminal events or page disposal. The service bounds requests and context/output sizes, applies a 120-second total timeout and cancels requests on renderer navigation/destruction or shutdown. Provider SSE remains in Main; incremental IPC drives the UI.
 
@@ -85,6 +86,8 @@ Remote views share `persist:job-agent-browser`, retaining website storage across
 - [Trusted HTML](../src/renderer/index.html) retains its CSP. Trusted UI external links use the operating-system browser through window creation.
 
 Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
+
+**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) composes Native readers and optional stdio Servers through the [tool runtime](../src/platform/mcp/runtime.ts), starts external connections in the background and settles tooling/AI before closing SQLite. The [MCP architecture](mcp-architecture.md) owns registration, scopes, reviewed schemas, bounded execution and lifecycle. There is no Renderer tooling bridge, model Tool Calling or business Agent loop.
 
 ## 5. Internationalization
 

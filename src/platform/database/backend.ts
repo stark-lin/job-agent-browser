@@ -12,6 +12,8 @@ import { openDatabase } from './sqlite'
 import { Store } from './repositories/store'
 import { repositories } from './repositories'
 import { auditReader, references } from './audit-reader'
+import { createAuditedCapabilities } from '../tools/capabilities'
+import { createNativeCapabilities } from '../tools/native'
 
 /** Main composition root. All services share one connection; generation has a separate trusted identity. */
 export function composeBackend(database: ReturnType<typeof openDatabase>, storage: Pick<ServiceContract, 'settings' | 'secrets'> = storageScaffold) {
@@ -26,8 +28,12 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   } satisfies ServiceContract
   const generation = createGenerationService(repo.resumes, database.transactions.forActor('AI'), runtime)
   createGenerationService(repo.resumes, system, runtime).recoverInterrupted()
+  const capabilities = createAuditedCapabilities(database.transactions.capabilities.sink)
   return {
     generation,
+    capabilities,
+    toolAudit: database.transactions.capabilities,
+    toolCapabilities: createNativeCapabilities(services, capabilities),
     recordAI: database.transactions.recordAI.bind(database.transactions),
     dispatch(namespace: unknown, method: unknown, input: unknown): Result<unknown> {
       if (typeof namespace !== 'string' || typeof method !== 'string' || !Object.hasOwn(methodNames, namespace)) return { ok: false, error: 'INVALID_INPUT' }

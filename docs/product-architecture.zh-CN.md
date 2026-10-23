@@ -100,7 +100,7 @@ Current Page + Job   → Ask AI
 
 MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部网站和已配置的 AI 服务仍可能需要联网。
 
-[V1 数据架构](data-architecture.zh-CN.md) 负责已实现的 11 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
+[V1 数据架构](data-architecture.zh-CN.md) 负责已实现的 12 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
 
 Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。每条经历、项目或教育条目可包含多个独立事实，未关联条目的事实直接归属 Profile。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
 
@@ -165,6 +165,8 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 **Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
 这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；定制简历仍需业务编排和上下文集成；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
+
+[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供受限、带审计的 Native/stdio 能力。工具后续里程碑是接入首个真实服务及其所需 Transport/凭据，再实现模型 Tool Calling 和一个业务 Agent；这些工作不替代上述分阶段产品流程。
 
 基础里程碑为：
 

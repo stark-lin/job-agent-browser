@@ -61,7 +61,9 @@ src/
 │   ├── profile-import/
 │   ├── job-import/
 │   ├── storage/
-│   └── ai/
+│   ├── ai/
+│   ├── mcp/
+│   └── tools/
 ├── renderer/
 └── shared/
     ├── i18n/
@@ -69,7 +71,8 @@ src/
     ├── ui/
     ├── hooks/
     ├── utils/
-    └── types/
+    ├── types/
+    └── tools/
 ```
 
 Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job and Applications are implemented pages. Two other feature entries remain scaffolded; page workflows, including Tailor Resume's model/components/hooks, are still scaffolded. Create page-local modules only as needed; directory or file presence does not establish functionality.
@@ -80,7 +83,7 @@ Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job and Applications are im
 | --- | --- | --- |
 | App | Pages, generic contracts, Domain types and controlled bridges | Compose Renderer services without importing privileged implementations |
 | Page | App navigation/providers, Domain types/pure validation, public UI/utilities | Invoke injected bridge capabilities; never import Main-only implementations |
-| Domain | Business interfaces and framework-independent utilities/types | No Page, React, Electron or concrete Platform dependencies |
+| Domain | Domain contracts/utilities and type-only imports from `shared/tools/index.ts` | No Page, React, Electron, Registry implementation or concrete Platform dependencies |
 | Platform | Domain interfaces, generic contracts and technical libraries | Implement capabilities without knowing product pages |
 | Shared | Generic libraries allowed in its runtime | No business/Platform/App/Page dependencies; Domain never uses React UI/hooks |
 
@@ -125,6 +128,8 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 Domain defines repository and [snapshot reader/extractor interfaces](../src/domain/job/job.extractor.ts). The [URL reader](../src/platform/job-import/url-reader.ts), HTML parsing and AI extraction belong to `platform/job-import/`; future Browser adapters share the same plain-data snapshot, never DOM/Electron objects. Pages coordinate tasks through the [asynchronous bridge](../src/platform/electron/job-import-contract.ts); database methods still handle only confirmed saves.
 
 The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, timeout and the injected database audit capability; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
+
+[Shared Tools](../src/shared/tools/index.ts) owns type-only Agent contracts; Main uses its Registry implementation. [Platform Tools](../src/platform/tools/capabilities.ts) wraps read/write operations with audit; [Platform MCP](../src/platform/mcp/runtime.ts) alone imports the MCP SDK and binds external capabilities. Renderer cannot import the tool runtime. The [MCP architecture](mcp-architecture.md) owns detailed contracts/lifecycle; native writes remain trusted Main capabilities outside the Agent registry.
 
 [Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and confirmation drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names live in Shared.
 

@@ -15,6 +15,7 @@
 | [DESIGN.md](DESIGN.md) · [中文](DESIGN.zh-CN.md) | 视觉方向、交互原则与设计入口；具体组件规则仍归设计规范。 |
 | [docs/design-system.md](docs/design-system.md) · [中文](docs/design-system.zh-CN.md) | 共享 UI 规范、组件参考展示库、Design Tokens 与设计验证。 |
 | [docs/data-architecture.md](docs/data-architecture.md) · [中文](docs/data-architecture.zh-CN.md) | 当前及规划的 V1 数据模型、业务数据 API、生成、溯源、审计与存储；拥有共享 [ER 图](docs/diagrams/data-model.md)。 |
+| [docs/mcp-architecture.md](docs/mcp-architecture.md) · [中文](docs/mcp-architecture.zh-CN.md) | 工具注册、Agent Scope、带审计能力绑定、MCP Provider/Client 行为及生命周期。 |
 
 新增文档前先检查上表；只有独立主题无法合理归入现有文档时才新建，并在 README 索引中添加链接。
 

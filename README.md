@@ -24,9 +24,12 @@ npm run check
 npm run test:smoke
 npm run test:theme
 npm run test:jobs
+npm run test:mcp
 ```
 
 The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL parsing, Applications and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
+
+`test:mcp` runs scoped tool/audited read-write tests plus a bundled Electron runtime with a real stdio MCP fixture; it needs no external account or graphical desktop. The bundled runtime smoke also runs in `check`. Main-owned MCP capabilities are implemented; model Tool Calling and business Agent integration remain planned. See [MCP architecture](docs/mcp-architecture.md).
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 
@@ -39,6 +42,7 @@ For documentation changes, check language parity, implementation labels, relativ
 | [Product architecture](docs/product-architecture.md) · [简体中文](docs/product-architecture.zh-CN.md) | Planned scope, entry points, and delivery order |
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
 | [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, audit privacy, deletion rules and business API |
-| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 11-table model; shared by both data architecture editions |
+| [Tools and MCP runtime](docs/mcp-architecture.md) · [简体中文](docs/mcp-architecture.zh-CN.md) | Scoped tools, audited capability bindings, stdio integration and lifecycle |
+| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 12-table model; shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
 | [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |

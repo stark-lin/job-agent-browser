@@ -4,6 +4,7 @@ import type { AuditTargetType, Command, TargetType, UnitOfWork } from '../../dom
 import { DataError, type ErrorCode } from '../../domain/common/errors'
 import { id } from '../../domain/common/validation'
 import { storageError } from './errors'
+import { createCapabilityAudit } from './capability-audit'
 
 export type Actor = 'USER' | 'AI' | 'SYSTEM'
 const identities = { USER: ['local-user', 'RENDERER'], AI: ['generation-service', 'GENERATOR'], SYSTEM: ['system', 'STARTUP'] } as const
@@ -13,9 +14,11 @@ interface Context extends Omit<Command, 'target'> {
 }
 
 export class Transactions {
+  readonly capabilities: ReturnType<typeof createCapabilityAudit>
   private context: Context | null = null
   private aiInsert = false
   constructor(private readonly db: DatabaseSync) {
+    this.capabilities = createCapabilityAudit(db)
     db.function('audit_uuid', () => randomUUID())
     db.function('audit_now', () => new Date().toISOString())
     db.function('audit_context', (key) => {
@@ -28,6 +31,10 @@ export class Transactions {
   protectAudit(): void {
     // Authorizer checks the SQL origin; callers cannot insert forged success records directly.
     this.db.setAuthorizer((action, table, _column, _database, trigger) => {
+      if (table === 'capability_audit') {
+        if (action === constants.SQLITE_UPDATE || action === constants.SQLITE_DELETE) return constants.SQLITE_DENY
+        if (action === constants.SQLITE_INSERT && !this.capabilities.isWriting()) return constants.SQLITE_DENY
+      }
       if (table === 'audit_logs') {
         if (action === constants.SQLITE_UPDATE || action === constants.SQLITE_DELETE) return constants.SQLITE_DENY
         if (action === constants.SQLITE_INSERT && !trigger?.startsWith('audit_') && this.context?.active !== 'FAILURE' && !this.aiInsert) return constants.SQLITE_DENY

@@ -61,7 +61,9 @@ src/
 │   ├── profile-import/
 │   ├── job-import/
 │   ├── storage/
-│   └── ai/
+│   ├── ai/
+│   ├── mcp/
+│   └── tools/
 ├── renderer/
 └── shared/
     ├── i18n/
@@ -69,7 +71,8 @@ src/
     ├── ui/
     ├── hooks/
     ├── utils/
-    └── types/
+    ├── types/
+    └── tools/
 ```
 
 Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job 和 Applications 为已实现页面。其余两个功能入口仍为占位；页面流程仍为占位，包括 Tailor Resume 的 model/components/hooks。局部模块按需创建，目录或文件存在不代表功能实现。
@@ -80,7 +83,7 @@ Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job 和 Applications 
 | --- | --- | --- |
 | App | Pages、通用契约、Domain 类型及受限桥接 | 组装 Renderer 服务，不导入特权实现 |
 | Page | App 导航/Provider、Domain 类型/纯校验、公共 UI/工具 | 调用注入的桥接能力，不导入 Main 实现 |
-| Domain | 业务接口和无框架工具/类型 | 不依赖 Page、React、Electron 或具体 Platform |
+| Domain | Domain 契约/工具及来自 `shared/tools/index.ts` 的仅类型导入 | 不依赖 Page、React、Electron、Registry 实现或具体 Platform |
 | Platform | Domain 接口、通用契约和技术库 | 实现能力，不了解产品页面 |
 | Shared | 对应运行环境允许的通用库 | 不依赖业务/Platform/App/Page，Domain 不使用 React UI/hooks |
 
@@ -125,6 +128,8 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.extractor.ts)。[URL 读取器](../src/platform/job-import/url-reader.ts)、HTML 解析和 AI 提取实现归 `platform/job-import/`；Browser 后续适配器复用相同普通数据快照，不传 DOM/Electron 对象。页面通过[异步桥接](../src/platform/electron/job-import-contract.ts)协调任务；数据库接口继续只处理确认后的保存。
 
 [Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
+
+[Shared Tools](../src/shared/tools/index.ts)管理仅类型的 Agent 契约，Main 使用其 Registry 实现。[Platform Tools](../src/platform/tools/capabilities.ts)为 read/write 操作封装审计，只有 [Platform MCP](../src/platform/mcp/runtime.ts)可导入 MCP SDK 并绑定外部能力。Renderer 不得导入工具运行时。具体契约/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)，原生写入仍是 Agent Registry 之外的可信 Main 能力。
 
 [Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和确认草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名保留在 Shared。
 

@@ -20,9 +20,12 @@
     "test:smoke": "npm run build && node scripts/run-smoke.cjs",
     "test:theme": "npm run build && node scripts/run-smoke.cjs --theme",
     "test:jobs": "npm run build && node scripts/run-smoke.cjs --jobs",
-    "check": "npm run typecheck && npm run quality && npm test && npm run build"
+    "test:mcp": "node scripts/test.cjs --mcp && node scripts/run-mcp-smoke.cjs",
+    "check": "npm run typecheck && npm run quality && npm test && npm run build && node scripts/run-mcp-smoke.cjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "ajv": "8.20.0",
     "htmlparser2": "^10.1.0",
     "i18next": "^26.4.2",
     "pdfjs-dist": "^6.4.299",
@@ -31,6 +34,7 @@
     "react-i18next": "^17.0.16"
   },
   "devDependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

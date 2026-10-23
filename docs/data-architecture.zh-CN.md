@@ -8,7 +8,7 @@
 
 [Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；Profile 选择或保存当前记录时同步共享 Profile ID。
 
-[版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 11 张数据表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
+[版本化迁移](../src/platform/database/migrations/index.ts) 在事务中创建 12 张数据表及 `schema_migrations`。校验和检测迁移被修改；较新的结构版本或校验不匹配会使启动失败，不重置数据。存储初始化失败时不打开窗口/API。UUID v4 ID 由内部生成，成功删除后禁止复用。时间使用 UTC ISO 字符串，日历日期使用 `YYYY-MM-DD`。
 
 [共享 ER 图](diagrams/data-model.md) 描述已实现模型。具体 SQL 类型、默认值、可空性、约束及索引以[建表定义](../src/platform/database/migrations/schema.ts)和[版本 2 审计迁移](../src/platform/database/migrations/ai-audit.ts)为准；后者保留原记录及 15 个审计字段，扩充固定错误码。JSON 使用校验后的 TEXT 列；SQL 表使用 STRICT。Applications 和 Calendar 基于 Job 与 JobEvent，不另建申请或日历表。
 
@@ -19,6 +19,7 @@
 | `profiles`, `profile_items`, `facts` | 联系方式、结构化容器及可选择证据 |
 | `generation_runs`, `artifacts`, `artifact_facts` | 不可变输入、生成阶段、成品与溯源 |
 | `audit_logs` | 不含业务内容的成功/失败事件 |
+| `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
 
 ## 二、业务规则
 
@@ -72,7 +73,7 @@
 
 ## 四、审计与事务
 
-[事务管理](../src/platform/database/transactions.ts) 与[数据库触发器](../src/platform/database/migrations/audit-triggers.ts) 为每条变更业务记录自动追加审计。调用方只提交业务参数。一次写入操作拥有一个内部事务：全部变更与成功审计一起提交或全部回滚。多记录操作共享请求和事务 ID。业务查询和审计查询均不写审计。
+[事务管理](../src/platform/database/transactions.ts) 与[数据库触发器](../src/platform/database/migrations/audit-triggers.ts) 为每条变更业务记录自动追加审计。调用方只提交业务参数。一次写入操作拥有一个内部事务：全部变更与成功审计一起提交或全部回滚。多记录操作共享请求和事务 ID。普通业务/审计查询保持只读；显式能力读取会额外记录下述访问审计。
 
 | 要素 | SQL 字段 | 允许内容 |
 | --- | --- | --- |
@@ -94,6 +95,12 @@
 每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。对话历史只在页面内存中，不新增 AI 运行/消息表。
 
 **已实现审计浏览：**只读 [Settings 查看器](../src/pages/settings/AuditViewerSection.tsx)使用 `audit.list`，不更改数据库结构或 IPC。默认每页 25 条，按序号倒序排列。类型/状态、目标/请求/事务 ID 精确匹配及包含边界的时间范围组合现有筛选。[筛选转换](../src/pages/settings/audit-filters.ts)校验 ID/范围，并将本地日期时间转换为规范 UTC；详情同时显示本地化时间和存储的 UTC 值。刷新/重置/应用筛选均回到第一页。分页使用 offset，新增写入可能移动后续页记录，应刷新获取最新顺序。不提供导出、自动轮询、日志修改或业务内容重建。设置/密钥写入仍不进入审计，AI 成功仍仅表示启动。
+
+**已实现能力审计：**[read/write 封装](../src/platform/tools/capabilities.ts)校验参数并提交 `START`，然后调用 Domain Service 或 MCP Client，最后提交唯一的 `END`，包含成功/固定错误和耗时。工具绑定不自行写审计。原生写入复用现有业务事务，每个变更行只产生一次业务变更审计，另有独立的能力访问/结果记录；外部网络等待不占用 SQLite 事务。
+
+[仅 Main 可用的写入器](../src/platform/database/capability-audit.ts)向只追加的 `capability_audit` 表记录调用 ID、阶段、UTC 时间、Main 绑定的 Agent/run ID、审核后的工具名称/模式、可选 Server/原始名称、已校验的原生目标类型/UUID、耗时、状态和错误。不记录输入、输出、提示词、URL、命令、凭据或原始异常。执行前被参数校验拒绝的请求不产生访问记录。SQL 保护和 authorizer 拒绝伪造插入、更新及删除。
+
+开始审计失败时不执行；结束审计失败返回 `TOOL_AUDIT_UNAVAILABLE`，不重试，也不声称已回滚，此时外部操作或本地提交可能已完成。工具运行时启动时为缺失结束记录的调用追加 `INTERRUPTED`，不重新执行。现有 `audit.list`/Settings 查看器仍只读取业务/AI `audit_logs`，能力诊断仅 Main 可见。[测试](../tests/capability-audit.test.ts)覆盖隐私、失败、回滚及不可变记录；执行策略/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)。
 
 ## 五、API 契约与访问
 
@@ -172,13 +179,15 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。`userData/artifacts/` 下的编译成品仍为规划。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
 
+可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#四配置与生命周期)管理配置示例和限制。
+
 [偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
 
 [AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS Base URL（仅 localhost/回环允许 HTTP）、明确的密钥需求、每个实例最多 100 个手填模型 ID 和可空的全局 Provider/模型默认值。Base URL 保留路径前缀，拒绝凭据、查询参数和片段。不含 `ai` 的旧版本 1 偏好在内存中获得默认值，保存前不改写文件。Settings 移除 Provider 前须先删除其密钥，配置移除在保存后生效。
 
 [密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、工具、结构化输出集成、AI 业务生成、登录态网页提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
+[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。模型发现、模型 Tool Calling、结构化输出集成、AI 业务生成、登录态网页提取/查重、编译、其余业务 UI 和完整隐私清除尚未实现。
 
 - [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。

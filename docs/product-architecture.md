@@ -100,7 +100,7 @@ Current Page + Job   → Ask AI
 
 The MVP is local first and does not require a complex backend. Local storage is the starting point; external websites and configured AI services may still require a network connection.
 
-The [V1 data architecture](data-architecture.md) owns the implemented 11-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
+The [V1 data architecture](data-architecture.md) owns the implemented 12-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
 
 Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. Each experience, project or education item can contain multiple independent facts; standalone facts belong directly to the Profile. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
@@ -165,6 +165,8 @@ Stage 1 establishes page hosting and navigation controls; Stage 3 completes the 
 **Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
 
 This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Tailor Resume still needs business orchestration and context integration; mailbox entry configuration must ship alongside Inbox.
+
+The [MCP foundation](mcp-architecture.md) now supplies scoped, audited Native/stdio capabilities. The next tooling milestones are one real-service integration with its required transport/credentials, then model Tool Calling and one business Agent; these do not replace the staged product workflows above.
 
 The foundation milestone is:
 

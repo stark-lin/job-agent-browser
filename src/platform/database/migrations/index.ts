@@ -3,9 +3,11 @@ import { createHash } from 'node:crypto'
 import { initialSchema } from './schema'
 import { auditTriggers } from './audit-triggers'
 import { aiAuditMigration } from './ai-audit'
+import { capabilityAuditMigration } from './capability-audit'
 
 export interface Migration { version: number; sql: string }
-export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration }]
+export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration },
+  { version: 3, sql: capabilityAuditMigration }]
 
 /** Startup only, before repositories are constructed. Never silently repair or reset a database. */
 export function migrate(db: DatabaseSync, steps: readonly Migration[] = migrations): void {

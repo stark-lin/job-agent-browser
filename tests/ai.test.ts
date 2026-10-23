@@ -182,7 +182,7 @@ test('renderer client buffers events emitted before invoke resolves and cleans t
 })
 
 test('SSE decoder handles byte-level UTF-8 boundaries, multiline data and ignores empty chunks', async () => {
-  const { streamChat } = await import('../src/platform/ai/compatible')
+  const { streamChat } = await import('../src/platform/ai/compatible.js')
   const bytes = new TextEncoder().encode(': heartbeat\r\n\r\n' + chunk({}) +
     'data: {"choices":\r\ndata: [{"delta":{"content":"你好"},"finish_reason":"stop"}]}\r\n\r\ndata: [DONE]\r\n\r\n')
   const body = new ReadableStream<Uint8Array>({ start(controller) {

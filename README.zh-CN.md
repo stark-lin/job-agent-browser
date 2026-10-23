@@ -24,9 +24,12 @@ npm run check
 npm run test:smoke
 npm run test:theme
 npm run test:jobs
+npm run test:mcp
 ```
 
 构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、混合历史、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL 解析、申请记录及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台安装包仍未配置。
+
+`test:mcp` 执行受限工具/带审计 read-write 测试，以及使用真实 stdio MCP 样本的打包 Electron 运行时，无需外部账号或图形桌面。该打包运行时 smoke 也纳入 `check`。Main 管理的 MCP 能力已实现；模型 Tool Calling 和业务 Agent 接入仍为规划，见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 
@@ -39,6 +42,7 @@ npm run test:jobs
 | [产品架构](docs/product-architecture.zh-CN.md) · [English](docs/product-architecture.md) | 规划范围、入口与交付顺序 |
 | [代码架构](docs/code-architecture.zh-CN.md) · [English](docs/code-architecture.md) | 目标组织、依赖边界与迁移约束 |
 | [V1 数据架构与 API](docs/data-architecture.zh-CN.md) · [English](docs/data-architecture.md) | 已实现实体、事务、审计隐私、删除规则及业务 API |
-| [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 11 表模型，由中英文数据架构共用 |
+| [工具与 MCP 运行时](docs/mcp-architecture.zh-CN.md) · [English](docs/mcp-architecture.md) | 受限工具、带审计能力绑定、stdio 接入及生命周期 |
+| [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 12 表模型，由中英文数据架构共用 |
 | [设计纲要](DESIGN.zh-CN.md) · [English](DESIGN.md) | 视觉方向、交互原则与 UI 设计入口 |
 | [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |

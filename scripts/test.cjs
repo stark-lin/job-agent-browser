@@ -12,6 +12,8 @@ function run(args) {
 }
 rmSync(join(root, '.cache/tests'), { recursive: true, force: true })
 run([join(root, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.test.json'])
-const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => name.endsWith('.test.js')).map((name) => join(root, '.cache/tests/tests', name))
+const mcpOnly = process.argv.includes('--mcp')
+const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => name.endsWith('.test.js') &&
+  (!mcpOnly || /^(tools|mcp|capability-audit)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))
 if (tests.length === 0) throw new Error('No tests discovered')
 run(['--test', '--test-concurrency=1', ...tests])

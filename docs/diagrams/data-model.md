@@ -169,4 +169,22 @@ erDiagram
         string target_id
         string transaction_id
     }
+
+    CAPABILITY_AUDIT {
+        int sequence PK
+        string invocation_id
+        string phase
+        datetime timestamp
+        string agent_id
+        string run_id
+        string tool_name
+        string mode
+        string server_id
+        string original_name
+        string target_type
+        string target_id
+        int duration_ms
+        string status
+        string error
+    }
 ```

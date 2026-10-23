@@ -29,6 +29,8 @@ import {
 import { createMainWindow } from './window'
 import { applyTheme } from './theme'
 import type { BrowserManager } from '../../browser/browserManager'
+import { createToolRuntime, type ToolRuntime } from '../../mcp/runtime'
+import { readMCPConfiguration } from '../../storage/mcp-config'
 
 let browser: BrowserManager | undefined
 let backend: ReturnType<typeof createBackend> | undefined
@@ -36,6 +38,7 @@ let preferences: ReturnType<typeof createPreferences>
 let ai: AIService | undefined
 let profileImporter: ProfileImporter | undefined
 let jobImporter: JobImporter | undefined
+let tools: ToolRuntime | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -53,6 +56,10 @@ app.whenReady().then(async () => {
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)
   })
   backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
+  tools = createToolRuntime({ configuration: () => readMCPConfiguration(join(directory, 'mcp.json')), capabilities: backend.capabilities,
+    native: backend.toolCapabilities.read, recoverAudit: backend.toolAudit.recoverInterrupted })
+  // Optional external capabilities never delay window creation or reject the application startup.
+  void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
   profileImporter = createProfileImporter({ ai, apply: input => backend!.dispatch('profiles', 'applyConfirmedImport', input) as Result<ImportSaved> })
   jobImporter = createJobImporter({ ai, reader: createURLReader() })
@@ -86,9 +93,10 @@ app.on('will-quit', event => {
   profileImporter?.dispose()
   jobImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
-  if (!ai || shuttingDown) { backend?.close(); backend = undefined; return }
+  if (shuttingDown) return
+  if (!ai && !tools) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void ai.dispose().finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([ai?.dispose(), tools?.dispose()]).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {

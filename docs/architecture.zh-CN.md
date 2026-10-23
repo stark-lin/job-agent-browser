@@ -12,7 +12,8 @@
 React App → Page → Preload → IPC → Main
                                   ├── Mixed history + WebContentsView → Session
                                   ├── Domain services → SQLite + audit
-                                  └── AI service → Provider SSE
+                                  ├── AI service → Provider SSE
+                                  └── ToolScope → audited capability → Domain / MCP stdio
 ```
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据/AI 桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
@@ -55,7 +56,7 @@ React App → Page → Preload → IPC → Main
 
 [App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体或提取网页内容。Profile 优先加载有效的引用记录，否则选择最近更新的 Profile，并在加载/保存后同步共享 ID。
 
-**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。[兼容适配器](../src/platform/ai/compatible.ts)在配置的 Base URL 下调用 Chat Completions 并消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。尚未实现自动重试、跨 Provider 回退、工具、结构化输出能力探测或模型发现。
+**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。[兼容适配器](../src/platform/ai/compatible.ts)在配置的 Base URL 下调用 Chat Completions 并消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。尚未实现自动重试、跨 Provider 回退、模型 Tool Calling、结构化输出能力探测或模型发现。
 
 [AI IPC](../src/platform/electron/main/ai-ipc.ts)只暴露启动/取消，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，设置 120 秒总超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
@@ -85,6 +86,8 @@ Main 将带页码文字发送给已展示的全局默认 Provider/模型，复�
 - [可信 HTML](../src/renderer/index.html) 保持 CSP。可信 UI 外部链接通过窗口创建逻辑使用操作系统浏览器。
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
+
+**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)通过[工具运行时](../src/platform/mcp/runtime.ts)组装原生读取及可选 stdio Server，在后台启动外部连接，退出时完成工具/AI 清理后再关闭 SQLite。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、Scope、审核 Schema、有界执行及生命周期。暂不提供 Renderer 工具桥接、模型 Tool Calling 或业务 Agent Loop。
 
 ## 五、国际化
 
