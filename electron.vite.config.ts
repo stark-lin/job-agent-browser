@@ -13,8 +13,10 @@ export default defineConfig({
     } }],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'src/platform/electron/main/index.ts'),
-        output: { format: 'cjs', entryFileNames: 'index.js' }
+        input: { index: resolve(__dirname, 'src/platform/electron/main/index.ts'),
+          'job-agent-mcp': resolve(__dirname, 'src/platform/mcp-server/stdio.ts'),
+          'resume-output-worker': resolve(__dirname, 'src/platform/resume-output/worker.ts') },
+        output: { format: 'cjs', entryFileNames: '[name].js' }
       }
     }
   },

@@ -6,8 +6,8 @@ import { id } from '../../domain/common/validation'
 import { storageError } from './errors'
 import { createCapabilityAudit } from './capability-audit'
 
-export type Actor = 'USER' | 'AI' | 'SYSTEM'
-const identities = { USER: ['local-user', 'RENDERER'], AI: ['generation-service', 'GENERATOR'], SYSTEM: ['system', 'STARTUP'] } as const
+export type Actor = 'USER' | 'AI' | 'SYSTEM' | 'EXTERNAL'
+const identities = { USER: ['local-user', 'RENDERER'], AI: ['generation-service', 'GENERATOR'], SYSTEM: ['system', 'STARTUP'], EXTERNAL: ['codex', 'MCP_SERVER'] } as const
 interface Context extends Omit<Command, 'target'> {
   target: AuditTargetType
   active: 'SUCCESS' | 'FAILURE'; requestId: string; transactionId: string; actorId: string; source: string

@@ -2,10 +2,12 @@ import type { DatabaseSync } from 'node:sqlite'
 import { ToolError, toolErrorCodes, type ToolErrorCode } from '../../shared/tools/errors'
 import { validateDescriptor } from '../../shared/tools/policy'
 import type { CapabilityAudit, CapabilityAuditContext } from '../tools/audit.types'
+import type { RuntimeLease } from './runtime-leases'
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 export function createCapabilityAudit(db: DatabaseSync) {
   let writing = false
+  let runtime: RuntimeLease | undefined
   db.function('capability_audit_allowed', () => writing ? 1 : 0)
   function write(operation: () => void) {
     if (db.isTransaction || writing) throw new ToolError('TOOL_AUDIT_UNAVAILABLE')
@@ -29,11 +31,13 @@ export function createCapabilityAudit(db: DatabaseSync) {
       if (!uuid.test(invocationId) || !/^[a-z][a-z0-9_.-]{0,63}$/.test(agentId) || (runId !== undefined && !uuid.test(runId)) ||
         (target && (!['job', 'profile', 'artifact'].includes(target.type) || !uuid.test(target.id)))) throw new ToolError('TOOL_AUDIT_UNAVAILABLE')
       write(() => {
+        if (runtime && !runtime.live(runtime.id)) throw new ToolError('TOOL_AUDIT_UNAVAILABLE')
         db.prepare(`INSERT INTO capability_audit(invocation_id,phase,timestamp,agent_id,run_id,tool_name,mode,server_id,original_name,
           target_type,target_id,duration_ms,status,error) VALUES(?,'START',?,?,?,?,?,?,?,?,?,NULL,'STARTED',NULL)`)
           .run(invocationId, new Date().toISOString(), agentId, runId ?? null, tool.name, tool.mode,
             tool.source.type === 'mcp' ? tool.source.serverId : null, tool.source.type === 'mcp' ? tool.source.originalName : null,
             target?.type ?? null, target?.id ?? null)
+        if (runtime) db.prepare('INSERT INTO invocation_owners VALUES(?,?)').run(invocationId, runtime.id)
       })
     },
     finish(context, durationMs, error) {
@@ -44,11 +48,15 @@ export function createCapabilityAudit(db: DatabaseSync) {
   }
   return {
     sink,
+    setRuntime(value: RuntimeLease) { runtime = value },
     isWriting: () => writing,
     recoverInterrupted() {
-      const unfinished = db.prepare(`SELECT s.invocation_id FROM capability_audit s WHERE s.phase='START' AND NOT EXISTS
-        (SELECT 1 FROM capability_audit e WHERE e.invocation_id=s.invocation_id AND e.phase='END')`).all()
-      if (unfinished.length) write(() => { for (const row of unfinished) end(String(row.invocation_id), 0, 'TOOL_UNAVAILABLE', true) })
+      write(() => {
+        const unfinished = db.prepare(`SELECT s.invocation_id,o.runtime_id FROM capability_audit s LEFT JOIN invocation_owners o ON o.invocation_id=s.invocation_id
+          WHERE s.phase='START' AND NOT EXISTS (SELECT 1 FROM capability_audit e WHERE e.invocation_id=s.invocation_id AND e.phase='END')`).all()
+          .filter(row => !runtime || !row.runtime_id || !runtime.live(String(row.runtime_id)))
+        for (const row of unfinished) end(String(row.invocation_id), 0, 'TOOL_UNAVAILABLE', true)
+      })
     },
     // Main-only diagnostics; never exported through DataContract or a model tool.
     list() { return db.prepare('SELECT * FROM capability_audit ORDER BY sequence').all() }

@@ -16,7 +16,7 @@
 | Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
 | Shared | 无框架契约及不含业务语义的 UI/工具/hooks | [导航契约](../src/shared/navigation.ts)、[占位布局](../src/shared/ui/PlaceholderPage.tsx) |
 
-[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。构建产物和包入口保持稳定。
+[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。包入口保持 `out/main/index.js`；同时构建独立 Node MCP 及 Electron 输出 Worker 入口。
 
 所有 UI 组件必须组合[中央组件库入口](../src/shared/ui/index.ts)提供的基础组件；缺少变体时先扩展中央库再用于页面。页面保留布局与事件行为。[设计规范](design-system.zh-CN.md#二必须复用中央组件库)管理完整复用规则。
 
@@ -64,6 +64,9 @@ src/
 │   ├── storage/
 │   ├── ai/
 │   ├── mcp/
+│   ├── mcp-server/
+│   ├── agent/
+│   ├── resume-output/
 │   └── tools/
 ├── renderer/
 └── shared/
@@ -90,7 +93,7 @@ Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications �
 
 Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Repository/事务。Domain 依赖接口，由[后端组装](../src/platform/database/backend.ts)注入具体适配器。概念上的 Page → Domain → Platform 流程不允许 UI 导入服务端业务服务。
 
-数据库访问仍只属于 Main。配置、密钥、AI 请求和编译由 Main 或受控服务执行。保留沙盒、上下文隔离、第三方页面分离，以及精确可信文档/顶层 frame 的 IPC 校验。
+数据库访问仅在受控 Main/Node 运行时。配置、密钥、AI 请求和编译由 Main 或受控服务执行。保留沙盒、上下文隔离、第三方页面分离，以及精确可信文档/顶层 frame 的 IPC 校验。
 
 [共享 i18n 模块](../src/shared/i18n/)管理无框架的资源、配置、selector 类型和翻译初始化，不导入 React 或 Electron。[App](../src/app/i18n.tsx)管理 React Provider 集成和文档元数据。Pages 在渲染时取词，Platform 为应用自有的原生文案取词。新增可见文字放入文案资源，包括完整的插值句子，并使用类型化 selector。运行行为及后续语言支持由[当前架构](architecture.zh-CN.md#五国际化)管理。
 
@@ -130,13 +133,13 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
-[Shared Tools](../src/shared/tools/index.ts)管理仅类型的 Agent 契约，Main 使用其 Registry 实现。[Platform Tools](../src/platform/tools/capabilities.ts)为 read/write 操作封装审计，只有 [Platform MCP](../src/platform/mcp/runtime.ts)可导入 MCP SDK 并绑定外部能力。Renderer 不得导入工具运行时。具体契约/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)，原生写入仍是 Agent Registry 之外的可信 Main 能力。
+[Shared Tools](../src/shared/tools/index.ts)管理仅类型的 Agent 契约。[Platform Tools](../src/platform/tools/resume.ts)绑定共享且带审计的 Resume 能力。只有 `platform/mcp/`（Client）及 `platform/mcp-server/`（Server）导入 MCP SDK；Renderer 不得导入这些运行时。[MCP 架构](mcp-architecture.zh-CN.md)管理策略/契约。Domain controller 接收 Scope 和 runner，不接收具体 Platform 服务。
 
 [Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 
-简历保留八个核心概念：[AgentModel](../src/shared/agent/index.ts)、[AgentLoop](../src/platform/agent/loop.ts)、[ToolScope](../src/shared/tools/tool.types.ts)、[ResumeAgent](../src/domain/resume/resume.agent.ts)、[GenerationService](../src/domain/resume/generation.service.ts)、[ResumeDocument](../src/domain/resume/resume.types.ts)、[HTMLCompiler](../src/platform/resume-output/compiler.ts) 和 [PDFExporter](../src/platform/resume-output/exporter.ts)。Domain 管理工作流/校验，通过注入阶段 runner 执行；Main 管理 Provider/Scope/生命周期/输出组装。[Resume IPC](../src/platform/electron/resume-contract.ts)独立于 DataContract 及对话，页面 hook 只协调展示。
+简历保留八个核心概念：[AgentModel](../src/shared/agent/index.ts)、[AgentLoop](../src/platform/agent/loop.ts)、[ToolScope](../src/shared/tools/tool.types.ts)、[ResumeAgent](../src/domain/resume/resume.agent.ts)、[GenerationService](../src/domain/resume/generation.service.ts)、[ResumeDocument](../src/domain/resume/resume.types.ts)、[HTMLCompiler](../src/platform/resume-output/compiler.ts) 和 [PDFExporter](../src/platform/resume-output/exporter.ts)。Domain 管理工作流/校验，接收阶段 runner 及共享写 Scope。Main 组装内部模型；Node Server 经共享输出服务委托 Electron Worker 渲染。[Resume IPC](../src/platform/electron/resume-contract.ts)独立于 DataContract 及对话，页面 hook 只协调展示。
 
 ## 六、质量与后续交付
 

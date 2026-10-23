@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { Transactions } from '../src/platform/database/transactions'
-import { composeBackend } from '../src/platform/database/backend'
+import { Store } from '../src/platform/database/repositories/store'
+import { jobRepository } from '../src/platform/database/repositories/jobs'
+import { createJobService } from '../src/domain/job/job.service'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
@@ -21,7 +23,7 @@ test('migrations create all tables once and enforce configured SQLite settings',
   const f = fixture(t), db = f.database.connection
   assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1)
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all()
-  assert.equal(tables.length, 13)
+  assert.equal(tables.length, 17)
   migrate(db)
   assert.equal(db.prepare('SELECT count(*) count FROM schema_migrations').get()?.count, migrations.length)
 })
@@ -107,11 +109,11 @@ test('matching-generation version-1 upgrade preserves business rows, audit seque
   // Exercise incremental initialization within the new schema generation.
   const transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 1)); transactions.protectAudit()
-  const old = composeBackend({ connection, transactions, close: () => connection.close() })
-  const job = value(old.dispatch('jobs', 'saveJob', { details: { title: 'Persisted private role', companyNameRaw: 'Company' } }) as import('../src/shared/ipc').Result<{ id: string }>)
+  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
+  const job = jobs.saveJob({ details: { title: 'Persisted private role', companyNameRaw: 'Company' } })
   const before = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all()
   const checksum = connection.prepare('SELECT checksum FROM schema_migrations WHERE version=1').get()?.checksum
-  old.close()
+  connection.close()
   const next = openDatabase(path)
   t.after(next.close)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(job.id)?.title, 'Persisted private role')
@@ -129,12 +131,12 @@ test('matching-generation version-1 upgrade preserves business rows, audit seque
 test('matching-generation version-2 upgrade adds capability audit without changing historical rows or migration checksums', t => {
   const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 2)); transactions.protectAudit()
-  const old = composeBackend({ connection, transactions, close: () => connection.close() })
-  value(old.dispatch('jobs', 'saveJob', { details: { title: 'Retained role', companyNameRaw: 'Retained company' } }))
+  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
+  jobs.saveJob({ details: { title: 'Retained role', companyNameRaw: 'Retained company' } })
   transactions.recordAI(randomUUID(), 'AI_CANCELLED')
   const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all()
   const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
-  old.close()
+  connection.close()
   const next = openDatabase(path)
   t.after(next.close)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)

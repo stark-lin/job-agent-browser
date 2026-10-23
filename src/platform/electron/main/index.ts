@@ -105,7 +105,7 @@ app.on('will-quit', event => {
   if (shuttingDown) return
   if (!ai && !tools && !resumes) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([ai?.dispose(), tools?.dispose(), resumes?.dispose()]).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([ai?.dispose(), resumes?.dispose()]).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {

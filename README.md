@@ -6,7 +6,7 @@ Language: English · [简体中文](README.zh-CN.md)
 
 ## Quick start
 
-Requires Node.js 22.13 or newer and npm, as declared in [package.json](package.json).
+Requires Node.js 24.10 or newer and npm, as declared in [package.json](package.json).
 
 ```sh
 npm install
@@ -27,17 +27,20 @@ npm run test:smoke
 npm run test:theme
 npm run test:jobs
 npm run test:mcp
+npm run test:mcp-server
 npm run test:agent
 npm run test:profile
 ```
 
-The build writes Main, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL parsing, Applications, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
+The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL parsing, Applications, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
 
-`test:mcp` runs scoped tool/audited read-write tests plus a bundled Electron runtime with a real stdio MCP fixture; it needs no external account or graphical desktop. The bundled runtime smoke also runs in `check`. Main-owned MCP capabilities are implemented; ResumeAgent uses a separate snapshot-bound scope. See [MCP architecture](docs/mcp-architecture.md).
+`test:mcp` checks the existing MCP Client runtime. `test:mcp-server` checks the shared Resume workflow, runtime parity and a built Node stdio Server with real Electron HTML/PDF output and disposable storage. Both runtime smokes also run in `check`; Server PDF checks require a graphical desktop. See [MCP architecture](docs/mcp-architecture.md).
 
 `test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. Live-provider compatibility and Windows/Linux PDF rendering remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
+
+To use Codex, build the application, run `npm run skill:link`, and connect the stdio entry to the same existing userData directory. The [MCP connection instructions](docs/mcp-architecture.md#5-resume-server-and-codex) own configuration; the [Resume Skill](skills/tailor-resume/SKILL.md) owns the external reasoning workflow. Codex generation does not require an application AI Provider.
 
 ## Documentation index
 
@@ -49,6 +52,7 @@ For documentation changes, check language parity, implementation labels, relativ
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
 | [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, audit privacy, deletion rules and business API |
 | [Tools and MCP runtime](docs/mcp-architecture.md) · [简体中文](docs/mcp-architecture.zh-CN.md) | Scoped tools, audited capability bindings, stdio integration and lifecycle |
-| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 12-table model; shared by both data architecture editions |
+| [Resume Skill](skills/tailor-resume/SKILL.md) · [简体中文](skills/tailor-resume/SKILL.zh-CN.md) | Codex reasoning workflow over shared Resume tools; setup belongs to MCP architecture |
+| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 16-table model; shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
 | [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |

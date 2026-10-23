@@ -16,9 +16,9 @@ export function registerResumeIPC(service: ResumeTasks, rendererPath: string) {
     const emit = (message: ResumeEvent) => { if (!sender.isDestroyed() && frame && !frame.detached && sender.mainFrame === frame) frame.send(RESUME_EVENT, message) }
     try {
       let value: unknown
-      if (method === 'start') value = service.start(sender.id, input, emit)
+      if (method === 'start') value = await service.start(sender.id, input, emit)
       else if (method === 'getTask') value = service.getTask(sender.id, input)
-      else if (method === 'cancel') value = service.cancel(sender.id, input)
+      else if (method === 'cancel') value = await service.cancel(sender.id, input)
       else if (method === 'retryOutput') value = service.retryOutput(sender.id, input, emit)
       else if (method === 'getPreview') value = await service.getPreview(input)
       else {

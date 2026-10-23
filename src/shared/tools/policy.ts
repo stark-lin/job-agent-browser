@@ -6,7 +6,7 @@ const segment = '[a-z][a-z0-9_-]*'
 const namePattern = new RegExp(`^${segment}(\\.${segment})+$`)
 const namespacePattern = new RegExp(`^${segment}(\\.${segment})*\\.\\*$`)
 const reserved = new Set(['generation', 'audit', 'database', 'transaction', 'secret', 'secrets'])
-export const nativeNamespaces = new Set(['job', 'profile', 'artifact', 'browser'])
+export const nativeNamespaces = new Set(['job', 'profile', 'artifact', 'browser', 'resume'])
 
 export function validToolName(name: string): boolean {
   return typeof name === 'string' && name.length <= 128 && namePattern.test(name) &&

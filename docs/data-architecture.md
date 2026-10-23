@@ -6,7 +6,7 @@ Language: English · [简体中文](data-architecture.zh-CN.md)
 
 ## 1. Runtime and storage
 
-[Main](../src/platform/electron/main/index.ts) opens `userData/database.sqlite` before creating a window. [SQLite initialization](../src/platform/database/sqlite.ts) uses Electron's built-in `node:sqlite`, one Main-owned connection, foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer never receives a connection or SQL interface. [App Context](../src/app/context/appContext.ts) holds nullable Job/Profile/Artifact IDs rather than entity copies; Profile initializes the shared Profile ID when selecting or saving its current record.
+[Main](../src/platform/electron/main/index.ts) and the [local MCP Server](../src/platform/mcp-server/runtime.ts) each open one `node:sqlite` connection to the explicit userData database. [SQLite initialization](../src/platform/database/sqlite.ts) enables foreign keys, WAL, full synchronous durability and a 1-second busy timeout. Renderer receives no SQL. [App Context](../src/app/context/appContext.ts) holds Job/Profile/Artifact IDs rather than record copies.
 
 [Versioned migrations](../src/platform/database/migrations/index.ts) recognize database generation `0x4a415632` before journal/schema writes. Only empty or matching-generation databases are accepted; legacy databases fail with `INCOMPATIBLE_DATABASE_GENERATION` and are never reset, deleted or migrated. Development/acceptance must use separate userData. Matching databases use transactional migrations/checksums; future versions and mismatches fail startup. UUID v4 IDs cannot be reused after deletion; timestamps are UTC ISO strings.
 
@@ -20,6 +20,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | `generation_runs`, `artifacts`, `artifact_facts` | Immutable inputs, generation stages, output and provenance |
 | `audit_logs` | Content-free success/failure events |
 | `capability_audit` | Content-free access/execution audit owned by read/write capabilities; [version-3 schema](../src/platform/database/migrations/capability-audit.ts) |
+| `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | Process/work ownership, invocation ownership and atomic start receipts; [version-4 schema](../src/platform/database/migrations/runtime-leases.ts) |
 
 ## 2. Business rules
 
@@ -52,9 +53,11 @@ Import creates `PROFILE_IMPORT` audit events for each changed record under a sha
 
 ## 3. Generation, output and deletion
 
-[Resume requests](../src/domain/resume/resume.service.ts) atomically snapshot the Job, Profile, every saved Fact and all related items. A profile with no saved Facts or an archived job fails; empty Fact `evidence` strings do not block generation. Configuration fixes `default-v1`, a default 500-word budget and the chosen provider/model; credentials stay outside snapshots. The [Domain ResumeAgent](../src/domain/resume/resume.agent.ts) runs score → gate → select → draft → validate → polish → validate → publish through an injected stage runner. Scoring persists `factId / score / reason` and output language from the job responsibilities/requirements, defaulting to English when unclear.
+[Resume requests](../src/domain/resume/resume.service.ts) atomically snapshot the Job, Profile, every saved Fact and related items. Empty-fact profiles and archived jobs fail. Configuration fixes template/budget, trusted `runtimeKind` and the internal provider/model; external runs use empty provider/model IDs. Credentials stay outside snapshots. [Shared capabilities](mcp-architecture.md#5-resume-server-and-codex) wrap creation and stages; [the Domain controller](../src/domain/resume/resume.agent.ts) retains the injected runner.
 
-The [Main-only GenerationService](../src/domain/resume/generation.service.ts) persists stages; models receive read-only snapshot tools and cannot publish or write status. States are `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`. Gate rejection persists reasons/missing evidence and stops. Startup interrupts surviving pending/running attempts; retry creates a new run. Publishing atomically creates one Artifact and marks `SUCCEEDED`; later output failure/cancellation preserves it.
+The trusted [GenerationService](../src/domain/resume/generation.service.ts) persists `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`. Internal models receive only read tools; trusted controllers and Codex use shared stage capabilities. Gate rejection persists missing evidence and stops. Publishing creates one Artifact and marks `SUCCEEDED`; output failures preserve publication. Start receipts and stage handlers support identical retries; conflicting submissions fail.
+
+[Runtime leases](../src/platform/database/runtime-leases.ts) renew every 5 seconds and expire after 30 seconds; dead local PIDs are also detected. Startup and background recovery interrupt only unowned/dead-instance work and unmatched audit calls. Repository checks fence expired/foreign generation writes; output claims use unique attempt tokens and separate attempt directories, excluding concurrent edits/builds and fencing file replacement. [The shared output service](../src/platform/resume-output/service.ts) checks the token/content before recording files. UI queries are read-only and poll foreign activity; another session cannot take over an interrupted generation.
 
 [ResumeDocument](../src/domain/resume/resume.types.ts) is the sole draft/polished/Artifact schema: language, application-copied basics and item metadata, summary, experience/projects/education bullets and skills. Each generated statement has a stable UUID, text and nonempty `factIds`. [Validation](../src/domain/resume/resume.validation.ts) enforces unique IDs, selected snapshot references, item ownership, unchanged basics and a language-aware budget; CJK characters count individually. Polish cannot add statement IDs, items or references to a draft statement. `artifact_facts` is derived from these statements; callers never submit separate provenance. Valid references do not prove semantic truth; [reviewed fixtures](../tests/fixtures/resume-evidence.json) explicitly mark invented metrics and expanded responsibility as unsupported.
 
@@ -84,7 +87,7 @@ The [Main-only GenerationService](../src/domain/resume/generation.service.ts) pe
 | Outcome | `status`, `error` | `SUCCESS / FAILURE`; error code only |
 | Identity | `actor_id`, `target_type`, `target_id` | Opaque subject and business object identifiers |
 
-Additional fields are `id`, monotonically increasing `sequence` and `transaction_id`. ArtifactFact targets encode their three opaque key IDs as a JSON array string. USER, AI and SYSTEM use fixed local identifiers; source is `RENDERER / GENERATOR / STARTUP / AI_CLIENT`. This is a local single-user identity scheme, not multi-user authentication. Public DTO fields use camelCase.
+Additional fields are `id`, monotonically increasing `sequence` and `transaction_id`. ArtifactFact targets encode their three opaque key IDs as a JSON array string. USER, AI, SYSTEM and EXTERNAL use fixed local identifiers; source is `RENDERER / GENERATOR / STARTUP / AI_CLIENT / MCP_SERVER`. This is a local single-user identity scheme, not multi-user authentication. Public DTO fields use camelCase.
 
 No before/after values, arbitrary metadata, business bodies, prompts, credentials, raw exception messages, stack traces, physical paths or page URLs are retained in audit. An SQL authorizer and triggers reject audit updates/deletions and forged inserts. Business writes without the internal context are rejected. Successful no-op operations with no changed rows create no success record; a generation gate rejection is a successful persistence operation whose run state becomes FAILED.
 
@@ -100,9 +103,9 @@ Each accepted request attempts one audit: the first valid SSE chunk commits `SUC
 
 **Implemented capability audit:** [read/write wrappers](../src/platform/tools/capabilities.ts) validate arguments and commit `START` before invoking a Domain service or MCP Client, then commit one `END` with success/fixed error and elapsed time. Tool bindings do not write audit. Native writes reuse the existing business transaction, producing one business change audit per changed row plus a distinct capability access/outcome pair; external network waits never hold a SQLite transaction.
 
-The [Main-only sink](../src/platform/database/capability-audit.ts) writes the append-only `capability_audit` table: invocation ID, phase, UTC timestamp, Main-bound Agent/run IDs, approved tool name/mode, optional Server/original name, validated native target type/UUID, duration, status and error. It stores no input, output, prompt, URL, command, credential or raw exception. Arguments rejected before execution create no access record. SQL guards and the authorizer reject forged inserts, updates and deletions.
+The [controlled-runtime sink](../src/platform/database/capability-audit.ts) writes the append-only `capability_audit` table: invocation ID, phase, UTC timestamp, runtime-bound Agent/run IDs, approved tool name/mode, optional Server/original name, validated native target type/UUID, duration, status and error. It stores no input, output, prompt, URL, command, credential or raw exception. Arguments rejected before execution create no access record. SQL guards and the authorizer reject forged inserts, updates and deletions.
 
-Start-audit failure prevents execution. End-audit failure reports `TOOL_AUDIT_UNAVAILABLE` without retry or rollback claims; an external or committed local write may already have happened. On tool-runtime startup, unmatched starts receive an `INTERRUPTED` end, without re-executing work. The existing `audit.list`/Settings viewer still reads only business/AI `audit_logs`; capability diagnostics remain Main-only. [Tests](../tests/capability-audit.test.ts) cover privacy, failure, rollback and immutable records; [MCP architecture](mcp-architecture.md) owns execution policies/lifecycle.
+Start-audit failure prevents execution. End-audit failure reports `TOOL_AUDIT_UNAVAILABLE` without retry or rollback claims; an external or committed local write may already have happened. Only unmatched starts owned by dead instances receive an `INTERRUPTED` end; live calls are preserved. The existing `audit.list`/Settings viewer still reads only business/AI `audit_logs`; capability diagnostics remain runtime-internal. [Tests](../tests/capability-audit.test.ts) cover privacy, failure, rollback and immutable records; [MCP architecture](mcp-architecture.md) owns execution policies/lifecycle.
 
 ## 5. API contract and access
 
@@ -145,16 +148,7 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `settings.get`, `settings.savePreferences` | `{}` / partial language, `light / dark / system` theme, mailbox or `ai` configuration → versioned Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | Provider instance ID as `provider`; save also accepts `apiKey` → `{ configured, available }`, never a key |
 
-```ts
-const saved = await window.data.jobs.saveJob({
-  details: { title: 'Software Engineer', companyNameRaw: 'Example' }
-})
-if (saved.ok) {
-  const history = await window.data.audit.list({ targetType: 'job', targetId: saved.value.id })
-}
-```
-
-The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Main alone persists generation stages with its trusted service identity. Callers should branch on the following codes rather than database messages. Mutations are not automatically retried/idempotent; refresh uncertain state before retrying.
+The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Trusted services persist generation stages through shared capabilities; MCP is separate from this IPC API. Callers should branch on the following codes rather than database messages. Mutations are not automatically retried/idempotent; refresh uncertain state before retrying.
 
 | Error code | Meaning |
 | --- | --- |
@@ -179,7 +173,7 @@ The separate [AI API](../src/shared/ai.ts) retains streaming chat. [Resume IPC](
 
 ## 6. Settings, secrets and remaining work
 
-Main owns `database.sqlite`, its auxiliary files, `userData/settings.json` and `userData/secrets.enc`. Compiled HTML/PDF artifacts are stored under `userData/artifacts/`. Electron Session separately owns website cookies/storage. Ordinary business audit cannot be disabled.
+Controlled runtimes share `database.sqlite`, its auxiliary files and `userData/artifacts/`. Main owns `userData/settings.json` and `userData/secrets.enc`; the MCP Server does not load application credentials. Electron Session separately owns website cookies/storage. Ordinary business audit cannot be disabled.
 
 The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads version-1 `userData/mcp.json` without creating/resetting it. Configuration contains reviewed stdio executable/arguments and tool manifests; it accepts no environment/credential fields and is excluded from Renderer preferences. MCP credentials/OAuth are planned; do not put secrets in command arguments. The [MCP document](mcp-architecture.md#4-configuration-and-lifecycle) owns configuration examples and limits.
 

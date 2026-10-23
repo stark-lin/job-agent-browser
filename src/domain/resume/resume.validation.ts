@@ -6,7 +6,7 @@ import { countWords, entryBasics, statements } from './document'
 
 export const language = v.choice(['en', 'zh-CN'])
 export const config = v.object({ templateId: v.optional(v.choice(['default-v1']), 'default-v1'), targetWordCount: v.optional(v.integer(100, 5000), 500),
-  providerId: v.optionalText(100), modelId: v.optionalText(200) })
+  providerId: v.optionalText(100), modelId: v.optionalText(200), runtimeKind: v.optional(v.choice(['internal', 'external']), 'internal') })
 const block = v.object({ id: v.id, text: v.text(20_000, 1), factIds: v.array(v.id, 1000) })
 const writingEntry = v.object({ profileItemId: v.id, bullets: v.array(block, 100) })
 export const writing = v.object({ summary: v.nullable(block), experience: v.array(writingEntry, 200), projects: v.array(writingEntry, 200), education: v.array(writingEntry, 200), skills: v.array(block, 200) })

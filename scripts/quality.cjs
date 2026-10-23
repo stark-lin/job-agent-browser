@@ -46,7 +46,7 @@ for (const file of sourceFiles) {
       const toolContract = typeOnly && ['src/shared/tools/index', 'src/shared/tools/index.ts'].includes(destination)
       assert(module.startsWith('.') && (destination.startsWith('src/domain/') || toolContract), `${relative}: Domain must depend only on domain contracts/utilities or type-only Shared Tool contracts`)
     }
-    if (module.startsWith('@modelcontextprotocol/')) assert(relative.startsWith('src/platform/mcp/'), `${relative}: MCP SDK belongs only to Platform MCP`)
+    if (module.startsWith('@modelcontextprotocol/')) assert(/^src\/platform\/mcp(?:-server)?\//.test(relative), `${relative}: MCP SDK belongs only to Platform MCP adapters`)
     if (/^src\/(app|renderer|pages)\//.test(relative) && destination.startsWith('src/shared/tools/') && !typeOnly) {
       assert.fail(`${relative}: UI must not import the privileged Tool registry/execution runtime`)
     }
@@ -85,6 +85,7 @@ for (const file of graph.keys()) walk(file)
 
 const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !file.includes('/diagrams/'))
   .concat(['README', 'AGENTS', 'DESIGN'].flatMap((name) => [root + `/${name}.md`, root + `/${name}.zh-CN.md`]))
+  .concat(files(root + '/skills').filter(file => file.endsWith('.md')))
 for (const file of editions) {
   const body = fs.readFileSync(file, 'utf8'), chinese = file.endsWith('.zh-CN.md')
   const other = chinese ? file.replace('.zh-CN.md', '.md') : file.replace('.md', '.zh-CN.md')

@@ -18,8 +18,8 @@ export function value<T>(result: Result<T>): T {
   return result.value
 }
 
-export async function seed(t: TestContext) {
-  const f = fixture(t)
+export async function seed(t: TestContext, path = ':memory:') {
+  const f = fixture(t, path)
   const job = value(await f.api.jobs.saveJob({ details: { title: 'PRIVATE_JOB_TITLE', companyNameRaw: 'PRIVATE_COMPANY' }, source: { url: 'https://example.com/job', cleanedContent: 'PRIVATE_JOB_BODY' } }))
   const profile = value(await f.api.profiles.createProfile({ name: 'PRIVATE_PERSON', email: 'private@example.com' }))
   const item = value(await f.api.profiles.addItem({ profileId: profile.id, details: { type: 'EXPERIENCE', title: 'PRIVATE_EXPERIENCE' } }))
@@ -27,8 +27,8 @@ export async function seed(t: TestContext) {
   return { ...f, job, profile, item, fact }
 }
 
-export async function published(t: TestContext) {
-  const f = await seed(t), run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
+export async function published(t: TestContext, path = ':memory:') {
+  const f = await seed(t, path), run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
   const blockId = randomUUID()
   const content = { schemaVersion: 1 as const, language: 'en' as const,
     basics: { name: f.profile.name, email: f.profile.email, phone: f.profile.phone, location: f.profile.location, links: f.profile.links },

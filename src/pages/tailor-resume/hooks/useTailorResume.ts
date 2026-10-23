@@ -59,6 +59,11 @@ export function useTailorResume() {
     })
     return () => { alive.current = false; unsubscribe() }
   }, [data, resume, refresh, refreshHistory])
+  useEffect(() => {
+    if (!task?.active || task.owned) return
+    const timer = setInterval(() => { void refresh(); void refreshHistory() }, 1000)
+    return () => clearInterval(timer)
+  }, [task?.active, task?.owned, refresh, refreshHistory])
   const artifactId = task?.artifact?.id, output = task?.artifact?.output.status
   useEffect(() => {
     setPreview(null)

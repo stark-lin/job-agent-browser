@@ -1,0 +1,5 @@
+const { DatabaseSync } = require('node:sqlite')
+const db = new DatabaseSync(process.argv[2])
+db.exec('PRAGMA busy_timeout=1000; BEGIN IMMEDIATE')
+process.send({ locked: true })
+process.once('message', () => { db.exec('ROLLBACK'); db.close(); process.disconnect() })

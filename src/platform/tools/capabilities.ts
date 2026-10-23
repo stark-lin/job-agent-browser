@@ -9,6 +9,8 @@ import { compileSchema, jsonCopy, limits, toolOutput } from './schema'
 type Operation = (input: unknown, context: ToolExecutionContext) => ToolOutput | Promise<ToolOutput>
 interface Options {
   timeoutMs?: number
+  inputLimit?: number
+  runId?(input: unknown): string | undefined
   target?(input: unknown): CapabilityAuditContext['target']
 }
 /** Tools bind these already audited capabilities; adapters never assemble audit records. */
@@ -28,10 +30,10 @@ export function createAuditedCapabilities(audit: CapabilityAudit, defaults: { ti
         if (disposed) toolFail('TOOL_UNAVAILABLE')
         if (caller.signal.aborted) toolFail('TOOL_CANCELLED')
         if (active.size >= (defaults.maxActive ?? 16)) toolFail('TOOL_BUSY')
-        const args = jsonCopy(value, limits.input, 'TOOL_INVALID_INPUT')
+        const args = jsonCopy(value, options.inputLimit ?? limits.input, 'TOOL_INVALID_INPUT')
         if (!schema.validate(args)) toolFail('TOOL_INVALID_INPUT')
         const invocationId = randomUUID(), controller = new AbortController()
-        const context: CapabilityAuditContext = { invocationId, agentId: caller.agentId, runId: caller.runId, tool: descriptor, target: options.target?.(args) }
+        const context: CapabilityAuditContext = { invocationId, agentId: caller.agentId, runId: caller.runId ?? options.runId?.(args), tool: descriptor, target: options.target?.(args) }
         const began = performance.now()
         let timedOut = false, settle!: () => void
         const done = new Promise<void>(resolve => { settle = resolve })

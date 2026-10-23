@@ -16,7 +16,7 @@ Organize product code by Page, business rules by Domain and technical adapters b
 | Platform | Electron, browser, database, filesystem, AI and settings adapters | [Browser manager](../src/platform/browser/browserManager.ts), [SQLite](../src/platform/database/sqlite.ts) |
 | Shared | Framework-free contracts and business-free UI/utilities/hooks | [Navigation contract](../src/shared/navigation.ts), [placeholder UI](../src/shared/ui/PlaceholderPage.tsx) |
 
-[Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. Build output and package entry remain stable.
+[Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. The package entry remains `out/main/index.js`; additional Node MCP and Electron output-worker entries are built alongside it.
 
 All UI components must compose primitives from the [central library entry](../src/shared/ui/index.ts); add missing variants centrally before page use. Pages keep layout and event behavior. The [design specification](design-system.md#2-mandatory-central-component-reuse) owns the full reuse rule.
 
@@ -64,6 +64,9 @@ src/
 │   ├── storage/
 │   ├── ai/
 │   ├── mcp/
+│   ├── mcp-server/
+│   ├── agent/
+│   ├── resume-output/
 │   └── tools/
 ├── renderer/
 └── shared/
@@ -90,7 +93,7 @@ Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailo
 
 Renderer workflows call typed bridge operations; Main composes Domain services with Platform repositories and transactions. Domain depends on interfaces, with concrete adapters injected by [backend composition](../src/platform/database/backend.ts). The conceptual Page → Domain → Platform flow does not permit importing server services into UI.
 
-Database access remains Main-only. Settings, secrets, AI requests and compilation are reserved for Main or controlled services. Preserve sandboxing, context isolation, third-party page separation and exact trusted-document/top-frame IPC validation.
+Database access remains inside controlled Main/Node runtimes. Settings, secrets, AI requests and compilation are reserved for Main or controlled services. Preserve sandboxing, context isolation, third-party page separation and exact trusted-document/top-frame IPC validation.
 
 The [shared i18n module](../src/shared/i18n/) owns framework-independent resources, configuration, selector types and translation initialization; it imports neither React nor Electron. [App](../src/app/i18n.tsx) owns React provider integration and document metadata. Pages translate at render time; Platform translates application-owned native copy. Keep new visible text in the catalog, including complete interpolated sentences, and use typed selectors. Runtime behavior and remaining language support are owned by [current architecture](architecture.md#5-internationalization).
 
@@ -130,13 +133,13 @@ Domain defines repository and [snapshot reader/extractor interfaces](../src/doma
 
 The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, timeout and the injected database audit capability; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
 
-[Shared Tools](../src/shared/tools/index.ts) owns type-only Agent contracts; Main uses its Registry implementation. [Platform Tools](../src/platform/tools/capabilities.ts) wraps read/write operations with audit; [Platform MCP](../src/platform/mcp/runtime.ts) alone imports the MCP SDK and binds external capabilities. Renderer cannot import the tool runtime. The [MCP architecture](mcp-architecture.md) owns detailed contracts/lifecycle; native writes remain trusted Main capabilities outside the Agent registry.
+[Shared Tools](../src/shared/tools/index.ts) owns type-only Agent contracts. [Platform Tools](../src/platform/tools/resume.ts) binds shared audited Resume capabilities. Only `platform/mcp/` (Client) and `platform/mcp-server/` (Server) import the MCP SDK; Renderer cannot import these runtimes. [MCP architecture](mcp-architecture.md) owns policies/contracts. Domain controllers receive scopes and runners, never concrete Platform services.
 
 [Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and editable import drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts; [shared import infrastructure](../src/platform/import/batch.ts) owns bounded batches, cancellation and successful-result caching, while [policy](../src/platform/import/policy.ts) checks mode permission in Main. Each import adapter retains its own prompts, field validation and merging rules. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names and [mode/group progress types](../src/shared/import.ts) live in Shared.
 
 Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/useUnsavedGuard.ts); job forms, empty-field filling and Applications querying remain page-owned.
 
-Resume keeps eight core concepts: [AgentModel](../src/shared/agent/index.ts), [AgentLoop](../src/platform/agent/loop.ts), [ToolScope](../src/shared/tools/tool.types.ts), [ResumeAgent](../src/domain/resume/resume.agent.ts), [GenerationService](../src/domain/resume/generation.service.ts), [ResumeDocument](../src/domain/resume/resume.types.ts), [HTMLCompiler](../src/platform/resume-output/compiler.ts) and [PDFExporter](../src/platform/resume-output/exporter.ts). Domain owns workflow/validation and depends on an injected stage runner; Main owns provider/scope/lifecycle/output composition. [Resume IPC](../src/platform/electron/resume-contract.ts) is asynchronous and separate from DataContract and chat; page hooks coordinate presentation only.
+Resume keeps eight core concepts: [AgentModel](../src/shared/agent/index.ts), [AgentLoop](../src/platform/agent/loop.ts), [ToolScope](../src/shared/tools/tool.types.ts), [ResumeAgent](../src/domain/resume/resume.agent.ts), [GenerationService](../src/domain/resume/generation.service.ts), [ResumeDocument](../src/domain/resume/resume.types.ts), [HTMLCompiler](../src/platform/resume-output/compiler.ts) and [PDFExporter](../src/platform/resume-output/exporter.ts). Domain owns workflow/validation and receives a stage runner plus shared write scope. Main owns internal model composition; the Node Server delegates rendering to an Electron worker through the shared output service. [Resume IPC](../src/platform/electron/resume-contract.ts) is asynchronous and separate from DataContract and chat; page hooks coordinate presentation only.
 
 ## 6. Quality and future delivery
 

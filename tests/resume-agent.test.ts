@@ -31,16 +31,16 @@ async function done(tasks: ReturnType<typeof createResumeTasks>, runId: string) 
   }
 }
 test('fixture executes all stages, audits calls, publishes immutable evidence and outputs; retry never calls the model', async t => {
-  const f = await setup(t), { runId } = f.start()
-  assert.throws(f.start, { code: 'INVALID_STATE' })
-  assert.throws(() => f.tasks.cancel(2, { runId }), { code: 'FORBIDDEN' })
+  const f = await setup(t), { runId } = await f.start()
+  await assert.rejects(f.start, { code: 'INVALID_STATE' })
+  await assert.rejects(f.tasks.cancel(2, { runId }), { code: 'FORBIDDEN' })
   const result = await done(f.tasks, runId)
   assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.run.language, 'en'); assert.equal(result.artifact?.output.status, 'READY')
   assert(result.run.scores && result.run.gate?.passed && result.run.selection && result.run.draft && result.run.polished)
   assert.equal(result.artifact?.outputFiles.length, 2)
   assert.equal(f.server.requests(), 9)
   assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 9)
-  assert.equal(f.database.connection.prepare('SELECT count(*) n FROM capability_audit').get()?.n, 24)
+  assert.equal(f.database.connection.prepare('SELECT count(*) n FROM capability_audit').get()?.n, 32)
   assert(f.events.every((event, index) => event.sequence === index + 1 && event.runId === runId))
   const before = f.server.requests()
   f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, event => f.events.push(event)); await done(f.tasks, runId)
@@ -53,13 +53,13 @@ test('gate rejection persists missing evidence and stops before drafting', async
     if (stage !== 'gate') return false
     response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify({ passed: false, reason: 'No evidence', missingRequirements: ['Leadership'] }) } }] })); return true
   })
-  const result = await done(f.tasks, f.start().runId)
+  const result = await done(f.tasks, (await f.start()).runId)
   assert.equal(result.run.error, 'GATE_REJECTED'); assert.equal(result.run.gate?.missingRequirements[0], 'Leadership'); assert.equal(result.run.draft, null); assert.equal(f.outputCount(), 0)
 })
 test('cancellation during a hanging model call and owner disposal cannot publish late results', async t => {
   const f = await setup(t)
   f.server.hook((stage) => stage === 'draft')
-  const { runId } = f.start()
+  const { runId } = await f.start()
   for (let i = 0; i < 300 && !f.events.some(event => event.stage === 'draft'); i++) await new Promise(resolve => setTimeout(resolve, 5))
   f.tasks.disposeOwner(1)
   const result = await done(f.tasks, runId)
@@ -68,7 +68,7 @@ test('cancellation during a hanging model call and owner disposal cannot publish
 })
 test('post-publication output failure preserves SUCCEEDED and supports model-free rebuilding', async t => {
   const f = await setup(t); f.failOutput(true)
-  const result = await done(f.tasks, f.start().runId)
+  const result = await done(f.tasks, (await f.start()).runId)
   assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.artifact?.output.status, 'FAILED')
   const calls = f.server.requests(); f.failOutput(false)
   f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, () => {})
@@ -80,12 +80,12 @@ test('invalid stage output fails once without an implicit repair loop', async t 
     if (stage !== 'score') return false
     response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '{}' } }] })); return true
   })
-  const result = await done(f.tasks, f.start().runId)
+  const result = await done(f.tasks, (await f.start()).runId)
   assert.equal(result.run.status, 'FAILED'); assert.equal(result.run.error, 'VALIDATION_FAILED'); assert.equal(f.server.requests(), 1)
 })
 
 test('live profile changes after start do not alter tool reads or generated basics/evidence', async t => {
-  const f = await setup(t), { runId } = f.start()
+  const f = await setup(t), { runId } = await f.start()
   value(await f.api.profiles.editContact({ id: f.profile.id, details: { name: 'CHANGED LIVE' } }))
   value(await f.api.profiles.editFact({ id: f.fact.id, details: { kind: 'SKILL', content: 'CHANGED LIVE' } }))
   const result = await done(f.tasks, runId)
@@ -96,8 +96,8 @@ test('live profile changes after start do not alter tool reads or generated basi
 })
 test('cancelling at publish boundary prevents Artifact creation and terminal state occurs once', async t => {
   const f = await setup(t)
-  const { runId } = f.tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, event => {
-    if (event.stage === 'publish') f.tasks.cancel(1, { runId: event.runId })
+  const { runId } = await f.tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, event => {
+    if (event.stage === 'publish') void f.tasks.cancel(1, { runId: event.runId })
   })
   const result = await done(f.tasks, runId)
   assert.equal(result.run.status, 'CANCELLED'); assert.equal(result.artifact, null)
@@ -105,7 +105,7 @@ test('cancelling at publish boundary prevents Artifact creation and terminal sta
   assert.equal(audits.items.filter(row => row.eventType === 'GENERATION_CANCEL' && row.status === 'SUCCESS').length, 1)
 })
 test('missing recorded output becomes a recoverable output failure and rebuild does not call the model', async t => {
-  const f = await setup(t), result = await done(f.tasks, f.start().runId)
+  const f = await setup(t), result = await done(f.tasks, (await f.start()).runId)
   const html = result.artifact!.outputFiles.find(file => file.format === 'HTML')!
   rmSync(join(f.directory, html.relativePath))
   await assert.rejects(f.tasks.getPreview({ artifactId: result.artifact!.id }), /OUTPUT_MISSING/)
@@ -122,7 +122,7 @@ test('post-publication cancellation bounds an output worker that resolves late a
     settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }] }),
     render: () => { rendering = true; return new Promise(done => { resolve = done }) } })
   t.after(() => tasks.dispose())
-  const { runId } = tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, () => {})
+  const { runId } = await tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, () => {})
   for (let i = 0; i < 300 && !rendering; i++) await new Promise(done => setTimeout(done, 5))
   assert(rendering); tasks.cancel(1, { runId })
   const result = await done(tasks, runId)
@@ -135,17 +135,26 @@ test('unavailable tool audit stops ResumeAgent immediately without draft or publ
   const f = await setup(t), sink = f.backend.toolAudit.sink, original = sink.start
   sink.start = () => { throw new Error('audit unavailable') }
   try {
-    const result = await done(f.tasks, f.start().runId)
-    assert.equal(result.run.status, 'FAILED'); assert.equal(result.run.error, 'AUDIT_UNAVAILABLE')
-    assert.equal(result.run.draft, null); assert.equal(result.artifact, null); assert.equal(f.server.requests(), 1)
+    await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+    assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.server.requests(), 0)
   } finally { sink.start = original }
+})
+
+test('uncertain start audit leaves a failed historical run rather than an unowned active task', async t => {
+  const f = await setup(t), sink = f.backend.toolAudit.sink, original = sink.finish
+  sink.finish = () => { throw new Error('audit unavailable') }
+  try {
+    await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+    const run = f.backend.resumes.listRuns({}).items[0].run
+    assert.equal(run.status, 'FAILED'); assert.equal(run.error, 'AUDIT_UNAVAILABLE'); assert.equal(f.server.requests(), 0)
+  } finally { sink.finish = original }
 })
 
 test('maximum-length valid contact and job titles do not fail publication or change copied basics', async t => {
   const f = await setup(t), name = 'N'.repeat(300), title = 'J'.repeat(500)
   value(await f.api.profiles.editContact({ id: f.profile.id, details: { name } }))
   value(await f.api.jobs.updateDetails({ id: f.job.id, details: { title, companyNameRaw: 'Fixture' } }))
-  const result = await done(f.tasks, f.start().runId)
+  const result = await done(f.tasks, (await f.start()).runId)
   assert.equal(result.run.status, 'SUCCEEDED')
   assert.equal(result.artifact?.title.length, 500)
   assert.equal(result.artifact?.content.basics.name, name)

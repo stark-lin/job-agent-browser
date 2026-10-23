@@ -25,12 +25,13 @@ export function artifactFiles(root: string) {
     return target
   }
   return {
-    async write(artifactId: string, result: { html: string; pdf: Uint8Array }, signal: AbortSignal): Promise<OutputFile[]> {
+    async write(artifactId: string, result: { html: string; pdf: Uint8Array }, signal: AbortSignal, attempt?: string): Promise<OutputFile[]> {
       id(artifactId)
+      if (attempt !== undefined) id(attempt)
       const files: OutputFile[] = []
       for (const format of ['HTML', 'PDF'] as const) {
         signal.throwIfAborted()
-        const relativePath = `${artifactId}/default-v1.${format.toLowerCase()}`, target = await safe(relativePath)
+        const relativePath = `${artifactId}/${attempt ? attempt + '/' : ''}default-v1.${format.toLowerCase()}`, target = await safe(relativePath)
         await mkdir(dirname(target), { recursive: true, mode: 0o700 })
         const temporary = join(dirname(target), `${randomUUID()}.tmp`)
         try {

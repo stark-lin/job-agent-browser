@@ -18,7 +18,7 @@ export interface ToolOutput {
   content: { type: 'text'; text: string }[]
   structuredContent?: JsonValue
 }
-/** Created by the Main composition root, never from model arguments or Renderer input. */
+/** Created by controlled runtime composition roots, never from model arguments or Renderer input. */
 export interface ToolCaller { agentId: string; runId?: string; signal: AbortSignal }
 export interface ToolExecutionContext extends ToolCaller { invocationId: string }
 /** Internal registration: callers receive descriptors and a scope, never this execution function. */

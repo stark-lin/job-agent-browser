@@ -5,16 +5,22 @@ import type { References, Runtime, UnitOfWork } from '../common/ports'
 import { fail } from '../common/errors'
 import * as v from '../common/validation'
 import * as check from './resume.validation'
-import type { GenerationRun } from './resume.types'
+import type { GenerationRun, InputSnapshot } from './resume.types'
 import { createArtifactService } from './artifact.service'
 import { snapshotReferences } from './references'
 
-export function createResumeService(jobs: JobRepository, candidate: CandidateRepository, repo: ResumeRepository, tx: UnitOfWork, runtime: Runtime, refs: References) {
+export function createResumeService(jobs: JobRepository, candidate: CandidateRepository, repo: ResumeRepository, tx: UnitOfWork, runtime: Runtime, refs: References, runtimeKind: 'internal' | 'external' = 'internal') {
   return {
     ...createArtifactService(repo, tx, runtime, refs),
-    createRun(input: unknown) {
+    createRun(input: unknown, options: { start?: boolean; requestId?: string; validateSnapshot?(snapshot: InputSnapshot): void } = {}) {
       return tx.write({ event: 'GENERATION_CREATE', action: 'CREATE', target: 'generation_run' }, () => {
         const args = v.object({ jobId: v.id, profileId: v.id, config: v.optional(check.config, check.config({})) })(input)
+        const identity = JSON.stringify(args)
+        if (options.requestId) {
+          v.id(options.requestId)
+          const previous = repo.requestRun(options.requestId, identity)
+          if (previous) return previous
+        }
         const job = jobs.get(args.jobId), profile = candidate.getProfile(args.profileId)
         if (job.archivedAt) fail('INVALID_STATE')
         const facts = candidate.allFacts(profile.id), items = candidate.allItems(profile.id)
@@ -22,9 +28,13 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
         const now = runtime.now()
         const run: GenerationRun = { id: runtime.id(), jobId: job.id, type: 'RESUME', status: 'PENDING', stage: 'snapshot', language: null,
           inputSnapshot: { schemaVersion: 1, job, profile, facts, items },
-          scores: null, gate: null, selection: null, draft: null, polished: null, config: args.config, error: null,
+          scores: null, gate: null, selection: null, draft: null, polished: null,
+          config: { ...args.config, runtimeKind, ...(runtimeKind === 'external' ? { providerId: '', modelId: '' } : {}) }, error: null,
           createdAt: now, updatedAt: now, finishedAt: null }
+        options.validateSnapshot?.(run.inputSnapshot)
         repo.insertRun(run)
+        if (options.start) { run.status = 'RUNNING'; run.stage = 'score'; repo.saveRun(run) }
+        if (options.requestId) repo.recordRequest(options.requestId, identity, run.id)
         return run
       })
     },

@@ -17,6 +17,7 @@ export function createArtifactService(repo: ResumeRepository, tx: UnitOfWork, ru
       return tx.write({ event: 'ARTIFACT_EDIT', action: 'UPDATE', target: 'artifact' }, () => {
         const args = v.object({ id: v.id, title: v.text(500, 1), content: check.content })(input)
         const artifact = repo.getArtifact(args.id), run = repo.getRun(artifact.generationRunId)
+        repo.assertArtifactEditable(artifact.id)
         check.validateContent(run, args.content, true)
         Object.assign(artifact, { title: args.title, content: args.content, updatedAt: runtime.now(), outputFiles: [], output: { status: 'PENDING', error: null, pages: null } })
         repo.saveArtifact(artifact)

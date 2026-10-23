@@ -115,7 +115,7 @@ AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位�
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
-**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)通过[工具运行时](../src/platform/mcp/runtime.ts)组装原生读取及可选 stdio Server，在后台启动外部连接，退出时完成工具/AI 清理后再关闭 SQLite。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、Scope、审核 Schema、有界执行及生命周期。暂不提供 Renderer 工具桥接或 Renderer 通用工具执行。
+**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)通过[工具运行时](../src/platform/mcp/runtime.ts)组装原生读取及可选 stdio Server，在后台启动外部连接，退出时完成工具/AI 清理后再关闭 SQLite。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、Scope、审核 Schema、有界执行及生命周期。暂不提供 Renderer 工具桥接或 Renderer 通用工具执行。 独立 [Node Server](../src/platform/mcp-server/runtime.ts)向 Codex 暴露共享 Resume 工作流，使用后台 Electron PDF Worker；主应用窗口可关闭。实例级恢复由数据架构管理。
 
 ## 五、国际化
 

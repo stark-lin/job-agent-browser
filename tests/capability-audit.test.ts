@@ -67,6 +67,9 @@ test('audit start failure prevents execution; terminal audit failure reports unc
   assert.equal(calls, 1)
   assert.equal(f.backend.toolAudit.list().length, 1)
   f.backend.toolAudit.recoverInterrupted()
+  assert.equal(f.backend.toolAudit.list().length, 1) // A live owner's uncertain call is not a crashed call.
+  f.database.connection.prepare('UPDATE runtime_instances SET expires_at=0 WHERE id=?').run(f.backend.lease.id)
+  f.backend.toolAudit.recoverInterrupted()
   assert.equal(f.backend.toolAudit.list()[1].status, 'INTERRUPTED')
   f.backend.toolAudit.recoverInterrupted()
   assert.equal(f.backend.toolAudit.list().length, 2)

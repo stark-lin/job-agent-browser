@@ -6,7 +6,7 @@ import * as v from '../common/validation'
 import * as check from './resume.validation'
 import { documentProvenance } from './document'
 
-/** Main-only persistence steps. They perform no AI/network work and are never exposed over IPC. */
+/** Trusted persistence steps. They perform no AI/network work and are never exposed over IPC. */
 export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, runtime: Runtime) {
   function running(id: string): GenerationRun {
     const run = repo.getRun(id)

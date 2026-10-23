@@ -6,7 +6,7 @@
 
 ## 一、运行与存储
 
-[Main](../src/platform/electron/main/index.ts) 在创建窗口前打开 `userData/database.sqlite`。[SQLite 初始化](../src/platform/database/sqlite.ts) 使用 Electron 内置 `node:sqlite`、Main 独占单连接、外键、WAL、完整同步持久化和 1 秒锁等待。Renderer 不获得连接或 SQL 接口。[App Context](../src/app/context/appContext.ts) 保存可空 Job/Profile/Artifact ID，不复制实体；Profile 选择或保存当前记录时同步共享 Profile ID。
+[Main](../src/platform/electron/main/index.ts)与[本地 MCP Server](../src/platform/mcp-server/runtime.ts)分别通过一个 `node:sqlite` 连接访问明确指定的 userData 数据库。[SQLite 初始化](../src/platform/database/sqlite.ts)启用外键、WAL、完整同步持久化及 1 秒锁等待。Renderer 不获得 SQL。[App Context](../src/app/context/appContext.ts)保存 Job/Profile/Artifact ID，不复制记录。
 
 [版本化迁移](../src/platform/database/migrations/index.ts)在修改日志模式/结构之前识别数据库世代 `0x4a415632`。只接受空库或相同世代；旧库报 `INCOMPATIBLE_DATABASE_GENERATION`，不重置、删除或迁移。开发/验收必须使用独立 userData。同世代使用事务迁移及校验和；未来版本和校验不匹配使启动失败。UUID v4 ID 删除后不可复用；时间为 UTC ISO 字符串。
 
@@ -20,6 +20,7 @@
 | `generation_runs`, `artifacts`, `artifact_facts` | 不可变输入、生成阶段、成品与溯源 |
 | `audit_logs` | 不含业务内容的成功/失败事件 |
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
+| `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
 
 ## 二、业务规则
 
@@ -52,9 +53,11 @@
 
 ## 三、生成、成品与删除
 
-[简历请求](../src/domain/resume/resume.service.ts)原子收集 Job、Profile、全部已保存 Fact 及关联条目快照。资料没有已保存 Fact，或职位已归档时失败；Fact 的 `evidence` 为空不阻止生成。配置固定 `default-v1`、默认 500 词预算及所选 Provider/模型，凭据不进入快照。[Domain ResumeAgent](../src/domain/resume/resume.agent.ts)通过注入的阶段 runner 执行评分 → 门控 → 筛选 → 草稿 → 校验 → 润色 → 校验 → 发布。评分持久化 `factId / score / reason` 及跟随职位职责/要求的输出语言；无法判断时默认英文。
+[简历请求](../src/domain/resume/resume.service.ts)原子收集 Job、Profile、全部已保存 Fact 及关联条目。无 Facts 的资料或已归档职位失败。配置固定模板/预算、可信 `runtimeKind` 及内部 Provider/模型；外部 run 的 Provider/模型 ID 为空。凭据不进入快照。[共享能力](mcp-architecture.zh-CN.md#五resume-server-与-codex)封装创建及阶段；[Domain controller](../src/domain/resume/resume.agent.ts)保留注入的 runner。
 
-[仅 Main 可调用的 GenerationService](../src/domain/resume/generation.service.ts)持久化阶段；模型只获得快照读取工具，不能发布或写状态。状态为 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。门控拒绝保存原因/缺失证据并停止。启动中断残留的待开始/运行任务；重试新建 run。发布原子创建唯一 Artifact 并标记 `SUCCEEDED`；后续输出失败/取消保留成品。
+可信 [GenerationService](../src/domain/resume/generation.service.ts)持久化 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。内部模型只获得读取工具；可信 controller 和 Codex 使用共享阶段能力。门控拒绝持久化缺失证据并停止。发布创建唯一 Artifact 并标记 `SUCCEEDED`；输出失败保留发布结果。启动回执及阶段 handler 支持相同重试，冲突提交失败。
+
+[运行租约](../src/platform/database/runtime-leases.ts)每 5 秒续期，30 秒后过期，并检测已退出的本地 PID。启动及后台恢复仅中断无归属/失效实例的任务和未结束审计。Repository 阻止过期/其他实例的生成写入；输出使用独立尝试 Token 及独立目录，排斥并发编辑/构建，并隔离文件替换。[共享输出服务](../src/platform/resume-output/service.ts)记录文件前校验 Token/内容。UI 查询只读并轮询外部活动；其他会话不能接管中断生成。
 
 [ResumeDocument](../src/domain/resume/resume.types.ts)是 draft/polished/Artifact 唯一结构：语言、应用复制的基本信息及条目元数据、summary、experience/projects/education bullet 及 skills。每条生成表述包含稳定 UUID、文字和非空 `factIds`。[校验](../src/domain/resume/resume.validation.ts)强制唯一 ID、入选快照引用、条目归属、基本信息不变及语言感知预算；中日韩字符逐字计数。润色不能新增表述 ID、条目或扩大草稿表述的引用。`artifact_facts` 从表述派生，调用方不再提交独立溯源。引用合法不代表语义真实；[人工核对样本](../tests/fixtures/resume-evidence.json)明确将虚构数字及扩张职责标为无证据支持。
 
@@ -84,7 +87,7 @@
 | 结果 | `status`, `error` | `SUCCESS / FAILURE`；仅错误码 |
 | 身份 | `actor_id`, `target_type`, `target_id` | 不透明的主体与业务对象标识 |
 
-补充字段为 `id`、递增 `sequence` 和 `transaction_id`。ArtifactFact 目标将三个不透明主键 ID 编码为 JSON 数组字符串。USER、AI 和 SYSTEM 使用固定本地主体标识；来源为 `RENDERER / GENERATOR / STARTUP / AI_CLIENT`。这是本地单用户身份方案，不是多用户认证。公开 DTO 字段使用 camelCase。
+补充字段为 `id`、递增 `sequence` 和 `transaction_id`。ArtifactFact 目标将三个不透明主键 ID 编码为 JSON 数组字符串。USER、AI、SYSTEM 和 EXTERNAL 使用固定本地主体标识；来源为 `RENDERER / GENERATOR / STARTUP / AI_CLIENT / MCP_SERVER`。这是本地单用户身份方案，不是多用户认证。公开 DTO 字段使用 camelCase。
 
 审计不保留前后值、任意元数据、业务正文、提示词、凭据、原始异常消息、堆栈、实际文件路径或网页 URL。SQL 授权器和触发器拒绝审计更新/删除及伪造插入。缺少内部上下文时拒绝业务写入。成功操作没有实际变更记录时不生成成功审计；生成门控拒绝是成功的持久化操作，任务状态变为 FAILED。
 
@@ -100,9 +103,9 @@
 
 **已实现能力审计：**[read/write 封装](../src/platform/tools/capabilities.ts)校验参数并提交 `START`，然后调用 Domain Service 或 MCP Client，最后提交唯一的 `END`，包含成功/固定错误和耗时。工具绑定不自行写审计。原生写入复用现有业务事务，每个变更行只产生一次业务变更审计，另有独立的能力访问/结果记录；外部网络等待不占用 SQLite 事务。
 
-[仅 Main 可用的写入器](../src/platform/database/capability-audit.ts)向只追加的 `capability_audit` 表记录调用 ID、阶段、UTC 时间、Main 绑定的 Agent/run ID、审核后的工具名称/模式、可选 Server/原始名称、已校验的原生目标类型/UUID、耗时、状态和错误。不记录输入、输出、提示词、URL、命令、凭据或原始异常。执行前被参数校验拒绝的请求不产生访问记录。SQL 保护和 authorizer 拒绝伪造插入、更新及删除。
+[受控运行时写入器](../src/platform/database/capability-audit.ts)向只追加的 `capability_audit` 表记录调用 ID、阶段、UTC 时间、运行时绑定的 Agent/run ID、审核后的工具名称/模式、可选 Server/原始名称、已校验的原生目标类型/UUID、耗时、状态和错误。不记录输入、输出、提示词、URL、命令、凭据或原始异常。执行前被参数校验拒绝的请求不产生访问记录。SQL 保护和 authorizer 拒绝伪造插入、更新及删除。
 
-开始审计失败时不执行；结束审计失败返回 `TOOL_AUDIT_UNAVAILABLE`，不重试，也不声称已回滚，此时外部操作或本地提交可能已完成。工具运行时启动时为缺失结束记录的调用追加 `INTERRUPTED`，不重新执行。现有 `audit.list`/Settings 查看器仍只读取业务/AI `audit_logs`，能力诊断仅 Main 可见。[测试](../tests/capability-audit.test.ts)覆盖隐私、失败、回滚及不可变记录；执行策略/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)。
+开始审计失败时不执行；结束审计失败返回 `TOOL_AUDIT_UNAVAILABLE`，不重试，也不声称已回滚，此时外部操作或本地提交可能已完成。仅为失效实例缺少结束记录的调用追加 `INTERRUPTED`，保留存活调用。现有 `audit.list`/Settings 查看器仍只读取业务/AI `audit_logs`，能力诊断仅运行时内部可见。[测试](../tests/capability-audit.test.ts)覆盖隐私、失败、回滚及不可变记录；执行策略/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)。
 
 ## 五、API 契约与访问
 
@@ -145,16 +148,7 @@
 | `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题、邮箱或 `ai` 配置 → 带版本的 Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 通过 `provider` 指定 Provider 实例 ID；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
 
-```ts
-const saved = await window.data.jobs.saveJob({
-  details: { title: 'Software Engineer', companyNameRaw: 'Example' }
-})
-if (saved.ok) {
-  const history = await window.data.audit.list({ targetType: 'job', targetId: saved.value.id })
-}
-```
-
-API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。仅 Main 通过可信服务身份持久化生成阶段。调用方应按以下错误码处理，不依赖数据库消息。变更不自动重试或保证幂等；结果不确定时先刷新状态再重试。
+API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。可信服务经共享能力持久化生成阶段；MCP 独立于此 IPC API。调用方应按以下错误码处理，不依赖数据库消息。变更不自动重试或保证幂等；结果不确定时先刷新状态再重试。
 
 | 错误码 | 含义 |
 | --- | --- |
@@ -179,7 +173,7 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 ## 六、配置、密钥与待完成工作
 
-Main 拥有 `database.sqlite`、SQLite 辅助文件、`userData/settings.json` 和 `userData/secrets.enc`。编译后的 HTML/PDF 成品保存在 `userData/artifacts/`。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
+受控运行时共享 `database.sqlite`、SQLite 辅助文件及 `userData/artifacts/`。Main 管理 `userData/settings.json` 和 `userData/secrets.enc`；MCP Server 不加载应用凭据。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
 
 可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#四配置与生命周期)管理配置示例和限制。
 

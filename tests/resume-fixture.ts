@@ -15,7 +15,7 @@ export async function resumeFixture() {
       const value = JSON.parse(body), prompt: string = value.messages[0].content
       const stage = /Stage: ([\w-]+)/.exec(prompt)?.[1] ?? ''
       if (stageHook?.(stage, response)) return
-      const jobId = /Job ID: ([\w-]+)/.exec(prompt)![1], profileId = /Profile ID: ([\w-]+)/.exec(prompt)![1]
+      const runId = /Run ID: ([\w-]+)/.exec(prompt)![1]
       const observations = value.messages.filter((message: { role: string }) => message.role === 'tool')
       const finish = (message: unknown, finish_reason = 'stop') => {
         response.writeHead(200, { 'Content-Type': 'application/json' })
@@ -23,16 +23,15 @@ export async function resumeFixture() {
       }
       if (!observations.length && stage !== 'polish') {
         return finish({ role: 'assistant', content: null, tool_calls: [
-          { id: randomUUID(), type: 'function', function: { name: 'tool_0', arguments: JSON.stringify({ id: jobId }) } },
-          { id: randomUUID(), type: 'function', function: { name: 'tool_1', arguments: JSON.stringify({ id: profileId }) } },
-          { id: randomUUID(), type: 'function', function: { name: 'tool_2', arguments: JSON.stringify({ profileId, limit: 100, offset: 0 }) } }
+          { id: randomUUID(), type: 'function', function: { name: 'tool_0', arguments: JSON.stringify({ runId }) } },
+          { id: randomUUID(), type: 'function', function: { name: 'tool_1', arguments: JSON.stringify({ runId, limit: 100, offset: 0 }) } }
         ] }, 'tool_calls')
       }
       if (observations.length) {
-        const [job, profile, facts] = observations.map((message: { content: string }) => JSON.parse(message.content).structuredContent)
-        cache.set(profileId, { schemaVersion: 1, job, ...profile, facts: facts.items })
+        const [context, facts] = observations.map((message: { content: string }) => JSON.parse(message.content).structuredContent)
+        cache.set(runId, { schemaVersion: 1, job: context.job, profile: context.profile, items: context.items, facts: facts.items })
       }
-      const snapshot = cache.get(profileId)!
+      const snapshot = cache.get(runId)!
       let output: unknown
       if (stage === 'score') output = { language: /[\u4e00-\u9fff]/.test(snapshot.job.description) ? 'zh-CN' : 'en', scores: snapshot.facts.map(fact => ({ factId: fact.id, score: 90, reason: 'Relevant saved evidence' })) }
       else if (stage === 'gate') output = { passed: true, reason: 'Sufficient saved evidence', missingRequirements: [] }

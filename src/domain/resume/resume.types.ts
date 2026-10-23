@@ -6,7 +6,7 @@ export const runStatuses = ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCEL
 export type RunStatus = typeof runStatuses[number]
 export type ResumeLanguage = 'en' | 'zh-CN'
 export type GenerationStage = 'snapshot' | 'score' | 'gate' | 'select' | 'draft' | 'validate-draft' | 'polish' | 'validate-polish' | 'publish' | 'output' | 'completed'
-export interface GenerationConfig { templateId: 'default-v1'; targetWordCount: number; providerId: string; modelId: string }
+export interface GenerationConfig { templateId: 'default-v1'; targetWordCount: number; providerId: string; modelId: string; runtimeKind?: 'internal' | 'external' }
 export interface InputSnapshot { schemaVersion: 1; job: Job; profile: Profile; items: ProfileItem[]; facts: Fact[] }
 export interface ResumeStatement { id: string; text: string; factIds: string[] }
 export interface ResumeEntry {

@@ -2,7 +2,7 @@ import type { Result } from '../../shared/ipc'
 import type { Artifact, GenerationRun, GenerationStage } from '../../domain/resume/resume.types'
 
 export const RESUME_CALL = 'resume:call', RESUME_EVENT = 'resume:event'
-export interface ResumeTask { run: GenerationRun; artifact: Artifact | null; active: boolean; sequence: number }
+export interface ResumeTask { run: GenerationRun; artifact: Artifact | null; active: boolean; owned: boolean; sequence: number }
 export interface ResumeEvent { runId: string; sequence: number; stage: GenerationStage; status: GenerationRun['status']; artifactId: string | null }
 export interface ResumeAPI {
   start(input: { jobId: string; profileId: string }): Promise<Result<{ runId: string }>>
