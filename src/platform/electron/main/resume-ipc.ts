@@ -33,6 +33,9 @@ export function registerResumeIPC(service: ResumeTasks, rendererPath: string) {
         }
       }
       return { ok: true, value }
-    } catch (error) { return { ok: false, error: resumeError(error) } }
+    } catch (error) {
+      const code = resumeError(error)
+      return { ok: false, error: method === 'exportPdf' && code === 'VALIDATION_FAILED' ? 'PDF_EXPORT_FAILED' : code }
+    }
   })
 }

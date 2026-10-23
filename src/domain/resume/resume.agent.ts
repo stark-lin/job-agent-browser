@@ -42,5 +42,5 @@ export async function runResumeAgent(run: GenerationRun, deps: {
   deps.stage('validate-polish'); signal.throwIfAborted()
   run = generation.savePolished({ id: run.id, content: materializeDocument(run.inputSnapshot, scoring.language, polishedWriting) })
   deps.stage('publish'); signal.throwIfAborted()
-  return generation.publishArtifact({ id: run.id, title: `${run.inputSnapshot.profile.name} — ${run.inputSnapshot.job.title}` })
+  return generation.publishArtifact({ id: run.id, title: `${run.inputSnapshot.profile.name} — ${run.inputSnapshot.job.title}`.slice(0, 500) })
 }

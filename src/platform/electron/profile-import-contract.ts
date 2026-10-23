@@ -1,3 +1,4 @@
+import type { ImportMode, ImportGroupProgress } from '../../shared/import'
 import type { Result } from '../../shared/ipc'
 import type { AIChoice, AIError } from '../../shared/ai'
 import type { ImportDraft } from '../../domain/candidate/import.types'
@@ -7,13 +8,15 @@ export interface PdfSelection { fileId: string; bytes: number }
 export interface ImportTask { sessionId: string; taskId: string }
 export type ImportEvent = ImportTask & (
   { type: 'phase'; phase: 'extracting' | 'parsing'; page?: number; pages?: number }
+  | { type: 'progress'; groups: ImportGroupProgress[] }
   | { type: 'ready'; draft: ImportDraft }
-  | { type: 'failed'; error: ImportError }
+  | { type: 'failed'; error: ImportError; retryable?: boolean }
   | { type: 'cancelled' }
 )
 export interface ProfileImportAPI {
   selectPdf(): Promise<Result<PdfSelection | null, ImportError>>
-  start(input: { fileId: string; choice: AIChoice }): Promise<Result<ImportTask, ImportError>>
+  start(input: { fileId: string; choice: AIChoice; mode?: ImportMode }): Promise<Result<ImportTask, ImportError>>
+  retry(input: { sessionId: string }): Promise<Result<ImportTask, ImportError>>
   cancel(input: { sessionId: string }): Promise<Result<null, ImportError>>
   discard(input: { fileId?: string; sessionId?: string }): Promise<Result<null, ImportError>>
   onEvent(callback: (event: ImportEvent) => void): () => void

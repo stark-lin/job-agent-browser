@@ -11,7 +11,7 @@ import type { Result } from '../src/shared/ipc'
 
 const pages = [{ page: 1, text: 'First fact\nSecond fact' }]
 const response = JSON.stringify({ contact: { name: 'Candidate' }, links: [], items: [{ type: 'PROJECT', title: 'Project',
-  facts: ['First fact', 'Second fact'].map(content => ({ kind: 'ACHIEVEMENT', content, source: { page: 1, quote: content } })) }], facts: [] })
+  facts: ['First fact', 'Second fact'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] })
 const choice = { providerId: 'fixture', modelId: 'fixture' }
 function aiFixture(automatic = true) {
   let emit: ((event: AIEvent) => void) | undefined

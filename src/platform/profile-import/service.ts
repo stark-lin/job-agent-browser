@@ -4,15 +4,20 @@ import { fail } from '../../domain/common/errors'
 import { applyImportInput } from '../../domain/candidate/import.validation'
 import type { ApplyImport, ImportDraft, ImportSaved } from '../../domain/candidate/import.types'
 import type { Result } from '../../shared/ipc'
-import type { AIChoice } from '../../shared/ai'
+import type { ImportMode } from '../../shared/import'
+import type { AIChoice, AISettings } from '../../shared/ai'
 import type { AIService } from '../ai'
 import type { ImportEvent } from '../electron/profile-import-contract'
 import { extractPdf, ImportFailure, type PdfPage } from './pdf'
-import { importPrompt, parseImportDraft } from './draft'
+import { profileParts, mergeProfileParts } from './parts'
+import { createImportBatch, ImportRequestFailure } from '../import/batch'
+import { checkImportMode, importMode } from '../import/policy'
+import type { parseRawImport } from './draft'
 
 interface File { owner: number; bytes: Uint8Array }
 interface Session {
-  owner: number; fileId: string; taskId: string; controller: AbortController; aiId?: string
+  owner: number; fileId: string; taskId: string; controller: AbortController; choice: AIChoice; mode: ImportMode
+  batch?: ReturnType<typeof createImportBatch<ReturnType<typeof parseRawImport>>>
   state: 'running' | 'ready' | 'failed' | 'cancelled'; draft?: ImportDraft; profileId?: string
   itemIds: Record<string, string>; consumed: Set<string>; contacts: Set<string>
   receipts: Map<string, { input: string; result: ImportSaved }>
@@ -20,6 +25,7 @@ interface Session {
 }
 interface Dependencies {
   ai: Pick<AIService, 'start' | 'cancel'>
+  settings?: () => AISettings
   apply(input: ApplyImport): Result<ImportSaved>
   extract?: (bytes: Uint8Array, signal: AbortSignal, progress: (page: number, pages: number) => void) => Promise<PdfPage[]>
 }
@@ -38,8 +44,7 @@ export function createProfileImporter(deps: Dependencies) {
     if (sessions.get(sessionId) === session) { try { session.emit(event) } catch { stop(sessionId, session) } }
   }
   function stop(sessionId: string, session: Session) {
-    session.controller.abort()
-    if (session.aiId) deps.ai.cancel(session.owner, session.aiId)
+    session.controller.abort(); session.batch = undefined
     if (session.state === 'running') {
       session.state = 'cancelled'
       publish(sessionId, session, { sessionId, taskId: session.taskId, type: 'cancelled' })
@@ -49,33 +54,26 @@ export function createProfileImporter(deps: Dependencies) {
     for (const [id, session] of sessions) if (session.owner === owner) { stop(id, session); sessions.delete(id) }
     for (const [id, file] of files) if (file.owner === owner) files.delete(id)
   }
-  async function run(sessionId: string, session: Session, bytes: Uint8Array, selected: AIChoice) {
+  async function run(sessionId: string, session: Session, bytes: Uint8Array) {
     const task = { sessionId, taskId: session.taskId }
     const emit = (event: ImportEvent) => publish(sessionId, session, event)
     try {
-      emit({ ...task, type: 'phase', phase: 'extracting' })
-      const pages = await (deps.extract ?? extractPdf)(bytes, session.controller.signal, (page, pages) => emit({ ...task, type: 'phase', phase: 'extracting', page, pages }))
-      if (session.controller.signal.aborted || sessions.get(sessionId) !== session) return
+      if (!session.batch) {
+        emit({ ...task, type: 'phase', phase: 'extracting' })
+        const pages = await (deps.extract ?? extractPdf)(bytes, session.controller.signal, (page, pages) => emit({ ...task, type: 'phase', phase: 'extracting', page, pages }))
+        if (session.controller.signal.aborted || sessions.get(sessionId) !== session) return
+        session.batch = createImportBatch(deps.ai, session.owner, session.choice, profileParts(pages, session.mode))
+      }
       emit({ ...task, type: 'phase', phase: 'parsing' })
-      let output = ''
-      session.aiId = deps.ai.start(session.owner, { choice: selected, messages: [{ role: 'user', content: importPrompt(pages) }] }, event => {
-        if (session.state !== 'running' || session.controller.signal.aborted || sessions.get(sessionId) !== session) return
-        if (event.type === 'delta') output += event.text
-        else if (event.type === 'completed') {
-          try {
-            session.draft = parseImportDraft(output, pages); session.state = 'ready'
-            emit({ ...task, type: 'ready', draft: session.draft })
-          } catch { session.state = 'failed'; emit({ ...task, type: 'failed', error: 'IMPORT_INVALID_OUTPUT' }) }
-          output = ''; pages.length = 0
-        } else if (event.type === 'failed' || event.type === 'cancelled') {
-          session.state = event.type === 'cancelled' ? 'cancelled' : 'failed'; output = ''; pages.length = 0
-          emit(event.type === 'cancelled' ? { ...task, type: 'cancelled' } : { ...task, type: 'failed', error: event.error })
-        }
-      }).requestId
+      const parts = await session.batch.run(session.controller.signal, groups => emit({ ...task, type: 'progress', groups }))
+      if (session.controller.signal.aborted || sessions.get(sessionId) !== session) return
+      session.draft = mergeProfileParts(parts); session.state = 'ready'; session.batch = undefined
+      emit({ ...task, type: 'ready', draft: session.draft })
     } catch (error) {
       if (session.state !== 'running') return
       session.state = 'failed'
-      emit({ ...task, type: 'failed', error: error instanceof ImportFailure ? error.code : 'AI_PROVIDER_FAILED' })
+      emit({ ...task, type: 'failed', retryable: Boolean(session.batch?.retryable),
+        error: error instanceof ImportFailure || error instanceof ImportRequestFailure ? error.code : 'AI_PROVIDER_FAILED' })
     }
   }
   return {
@@ -86,17 +84,27 @@ export function createProfileImporter(deps: Dependencies) {
       return { fileId, bytes: bytes.length }
     },
     start(owner: number, input: unknown, emit: (event: ImportEvent) => void) {
-      const args = v.object({ fileId: v.id, choice })(input), file = files.get(args.fileId)
+      const args = v.object({ fileId: v.id, choice, mode: importMode })(input), file = files.get(args.fileId)
       if (!file) throw new ImportFailure('IMPORT_NOT_FOUND')
       if (file.owner !== owner) fail('FORBIDDEN')
+      checkImportMode(deps.settings?.(), args.choice, args.mode)
       for (const [id, previous] of sessions) if (previous.fileId === args.fileId) {
         if (previous.state === 'running' || previous.state === 'ready') fail('INVALID_STATE')
         sessions.delete(id)
       }
       const sessionId = randomUUID(), session: Session = { owner, fileId: args.fileId, taskId: randomUUID(), controller: new AbortController(),
-        state: 'running', itemIds: {}, consumed: new Set(), contacts: new Set(), receipts: new Map(), emit }
+        choice: args.choice, mode: args.mode, state: 'running', itemIds: {}, consumed: new Set(), contacts: new Set(), receipts: new Map(), emit }
       sessions.set(sessionId, session)
-      setImmediate(() => { if (sessions.has(sessionId)) void run(sessionId, session, file.bytes, args.choice) })
+      setImmediate(() => { if (sessions.has(sessionId)) void run(sessionId, session, file.bytes) })
+      return { sessionId, taskId: session.taskId }
+    },
+    retry(owner: number, input: unknown) {
+      const { sessionId } = v.object({ sessionId: v.id })(input), session = ownedSession(owner, sessionId)
+      if (session.state !== 'failed' || !session.batch?.retryable) fail('INVALID_STATE')
+      const file = files.get(session.fileId)
+      if (!file) throw new ImportFailure('IMPORT_NOT_FOUND')
+      session.state = 'running'; session.controller = new AbortController(); session.taskId = randomUUID()
+      setImmediate(() => { if (sessions.get(sessionId) === session) void run(sessionId, session, file.bytes) })
       return { sessionId, taskId: session.taskId }
     },
     cancel(owner: number, input: unknown) {

@@ -28,7 +28,10 @@ app.once('browser-window-created', (_event, window) => {
         await call('navigate', 'app://applications')
         await waitFor(() => evaluate('document.querySelectorAll("tbody tr").length === 25'), 'jobs after process restart')
         console.log('Job restart smoke passed: saved fields, NOT_STARTED status, source and list persist in a fresh process.')
-      } else await require('./job-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
+      } else {
+        await require('./job-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
+        await require('./import-parallel-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
+      }
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) }); app.quit()
     } catch (error) { clearTimeout(timeout); console.error(error); app.exit(1) }
   })

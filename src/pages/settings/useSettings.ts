@@ -72,10 +72,11 @@ export function useSettings() {
   const editProvider = (patch: Partial<AIProvider>) => {
     if (!draft || !provider) return
     const next = { ...provider, ...patch }
+    if (next.parallelModels) next.parallelModels = next.parallelModels.filter(model => next.models.includes(model))
     if (!next.models.includes(next.defaultModel)) next.defaultModel = next.models[0] ?? ''
     let choice = draft.ai.default
     if (choice?.providerId === next.id && !next.models.includes(choice.modelId)) choice = next.defaultModel ? { providerId: next.id, modelId: next.defaultModel } : null
-    changeAI({ providers: draft.ai.providers.map(p => p.id === next.id ? next : p), default: choice })
+    changeAI({ ...draft.ai, providers: draft.ai.providers.map(p => p.id === next.id ? next : p), default: choice })
   }
   const addProvider = () => {
     if (!draft || draft.ai.providers.length >= 20) return
@@ -86,7 +87,7 @@ export function useSettings() {
   const removeProvider = () => {
     if (!draft || !provider || keyStatus.configured || (!keyReady && providerSaved)) return
     const providers = draft.ai.providers.filter(p => p.id !== provider.id)
-    changeAI({ providers, default: draft.ai.default?.providerId === provider.id ? null : draft.ai.default })
+    changeAI({ ...draft.ai, providers, default: draft.ai.default?.providerId === provider.id ? null : draft.ai.default })
     setSelectedProvider(providers[0]?.id ?? '')
   }
 

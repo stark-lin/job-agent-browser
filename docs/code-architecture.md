@@ -58,6 +58,7 @@ src/
 │   │   ├── migrations/
 │   │   └── repositories/
 │   ├── filesystem/
+│   ├── import/
 │   ├── profile-import/
 │   ├── job-import/
 │   ├── storage/
@@ -131,7 +132,7 @@ The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types
 
 [Shared Tools](../src/shared/tools/index.ts) owns type-only Agent contracts; Main uses its Registry implementation. [Platform Tools](../src/platform/tools/capabilities.ts) wraps read/write operations with audit; [Platform MCP](../src/platform/mcp/runtime.ts) alone imports the MCP SDK and binds external capabilities. Renderer cannot import the tool runtime. The [MCP architecture](mcp-architecture.md) owns detailed contracts/lifecycle; native writes remain trusted Main capabilities outside the Agent registry.
 
-[Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and editable import drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names live in Shared.
+[Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and editable import drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts; [shared import infrastructure](../src/platform/import/batch.ts) owns bounded batches, cancellation and successful-result caching, while [policy](../src/platform/import/policy.ts) checks mode permission in Main. Each import adapter retains its own prompts, field validation and merging rules. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names and [mode/group progress types](../src/shared/import.ts) live in Shared.
 
 Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/useUnsavedGuard.ts); job forms, empty-field filling and Applications querying remain page-owned.
 

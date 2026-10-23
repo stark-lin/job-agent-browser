@@ -166,6 +166,7 @@ test('redirects are not followed and provider credentials never reach the redire
 test('renderer client buffers events emitted before invoke resolves and cleans terminal subscriptions', async () => {
   const requestId = randomUUID(), listeners = new Set<(event: AIEvent) => void>()
   const api: AIAPI = {
+    listModels: async () => ({ ok: true, value: [] }),
     start: async () => {
       for (const listener of listeners) {
         listener({ requestId, type: 'started' }); listener({ requestId, type: 'delta', text: 'early' }); listener({ requestId, type: 'completed' })
@@ -210,6 +211,7 @@ test('renderer disposal cancels a request whose ID arrives late and removes its 
   let resolve!: (value: { ok: true; value: { requestId: string } }) => void
   let listener: ((event: AIEvent) => void) | null = null
   const api: AIAPI = {
+    listModels: async () => ({ ok: true, value: [] }),
     start: () => new Promise(done => { resolve = done }),
     cancel: async input => { cancelled.push(input.requestId); return { ok: true, value: null } },
     onEvent: callback => { listener = callback; return () => { listener = null } }

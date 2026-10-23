@@ -20,6 +20,7 @@ test('HTTP compatible model maps colliding punctuation names and keeps complete 
   const batches: unknown[] = [], audit: (string | null)[] = [], executed: string[] = []
   let turns = 0
   const server = createServer((req, res) => {
+    assert.equal(req.url, '/v1/chat/completions')
     let body = ''; req.on('data', chunk => { body += chunk }); req.on('end', () => {
       const input = JSON.parse(body); batches.push(input.messages)
       assert.deepEqual(input.tools.map((tool: { function: { name: string } }) => tool.function.name), ['tool_0', 'tool_1'])
@@ -30,7 +31,7 @@ test('HTTP compatible model maps colliding punctuation names and keeps complete 
     })
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => server.close())
-  const adapter = compatibleAgentModel({ provider: { id: 'test', name: 'Test', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}/base/v1`, requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, { audit: (_id, error) => audit.push(error) })
+  const adapter = compatibleAgentModel({ provider: { id: 'test', name: 'Test', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, { audit: (_id, error) => audit.push(error) })
   const result = await runAgent(adapter, scope(async name => { executed.push(name); await new Promise(resolve => setTimeout(resolve, 5)); return { content: [] } }), [{ role: 'user', content: 'test' }], signal())
   assert.equal(result, 'done'); assert.deepEqual(executed, ['profile.get', 'profile_get']); assert.deepEqual(audit, [null, null])
   const messages = batches[1] as { role: string; tool_calls?: unknown[] }[]

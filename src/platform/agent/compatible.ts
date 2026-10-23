@@ -48,7 +48,7 @@ export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps
 }): AgentModel {
   const snapshot = structuredClone(config)
   return { async complete(input) {
-    const timeout = requestTimeout(input.signal, deps.timeoutMs), requestId = randomUUID()
+    const timeout = requestTimeout(input.signal, deps.timeoutMs ?? snapshot.timeoutMs), requestId = randomUUID()
     let result: AgentResponse | undefined, failure: unknown
     try {
       const mapped = providerTools(input.tools)

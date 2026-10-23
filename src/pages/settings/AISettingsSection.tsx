@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import type { useSettings, Notice } from './useSettings'
 import { useAIRequest } from '../../app/ai/useAIRequest'
-import type { AIError } from '../../shared/ai'
+import { defaultAITimeouts, type AIError } from '../../shared/ai'
+import { ModelDiscovery } from './ModelDiscovery'
+import { ModelImportSettings } from './ModelImportSettings'
+import { TimeoutSettings } from './TimeoutSettings'
 
 export function AISettingsSection({ settings: s }: { settings: ReturnType<typeof useSettings> }) {
   const { t } = useTranslation(), [confirmDelete, setConfirmDelete] = useState(false)
@@ -27,6 +30,7 @@ export function AISettingsSection({ settings: s }: { settings: ReturnType<typeof
   return <SectionCard title={t($ => $.settings.ai)} description={t($ => $.settings.aiDescription)}>
     <div className="settings-stack">
       <form className="settings-stack" data-ai-config onSubmit={event => { event.preventDefault(); void s.save('ai') }}>
+        <TimeoutSettings value={draft.ai.timeouts ?? defaultAITimeouts} disabled={busy} onChange={timeouts => s.changeAI({ ...draft.ai, timeouts })} />
         <FormField label={t($ => $.settings.provider)}>{props => <Select {...props} disabled={busy || Boolean(s.key)} value={s.selectedProvider} onChange={event => { setProbe('idle'); setProbeError(null); s.setSelectedProvider(event.target.value) }}>
           {!draft.ai.providers.length && <option value="">{t($ => $.settings.none)}</option>}
           {draft.ai.providers.map(provider => <option key={provider.id} value={provider.id}>{provider.name || t($ => $.settings.newProvider)}</option>)}
@@ -37,14 +41,16 @@ export function AISettingsSection({ settings: s }: { settings: ReturnType<typeof
         </div>
         {p && <>
           <FormField label={t($ => $.settings.providerName)}>{props => <TextInput {...props} required maxLength={100} disabled={busy} value={p.name} onChange={event => s.editProvider({ name: event.target.value })} />}</FormField>
-          <FormField label={t($ => $.settings.baseURL)} help={t($ => $.settings.baseURLHelp)}>{props => <TextInput {...props} type="url" required disabled={busy} maxLength={2048} value={p.baseURL} onChange={event => s.editProvider({ baseURL: event.target.value })} />}</FormField>
+          <FormField label={t($ => $.settings.baseURL)} help={t($ => $.settings.baseURLHelp)}>{props => <TextInput {...props} type="url" required disabled={busy} maxLength={2048} placeholder="http://127.0.0.1:1234" value={p.baseURL} onChange={event => s.editProvider({ baseURL: event.target.value })} />}</FormField>
           <FormField label={t($ => $.settings.authentication)}>{props => <Select {...props} disabled={busy} value={String(p.requiresKey)} onChange={event => s.editProvider({ requiresKey: event.target.value === 'true' })}>
             <option value="true">{t($ => $.settings.keyRequired)}</option><option value="false">{t($ => $.settings.noKey)}</option>
           </Select>}</FormField>
+          <ModelDiscovery key={`${p.id}:${p.baseURL}:${p.requiresKey}:${keyStatus.configured}`} settings={s} busy={busy} />
           <FormField label={t($ => $.settings.models)} help={t($ => $.settings.modelsHelp)}>{props => <TextArea {...props} disabled={busy} value={p.models.join('\n')} onChange={event => s.editProvider({ models: event.target.value.split('\n') })} />}</FormField>
           <FormField label={t($ => $.settings.defaultModel)}>{props => <Select {...props} disabled={busy} value={p.defaultModel} onChange={event => s.editProvider({ defaultModel: event.target.value })}>
             <option value="">{t($ => $.settings.none)}</option>{p.models.filter(Boolean).map((model, index) => <option key={index} value={model}>{model}</option>)}
           </Select>}</FormField>
+          <ModelImportSettings key={p.id} provider={p} disabled={busy} onChange={parallelModels => s.editProvider({ parallelModels })} />
           <Button disabled={busy || !p.defaultModel} onClick={() => s.changeAI({ ...draft.ai, default: { providerId: p.id, modelId: p.defaultModel } })}>{t($ => $.settings.makeDefault)}</Button>
           <StatusMessage>{draft.ai.default ? t($ => $.settings.currentDefault, { provider: draft.ai.providers.find(provider => provider.id === draft.ai.default?.providerId)?.name ?? '', model: draft.ai.default.modelId }) : t($ => $.settings.noDefault)}</StatusMessage>
         </>}

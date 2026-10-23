@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { fixture, value } from './helpers'
 import type { ApplyImport } from '../src/domain/candidate/import.types'
-import { parseImportDraft } from '../src/platform/profile-import/draft'
+import { importPrompt, parseImportDraft } from '../src/platform/profile-import/draft'
 import { changeImportFact, changeImportItem, importSelection, importError, ignoreImportItem, savedSelection } from '../src/pages/profile/import-state'
 import { itemDetails, validateItemDates } from '../src/domain/candidate/candidate.validation'
 
 export function resumeOutput() {
-  const fact = (content: string) => ({ kind: 'ACHIEVEMENT', content, tags: [], source: { page: 1, quote: content } })
+  const fact = (content: string) => ({ kind: 'ACHIEVEMENT', content, tags: [] })
   return { contact: { name: 'Candidate', email: 'new@example.com', phone: '', location: '' }, links: [{ label: 'Portfolio', url: 'https://example.com' }],
     items: [{ type: 'EXPERIENCE', title: 'Engineer', startDateText: '2020-03', endDateText: '', isCurrent: true, facts: [fact('Built services'), fact('Improved latency')] }], facts: [fact('English')] }
 }
@@ -58,22 +58,25 @@ test('import rejects missing name, duplicate draft IDs, invalid dates and cross-
   args.items = []; args.facts = [{ draftId: randomUUID(), itemDraftId: null, profileItemId: item.id, details: { kind: 'SKILL', content: 'SQL' } }]
   assert.deepEqual(await f.api.profiles.applyImport(args), { ok: false, error: 'CONFLICT' })
 })
-test('AI draft preserves grouped facts, source excerpts and date precision; bad fields block only their entries', () => {
+test('AI draft keeps grouped facts and date precision without source excerpts or page validation', () => {
   const raw = resumeOutput(); raw.items[0].startDateText = '2020-13'
-  raw.items[0].facts[1].source.quote = 'Invented source'
-  const draft = parseImportDraft(JSON.stringify(raw), sourcePages)
+  const draft = parseImportDraft(JSON.stringify(raw))
   assert.equal(draft.items.length, 1); assert.equal(draft.facts.length, 3)
-  assert.equal(draft.items[0].error, true); assert.equal(draft.facts[0].error, false); assert.equal(draft.facts[1].error, true)
+  assert.equal(draft.items[0].error, true); assert(draft.facts.every(fact => !fact.error))
   assert.equal(draft.facts[0].itemDraftId, draft.items[0].draftId); assert.equal(draft.facts[2].itemDraftId, null)
-  assert.equal(draft.facts[0].details.evidence, 'Page 1\nBuilt services')
+  assert(draft.facts.every(fact => !('evidence' in fact.details) && !('sourceError' in fact)))
   const edited = changeImportFact(draft, draft.facts[1].draftId, { details: { ...draft.facts[1].details, tags: ['reviewed'] } })
-  assert.equal(edited.facts[1].error, true, 'unrelated edits cannot clear an invalid source excerpt')
-  const corrected = changeImportFact(edited, draft.facts[1].draftId, { details: { ...edited.facts[1].details, evidence: 'Page 1\nImproved latency' } })
-  assert.equal(corrected.facts[1].error, false)
-  assert.throws(() => parseImportDraft('not JSON', sourcePages), /IMPORT_INVALID_OUTPUT/)
+  assert.equal(edited.facts[1].error, false)
+  assert.throws(() => parseImportDraft('not JSON'), /IMPORT_INVALID_OUTPUT/)
+  const old = structuredClone(raw) as unknown as { items: { facts: Record<string, unknown>[] }[] }
+  old.items[0].facts[0].source = { page: 1, quote: 'Repeated fact text' }
+  assert.throws(() => parseImportDraft(JSON.stringify(old)), /IMPORT_INVALID_OUTPUT/)
+  const prompt = importPrompt(sourcePages)
+  assert(!prompt.includes('"source"')); assert(!prompt.includes('"quote"')); assert(!prompt.includes('"page"'))
+  assert(prompt.includes('Built services'))
 })
 test('valid entries save without confirmation; invalid entries block and ignored parents exclude children', async t => {
-  const f = fixture(t); let draft = parseImportDraft(JSON.stringify(resumeOutput()), sourcePages)
+  const f = fixture(t); let draft = parseImportDraft(JSON.stringify(resumeOutput()))
   const sessionId = randomUUID(), parentId = draft.items[0].draftId
   draft.facts[1].ignored = true
   const subset = importSelection(draft, sessionId, randomUUID(), null)
@@ -82,7 +85,7 @@ test('valid entries save without confirmation; invalid entries block and ignored
   draft = savedSelection(draft, subset, saved)
   assert.equal(draft.items[0].savedId, saved.items[0].id)
   assert.equal(draft.facts.length, 1); assert.equal(draft.facts[0].itemDraftId, parentId)
-  const fresh = parseImportDraft(JSON.stringify(resumeOutput()), sourcePages)
+  const fresh = parseImportDraft(JSON.stringify(resumeOutput()))
   let edited = changeImportItem(fresh, fresh.items[0].draftId, { ...fresh.items[0].details, title: '' })
   assert.equal(importError(edited), fresh.items[0].draftId)
   assert.throws(() => importSelection(edited, sessionId, randomUUID(), saved.profile.id))

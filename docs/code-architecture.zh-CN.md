@@ -58,6 +58,7 @@ src/
 │   │   ├── migrations/
 │   │   └── repositories/
 │   ├── filesystem/
+│   ├── import/
 │   ├── profile-import/
 │   ├── job-import/
 │   ├── storage/
@@ -131,7 +132,7 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared Tools](../src/shared/tools/index.ts)管理仅类型的 Agent 契约，Main 使用其 Registry 实现。[Platform Tools](../src/platform/tools/capabilities.ts)为 read/write 操作封装审计，只有 [Platform MCP](../src/platform/mcp/runtime.ts)可导入 MCP SDK 并绑定外部能力。Renderer 不得导入工具运行时。具体契约/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)，原生写入仍是 Agent Registry 之外的可信 Main 能力。
 
-[Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名保留在 Shared。
+[Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 

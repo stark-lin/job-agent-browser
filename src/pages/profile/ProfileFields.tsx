@@ -24,12 +24,12 @@ export function ItemFields({ value, onChange, disabled = false, fixedType = fals
       : <TextInput {...props} value={metadata[key] ?? ''} maxLength={key === 'url' ? 4096 : key === 'gpa' ? 50 : key === 'employmentType' ? 100 : 200} disabled={disabled} onChange={event => meta(key, event.target.value)} />}</FormField>)}</div>
   </div>
 }
-export function FactFields({ value, onChange, disabled = false }: { value: FactInput; onChange: (value: FactInput) => void; disabled?: boolean }) {
+export function FactFields({ value, onChange, disabled = false, showEvidence = true }: { value: FactInput; onChange: (value: FactInput) => void; disabled?: boolean; showEvidence?: boolean }) {
   const { t } = useTranslation()
   return <div className="profile-stack">
     <FormField label={t($ => $.profile.kind)}>{props => <Select {...props} value={value.kind} disabled={disabled} onChange={event => onChange({ ...value, kind: event.target.value as FactInput['kind'] })}>{factKinds.map(kind => <option key={kind} value={kind}>{t($ => $.profile.kinds[kind])}</option>)}</Select>}</FormField>
     <FormField label={t($ => $.profile.content)}>{props => <TextArea {...props} required value={value.content} maxLength={20000} disabled={disabled} onChange={event => onChange({ ...value, content: event.target.value })} />}</FormField>
     <FormField label={t($ => $.profile.tags)}>{props => <ListInput {...props} value={value.tags ?? []} maxLength={10100} disabled={disabled} onChange={tags => onChange({ ...value, tags })} />}</FormField>
-    <FormField label={t($ => $.profile.evidence)}>{props => <TextArea {...props} value={value.evidence ?? ''} maxLength={20000} disabled={disabled} onChange={event => onChange({ ...value, evidence: event.target.value })} />}</FormField>
+    {showEvidence && <FormField label={t($ => $.profile.evidence)}>{props => <TextArea {...props} value={value.evidence ?? ''} maxLength={20000} disabled={disabled} onChange={event => onChange({ ...value, evidence: event.target.value })} />}</FormField>}
   </div>
 }

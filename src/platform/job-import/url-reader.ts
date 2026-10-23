@@ -2,15 +2,17 @@ import * as v from '../../domain/common/validation'
 import type { JobPageReader } from '../../domain/job/job.extractor'
 import { snapshotFromHTML } from './html'
 import { JobImportFailure } from './errors'
+import { defaultAITimeouts } from '../../shared/ai'
 
 /** Fetch only the supplied public document. No Cookie jar, page scripts or site adapters. */
-export function createURLReader(transport: typeof fetch = fetch, timeoutMs = 20000): JobPageReader {
+export function createURLReader(transport: typeof fetch = fetch, timeoutMs: number | (() => number) = defaultAITimeouts.pageSeconds * 1000): JobPageReader {
   return { async read(input, signal) {
-    const requestedUrl = v.url(input), controller = new AbortController()
+    const requestedUrl = v.url(input), duration = typeof timeoutMs === 'function' ? timeoutMs() : timeoutMs
+    const controller = new AbortController()
     let timedOut = false
     const abort = () => controller.abort()
     signal.addEventListener('abort', abort, { once: true })
-    const timer = setTimeout(() => { timedOut = true; controller.abort() }, timeoutMs)
+    const timer = setTimeout(() => { timedOut = true; controller.abort() }, duration)
     try {
       signal.throwIfAborted()
       let url = requestedUrl

@@ -9,6 +9,7 @@ import type { SourceDetails } from '../../domain/job/job.types'
 import { en } from '../../shared/i18n/locales/en'
 import { JobFields } from './JobFields'
 import { emptyJob, fillEmptyJob } from './job-form'
+import { ImportModeField, ImportProgress } from '../../app/ai/ImportControls'
 import { useJobImport } from './useJobImport'
 import './job.css'
 
@@ -49,11 +50,15 @@ export function AddJobPage() {
     <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
       <FormField label={t($ => $.jobs.url)}>{props => <TextInput {...props} name="jobUrl" type="url" value={url} maxLength={4096} disabled={saving || busy || saved} onChange={event => { setUrl(event.target.value); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}</FormField>
       {importer.configured ? <StatusMessage>{t($ => $.jobs.selectedModel, { provider: importer.provider, model: importer.model })}</StatusMessage> : <StatusMessage>{t($ => $.jobs.noAI)}</StatusMessage>}
+      <ImportModeField value={importer.mode} allowed={importer.parallelAllowed} disabled={busy || saving || saved}
+        onChange={mode => { importer.clearError(); importer.setMode(mode) }} />
       <div className="job-actions"><Button disabled={!url.trim() || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(url.trim()) }}>{t($ => $.jobs.parse)}</Button>
+        {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start(url.trim(), true)}>{t($ => $.imports.retry)}</Button>}
         {busy && <Button onClick={importer.cancel}>{t($ => $.jobs.cancelParse)}</Button>}
         {!importer.configured && <Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>}
       </div>
       {busy && <StatusMessage>{t($ => $.jobs[importer.phase === 'reading' ? 'reading' : 'parsing'])}</StatusMessage>}
+      <ImportProgress groups={importer.groups} />
       {importer.error && <StatusMessage tone="error">{errorText(importer.error)}</StatusMessage>}
       {notice && <StatusMessage tone="success">{t($ => $.jobs.parsed)}</StatusMessage>}
     </div></SectionCard>

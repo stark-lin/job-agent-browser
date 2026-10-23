@@ -32,7 +32,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
   }
   const body = { contact: { name: 'Imported candidate', email: 'imported@example.com' }, links: [],
     items: [{ type: 'PROJECT', title: 'Imported project', startDateText: '2021', endDateText: '', isCurrent: true,
-      facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content, source: { page: 1, quote: content } })) }], facts: [] }
+      facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] }
   let requests = 0
   const server = createServer((request, response) => {
     request.resume(); request.on('end', () => {
@@ -123,7 +123,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal(imported.startDate, null); assert.equal(imported.metadata.startDateText, '2021')
     facts = (await data('listFacts', { profileId: profile.id })).value.items
     assert.equal(facts.filter(fact => fact.profileItemId === imported.id).length, 2)
-    assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => fact.evidence.includes('Page 1')))
+    assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => fact.evidence === ''))
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]") && document.body.innerText.includes("Upload PDF and parse")'), 'import draft discarded')
     // A second upload deliberately permits the same material to be added again.

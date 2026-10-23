@@ -3,7 +3,7 @@ import { postChat } from './transport'
 import type { AIMessage, AIProvider } from '../../shared/ai'
 
 export type Fetch = typeof fetch
-export interface ChatRequest { provider: AIProvider; model: string; key: string | null; messages: AIMessage[] }
+export interface ChatRequest { provider: AIProvider; model: string; key: string | null; messages: AIMessage[]; timeoutMs?: number }
 
 /** Parse SSE frames independently of network chunks, including split UTF-8 and CRLF. */
 export async function streamChat(request: ChatRequest, signal: AbortSignal, onStart: () => void, onText: (text: string) => void, transport: Fetch = fetch): Promise<void> {

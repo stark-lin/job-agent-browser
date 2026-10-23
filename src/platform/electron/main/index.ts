@@ -14,6 +14,7 @@ import { createResumeTasks, type ResumeTasks } from '../../agent/resume-tasks'
 import { registerResumeIPC } from './resume-ipc'
 import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
+import { defaultAITimeouts } from '../../../shared/ai'
 import { registerJobImportIPC } from './job-import-ipc'
 import type { ImportSaved } from '../../../domain/candidate/import.types'
 import type { Result } from '../../../shared/ipc'
@@ -66,8 +67,8 @@ app.whenReady().then(async () => {
   // Optional external capabilities never delay window creation or reject the application startup.
   void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
-  profileImporter = createProfileImporter({ ai, apply: input => backend!.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
-  jobImporter = createJobImporter({ ai, reader: createURLReader() })
+  profileImporter = createProfileImporter({ ai, settings: () => preferences.get({}).ai, apply: input => backend!.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
+  jobImporter = createJobImporter({ ai, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   resumes = createResumeTasks({ backend, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
   registerResumeIPC(resumes, join(__dirname, '../renderer/index.html'))

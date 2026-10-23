@@ -56,23 +56,49 @@ React App → Page → Preload → IPC → Main
 
 [App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体或提取网页内容。Profile 优先加载有效的引用记录，否则选择最近更新的 Profile，并在加载/保存后同步共享 ID。
 
-**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。[兼容适配器](../src/platform/ai/compatible.ts)在配置的 Base URL 下调用 Chat Completions 并消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。尚未实现自动重试、跨 Provider 回退、结构化输出能力探测或模型发现。
+**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。目前仅支持 OpenAI 兼容的 Chat Completions。[共享传输](../src/platform/ai/transport.ts)为 `http://127.0.0.1:1234` 这类普通 endpoint 自动使用 `/v1`；显式填写的 `/v1`、`/gateway/v1` 等 API 路径会保留，并移除尾部斜杠。流式对话和 Resume Agent 共用这一地址解析。[兼容适配器](../src/platform/ai/compatible.ts)消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。自动重试、跨 Provider 回退和结构化输出能力探测尚未实现。
 
-[AI IPC](../src/platform/electron/main/ai-ipc.ts)只暴露启动/取消，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，设置 120 秒总超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
+[AI IPC](../src/platform/electron/main/ai-ipc.ts)暴露启动/取消及模型发现，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，对话使用已保存的 AI 请求超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
-[对话](../src/pages/ai/useChat.ts)继承已保存默认值，可覆盖 Provider/模型，并展示完成、失败或停止状态。新对话清空消息；离开页面取消请求并清除仅存内存的历史。切换模型后已有消息保留响应模型标签。[AI 设置](../src/pages/settings/AISettingsSection.tsx)管理 Provider 实例、手填模型 ID，以及显式发起的短流式连接测试。对话自动上下文仍为规划；简历生成使用独立的 Main 执行路径。审计和凭据持久化归属[数据架构](data-architecture.zh-CN.md)。
+[对话](../src/pages/ai/useChat.ts)继承已保存默认值，可覆盖 Provider/模型，并展示完成、失败或停止状态。新对话清空消息；离开页面取消请求并清除仅存内存的历史。切换模型后已有消息保留响应模型标签。[AI 设置](../src/pages/settings/AISettingsSection.tsx)管理 Provider 实例、检测/手填模型 ID，以及显式发起的短流式连接测试。[超时控件](../src/pages/settings/TimeoutSettings.tsx)将保存的限制用于新请求/任务；正在执行的对话、模型检测、网页读取及 Resume Agent 调用保留已捕获的限制。[超时测试](../tests/request-timeouts.test.ts)覆盖这些路径；持久化/取值范围归属[数据架构](data-architecture.zh-CN.md)。对话自动上下文仍为规划；简历生成使用独立的 Main 执行路径。审计和凭据持久化归属[数据架构](data-architecture.zh-CN.md)。
+
+**已实现模型发现：**[Main 检测服务](../src/platform/ai/models.ts)按用户操作向已保存 Provider 的 `models` 资源发起 `GET`，使用已保存密钥；无需密钥的服务不发送身份验证。不要求已有模型/默认值。服务拒绝重定向，限制 JSON 为 1 MB/10,000 条，校验、去重并排序 ID，使用已保存的模型检测超时，每个窗口最多一个请求、全局最多 16 个。窗口释放/导航或应用退出会中止检测。
+
+[设置选择器](../src/pages/settings/ModelDiscovery.tsx)将选中 ID 加入草稿（最多 100 个），保存后生效。空列表/错误不影响手填；切换 Provider 或控件卸载后忽略迟到结果。检测不调用生成、不写设置/审计，也不证明模型支持对话/工具。[回归测试](../tests/ai-models.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)使用本地样本；另已在本机 LM Studio 验证模型发现及短流式对话，其他真实服务的兼容性仍未验证。
 
 **已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与显式保存语义归属[数据架构](data-architecture.zh-CN.md)。
 
 [导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/profile-import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
 
-Main 将带页码文字发送给已展示的全局默认 Provider/模型，复用 AI 超时、取消和启动审计。[草稿解析](../src/platform/profile-import/draft.ts)校验 JSON，将多个事实归入同一条目，并检查原文片段是否存在于对应页面。原始流不作为已解析资料展示，重试由用户手动发起。原始 PDF、完整文字和未保存草稿不持久化，离页、刷新、崩溃和窗口销毁会释放会话。OCR、原始文件管理和真实第三方 Provider 兼容性认证尚未实现。
+Main 将 PDF 文字发送给已展示的全局默认 Provider/模型，复用 AI 超时、取消和启动审计。[草稿解析](../src/platform/profile-import/draft.ts)校验 JSON，将多个事实归入同一条目。导入输出不包含原文引用、页码及证据校验，可省略空的可选字段；已保存事实仍支持 Resume Agent 表述关联。原始流不作为已解析资料展示，重试由用户手动发起。原始 PDF、完整文字和未保存草稿不持久化，离页、刷新、崩溃和窗口销毁会释放会话。OCR、原始文件管理和真实第三方 Provider 兼容性认证尚未实现。
+
+**已实现导入模式：**两种导入默认使用普通模式（`single`，一个 AI 请求）。在设置中选择 Provider，再在“配置并行导入的模型”中选择模型，勾选“允许此模型并行导入”并保存；随后在 PDF 或 URL 导入页面各自选择并行模式（`parallel`）。许可属于 Provider/模型组合，不是模型 API 参数。导入模式只存于页面/会话，不是持久化全局偏好；缺少许可时并行选项不可用，Main 也拒绝绕过界面的调用。见[模型控件](../src/pages/settings/ModelImportSettings.tsx)、[模式控件](../src/app/ai/ImportControls.tsx)和 [Main 策略](../src/platform/import/policy.ts)。
+
+AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位分组](../src/platform/job-import/parts.ts)和[资料分组](../src/platform/profile-import/parts.ts)读取相同完整来源，不按页切分文档。普通与并行 PDF 导入使用同一精简事实结构，详见[数据架构](data-architecture.zh-CN.md#二业务规则)。
+
+| 导入 | 分组 | 提取内容 |
+| --- | --- | --- |
+| 职位 URL | `basics` | 职位名称、公司原名、地点文字/列表、雇佣类型及薪资 |
+| 职位 URL | `description` | 职位描述 |
+| 职位 URL | `requirements` | 要求原文、类别及关键词 |
+| PDF 资料 | `contact` | 联系方式、链接及独立事实 |
+| PDF 资料 | `experience` | 工作经历条目及所属事实 |
+| PDF 资料 | `projects` | 项目条目及所属事实 |
+| PDF 资料 | `education` | 教育条目及所属事实 |
+
+并行模式下职位备注默认为空，来源元数据由本地组装。[共用批次](../src/platform/import/batch.ts)最多并发三组，PDF 的第四组等待空闲位置。每组只能返回分配的字段/条目类型；所有组成功后按固定顺序合并。资料合并按事实类别/内容去除同一父项内的重复及独立事实对条目事实的重复；不同父项下的相同事实分别保留。
+
+[AI 服务](../src/platform/ai/service.ts)在每窗口四个、全局十六个活动请求的额度内排队导入调用，活动/排队合计最多接受八十个。请求超时从执行时起算。每组报告状态和仅存内存的排队/处理耗时；取消移除排队请求并中止运行请求。耗时随分组状态变化更新，不是持续计时的进度估算。
+
+分组失败时，成功结果留在内存；只有任务返回 `retryable`，页面才提供“重试失败部分”。重试复用原来源、模型选择、模式和成功结果，不重新下载/提取，也不写业务数据。读取/提取失败，或没有失败组的最终合并失败，需要重新解析。替换、放弃、导航/窗口释放和进程退出会释放对应任务/缓存。重试标识规则见[数据架构](data-architecture.zh-CN.md#五api-契约与访问)。
+
+每组接收完整输入，因此输入 token/费用可能增加。较短输出和并发请求可以减少等待，但效果取决于服务商并发、模型吞吐及网络延迟；本地样本测试不代表真实服务提速。
 
 **已实现新增工作：**[新增页面](../src/pages/find-jobs/AddJobPage.tsx) 在兼容的 `app://find` 入口提供手工录入和单个 URL AI 导入；共享表单覆盖现有职位字段，AI 仅填空缺字段，数组/薪资整体保留已有值。解析前显示默认 Provider/模型；未配置 AI 仍可手工填写。[未保存保护](../src/app/navigation/useUnsavedGuard.ts)由 Profile 和新增工作共用。保存状态及来源语义归[数据架构](data-architecture.zh-CN.md)。
 
-[公开 URL 读取器](../src/platform/job-import/url-reader.ts)在 Main 读取 HTTP(S) HTML，不发送网站 Cookie，不执行网页脚本；最多 5 次重定向、20 秒、2 MB HTML、60,000 个正文字符及 40,000 个 JobPosting 元数据字符。[HTML 解析](../src/platform/job-import/html.ts)使用 htmlparser2 去除脚本/导航等内容；HTTP 拒绝、登录/验证页及无可读内容返回固定错误。仅脚本生成或无法识别的限制页可能无法解析，不保证所有招聘网站兼容。
+[公开 URL 读取器](../src/platform/job-import/url-reader.ts)在 Main 读取 HTTP(S) HTML，不发送网站 Cookie，不执行网页脚本；使用已保存的网页读取超时，最多 5 次重定向、2 MB HTML、60,000 个正文字符及 40,000 个 JobPosting 元数据字符。[HTML 解析](../src/platform/job-import/html.ts)使用 htmlparser2 去除脚本/导航等内容；HTTP 拒绝、登录/验证页及无可读内容返回固定错误。仅脚本生成或无法识别的限制页可能无法解析，不保证所有招聘网站兼容。
 
-[异步任务](../src/platform/job-import/service.ts)隔离窗口归属，复用 AI 服务的超时、取消及启动审计；[提取器](../src/platform/job-import/extractor.ts)校验字段白名单及 JSON，不接受系统 ID/状态。离开、刷新、崩溃及窗口销毁清理任务，迟到结果被忽略。Domain 的[快照和能力接口](../src/domain/job/job.extractor.ts)为后续 Browser 登录态采集预留复用入口；登录、验证码处理及自动重试未实现。
+[异步任务](../src/platform/job-import/service.ts)隔离窗口归属，复用 AI 服务的超时、取消及启动审计；[分组解析](../src/platform/job-import/parts.ts)校验字段白名单及 JSON，不接受系统 ID/状态。离开、刷新、崩溃及窗口销毁清理任务，迟到结果被忽略。Domain 的[快照和能力接口](../src/domain/job/job.extractor.ts)为后续 Browser 登录态采集预留复用入口；登录、验证码处理及自动重试未实现。
 
 [申请记录](../src/pages/applications/ApplicationsPage.tsx)显示未归档工作，支持名称/公司搜索、状态筛选、25 条分页、手动刷新及只读详情/来源。保存后更新共享 Job ID，跳转并打开新职位详情；跳转失败时不重复提交已保存记录。状态编辑、日历和去重仍为规划。
 
@@ -101,11 +127,11 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 六、验证与限制
 
-[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、证据、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、精简草稿、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、响应式尺寸及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
 标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获及安装包仍未实现。
 
-[职位导入测试](../tests/job-import.test.ts)覆盖 HTML 清洗、访问限制、超时/取消、字段白名单、手工值保留及初始状态；[新增工作 smoke](../scripts/job-smoke.cjs)通过本地 HTML/SSE 服务验证真实桥接、保存跳转、申请记录及双语主题布局。真实第三方招聘站点和账号兼容性未验证。
+[职位导入测试](../tests/job-import.test.ts)覆盖 HTML 清洗、访问限制、超时/取消、字段白名单、手工值保留及初始状态；[新增工作 smoke](../scripts/job-smoke.cjs)通过本地 HTML/SSE 服务验证真实桥接、保存跳转、申请记录及双语主题布局。[并行导入测试](../tests/import-parallel.test.ts)、[排队测试](../tests/ai-queue.test.ts)和[生产 smoke](../scripts/import-parallel-smoke.cjs)验证分组隔离、有界调度、重试/取消、模型许可及双语布局。真实第三方招聘站点和账号兼容性未验证。
 
 ## 七、相关文档
 

@@ -12,7 +12,7 @@ export interface ImportSaved {
   profile: Profile; items: ProfileItem[]; facts: Fact[]
   itemIds: Record<string, string>; factIds: Record<string, string>
 }
-export interface DraftFact extends ImportFact { ignored: boolean; error: boolean; sourceError?: boolean }
+export interface DraftFact extends ImportFact { ignored: boolean; error: boolean }
 export interface DraftItem extends ImportItem { ignored: boolean; error: boolean; savedId: string | null }
 export interface ImportDraft {
   contact: Record<ContactKey, { value: string; ignored: boolean; saved?: boolean }>

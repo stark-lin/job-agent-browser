@@ -3,12 +3,12 @@ import { createResumeBridge } from './resume-bridge'
 import { RESUME_CALL, RESUME_EVENT, type ResumeEvent } from '../resume-contract'
 import { createDataBridge } from './data-bridge'
 import { DATA_CALL } from '../../../shared/ipc'
-import { AI_START, AI_CANCEL, AI_EVENT, type AIEvent } from '../../../shared/ai'
+import { AI_START, AI_CANCEL, AI_EVENT, AI_MODELS, type AIEvent } from '../../../shared/ai'
 import { createAIBridge } from './ai-bridge'
 import type { JobImportAPI, JobImportEvent } from '../job-import-contract'
-import { JOB_IMPORT_START, JOB_IMPORT_CANCEL, JOB_IMPORT_EVENT } from '../../../shared/job-import'
+import { JOB_IMPORT_START, JOB_IMPORT_CANCEL, JOB_IMPORT_EVENT, JOB_IMPORT_RETRY } from '../../../shared/job-import'
 import type { ProfileImportAPI, ImportEvent } from '../profile-import-contract'
-import { PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
+import { PROFILE_IMPORT_RETRY, PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
 import {
   BROWSER_BACK,
   BROWSER_CREATE_TAB,
@@ -49,6 +49,7 @@ const browserAPI: BrowserAPI = {
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
 const jobImport: JobImportAPI = {
+  retry: input => ipcRenderer.invoke(JOB_IMPORT_RETRY, input),
   start: input => ipcRenderer.invoke(JOB_IMPORT_START, input), cancel: input => ipcRenderer.invoke(JOB_IMPORT_CANCEL, input),
   onEvent: callback => {
     const listener = (_event: Electron.IpcRendererEvent, message: JobImportEvent) => callback(message)
@@ -58,6 +59,7 @@ const jobImport: JobImportAPI = {
 }
 contextBridge.exposeInMainWorld('jobImport', jobImport)
 const profileImport: ProfileImportAPI = {
+  retry: input => ipcRenderer.invoke(PROFILE_IMPORT_RETRY, input),
   selectPdf: () => ipcRenderer.invoke(PROFILE_IMPORT_SELECT),
   start: input => ipcRenderer.invoke(PROFILE_IMPORT_START, input), cancel: input => ipcRenderer.invoke(PROFILE_IMPORT_CANCEL, input),
   discard: input => ipcRenderer.invoke(PROFILE_IMPORT_DISCARD, input),
@@ -70,7 +72,7 @@ const profileImport: ProfileImportAPI = {
 contextBridge.exposeInMainWorld('profileImport', profileImport)
 contextBridge.exposeInMainWorld('data', createDataBridge((group, method, input) => ipcRenderer.invoke(DATA_CALL, group, method, input)))
 contextBridge.exposeInMainWorld('ai', createAIBridge(
-  (operation, input) => ipcRenderer.invoke(operation === 'start' ? AI_START : AI_CANCEL, input),
+  (operation, input) => ipcRenderer.invoke(operation === 'start' ? AI_START : operation === 'models' ? AI_MODELS : AI_CANCEL, input),
   callback => {
     const listener = (_event: Electron.IpcRendererEvent, message: AIEvent) => callback(message)
     ipcRenderer.on(AI_EVENT, listener)

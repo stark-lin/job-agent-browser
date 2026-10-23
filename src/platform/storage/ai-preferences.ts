@@ -1,5 +1,5 @@
 import { fail } from '../../domain/common/errors'
-import type { AISettings, AIProvider } from '../../shared/ai'
+import { defaultAITimeouts, type AISettings, type AIProvider, type AITimeouts } from '../../shared/ai'
 import { object } from './validation'
 
 export function providerId(input: unknown): string {
@@ -19,18 +19,30 @@ export function modelId(input: unknown): string {
   return input
 }
 export function aiPreferences(input: unknown): AISettings {
-  const value = object(input, ['providers', 'default'])
+  const value = object(input, ['providers', 'default', 'timeouts'])
+  const timeouts = { ...defaultAITimeouts }
+  if ('timeouts' in value) {
+    const fields = Object.keys(defaultAITimeouts) as (keyof AITimeouts)[]
+    const configured = object(value.timeouts, fields)
+    for (const field of fields) {
+      const seconds = configured[field]
+      if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds < 1 || seconds > 3600) return fail('INVALID_INPUT')
+      timeouts[field] = seconds
+    }
+  }
   if (!Array.isArray(value.providers) || value.providers.length > 20) return fail('INVALID_INPUT')
   const providers = value.providers.map((entry): AIProvider => {
-    const p = object(entry, ['id', 'name', 'baseURL', 'requiresKey', 'models', 'defaultModel'])
+    const p = object(entry, ['id', 'name', 'baseURL', 'requiresKey', 'models', 'defaultModel', 'parallelModels'])
     if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || typeof p.requiresKey !== 'boolean' || !Array.isArray(p.models) || p.models.length > 100) return fail('INVALID_INPUT')
     const models = p.models.map(modelId)
     if (new Set(models).size !== models.length || typeof p.defaultModel !== 'string' || (p.defaultModel !== '' && !models.includes(p.defaultModel))) return fail('INVALID_INPUT')
-    return { id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
+    const parallelModels = p.parallelModels === undefined ? [] : p.parallelModels
+    if (!Array.isArray(parallelModels) || parallelModels.some(model => typeof model !== 'string' || !models.includes(model)) || new Set(parallelModels).size !== parallelModels.length) return fail('INVALID_INPUT')
+    return { ...(parallelModels.length ? { parallelModels } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
   })
   if (new Set(providers.map(p => p.id)).size !== providers.length) return fail('INVALID_INPUT')
-  if (value.default === null) return { providers, default: null }
+  if (value.default === null) return { providers, default: null, timeouts }
   const choice = object(value.default, ['providerId', 'modelId']), id = providerId(choice.providerId), model = modelId(choice.modelId)
   if (!providers.some(p => p.id === id && p.models.includes(model))) return fail('INVALID_INPUT')
-  return { providers, default: { providerId: id, modelId: model } }
+  return { providers, default: { providerId: id, modelId: model }, timeouts }
 }

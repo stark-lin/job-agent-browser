@@ -7,6 +7,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { createPreferences } from '../src/platform/storage/preferences'
 import { createSecrets, type KeyProtection } from '../src/platform/storage/secrets'
 import { defaultPreferences } from '../src/shared/settings'
+import { defaultAITimeouts } from '../src/shared/ai'
 import { composeBackend } from '../src/platform/database/backend'
 import { openDatabase } from '../src/platform/database/sqlite'
 
@@ -172,4 +173,48 @@ test('old settings gain AI defaults; custom provider configuration persists and 
     { ...ai, providers: [{ ...ai.providers[0], models: ['duplicate', 'duplicate'] }] }
   ]) assert.throws(() => service.savePreferences({ ai: invalid }), { code: 'INVALID_INPUT' })
   assert.equal(readFileSync(path, 'utf8'), before)
+})
+
+test('bare local and hosted OpenAI endpoints survive settings reload without requiring models', t => {
+  const path = join(temporary(t), 'settings.json')
+  for (const endpoint of ['http://127.0.0.1:1234', 'http://localhost:1234', 'http://[::1]:1234', 'https://api.openai.com']) {
+    const ai = { providers: [{ id: 'local', name: 'Local', baseURL: endpoint + '/', requiresKey: false, models: [], defaultModel: '' }], default: null }
+    createPreferences(path).savePreferences({ ai })
+    assert.equal(createPreferences(path).get({}).ai.providers[0].baseURL, endpoint)
+  }
+})
+
+test('timeout settings retain legacy defaults in memory, persist explicit limits, and reject invalid writes atomically', t => {
+  const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
+  const legacy = { ...defaultPreferences, ai: { providers: defaultPreferences.ai.providers, default: null } }
+  writeFileSync(path, JSON.stringify(legacy))
+  assert.deepEqual(service.get({}).ai.timeouts, defaultAITimeouts)
+  assert.equal(readFileSync(path, 'utf8'), JSON.stringify(legacy))
+  const timeouts = { requestSeconds: 3600, pageSeconds: 1, modelsSeconds: 60 }
+  const ai = { ...legacy.ai, timeouts }
+  service.savePreferences({ ai })
+  assert.deepEqual(createPreferences(path).get({}).ai.timeouts, timeouts)
+  assert.deepEqual(service.savePreferences({ language: 'zh-CN', theme: 'dark' }).ai.timeouts, timeouts)
+  const before = readFileSync(path, 'utf8')
+  for (const invalid of [null, {}, { ...timeouts, other: 10 }, ...[0, -1, 3601, 1.5, '120', null, NaN, Infinity].flatMap(seconds =>
+    Object.keys(timeouts).map(field => ({ ...timeouts, [field]: seconds })))]) {
+    assert.throws(() => service.savePreferences({ ai: { ...ai, timeouts: invalid } }), { code: 'INVALID_INPUT' })
+    assert.equal(readFileSync(path, 'utf8'), before)
+  }
+})
+
+test('parallel model opt-in persists per provider and survives unrelated preference saves', t => {
+  const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
+  const ai = { providers: [
+    { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model', 'other'], defaultModel: 'model', parallelModels: ['model'] },
+    { id: 'second', name: 'Second', baseURL: 'https://second.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
+  ], default: { providerId: 'first', modelId: 'model' } }
+  service.savePreferences({ ai }); service.savePreferences({ language: 'zh-CN', theme: 'dark' })
+  const restored = createPreferences(path).get({})
+  assert.deepEqual(restored.ai.providers[0].parallelModels, ['model']); assert.equal(restored.ai.providers[1].parallelModels, undefined)
+  const before = readFileSync(path, 'utf8')
+  assert.throws(() => service.savePreferences({ ai: { ...ai, providers: [{ ...ai.providers[0], parallelModels: ['absent'] }] } }), /INVALID_INPUT/)
+  assert.equal(readFileSync(path, 'utf8'), before)
+  service.savePreferences({ ai: { ...restored.ai, providers: restored.ai.providers.map(provider => ({ ...provider, parallelModels: [] })) } })
+  assert(service.get({}).ai.providers.every(provider => !provider.parallelModels?.length))
 })

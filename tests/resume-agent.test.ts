@@ -140,3 +140,14 @@ test('unavailable tool audit stops ResumeAgent immediately without draft or publ
     assert.equal(result.run.draft, null); assert.equal(result.artifact, null); assert.equal(f.server.requests(), 1)
   } finally { sink.start = original }
 })
+
+test('maximum-length valid contact and job titles do not fail publication or change copied basics', async t => {
+  const f = await setup(t), name = 'N'.repeat(300), title = 'J'.repeat(500)
+  value(await f.api.profiles.editContact({ id: f.profile.id, details: { name } }))
+  value(await f.api.jobs.updateDetails({ id: f.job.id, details: { title, companyNameRaw: 'Fixture' } }))
+  const result = await done(f.tasks, f.start().runId)
+  assert.equal(result.run.status, 'SUCCEEDED')
+  assert.equal(result.artifact?.title.length, 500)
+  assert.equal(result.artifact?.content.basics.name, name)
+  assert.equal(result.run.inputSnapshot.job.title, title)
+})

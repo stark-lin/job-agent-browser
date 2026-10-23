@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useServices } from '../../app/providers'
-import type { AISettings } from '../../shared/ai'
+import { allowsParallelImport, type AISettings } from '../../shared/ai'
+import type { ImportMode, ImportGroupProgress } from '../../shared/import'
 import type { JobImportDraft } from '../../domain/job/job.extractor'
 import type { JobImportEvent } from '../../platform/electron/job-import-contract'
 
 export function useJobImport(onReady: (draft: JobImportDraft) => void) {
   const { data, jobImport } = useServices()
-  const [settings, setSettings] = useState<AISettings | null>(null)
+  const [settings, setSettings] = useState<AISettings | null>(null), [mode, setMode] = useState<ImportMode>('single')
+  const [groups, setGroups] = useState<ImportGroupProgress[]>([]), [retryable, setRetryable] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'reading' | 'parsing'>('idle'), [error, setError] = useState('')
-  const task = useRef(''), starting = useRef(false), early = useRef<JobImportEvent[]>([])
+  const task = useRef(''), starting = useRef(false), running = useRef(false), early = useRef<JobImportEvent[]>([])
   const alive = useRef(true), generation = useRef(0), ready = useRef(onReady)
   ready.current = onReady
   const eventRef = useRef<(event: JobImportEvent) => void>(() => {})
@@ -17,10 +19,12 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
     if (!task.current) { if (starting.current) early.current.push(event); return }
     if (event.taskId !== task.current) return
     if (event.type === 'phase') setPhase(event.phase)
+    else if (event.type === 'progress') setGroups(event.groups)
     else {
-      task.current = ''; setPhase('idle')
-      if (event.type === 'ready') ready.current(event.draft)
-      else if (event.type === 'failed') setError(event.error)
+      running.current = false; setPhase('idle')
+      if (event.type === 'ready') { task.current = ''; setRetryable(false); ready.current(event.draft) }
+      else if (event.type === 'failed') { setError(event.error); setRetryable(Boolean(event.retryable)); if (!event.retryable) task.current = '' }
+      else { task.current = ''; setRetryable(false) }
     }
   }
   useEffect(() => {
@@ -34,27 +38,32 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
       task.current = ''; starting.current = false; early.current = []
     }
   }, [data, jobImport])
-  async function start(url: string) {
-    if (starting.current || task.current || !settings?.default) return
-    const version = ++generation.current
-    starting.current = true; early.current = []; setPhase('reading'); setError('')
+  async function start(url: string, retry = false) {
+    if (starting.current || running.current || !settings?.default) return
+    const previousTask = task.current, version = ++generation.current
+    task.current = ''; starting.current = true; running.current = true; early.current = []
+    setPhase(retry ? 'parsing' : 'reading'); setError(''); setRetryable(false)
+    if (!retry) setGroups([])
     try {
-      const result = await jobImport.start({ url, choice: settings.default })
+      const result = retry ? await jobImport.retry({ taskId: previousTask })
+        : await jobImport.start({ url, choice: settings.default, mode: allowsParallelImport(settings, settings.default) ? mode : 'single' })
       if (!alive.current || version !== generation.current) {
         if (result.ok) void jobImport.cancel(result.value).catch(() => {})
         return
       }
       starting.current = false
-      if (!result.ok) { setPhase('idle'); setError(result.error); early.current = []; return }
+      if (!result.ok) { running.current = false; setPhase('idle'); setError(result.error); early.current = []; return }
       task.current = result.value.taskId
       for (const message of early.current.splice(0)) eventRef.current(message)
-    } catch { if (alive.current && version === generation.current) { starting.current = false; setPhase('idle'); setError('JOB_FETCH_FAILED') } }
+    } catch { if (alive.current && version === generation.current) { starting.current = false; running.current = false; setPhase('idle'); setError('JOB_FETCH_FAILED') } }
   }
   function cancel() {
-    generation.current++; starting.current = false; early.current = []
-    const id = task.current; task.current = ''; setPhase('idle')
+    generation.current++; starting.current = false; running.current = false; early.current = []
+    const id = task.current; task.current = ''; setPhase('idle'); setRetryable(false); setGroups([])
     if (id) void jobImport.cancel({ taskId: id }).catch(() => {})
   }
+  function clearError() { setError(''); if (!running.current) { cancel(); setGroups([]) } }
   const choice = settings?.default, provider = settings?.providers.find(provider => provider.id === choice?.providerId)
-  return { start, cancel, clearError: () => setError(''), phase, error, configured: Boolean(choice), provider: provider?.name ?? '', model: choice?.modelId ?? '' }
+  return { start, cancel, clearError, phase, error, groups, retryable, mode, setMode, parallelAllowed: allowsParallelImport(settings, choice ?? null),
+    configured: Boolean(choice), provider: provider?.name ?? '', model: choice?.modelId ?? '' }
 }

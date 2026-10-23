@@ -198,6 +198,16 @@
               <input class="control" type="password" value="sk-example-hidden" />
               <span class="field-help">Encrypt secrets using OS-backed storage; never display saved keys.</span>
             </label>
+            <label class="field">
+              <span class="field-label">AI request timeout (seconds)</span>
+              <input class="control" type="number" min="1" max="3600" step="1" value="120" required />
+              <span class="field-help">Whole seconds, 1–3600. Save to apply to new requests.</span>
+            </label>
+            <label class="field">
+              <span class="field-label">Import mode</span>
+              <select class="control"><option>Standard</option><option>Parallel</option></select>
+              <span class="field-help">Parallel mode splits extraction across requests. Input tokens and cost may increase.</span>
+            </label>
             <label class="field field-error">
               <span class="field-label">Profile name</span>
               <input class="control" value="" placeholder="e.g. Software Engineer" />
@@ -225,6 +235,7 @@
         <div class="demo">
           <div class="demo-label">Checkbox · ignore imported content</div>
           <div class="demo-stage stack">
+            <label class="check-row"><input type="checkbox" /><span>Allow parallel imports for this model</span></label>
             <label class="check-row"><input type="checkbox" checked /><span>Ignore entry and its facts</span></label>
             <label class="check-row"><input type="checkbox" /><span>Ignore this fact</span></label>
             <label class="check-row"><input type="checkbox" disabled /><span>Parent entry is ignored.</span></label>

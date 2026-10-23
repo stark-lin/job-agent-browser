@@ -12,8 +12,7 @@ export function changeImportItem(draft: ImportDraft, id: string, details: ItemIn
 export function changeImportFact(draft: ImportDraft, id: string, patch: { details?: FactInput; itemDraftId?: string | null }): ImportDraft {
   return { ...draft, facts: draft.facts.map(fact => {
     if (fact.draftId !== id) return fact
-    const sourceError = Boolean(fact.sourceError && (!patch.details || patch.details.evidence === fact.details.evidence))
-    return { ...fact, ...patch, sourceError, error: sourceError || !validFact(patch.details ?? fact.details) }
+    return { ...fact, ...patch, error: !validFact(patch.details ?? fact.details) }
   }) }
 }
 export function ignoreImportItem(draft: ImportDraft, id: string, ignored: boolean): ImportDraft {
