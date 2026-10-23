@@ -16,7 +16,7 @@ export function ProfileImport({ profile, onDirty, onSaved, disabled }: { profile
   useEffect(() => { onDirty(dirty); return () => onDirty(false) }, [dirty, onDirty])
   const provider = state.settings?.providers.find(provider => provider.id === state.choice?.providerId)
   const configured = Boolean(provider && state.choice && provider.models.includes(state.choice.modelId))
-  const error = state.error === 'nameRequired' ? t($ => $.profile.nameRequired) : state.error === 'noContent' ? t($ => $.profile.noContent)
+  const error = state.error === 'noContent' ? t($ => $.profile.noContent)
     : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })
   return <SectionCard title={t($ => $.profile.importTitle)} description={t($ => $.profile.importHelp)}><div className="profile-stack">
     {configured ? <DetailsList items={[{ label: t($ => $.profile.provider), value: provider!.name }, { label: t($ => $.profile.model), value: state.choice!.modelId }]} /> : <><StatusMessage>{t($ => $.profile.noAI)}</StatusMessage><div><Button onClick={() => void openPage('settings')}>{t($ => $.profile.settings)}</Button></div></>}

@@ -31,7 +31,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await evaluate(`[...${scope}.querySelectorAll('.ui-checkbox')].find(label => label.textContent === ${JSON.stringify(label)}).querySelector('input').click()`); await frame()
   }
   const body = { contact: { name: 'Imported candidate', email: 'imported@example.com' }, links: [],
-    items: [{ type: 'PROJECT', title: 'Imported project', startDateText: '2021', endDateText: '', isCurrent: true,
+    items: [{ type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
       facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] }
   let requests = 0
   const server = createServer((request, response) => {
@@ -61,19 +61,25 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     }
     window.setContentSize(...originalSize)
     await field('Name', '')
+    await field('URL', 'example.com', section('Imported project'))
+    assert.equal(await evaluate('[...document.querySelectorAll("[data-import-id] [required]")].length'), 0)
+    for (const [label, value] of [['Degree', 'BSc'], ['Major', 'Computing'], ['GPA', '3.8'], ['Employment type', 'Contract'], ['Technologies', 'SQL']]) {
+      assert.equal(await evaluate(`(() => { const label = [...${section('Imported project')}.querySelectorAll('.ui-field-label')].find(label => label.textContent === ${JSON.stringify(label)}); return document.getElementById(label.htmlFor).value })()`), value)
+    }
     await button('Save imported content')
-    await waitFor(() => evaluate('document.querySelector("[data-import-id=contact-name] input") === document.activeElement'), 'invalid contact receives focus')
+    await waitFor(() => evaluate('document.activeElement?.value === "example.com" && document.activeElement.getAttribute("aria-invalid") === "true"'), 'invalid URL receives focus instead of empty name')
     assert.equal((await data('listProfiles')).value.total, 0)
-    await field('Name', 'Imported candidate')
+    await field('URL', 'https://example.com', section('Imported project'))
     let draftRefreshPrompts = 0
     dialog.showMessageBoxSync = () => { draftRefreshPrompts++; return 0 }
     await window.webContents.executeJavaScript('document.querySelector(".profile-page input").focus()', true)
     window.webContents.reload(); await waitFor(() => Promise.resolve(draftRefreshPrompts === 1), 'cancelled refresh retains import session')
-    assert.equal(await evaluate('document.querySelector("[data-import-id=contact-name] input").value'), 'Imported candidate')
+    assert.equal(await evaluate('document.querySelector("[data-import-id=contact-name] input").value'), '')
     dialog.showMessageBoxSync = oldSync
     await button('Save imported content')
     await waitFor(async () => (await data('listProfiles')).value.total === 1, 'first import creates profile atomically')
     const firstProfile = (await data('listProfiles')).value.items[0]
+    assert.equal(firstProfile.name, '', 'empty imported name saves without a required-field check')
     assert.equal((await data('listFacts', { profileId: firstProfile.id })).value.total, 2)
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://home'); await call('navigate', 'app://profile')

@@ -19,12 +19,13 @@ const settings: AISettings = { providers: [{ id: 'fixture', name: 'Fixture', bas
 const tick = () => new Promise<void>(resolve => setImmediate(resolve))
 const snapshot = { requestedUrl: 'https://example.com/job', url: 'https://example.com/job', pageTitle: 'Job', cleanedContent: 'Job text', jobPosting: [] }
 const pages = [{ page: 1, text: 'Candidate built services and studied computing.' }]
-function mockAI() {
-  const calls: { id: string; prompt: string; emit: (event: AIEvent) => void }[] = [], cancelled: string[] = []
+function mockAI(beginImmediately = true) {
+  const calls: { id: string; prompt: string; emit: (event: AIEvent) => void; begin: () => void }[] = [], cancelled: string[] = []
   const ai: Pick<AIService, 'start' | 'cancel'> = {
     start(_owner, input, emit, options) {
       const id = randomUUID(), prompt = input as { messages: { content: string }[] }
-      calls.push({ id, prompt: prompt.messages[0].content, emit }); options?.onRunning()
+      const begin = () => options?.onRunning()
+      calls.push({ id, prompt: prompt.messages[0].content, emit, begin }); if (beginImmediately) begin()
       return { requestId: id }
     }, cancel(_owner, id) { cancelled.push(id) }
   }
@@ -148,4 +149,53 @@ test('profile retry preserves extraction and successful groups and cancellation 
   for (let index = 5; index < mock.calls.length; index++) mock.finish(index, {})
   await tick(); assert.equal(events.at(-1)?.type, 'cancelled'); assert.equal(mock.cancelled.length, 3)
   importer.dispose()
+})
+
+test('timers advance for service-queued, locally queued and running groups without model output, then freeze on completion', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  const advance = (ms: number) => { now += ms; t.mock.timers.tick(ms) }
+  const mock = mockAI(false), updates: ImportGroupProgress[][] = []
+  const batch = createImportBatch(mock.ai, 1, choice, (['contact', 'experience', 'projects', 'education'] as const).map(id => ({ id, prompt: id, parse: (text: string) => text })))
+  const pending = batch.run(new AbortController().signal, groups => updates.push(groups))
+  t.after(() => { for (let index = 0; index < mock.calls.length; index++) mock.finish(index, 'cleanup') })
+  advance(400)
+  assert(updates.at(-1)?.every(group => group.state === 'queued' && group.queueMs === 400 && group.elapsedMs === 0))
+  mock.calls[0].begin(); advance(300)
+  assert.equal(updates.at(-1)?.[0].elapsedMs, 300); assert.equal(updates.at(-1)?.[0].queueMs, 400)
+  assert.equal(updates.at(-1)?.[3].queueMs, 700)
+  mock.finish(0, 'contact'); await tick(); advance(200)
+  assert.equal(mock.calls.length, 4)
+  assert.equal(updates.at(-1)?.[0].elapsedMs, 300); assert.equal(updates.at(-1)?.[0].state, 'completed')
+  assert(updates.at(-1)?.slice(1).every(group => group.queueMs === 900))
+  for (let index = 1; index < 4; index++) mock.calls[index].begin()
+  advance(100)
+  assert(updates.at(-1)?.slice(1).every(group => group.elapsedMs === 100 && group.queueMs === 900))
+  for (let index = 1; index < 4; index++) mock.finish(index, 'complete')
+  await pending
+  const count = updates.length; advance(500)
+  assert.equal(updates.length, count, 'completed batches release their interval')
+})
+
+test('failed timers stop, retries reset only failed parts, and cancellation releases the retry interval', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  const advance = (ms: number) => { now += ms; t.mock.timers.tick(ms) }
+  const mock = mockAI(), updates: ImportGroupProgress[][] = [], controller = new AbortController()
+  const batch = createImportBatch(mock.ai, 1, choice, (['basics', 'description'] as const).map(id => ({ id, prompt: id, parse: (text: string) => text })))
+  t.after(() => controller.abort())
+  const pending = batch.run(controller.signal, groups => updates.push(groups))
+  advance(200); mock.finish(0, 'saved'); mock.fail(1)
+  await assert.rejects(pending, /AI_RATE_LIMITED/)
+  const failedCount = updates.length; advance(500)
+  assert.equal(updates.length, failedCount)
+  const retry = batch.run(controller.signal, groups => updates.push(groups))
+  assert.equal(updates.at(-1)?.[1].elapsedMs, 0)
+  advance(300)
+  assert.equal(updates.at(-1)?.[0].elapsedMs, 200); assert.equal(updates.at(-1)?.[1].elapsedMs, 300)
+  controller.abort(); await assert.rejects(retry)
+  const cancelledCount = updates.length; advance(500)
+  assert.equal(updates.length, cancelledCount, 'cancelled batches release their interval')
 })

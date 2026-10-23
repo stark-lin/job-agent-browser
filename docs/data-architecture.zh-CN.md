@@ -46,9 +46,9 @@
 
 [条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。新数据库世代通过 JSON metadata 保留部分日期精度。
 
-[显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦其编辑器。忽略父项会排除其事实。新资料需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
+[显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦具体无效字段。忽略父项会排除其事实。导入允许姓名、名称、事实内容和链接名称/URL 留空或省略；已填值仍校验格式、日期范围和长度。手动创建资料仍需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
 
-导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。[PDF 解析](../src/platform/profile-import/draft.ts)接受含 `kind`、`content` 及可选 `tags` 的事实，拒绝已移除的 `source.page`/`source.quote`，不做引用匹配。空的可选字段可省略，由本地补齐默认值。导入事实的 `evidence` 为空；已有/手工证据和生成表述到 Fact 的关联继续支持。PDF 字节、完整文字、草稿及重试缓存只存内存。AI 审计继续只表示请求启动。
+导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。[PDF 解析](../src/platform/profile-import/draft.ts)接受含 `kind`、可选 `content` 及可选 `tags` 的事实，拒绝已移除的 `source.page`/`source.quote`，不做引用匹配。空的可选字段可省略，由本地补齐默认值。导入事实的 `evidence` 为空；已有/手工证据和生成表述到 Fact 的关联继续支持。PDF 字节、完整文字、草稿及重试缓存只存内存。AI 审计继续只表示请求启动。
 
 ## 三、生成、成品与删除
 

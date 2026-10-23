@@ -81,12 +81,13 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
     if (!pending.current && invalid) {
       setError('INVALID_INPUT')
       const editor = document.querySelector(`[data-import-id="${invalid}"]`)
-      editor?.scrollIntoView({ block: 'center' }); editor?.querySelector<HTMLElement>('input, textarea, select')?.focus()
+      const control = editor?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? editor?.querySelector<HTMLElement>('input, textarea, select')
+      const target = control ?? editor
+      target?.scrollIntoView({ block: 'center' }); control?.focus()
       return
     }
     const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), profile?.id ?? importedProfileId.current)
     if (!Object.keys(input.contact).length && !input.items.length && !input.facts.length && !input.links.length) { setError('noContent'); return }
-    if (!input.profileId && !input.contact.name?.trim()) { setError('nameRequired'); return }
     lock.current = true; setSaving(true); setError(''); pending.current = input; setFrozen(true)
     try {
       const result = await data.profiles.applyImport(input)

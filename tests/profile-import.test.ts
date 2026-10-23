@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { fixture, value } from './helpers'
 import type { ApplyImport } from '../src/domain/candidate/import.types'
 import { importPrompt, parseImportDraft } from '../src/platform/profile-import/draft'
-import { changeImportFact, changeImportItem, importSelection, importError, ignoreImportItem, savedSelection } from '../src/pages/profile/import-state'
+import { changeImportFact, changeImportItem, importSelection, importError, ignoreImportItem, savedSelection, importItemErrors, importFactErrors } from '../src/pages/profile/import-state'
 import { itemDetails, validateItemDates } from '../src/domain/candidate/candidate.validation'
 
 export function resumeOutput() {
@@ -46,9 +46,9 @@ test('late relationship failure rolls back profile, items, facts and success aud
   const logs = value(await f.api.audit.list({})).items
   assert.equal(logs.length, 1); assert.equal(logs[0].status, 'FAILURE')
 })
-test('import rejects missing name, duplicate draft IDs, invalid dates and cross-profile parents', async t => {
+test('import permits missing name but rejects duplicate draft IDs, invalid dates and cross-profile parents', async t => {
   const f = fixture(t), args = input(); args.contact = {}
-  assert.equal((await f.api.profiles.applyImport(args)).ok, false)
+  assert.equal(value(await f.api.profiles.applyImport(args)).profile.name, '')
   args.contact = { name: 'Candidate' }; args.items.push(args.items[0])
   assert.equal((await f.api.profiles.applyImport(args)).ok, false)
   args.items.pop(); args.items[0].details.metadata = { startDateText: '2020-13' }
@@ -86,13 +86,13 @@ test('valid entries save without confirmation; invalid entries block and ignored
   assert.equal(draft.items[0].savedId, saved.items[0].id)
   assert.equal(draft.facts.length, 1); assert.equal(draft.facts[0].itemDraftId, parentId)
   const fresh = parseImportDraft(JSON.stringify(resumeOutput()))
-  let edited = changeImportItem(fresh, fresh.items[0].draftId, { ...fresh.items[0].details, title: '' })
+  let edited = changeImportItem(fresh, fresh.items[0].draftId, { ...fresh.items[0].details, metadata: { url: 'not a URL' } })
   assert.equal(importError(edited), fresh.items[0].draftId)
   assert.throws(() => importSelection(edited, sessionId, randomUUID(), saved.profile.id))
   edited = ignoreImportItem(edited, fresh.items[0].draftId, true)
   assert.equal(importError(edited), null)
   assert.equal(importSelection(edited, sessionId, randomUUID(), saved.profile.id).facts.length, 1)
-  const bad = changeImportFact(fresh, fresh.facts[0].draftId, { details: { kind: 'SKILL', content: '' } })
+  const bad = changeImportFact(fresh, fresh.facts[0].draftId, { details: { kind: 'SKILL', content: '\0' } })
   assert.equal(importError(bad), fresh.facts[0].draftId)
 })
 test('partial dates and legacy day columns share range validation without inventing precision', () => {
@@ -104,4 +104,30 @@ test('partial dates and legacy day columns share range validation without invent
   validateItemDates(legacy); assert.equal(legacy.startDate, '2020-05-01'); assert.equal(legacy.metadata.startDateText, '')
   const partial = parse({ metadata: { startDateText: '2020', endDateText: '2020-02' } })
   validateItemDates(partial); assert.equal(partial.startDate, null); assert.equal(partial.metadata.startDateText, '2020')
+})
+
+test('incomplete imports save and round-trip empty text without invented placeholders', async t => {
+  const f = fixture(t)
+  const draft = parseImportDraft(JSON.stringify({ contact: {}, links: [{}],
+    items: [{ type: 'EDUCATION', url: 'https://example.com', technologies: ['SQL'], employmentType: 'Internship', facts: [{ kind: 'SKILL' }] }], facts: [] }))
+  assert.equal(importError(draft), null)
+  const saved = value(await f.api.profiles.applyImport(importSelection(draft, randomUUID(), randomUUID(), null)))
+  assert.equal(saved.profile.name, '')
+  assert.deepEqual(saved.profile.links, [{ label: '', url: '' }])
+  assert.equal(saved.items[0].title, '')
+  assert.equal(saved.facts[0].content, '')
+  assert.equal(saved.facts[0].profileItemId, saved.items[0].id)
+  const stored = value(await f.api.profiles.listItems({ profileId: saved.profile.id })).items[0]
+  assert.equal(stored.metadata.url, 'https://example.com')
+  assert.deepEqual(stored.metadata.technologies, ['SQL'])
+  assert.equal(stored.metadata.employmentType, 'Internship')
+})
+
+test('import format errors identify editable fields, including metadata from other entry types', () => {
+  const details = { type: 'EDUCATION' as const, title: '', metadata: { url: 'example.com', startDateText: '2021-13' } }
+  assert.deepEqual(importItemErrors(details), { url: true, startDateText: true })
+  assert.deepEqual(importItemErrors({ ...details, metadata: {} }), {})
+  assert.deepEqual(importItemErrors({ ...details, metadata: { startDateText: '2022', endDateText: '2021' } }), { startDateText: true, endDateText: true })
+  assert.deepEqual(importFactErrors({ kind: 'SKILL', content: '' }), {})
+  assert.deepEqual(importFactErrors({ kind: 'SKILL', content: '\0' }), { content: true })
 })

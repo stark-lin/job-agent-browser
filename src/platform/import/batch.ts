@@ -25,7 +25,19 @@ export function createImportBatch<T>(ai: Pick<AIService, 'start' | 'cancel'>, ow
       const pending = parts.filter(part => !values.has(part.id))
       for (const part of pending) Object.assign(states.find(state => state.id === part.id)!, { state: 'queued', queueMs: 0, elapsedMs: 0, error: undefined })
       const queuedAt = performance.now()
-      const publish = () => { if (!signal.aborted) progress(states.map(state => ({ ...state }))) }
+      const startedAt = new Map<ImportGroup, number>()
+      const publish = () => {
+        if (signal.aborted) return
+        const now = performance.now()
+        for (const state of states) {
+          if (state.state === 'queued') state.queueMs = now - queuedAt
+          else if (state.state === 'running') state.elapsedMs = now - startedAt.get(state.id)!
+        }
+        progress(states.map(state => ({ ...state })))
+      }
+      const timer = setInterval(publish, 100)
+      const stopTiming = () => clearInterval(timer)
+      signal.addEventListener('abort', stopTiming, { once: true })
       try {
         publish()
         let index = 0
@@ -35,7 +47,8 @@ export function createImportBatch<T>(ai: Pick<AIService, 'start' | 'cancel'>, ow
             let began: number | undefined
             const begin = () => {
               if (began !== undefined || signal.aborted) return
-              began = performance.now(); state.queueMs = began - queuedAt; state.state = 'running'; publish()
+              began = performance.now(); startedAt.set(part.id, began)
+              state.queueMs = began - queuedAt; state.state = 'running'; publish()
             }
             try {
               const text = await collect(ai, owner, choice, part.prompt, signal, begin)
@@ -55,7 +68,10 @@ export function createImportBatch<T>(ai: Pick<AIService, 'start' | 'cancel'>, ow
         const failed = states.find(state => state.state === 'failed')
         if (failed) throw errors.get(failed.id)
         return parts.map(part => values.get(part.id)!)
-      } finally { running = false }
+      } finally {
+        stopTiming(); signal.removeEventListener('abort', stopTiming)
+        running = false
+      }
     }
   }
 }

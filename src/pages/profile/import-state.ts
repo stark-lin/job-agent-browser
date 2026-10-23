@@ -1,11 +1,31 @@
-import { contactFields, contactLink, factDetails, itemDetails, validateItemDates } from '../../domain/candidate/candidate.validation'
+import { importContactFields, importContactLink, importContactLinkFields, importFactDetails, importItemDetails, importItemFields, itemMetadataFields, importFactFields, validateItemDates } from '../../domain/candidate/candidate.validation'
+import type { Parser } from '../../domain/common/validation'
 import type { FactInput, ItemInput } from '../../domain/candidate/candidate.types'
 import type { ApplyImport, ContactKey, ImportDraft, ImportSaved } from '../../domain/candidate/import.types'
 
-export function validItem(details: ItemInput): boolean { try { validateItemDates(itemDetails(details)); return true } catch { return false } }
-export function validFact(details: FactInput): boolean { try { factDetails(details); return true } catch { return false } }
-export function validLink(details: { label: string; url: string }): boolean { try { contactLink({ label: details.label, url: details.url }); return true } catch { return false } }
-export function validContact(key: ContactKey, value: string): boolean { try { contactFields[key](value); return true } catch { return false } }
+export function validItem(details: ItemInput): boolean { try { validateItemDates(importItemDetails(details)); return true } catch { return false } }
+export function validFact(details: FactInput): boolean { try { importFactDetails(details); return true } catch { return false } }
+export function validLink(details: { label: string; url: string }): boolean { try { importContactLink({ label: details.label, url: details.url }); return true } catch { return false } }
+export function validContact(key: ContactKey, value: string): boolean { try { importContactFields[key](value); return true } catch { return false } }
+/** Field paths also drive focus, so format errors never point at an unrelated control. */
+function fieldErrors(fields: Record<string, Parser<unknown>>, value: object): Record<string, boolean> {
+  return Object.fromEntries(Object.entries(fields).flatMap(([key, parse]) => {
+    try { parse((value as Record<string, unknown>)[key]); return [] } catch { return [[key, true]] }
+  }))
+}
+export function importItemErrors(details: ItemInput): Record<string, boolean> {
+  const errors = fieldErrors(importItemFields, details)
+  delete errors.metadata
+  Object.assign(errors, fieldErrors(itemMetadataFields, details.metadata ?? {}))
+  if (!errors.startDateText && !errors.endDateText && !errors.startDate && !errors.endDate) {
+    try { validateItemDates({ startDate: details.startDate ?? null, endDate: details.endDate ?? null, metadata: details.metadata }) } catch {
+      errors.startDateText = true; errors.endDateText = true
+    }
+  }
+  return errors
+}
+export function importLinkErrors(details: { label: string; url: string }): Record<string, boolean> { return fieldErrors(importContactLinkFields, details) }
+export function importFactErrors(details: FactInput): Record<string, boolean> { return fieldErrors(importFactFields, details) }
 export function changeImportItem(draft: ImportDraft, id: string, details: ItemInput): ImportDraft {
   return { ...draft, items: draft.items.map(item => item.draftId === id && !item.savedId ? { ...item, details, error: !validItem(details) } : item) }
 }

@@ -208,10 +208,15 @@
               <select class="control"><option>Standard</option><option>Parallel</option></select>
               <span class="field-help">Parallel mode splits extraction across requests. Input tokens and cost may increase.</span>
             </label>
+            <label class="field">
+              <span class="field-label">Imported profile name</span>
+              <input class="control" value="" />
+              <span class="field-help">Imported text fields may be empty. All entry metadata stays visible.</span>
+            </label>
             <label class="field field-error">
-              <span class="field-label">Profile name</span>
-              <input class="control" value="" placeholder="e.g. Software Engineer" />
-              <span class="field-help">This field is required.</span>
+              <span class="field-label">Imported URL</span>
+              <input class="control" value="example.com" aria-invalid="true" />
+              <span class="field-help">Use an HTTP(S) URL or leave this field empty.</span>
             </label>
           </div>
         </div>
