@@ -426,6 +426,7 @@ export const zhCN = {
     deleteFact: '该事实将从个人资料中删除。历史生成快照仍会保留。',
     discardTitle: '放弃个人资料修改？', discardDescription: '未保存的编辑和 PDF 导入草稿将被丢弃，正在进行的解析任务也会取消。',
     name: '姓名', email: '邮箱', phone: '电话', location: '所在地', links: '个人链接', label: '链接名称', url: '网址',
+    introduction: '个人简介', introductionHelp: '选填：用一句话或一段话介绍职业定位、核心优势和方向（最多 2,000 字符）。Agent 必须保留原意和原有表达，只能小修小补。',
     type: '条目类型', title: '名称', organization: '组织', role: '角色', summary: '背景简介',
     startDate: '开始日期', endDate: '结束日期', dateHelp: '使用 YYYY、YYYY-MM 或 YYYY-MM-DD，保留缺失的月份和日期。', current: '至今',
     employmentType: '雇佣类型', technologies: '技术栈', degree: '学位', major: '专业', gpa: 'GPA',

@@ -30,6 +30,7 @@ export function validateContent(run: GenerationRun, body: ResumeDocument, polish
   if (!run.selection || !run.language || body.language !== run.language) fail('CONFLICT')
   const { name, email, phone, location, links } = run.inputSnapshot.profile
   if (JSON.stringify(body.basics) !== JSON.stringify({ name, email, phone, location, links })) fail('CONFLICT')
+  if (run.inputSnapshot.profile.introduction?.trim() && !body.summary) fail('CONFLICT')
   const selectedFacts = new Set(run.selection.factIds), selectedItems = new Set(run.selection.itemIds)
   const allBlocks = statements(body), itemIds: string[] = []
   for (const [group, type] of [[body.experience, 'EXPERIENCE'], [body.projects, 'PROJECT'], [body.education, 'EDUCATION']] as const) {

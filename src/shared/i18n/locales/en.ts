@@ -466,6 +466,7 @@ export const en = {
     deleteFact: 'This fact will be removed from your profile. Historical generation snapshots remain.',
     discardTitle: 'Discard profile changes?', discardDescription: 'Unsaved edits and the PDF import draft will be discarded. Any running parsing task will be cancelled.',
     name: 'Name', email: 'Email', phone: 'Phone', location: 'Location', links: 'Personal links', label: 'Link label', url: 'URL',
+    introduction: 'Personal introduction', introductionHelp: 'Optional: a sentence or paragraph about your professional identity, strengths and direction (up to 2,000 characters). The agent must preserve your meaning and wording, making only minor edits.',
     type: 'Entry type', title: 'Title', organization: 'Organization', role: 'Role', summary: 'Background summary',
     startDate: 'Start date', endDate: 'End date', dateHelp: 'Use YYYY, YYYY-MM or YYYY-MM-DD. Missing months and days are preserved.', current: 'Present',
     employmentType: 'Employment type', technologies: 'Technologies', degree: 'Degree', major: 'Major', gpa: 'GPA',

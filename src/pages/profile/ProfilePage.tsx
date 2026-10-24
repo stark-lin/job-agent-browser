@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Button, DetailsList, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
-import type { Contact, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
+import type { ProfileDetails, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
 import { itemTypes } from '../../domain/candidate/candidate.types'
-import { contact as parseContact, factDetails, itemDetails, validateItemDates } from '../../domain/candidate/candidate.validation'
+import { profileDetails as parseContact, factDetails, itemDetails, validateItemDates } from '../../domain/candidate/candidate.validation'
 import { contactKeys, emptyContact, FactFields, ItemFields } from './ProfileFields'
 import { useProfile } from './useProfile'
 import { useProfileGuard } from './useProfileGuard'
@@ -15,13 +15,13 @@ import type { en } from '../../shared/i18n/locales/en'
 
 export function ProfilePage() {
   const { t } = useTranslation(), { data } = useServices(), { openPage } = useNavigation(), state = useProfile()
-  const [contact, setContact] = useState<Contact>(emptyContact), [invalid, setInvalid] = useState(false), [importDirty, setImportDirty] = useState(false)
+  const [contact, setContact] = useState<ProfileDetails>(emptyContact), [invalid, setInvalid] = useState(false), [importDirty, setImportDirty] = useState(false)
   const [item, setItem] = useState<{ id: string | null; details: ItemInput } | null>(null)
   const [fact, setFact] = useState<{ id: string | null; profileItemId: string | null; details: FactInput } | null>(null)
   const [remove, setRemove] = useState<{ kind: 'item' | 'fact'; id: string } | null>(null)
-  const baseline = state.profile ? { name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links } : emptyContact
+  const baseline = state.profile ? { name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links, introduction: state.profile.introduction ?? '' } : emptyContact
   const contactDirty = JSON.stringify(contact) !== JSON.stringify(baseline)
-  useEffect(() => { setContact(state.profile ? { name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links } : emptyContact) }, [state.profile])
+  useEffect(() => { setContact(state.profile ? { name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links, introduction: state.profile.introduction ?? '' } : emptyContact) }, [state.profile])
   useProfileGuard(contactDirty || Boolean(item || fact) || importDirty || state.saving)
   const profileId = state.profile?.id
   const manualDisabled = state.saving || importDirty
@@ -86,6 +86,7 @@ export function ProfilePage() {
       {!profileId && <StatusMessage>{t($ => $.profile.noProfile)}</StatusMessage>}
       <SectionCard title={t($ => $.profile.basic)}><form className="profile-stack" onSubmit={event => { event.preventDefault(); void saveContact() }}>
         <div className="profile-fields">{contactKeys.map(key => <FormField key={key} label={t($ => $.profile[key])}>{props => <TextInput {...props} value={contact[key]} required={key === 'name'} maxLength={key === 'name' ? 300 : key === 'email' ? 320 : key === 'phone' ? 100 : 1000} disabled={manualDisabled} onChange={event => { setContact({ ...contact, [key]: event.target.value }); setInvalid(false) }} />}</FormField>)}</div>
+        <FormField label={t($ => $.profile.introduction)} help={t($ => $.profile.introductionHelp)}>{props => <TextArea {...props} value={contact.introduction} maxLength={2000} disabled={manualDisabled} onChange={event => { setContact({ ...contact, introduction: event.target.value }); setInvalid(false) }} />}</FormField>
         {contact.links.map((link, index) => <div className="profile-stack" key={index}><div className="profile-fields">{(['label', 'url'] as const).map(key => <FormField key={key} label={t($ => $.profile[key])}>{props => <TextInput {...props} value={link[key]} required maxLength={key === 'label' ? 100 : 4096} disabled={manualDisabled} onChange={event => setContact({ ...contact, links: contact.links.map((value, i) => i === index ? { ...value, [key]: event.target.value } : value) })} />}</FormField>)}</div><div><Button disabled={manualDisabled} onClick={() => setContact({ ...contact, links: contact.links.filter((_, i) => i !== index) })}>{t($ => $.profile.remove)}</Button></div></div>)}
         <div className="profile-actions"><Button disabled={manualDisabled || contact.links.length >= 20} onClick={() => setContact({ ...contact, links: [...contact.links, { label: '', url: '' }] })}>{t($ => $.profile.add)} {t($ => $.profile.links)}</Button><Button variant="primary" type="submit" disabled={manualDisabled || (!contactDirty && Boolean(profileId))}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.save)}</Button></div>
         {invalid && !item && !fact && <StatusMessage tone="error">{t($ => $.profile.invalid)}</StatusMessage>}

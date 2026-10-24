@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { value } from './helpers'
 import { firstPartyFixture } from './first-party-fixture'
 import { createMCPClient } from '../src/platform/mcp/client'
 import { MCPAgentTools } from '../src/platform/mcp/first-party-client'
@@ -14,6 +15,7 @@ import type { GenerationRun, Artifact } from '../src/domain/resume/resume.types'
 // Both sides use separate real stdio Servers sharing the same database.
 test('internal and external MCP sessions expose identical contracts and produce equivalent state, provenance and HTML', async t => {
   const f = await firstPartyFixture(t), signal = new AbortController().signal
+  value(await f.api.profiles.editContact({ id: f.profile.id, details: { name: f.profile.name, introduction: f.fact.content } }))
   const internal = await f.mcp.session('resume', signal)
   const client = createMCPClient({ id: 'codex', enabled: true, transport: 'stdio', command: process.execPath,
     args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} },
@@ -30,7 +32,8 @@ test('internal and external MCP sessions expose identical contracts and produce 
   const { runId } = await internal.call('resume.start', { ...start, requestId: randomUUID() }, signal) as { runId: string }
   const read = internal.view(resumeReadTools, { runId })
   const artifact = await runResumeAgent({ id: runId, config: { targetWordCount: 500 } }, { tools: internal, signal, stage() {}, runner: async stage => {
-    await read.call('resume.get_context', { runId }, signal); await read.call('resume.list_facts', { runId }, signal)
+    const context = await read.call('resume.get_context', { runId }, signal) as { profile: { introduction: string } }
+    assert.equal(context.profile.introduction, f.fact.content); await read.call('resume.list_facts', { runId }, signal)
     return JSON.stringify(outputs[resumeStages.indexOf(stage as typeof resumeStages[number])])
   } })
   assert(artifact); await internal.call('artifact.build', { artifactId: artifact.id }, signal)
@@ -56,7 +59,8 @@ test('resume skill editions use public names and preserve the five submission st
   for (const name of ['SKILL.md', 'SKILL.zh-CN.md']) {
     const text = readFileSync(join('skills/tailor-resume', name), 'utf8')
     const names = [...new Set(text.match(/\b(?:resume|artifact|job|profile)\.[a-z_]+\b/g))]
-    assert(names.every(name => jobAgentAllowlist.includes(name as typeof jobAgentAllowlist[number])))
+    // profile.introduction is a context property, not a callable tool.
+    assert(names.filter(name => name !== 'profile.introduction').every(name => jobAgentAllowlist.includes(name as typeof jobAgentAllowlist[number])))
     const order = resumeSubmitTools.map(tool => text.indexOf(tool))
     assert(order.every((offset, index) => offset >= 0 && (index === 0 || offset > order[index - 1])))
   }

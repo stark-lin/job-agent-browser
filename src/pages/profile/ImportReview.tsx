@@ -1,9 +1,9 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Checkbox, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Badge, Checkbox, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { DraftFact, ImportDraft } from '../../domain/candidate/import.types'
-import { contactKeys, FactFields, ItemFields } from './ProfileFields'
+import { basicKeys, FactFields, ItemFields } from './ProfileFields'
 import { changeImportFact, changeImportItem, ignoreImportItem, parentReady, validContact, validLink, importLinkErrors } from './import-state'
 
 export function ImportReview({ draft, setDraft, profile, disabled }: {
@@ -23,10 +23,10 @@ export function ImportReview({ draft, setDraft, profile, disabled }: {
   }
   return <div className="profile-stack">
     <StatusMessage>{t($ => $.profile.reviewHelp)}</StatusMessage>
-    <SectionCard title={t($ => $.profile.basic)}><div className="profile-stack">{contactKeys.filter(key => !draft.contact[key].saved).map(key => {
-      const field = draft.contact[key], valid = validContact(key, field.value)
+    <SectionCard title={t($ => $.profile.basic)}><div className="profile-stack">{basicKeys.filter(key => !draft.contact[key].saved).map(key => {
+      const field = draft.contact[key], valid = validContact(key, field.value), Input = key === 'introduction' ? TextArea : TextInput
       return <div className="profile-stack" key={key} data-import-id={`contact-${key}`}>
-        <FormField label={t($ => $.profile[key])} help={t($ => $.profile.existing, { value: profile?.[key] || t($ => $.profile.emptyValue) })} error={!valid && !field.ignored ? t($ => $.profile.formatError) : undefined}>{props => <TextInput {...props} value={field.value} maxLength={key === 'name' ? 300 : key === 'email' ? 320 : key === 'phone' ? 100 : 1000} disabled={disabled || field.ignored} onChange={event => change(draft => ({ ...draft, contact: { ...draft.contact, [key]: { ...field, value: event.target.value } } }))} />}</FormField>
+        <FormField label={t($ => $.profile[key])} help={t($ => $.profile.existing, { value: profile?.[key] || t($ => $.profile.emptyValue) })} error={!valid && !field.ignored ? t($ => $.profile.formatError) : undefined}>{props => <Input {...props} value={field.value} maxLength={key === 'name' ? 300 : key === 'email' ? 320 : key === 'phone' ? 100 : key === 'introduction' ? 2000 : 1000} disabled={disabled || field.ignored} onChange={event => change(draft => ({ ...draft, contact: { ...draft.contact, [key]: { ...field, value: event.target.value } } }))} />}</FormField>
         <div className="profile-actions"><Checkbox label={t($ => $.profile.ignore)} checked={field.ignored} disabled={disabled} onChange={event => change(draft => ({ ...draft, contact: { ...draft.contact, [key]: { ...field, ignored: event.target.checked } } }))} /></div>
       </div>
     })}</div></SectionCard>

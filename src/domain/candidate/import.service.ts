@@ -17,7 +17,7 @@ export function createImportService(repo: CandidateRepository, tx: UnitOfWork, r
         unique([...args.items, ...args.facts, ...args.links].map(entry => entry.draftId))
         const patch = Object.fromEntries(Object.entries(args.contact).filter(([, value]) => value !== undefined))
         const existing = args.profileId ? repo.getProfile(args.profileId) : null
-        const details = importContact({ name: existing?.name, email: existing?.email, phone: existing?.phone, location: existing?.location,
+        const details = importContact({ name: existing?.name, email: existing?.email, phone: existing?.phone, location: existing?.location, introduction: existing?.introduction,
           ...patch, links: [...(existing?.links ?? []), ...args.links.map(({ label, url }) => ({ label, url }))] })
         const profile: Profile = { ...details, id: existing?.id ?? runtime.id(), updatedAt: runtime.now() }
         if (existing) repo.saveProfile(profile)

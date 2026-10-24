@@ -4,7 +4,10 @@ import { factKinds, itemTypes } from './candidate.types'
 
 export const contactFields = { name: v.text(300, 1), email: v.text(320), phone: v.text(100), location: v.text(1000) }
 export const contactLink = v.object({ label: v.text(100, 1), url: v.url })
-export const contact = v.object({ name: contactFields.name, email: v.optionalText(320), phone: v.optionalText(100), location: v.optionalText(1000), links: v.optional(v.array(contactLink, 20), []) })
+const contactShape = { name: contactFields.name, email: v.optionalText(320), phone: v.optionalText(100), location: v.optionalText(1000), links: v.optional(v.array(contactLink, 20), []) }
+export const contact = v.object(contactShape)
+export const profileDetails = v.object({ ...contactShape, introduction: v.optionalText(2000) })
+export const profileEdit = v.object({ ...contactShape, introduction: (value: unknown) => value === undefined ? undefined : v.text(2000)(value) })
 export function partialDate(input: unknown): string {
   const result = v.text(10)(input)
   if (!result) return result
@@ -24,7 +27,7 @@ export const itemDetails = v.object(itemFields)
 const factFields = { kind: v.choice(factKinds), content: v.text(20_000, 1), tags: v.optional(v.array(v.text(100, 1), 100), []), evidence: v.optionalText(20_000) }
 export const factDetails = v.object(factFields)
 // Imported records may be incomplete; retain format/length validation without inventing missing text.
-export const importContactFields = { name: v.optionalText(300), email: v.optionalText(320), phone: v.optionalText(100), location: v.optionalText(1000) }
+export const importContactFields = { name: v.optionalText(300), email: v.optionalText(320), phone: v.optionalText(100), location: v.optionalText(1000), introduction: v.optionalText(2000) }
 export const importContactLinkFields = { label: v.optionalText(100), url: v.optionalUrl }
 export const importContactLink = v.object(importContactLinkFields)
 export const importContact = v.object({ ...importContactFields, links: v.optional(v.array(importContactLink, 20), []) })

@@ -4,7 +4,7 @@ import type { Preferences, PreferencePatch } from '../../shared/settings'
 import type { ErrorCode } from '../../domain/common/errors'
 import type { AuditEntry, AuditFilter, Page, PageResult } from '../../domain/common/ports'
 import type { ApplicationStatus, Company, CompanyInput, Job, JobFilter, JobInput, JobSource, SourceInput } from '../../domain/job/job.types'
-import type { ContactInput, Fact, FactInput, ItemInput, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
+import type { ProfileInput, Fact, FactInput, ItemInput, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
 import type { ApplyImport, ImportSaved } from '../../domain/candidate/import.types'
 import type { JobEvent, ScheduleInput } from '../../domain/application/application.types'
 import type { Artifact, ArtifactView, CreateRunInput, GenerationRun, ResumeDocument, RunView } from '../../domain/resume/resume.types'
@@ -40,8 +40,8 @@ export interface DataContract {
   }
   profiles: {
     applyImport: Endpoint<ApplyImport, ImportSaved>
-    createProfile: Endpoint<ContactInput, Profile>
-    editContact: Endpoint<{ id: string; details: ContactInput }, Profile>
+    createProfile: Endpoint<ProfileInput, Profile>
+    editContact: Endpoint<{ id: string; details: ProfileInput }, Profile>
     deleteProfile: Endpoint<Id, Id>
     getProfile: Endpoint<Id, Profile>
     listProfiles: Endpoint<Page, PageResult<Profile>>

@@ -1,7 +1,7 @@
 import type { CandidateRepository } from './candidate.repository'
 import type { Runtime, UnitOfWork } from '../common/ports'
 import * as v from '../common/validation'
-import { contact } from './candidate.validation'
+import { profileDetails, profileEdit } from './candidate.validation'
 import { createItemService } from './item.service'
 import { createFactService } from './fact.service'
 import { createImportService } from './import.service'
@@ -11,15 +11,16 @@ export function createCandidateService(repo: CandidateRepository, tx: UnitOfWork
     ...createItemService(repo, tx, runtime), ...createFactService(repo, tx, runtime), ...createImportService(repo, tx, runtime),
     createProfile(input: unknown) {
       return tx.write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => {
-        const profile = { ...contact(input), id: runtime.id(), updatedAt: runtime.now() }
+        const profile = { ...profileDetails(input), id: runtime.id(), updatedAt: runtime.now() }
         repo.insertProfile(profile)
         return profile
       })
     },
     editContact(input: unknown) {
       return tx.write({ event: 'PROFILE_CONTACT_EDIT', action: 'UPDATE', target: 'profile' }, () => {
-        const { id, details } = v.object({ id: v.id, details: contact })(input)
-        const profile = { ...repo.getProfile(id), ...details, updatedAt: runtime.now() }
+        const { id, details } = v.object({ id: v.id, details: profileEdit })(input)
+        const existing = repo.getProfile(id)
+        const profile = { ...existing, ...details, introduction: details.introduction ?? existing.introduction, updatedAt: runtime.now() }
         repo.saveProfile(profile)
         return profile
       })

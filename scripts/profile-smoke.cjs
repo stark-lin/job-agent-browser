@@ -30,7 +30,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
   const checkbox = async (label, scope = 'document') => {
     await evaluate(`[...${scope}.querySelectorAll('.ui-checkbox')].find(label => label.textContent === ${JSON.stringify(label)}).querySelector('input').click()`); await frame()
   }
-  const body = { contact: { name: 'Imported candidate', email: 'imported@example.com' }, links: [],
+  const body = { contact: { name: 'Imported candidate', email: 'imported@example.com', introduction: 'Imported introduction.\nOriginal wording.' }, links: [],
     items: [{ type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
       facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] }
   let requests = 0
@@ -79,16 +79,18 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Save imported content')
     await waitFor(async () => (await data('listProfiles')).value.total === 1, 'first import creates profile atomically')
     const firstProfile = (await data('listProfiles')).value.items[0]
+    assert.equal(firstProfile.introduction, body.contact.introduction)
     assert.equal(firstProfile.name, '', 'empty imported name saves without a required-field check')
     assert.equal((await data('listFacts', { profileId: firstProfile.id })).value.total, 2)
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://home'); await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input") && document.body.innerText.includes("Local profile fixture")'), 'manual creation after deleted context fallback')
-    await field('Name', 'Manual candidate'); await field('Email', 'keep@example.com')
+    await field('Name', 'Manual candidate'); await field('Email', 'keep@example.com'); await field('Personal introduction', 'Manual introduction.\nSecond sentence.')
     await evaluate('document.querySelector(".profile-page form").requestSubmit()')
     let profile
     await waitFor(async () => { profile = (await data('listProfiles')).value.items.find(p => p.name === 'Manual candidate'); return Boolean(profile) }, 'created profile')
-    await waitFor(() => evaluate(`![...${section('Work experience')}.querySelectorAll('button')].find(button => button.textContent === 'Add').disabled`), 'profile creation reflected')
+    assert.equal(profile.introduction, 'Manual introduction.\nSecond sentence.')
+    await waitFor(() => evaluate(`[...(${section('Work experience')}?.querySelectorAll('button') ?? [])].find(button => button.textContent === 'Add')?.disabled === false`), 'profile creation reflected')
     await button('Add', section('Work experience')); await field('Title', 'Manual experience', 'document.querySelector("dialog[open]")')
     await field('Start date', '2020', 'document.querySelector("dialog[open]")'); await field('End date', '2022-07', 'document.querySelector("dialog[open]")')
     await button('Save', 'document.querySelector("dialog[open]")')
@@ -147,6 +149,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     for (let index = 0; index < 101; index++) await data('addFact', { profileId: profile.id, details: { kind: 'SKILL', content: `Pagination ${index}` } })
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded
     await waitFor(() => evaluate('document.body.innerText.includes("Pagination 100")'), 'all fact pages restored after reload')
+    assert.equal(await evaluate('document.querySelector(".profile-page form textarea").value'), body.contact.introduction)
     await button('Delete', factCard('Pagination 0')); await button('Delete', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 104, 'individual fact deletion')
     window.setMinimumSize(320, 320)
@@ -157,7 +160,12 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
         window.setContentSize(width, 820); await waitFor(() => evaluate(`innerWidth === ${width}`), 'profile responsive viewport'); await frame()
         assert.equal(await evaluate('document.querySelector(".profile-page").scrollWidth > document.querySelector(".profile-page").clientWidth'), false, `profile overflow ${language}/${theme}/${width}`)
         assert.equal(await evaluate('[...document.querySelectorAll(".profile-page input:not([type=checkbox]), .profile-page textarea, .profile-page select")].every(input => document.querySelector(`label[for="${input.id}"]`))'), true)
-        if (language === 'zh-CN') writeFileSync(resolve(__dirname, `../.cache/profile-${theme}-${width}.png`), (await window.capturePage()).toPNG())
+        if (language === 'zh-CN') {
+          writeFileSync(resolve(__dirname, `../.cache/profile-${theme}-${width}.png`), (await window.capturePage()).toPNG())
+          await evaluate('document.querySelector(".profile-page form textarea").scrollIntoView({block:"center"})'); await frame()
+          writeFileSync(resolve(__dirname, `../.cache/profile-introduction-${theme}-${width}.png`), (await window.capturePage()).toPNG())
+          await evaluate('document.querySelector(".profile-page h1").scrollIntoView()'); await frame()
+        }
       }
     }
     await settings({ language: 'en' }); await frame()
@@ -166,7 +174,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await call('createTab'); const otherTabId = active(await read()).id
     await call('activateTab', profileTabId)
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input")'), 'profile restored for leave guards')
-    await field('Name', 'Unsaved candidate')
+    await field('Personal introduction', 'Unsaved introduction')
     let prompts = 0
     dialog.showMessageBox = async () => { prompts++; return { response: 0, checkboxChecked: false } }
     await call('navigate', 'app://home')
@@ -182,7 +190,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     dialog.showMessageBoxSync = () => { refreshPrompts++; return 0 }
     await window.webContents.executeJavaScript('document.querySelector(".profile-page form input").focus()', true)
     window.webContents.reload(); await waitFor(() => Promise.resolve(refreshPrompts === 1), 'profile refresh cancellation')
-    assert.equal(await evaluate('document.querySelector(".profile-page form input").value'), 'Unsaved candidate')
+    assert.equal(await evaluate('document.querySelector(".profile-page form textarea").value'), 'Unsaved introduction')
     dialog.showMessageBoxSync = () => 1
     const refreshed = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await refreshed
     await waitFor(() => evaluate('document.querySelector(".profile-page form input")?.value === "Imported candidate"'), 'saved profile restored after discarded edit')

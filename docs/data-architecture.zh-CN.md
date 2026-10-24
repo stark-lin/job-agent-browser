@@ -16,7 +16,7 @@
 | --- | --- |
 | `companies`, `jobs`, `job_sources` | 公司身份、职位详情及保留的来源内容 |
 | `job_events` | 申请生命周期、日程与备注 |
-| `profiles`, `profile_items`, `facts` | 联系方式、结构化容器及可选择证据 |
+| `profiles`, `profile_items`, `facts` | 联系方式、个人简介、结构化容器及可选择证据 |
 | `generation_runs`, `artifacts`, `artifact_facts` | 不可变输入、生成阶段、成品与溯源 |
 | `audit_logs` | 不含业务内容的成功/失败事件 |
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
@@ -45,6 +45,8 @@
 
 [个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。全部已保存 Fact 均可参与生成，不存在确认状态、数据库列或确认操作。
 
+`Profile.introduction` 保存可选个人简介（最多 2,000 字符），与简历的纯联系方式 basics 和条目背景简介分开。[版本 7 迁移](../src/platform/database/migrations/profile-introduction.ts)添加默认空值，不修改历史快照。[资料编辑](../src/domain/candidate/candidate.service.ts)在字段省略时保留原简介，显式空值用于清空；[导入审核](../src/platform/profile-import/draft.ts)保留原文，缺失或空白简介默认忽略，审核后才替换已有内容。
+
 每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。
 
 [条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。新数据库世代通过 JSON metadata 保留部分日期精度。
@@ -56,6 +58,8 @@
 ## 三、生成、成品与删除
 
 [简历请求](../src/domain/resume/resume.service.ts)原子快照 Job、Profile、全部 Fact 和相关条目；空事实资料及归档职位失败。配置固定模板/预算和 Server 运行时类型，可选 Provider/模型是调用方声明的溯源元数据，不构成权限或凭据。历史配置继续可读。[MCP 能力](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)服务内部与外部 Agent，[Resume 推理](../src/platform/agent/resume.ts)位于 Domain 持久化层之外。
+
+[内置提示词](../src/platform/agent/resume.ts)和[外部技能](../skills/tailor-resume/SKILL.zh-CN.md)要求将已填简介作为 summary，仅作局部小修，保留原意、表达、重点和语言。选材预留相关证据与预算；冲突应在 Gate 拒绝，不能悄悄改写。[校验](../src/domain/resume/resume.validation.ts)拒绝删除该 summary，继续执行 Fact 溯源检查。语义保留属于模型指令，并非确定性保证；缺失该字段的历史快照沿用原流程。
 
 可信 [GenerationService](../src/domain/resume/generation.service.ts)持久化 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。内部模型只获得读取工具；可信 controller 和 Codex 使用共享阶段能力。门控拒绝持久化缺失证据并停止。发布创建唯一 Artifact 并标记 `SUCCEEDED`；输出失败保留发布结果。启动回执及阶段 handler 支持相同重试，冲突提交失败。
 

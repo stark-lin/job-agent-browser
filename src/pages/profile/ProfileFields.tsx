@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { Checkbox, FormField, ListInput, Select, TextArea, TextInput } from '../../shared/ui'
-import type { Contact, FactInput, ItemInput } from '../../domain/candidate/candidate.types'
+import type { ProfileDetails, FactInput, ItemInput } from '../../domain/candidate/candidate.types'
 import { importFactErrors, importItemErrors } from './import-state'
 import { factKinds, itemTypes } from '../../domain/candidate/candidate.types'
 
 export const contactKeys = ['name', 'email', 'phone', 'location'] as const
-export const emptyContact: Contact = { name: '', email: '', phone: '', location: '', links: [] }
+export const basicKeys = [...contactKeys, 'introduction'] as const
+export const emptyContact: ProfileDetails = { name: '', email: '', phone: '', location: '', links: [], introduction: '' }
 export function ItemFields({ value, onChange, disabled = false, fixedType = false, review = false }: {
   value: ItemInput; onChange: (value: ItemInput) => void; disabled?: boolean; fixedType?: boolean; review?: boolean
 }) {

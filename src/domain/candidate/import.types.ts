@@ -1,12 +1,12 @@
-import type { Contact, Fact, FactInput, ItemInput, Profile, ProfileItem } from './candidate.types'
+import type { ProfileDetails, Fact, FactInput, ItemInput, Profile, ProfileItem } from './candidate.types'
 
-export type ContactKey = 'name' | 'email' | 'phone' | 'location'
+export type ContactKey = 'name' | 'email' | 'phone' | 'location' | 'introduction'
 export interface ImportFact { draftId: string; itemDraftId: string | null; profileItemId: string | null; details: FactInput }
 export interface ImportItem { draftId: string; details: ItemInput }
 export interface ImportLink { draftId: string; label: string; url: string }
 export interface ApplyImport {
   sessionId: string; batchId: string; profileId: string | null
-  contact: Partial<Pick<Contact, ContactKey>>; links: ImportLink[]; items: ImportItem[]; facts: ImportFact[]
+  contact: Partial<Pick<ProfileDetails, ContactKey>>; links: ImportLink[]; items: ImportItem[]; facts: ImportFact[]
 }
 export interface ImportSaved {
   profile: Profile; items: ProfileItem[]; facts: Fact[]

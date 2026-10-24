@@ -83,7 +83,7 @@ The page is downloaded/cleaned once or the PDF text is extracted once before AI 
 | Job capture | `basics` | Title, raw company name, location text/list, employment type and salary |
 | Job capture | `description` | Job description |
 | Job capture | `requirements` | Requirement text, category and keywords |
-| PDF profile | `contact` | Contact fields, links and standalone facts |
+| PDF profile | `contact` | Basic profile fields including introduction, links and standalone facts |
 | PDF profile | `experience` | Work experience entries with their nested facts |
 | PDF profile | `projects` | Project entries with their nested facts |
 | PDF profile | `education` | Education entries with their nested facts |

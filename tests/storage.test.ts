@@ -50,12 +50,14 @@ test('future versions and checksum mismatches fail startup without resetting sto
 test('data survives reopen and interrupted generation is recovered with SYSTEM audit', async (t) => {
   const path = tempDatabase(t), first = fixture(t, path)
   const job = value(await first.api.jobs.saveJob({ details: { title: 'Persisted', companyNameRaw: 'Company' } }))
-  const profile = value(await first.api.profiles.createProfile({ name: 'Person' }))
+  const profile = value(await first.api.profiles.createProfile({ name: 'Person', introduction: 'Original introduction.\nSecond sentence.' }))
   value(await first.api.profiles.addFact({ profileId: profile.id, details: { kind: 'SKILL', content: 'TypeScript' } }))
   const run = value(await first.api.resumes.createRun({ jobId: job.id, profileId: profile.id }))
   first.backend.generation.start({ id: run.id })
   first.backend.close()
   const second = fixture(t, path)
+  assert.equal(value(await second.api.profiles.getProfile({ id: profile.id })).introduction, profile.introduction)
+  assert.equal(value(await second.api.resumes.getRun({ id: run.id })).run.inputSnapshot.profile.introduction, profile.introduction)
   assert.equal(value(await second.api.jobs.getJob({ id: job.id })).title, 'Persisted')
   assert.equal(value(await second.api.resumes.getRun({ id: run.id })).run.status, 'INTERRUPTED')
   const audit = value(await second.api.audit.list({ targetId: run.id })).items
@@ -182,4 +184,18 @@ test('matching-generation version-5 upgrade adds chat storage without changing p
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v5 job')
   for (const table of ['chat_sessions', 'chat_runs', 'chat_items']) assert.equal(next.connection.prepare(`SELECT COUNT(*) n FROM ${table}`).get()?.n, 0)
+})
+
+
+test('version-6 upgrade adds an empty introduction without changing old profile values, audits or checksums', t => {
+  const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
+  migrate(connection, migrations.slice(0, 6)); transactions.protectAudit()
+  const store = new Store(connection, transactions), profile = { id: randomUUID(), name: 'Existing person', email: '', phone: '', location: '', links: [], updatedAt: new Date().toISOString() }
+  transactions.forActor('USER').write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => store.insert('profile', profile))
+  const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
+  connection.close()
+  const next = openDatabase(path); t.after(next.close)
+  assert.deepEqual(new Store(next.connection, next.transactions).get('profile', profile.id), { ...profile, introduction: '' })
+  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
 })

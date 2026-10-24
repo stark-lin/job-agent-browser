@@ -69,3 +69,21 @@ test('reviewed semantic fixtures document that valid fact IDs cannot certify met
     assert.doesNotThrow(() => validateContent({ ...run, inputSnapshot: snapshot }, unsupported))
   }
 })
+
+
+test('a supplied introduction requires a summary in draft and polish while historical snapshots remain valid', async t => {
+  const f = await published(t), run = value(await f.api.resumes.getRun({ id: f.run.id })).run
+  const body = materializeDocument(run.inputSnapshot, 'en', { summary: null, experience: [], projects: [], education: [],
+    skills: [{ id: randomUUID(), text: f.fact.content, factIds: [f.fact.id] }] })
+  const historical = structuredClone(run)
+  delete (historical.inputSnapshot.profile as { introduction?: string }).introduction
+  validateContent(historical, content(body))
+  run.inputSnapshot.profile.introduction = f.fact.content
+  assert.throws(() => validateContent(run, content(body)), { code: 'CONFLICT' })
+  assert.throws(() => validateContent(run, content(body), true), { code: 'CONFLICT' })
+  const preserved = { ...body, skills: [], summary: { id: randomUUID(), text: f.fact.content, factIds: [f.fact.id] } }
+  validateContent(run, content(preserved))
+  run.draft = preserved
+  validateContent(run, content(preserved), true)
+  assert(!('introduction' in preserved.basics))
+})

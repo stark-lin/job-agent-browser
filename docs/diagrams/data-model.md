@@ -94,6 +94,7 @@ erDiagram
         string id PK
         string name
         string email
+        text introduction
         json links_json
     }
     PROFILE_ITEM {

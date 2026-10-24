@@ -16,7 +16,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | --- | --- |
 | `companies`, `jobs`, `job_sources` | Company identity, job details and preserved source content |
 | `job_events` | Application lifecycle, schedules and notes |
-| `profiles`, `profile_items`, `facts` | Contact information, structured containers and selectable evidence |
+| `profiles`, `profile_items`, `facts` | Contact information, personal introduction, structured containers and selectable evidence |
 | `generation_runs`, `artifacts`, `artifact_facts` | Immutable inputs, generation stages, output and provenance |
 | `audit_logs` | Content-free success/failure events |
 | `capability_audit` | Content-free access/execution audit owned by read/write capabilities; [version-3 schema](../src/platform/database/migrations/capability-audit.ts) |
@@ -45,6 +45,8 @@ Archived Jobs reject status changes and scheduling/rescheduling but permit notes
 
 [Candidate use cases](../src/domain/candidate/candidate.service.ts) enforce same-profile parent/fact references, acyclic item nesting, valid date ranges and immutable item type. Item kinds are `EXPERIENCE / PROJECT / EDUCATION`. Fact kinds are `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`. All saved Facts may participate in generation; no confirmation status, column or operation exists.
 
+`Profile.introduction` is optional personal wording (up to 2,000 characters), separate from contact-only resume basics and item summaries. [Version-7 migration](../src/platform/database/migrations/profile-introduction.ts) adds an empty default without changing historical snapshots. [Profile editing](../src/domain/candidate/candidate.service.ts) preserves omitted introductions and accepts explicit clearing; [import review](../src/platform/profile-import/draft.ts) preserves source wording, ignores missing/blank introductions by default, and only replaces existing text after review.
+
 Each `ProfileItem` owns zero or more independently selectable Facts; each Fact belongs to one Profile and optionally one item in it. `parentItemId` relates items to items. Standalone skills/languages use a null `profileItemId`; fact kind does not determine ownership. `summary` stores background, while responsibilities/achievements remain individual Facts. The [fact service](../src/domain/candidate/fact.service.ts) validates edits and ownership.
 
 [Item validation](../src/domain/candidate/candidate.validation.ts) supports `metadata.startDateText` / `endDateText` (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`) and `isCurrent`. Import/manual UI writes day columns only for complete dates, validates ranges and never supplies missing months/days. The new database generation preserves partial-date precision in JSON metadata.
@@ -56,6 +58,8 @@ Import creates `PROFILE_IMPORT` audit events for each changed record under a sha
 ## 3. Generation, output and deletion
 
 [Resume requests](../src/domain/resume/resume.service.ts) atomically snapshot the Job, Profile, all Facts and related items. Empty-fact profiles and archived jobs fail. Configuration fixes template/budget and the Server runtime kind; optional provider/model metadata is caller-declared provenance, never authority or credentials. Historical configuration remains readable. [MCP capabilities](mcp-architecture.md#5-job-agent-browser-mcp) serve both internal and external Agents; [Resume reasoning](../src/platform/agent/resume.ts) stays outside the Domain persistence layer.
+
+The [internal prompt](../src/platform/agent/resume.ts) and [external skill](../skills/tailor-resume/SKILL.md) require a supplied introduction to become the summary with only minor local corrections, preserving meaning, wording, emphasis and language. Selection reserves its evidence and budget; conflicts reject at Gate rather than silently rewriting. [Validation](../src/domain/resume/resume.validation.ts) rejects removal of that summary and retains Fact provenance checks. Semantic preservation is a model instruction, not a deterministic guarantee; historical snapshots without the field keep the prior workflow.
 
 The trusted [GenerationService](../src/domain/resume/generation.service.ts) persists `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`. Internal models receive only read tools; trusted controllers and Codex use shared stage capabilities. Gate rejection persists missing evidence and stops. Publishing creates one Artifact and marks `SUCCEEDED`; output failures preserve publication. Start receipts and stage handlers support identical retries; conflicting submissions fail.
 
