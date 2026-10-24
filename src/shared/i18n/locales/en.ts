@@ -283,6 +283,34 @@ export const en = {
     configure: 'Connect your mailbox', configureHelp: 'Choose your webmail provider and address in Settings to open your mailbox here.',
     loadFailed: 'Unable to open your mailbox'
   },
+  externalSkills: {
+    description: 'Install the three Job Agent Browser Skills separately from MCP. Skills guide the Agent; a connected MCP server is required to use business tools.',
+    path: 'Skills installation directory',
+    install: 'Install Skills',
+    installing: 'Installing Skills…',
+    update: 'Update Skills',
+    installed: 'Skills installed',
+    saved: 'All three Skills are installed. Reload or restart the target Agent to discover them. Installation does not verify Agent discovery.',
+    completed: 'Written: {{names}}',
+    pending: 'Still to install: {{names}}',
+    otherHelp: 'For other Agents, copy the complete Skill folders into their supported Skills directory. The folder includes English and Chinese instructions.',
+    open: 'Open Skills folder',
+    opened: 'Skills folder opened. Copy the folders into your Agent’s Skills directory.',
+    replaceTitle: 'Replace existing Skills?',
+    replaceHelp: 'The listed same-name Skills differ from this application’s versions. Confirmation replaces their complete folders directly, without saving backups. Other Skills are retained.',
+    conflicts: 'Skills to replace',
+    confirmReplace: 'Replace without backup',
+    states: { missing: 'Not installed', installed: 'Installed', different: 'Different content', unavailable: 'Unavailable' },
+    errors: {
+      INVALID_INPUT: 'Invalid Skills installation request.',
+      FORBIDDEN: 'Only the trusted application page may manage Skills.',
+      SKILLS_UNAVAILABLE: 'Unable to read the bundled Skills or installation directory. Check file access, then refresh.',
+      SKILLS_CHANGED: 'Skills or the destination changed. Review the refreshed status and try again.',
+      REPLACE_REQUIRED: 'Existing Skills differ. Review the refreshed status and confirm replacement.',
+      INSTALL_FAILED: 'Unable to finish installing Skills. Review the completed and remaining items, check file access, then refresh and retry.',
+      OPEN_FAILED: 'Unable to open the Skills folder.'
+    }
+  },
   externalMCP: {
     "title": "Connect external Agents",
     "description": "Add Job Agent Browser MCP to your user-wide Agent configuration. All projects use this workspace’s data. Skills are installed separately.",

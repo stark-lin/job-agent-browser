@@ -94,7 +94,7 @@
 
 - 侧栏不显示品牌头部或文字标签，保留原有顺序：Home、Job search、Manage、Tools，最后是固定在底部的 Settings。分区之间用居中的 24px 短横线分隔，颜色和线宽分别使用 `--line` 与 `--border-width`；横线仅作装饰，分组保留翻译后的无障碍名称。导航项保留完整翻译后的无障碍名称及原生悬停提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
-- 设置页外部 Agent 接入组合中央 SectionCard、DetailsList、Badge、Button、Dialog 和只读 TextArea。配置状态与连接结果分开显示，条目冲突使用确认弹窗并默认聚焦取消。路径可换行，忙碌时禁用操作，静态 Settings 图库展示这些控件。
+- 设置页外部 Agent 接入组合中央 SectionCard、DetailsList、Badge、Button、Dialog 和只读 TextArea。MCP 配置、连接结果和逐项 Skill 安装状态分开显示。Skill 安装/更新操作展示目录及已完成/待完成结果；文件夹不同时，确认弹窗列出冲突、默认聚焦取消，并明确无备份替换。其他 Agent 可打开内置 Skills 文件夹；MCP 替换仍采用独立的备份行为。路径可换行，忙碌时禁用操作，静态 Settings 图库展示这些控件。
 
 - Settings 在 16px 圆角面板中组合 40px 字段，内边距为 24px（窄屏为 16px）；页面 CSS 仅管理布局。成功反馈使用可读文字及成功背景/边框。展示库 Settings 示例引用这些共享规则。
 - 导入模式用中央 `FormField`/`Select`，模型许可用 `Checkbox`；独立分组状态和耗时用 `DetailsList`；仅完成数量摘要使用实时状态文字，避免每次计时刷新都被重复朗读，失败组提供明确重试按钮。工作期间禁用模式切换；不可用的并行选项说明 Settings 前置条件。Forms 图库包含这些控件。

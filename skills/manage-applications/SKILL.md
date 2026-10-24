@@ -31,4 +31,4 @@ Create and retain a UUID v4 requestId for each new note or scheduled event. Reus
 
 For several changes, execute in order and retain each completed result. If a later action fails, report completed and unfinished changes separately and retry only unfinished actions. Do not claim an all-or-nothing transaction or undo completed changes without a user request.
 
-Refresh state/events and report the actual outcome. On persistent conflict, invalid transition or connection failure, stop and explain the remaining work. Business rules and schemas are owned by the [MCP specification](../../docs/mcp-architecture.md).
+Refresh state/events and report the actual outcome. On persistent conflict, invalid transition or connection failure, stop and explain the remaining work. Use the connected server's discovered tool schemas and returned allowed transitions as the authority for business operations.

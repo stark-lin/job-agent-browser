@@ -19,7 +19,7 @@ description: 在宿主环境读取职位 URL、PDF 或粘贴描述，并通过 M
 
 ## 保存结构化候选数据
 
-完成理解且用户要求保存后，使用新的 UUID v4 requestId、details 和可选 source 调用 `job.import`。该工具不会抓取、浏览、解析、总结或调用 AI。以发现的 schema 和[采集契约](../../src/domain/job/workflow.ts)为准；此 MCP 不提供解析工具。
+完成理解且用户要求保存后，使用新的 UUID v4 requestId、details 和可选 source 调用 `job.import`。该工具不会抓取、浏览、解析、总结或调用 AI。以已连接服务发现的工具 schema 为准；此 MCP 不提供解析工具。
 
 真实网页来源的 source.url 使用原始 HTTP(S) URL；可选 pageTitle 和 cleanedContent 记录已有资料。粘贴文本或没有真实网页 URL 的本地 PDF 使用 source:null。不要编造 URL，也不要把本地文件路径当作网页来源传入。
 

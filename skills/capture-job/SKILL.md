@@ -19,7 +19,7 @@ The final candidate needs a nonempty title and companyNameRaw. Ask for missing r
 
 ## Save the structured candidate
 
-Once interpretation is complete and the user has requested saving, call `job.import` with a new UUID v4 requestId, details and optional source. This tool does not fetch, browse, parse, summarize or invoke AI. Use the discovered schema and [capture contract](../../src/domain/job/workflow.ts); no parsing tools exist in this MCP.
+Once interpretation is complete and the user has requested saving, call `job.import` with a new UUID v4 requestId, details and optional source. This tool does not fetch, browse, parse, summarize or invoke AI. Use the connected server's discovered tool schema; no parsing tools exist in this MCP.
 
 For a genuine web source, source.url is the original HTTP(S) URL; optional pageTitle and cleanedContent record the available source. For pasted text or a local PDF with no genuine web URL, use source:null. Never manufacture a URL or send a local file path as a web source.
 

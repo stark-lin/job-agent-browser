@@ -1,7 +1,9 @@
 import { createAskAgentTasks, type AskAgentTasks } from '../ask-agent-tasks'
 import { registerAskAgentIPC } from './ask-agent-ipc'
 import { t, i18n } from '../../../shared/i18n'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { createExternalSkillsInstaller } from '../../skills/install'
+import { registerExternalSkillsIPC } from './external-skills-ipc'
 import { createExternalMCPInstaller, type ExternalMCPInstaller } from '../../mcp/external-install'
 import { registerExternalMCPIPC } from './external-mcp-ipc'
 import { createPreferences } from '../../storage/preferences'
@@ -77,6 +79,8 @@ app.whenReady().then(async () => {
   externalMCP = createExternalMCPInstaller({ home: app.getPath('home'), codexHome: process.env.CODEX_HOME,
     directory, bundleDirectory: __dirname, executable: process.execPath, writeClipboard: text => clipboard.writeText(text) })
   registerExternalMCPIPC(externalMCP, join(__dirname, '../renderer/index.html'))
+  registerExternalSkillsIPC(createExternalSkillsInstaller({ home: app.getPath('home'), bundleDirectory: join(__dirname, 'skills'),
+    openPath: path => shell.openPath(path) }), join(__dirname, '../renderer/index.html'))
   tools = createToolRuntime({ configuration: () => readMCPConfiguration(join(directory, 'mcp.json')), capabilities: backend.capabilities,
     native: backend.toolCapabilities.read, recoverAudit: backend.toolAudit.recoverInterrupted })
   // Optional external capabilities never delay window creation or reject the application startup.

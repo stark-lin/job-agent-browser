@@ -4,6 +4,8 @@ import type { AgentRunEvent } from '../../../domain/chat/chat.types'
 import { contextBridge, ipcRenderer } from 'electron'
 import { EXTERNAL_MCP_CALL } from '../../../shared/external-mcp'
 import { createExternalMCPBridge } from './external-mcp-bridge'
+import { EXTERNAL_SKILLS_CALL } from '../../../shared/external-skills'
+import { createExternalSkillsBridge } from './external-skills-bridge'
 import { createApplicationBridge } from './application-bridge'
 import { APPLICATION_CALL } from '../application-contract'
 import { createResumeBridge } from './resume-bridge'
@@ -56,6 +58,7 @@ const browserAPI: BrowserAPI = {
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
 contextBridge.exposeInMainWorld('externalMCP', createExternalMCPBridge((method, input) => ipcRenderer.invoke(EXTERNAL_MCP_CALL, method, input)))
+contextBridge.exposeInMainWorld('externalSkills', createExternalSkillsBridge((method, input) => ipcRenderer.invoke(EXTERNAL_SKILLS_CALL, method, input)))
 const jobImport: JobImportAPI = {
   selectPdf: () => ipcRenderer.invoke(JOB_IMPORT_SELECT),
   save: input => ipcRenderer.invoke(JOB_IMPORT_SAVE, input),

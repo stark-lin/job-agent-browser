@@ -69,6 +69,7 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
     } finally { chmodSync(database, mode) }
   }
   const size = window.getContentSize(), minimum = window.getMinimumSize()
+  await require('./external-skills-smoke.cjs')({ window, evaluate, waitFor })
   window.setMinimumSize(320, 320)
   try {
     for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {

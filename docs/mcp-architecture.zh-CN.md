@@ -55,7 +55,11 @@ UI    → typed IPC → Domain
 
 [安装服务](../src/platform/mcp/external-install.ts)从当前运行的应用生成绝对路径，以 Electron 的 Node 模式启动，设置 `ELECTRON_RUN_AS_NODE`、当前 `JOB_BROWSER_USER_DATA`、仅用于审计的 `JOB_BROWSER_MCP_CALLER`，以及输出构建使用的 `JOB_BROWSER_ELECTRON`；Codex 工具超时设为 100 秒，无需 Agent CLI。安装与连接反馈独立：测试只连接并发现工具，随后关闭 Client；窗口释放/应用退出中止待完成测试。安装后需重新加载或重启目标 Agent。其他本机 stdio 宿主提供可复制 JSON 条目。不返回或记录原配置中的凭据；Skills 单独安装。
 
-手动接入时，先构建再为宿主配置绝对路径（可选 Skills 单独执行 npm run skill:link）：
+**已实现 Skills 安装：**独立的[类型化 IPC](../src/shared/external-skills.ts)和[可信 Main 处理器](../src/platform/electron/main/external-skills-ipc.ts)仅提供检查、安装和打开内置目录。[安装服务](../src/platform/skills/install.ts)将三个固定 Skill 的完整双语文件夹复制到 Codex `~/.agents/skills`、Claude Code `~/.claude/skills` 或 Cursor `~/.cursor/skills`，无需 Agent CLI 或网络。用户级目录遵循官方 [Codex](https://learn.chatgpt.com/docs/build-skills)、[Claude Code](https://code.claude.com/docs/en/skills) 和 [Cursor](https://cursor.com/docs/skills) 文档。[构建](../electron.vite.config.ts)将资源放入 `out/main/skills`，运行时安装不依赖源码仓库。其他 Agent 可通过“打开 Skills 文件夹”手动复制。
+
+检查会读取有大小限制的完整目录树，不创建文件。内容相同不写入，缺失文件夹直接安装；不同文件夹需确认后替换，**不保留备份**，其他 Skills 保留。替换根符号链接仅影响链接本身。临时暂存和版本检查拒绝资源、内容或父目录变化；失败返回已完成/待完成项及重新检查的状态。替换按顺序进行，不是事务。Skills 和 MCP 独立安装，调用工具仍需连接预期 MCP。安装后请重新加载/重启 Agent；文件安装成功不证明 Agent 已发现。尚不支持自定义目录、旧目录迁移、云端安装、自动更新、卸载或更改 Agent 启用设置。`CODEX_HOME` 影响 MCP 配置位置，不改变此 Skills 目录。
+
+手动接入 MCP 时，先构建再为宿主配置绝对路径：
 
 ```toml
 [mcp_servers.job_agent_browser]
@@ -95,7 +99,7 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 
 [业务工具测试](../tests/business-tools.test.ts)、[申请测试](../tests/application-agent.test.ts)、[采集测试](../tests/capture-agent.test.ts)、[Resume 一致性](../tests/resume-runtime-parity.test.ts)和 [lease 测试](../tests/runtime-leases.test.ts)覆盖真实 stdio、共享 SQLite、发现一致性、归属、并发写入、receipt/重启、失败和取消。[Server smoke](../scripts/run-mcp-server-smoke.cjs)使用构建入口和真实 Electron HTML/PDF；[Agent smoke](../scripts/run-agent-smoke.cjs)覆盖生产 UI。命令归属 [README](../README.zh-CN.md)。
 
-[接入测试](../tests/external-mcp.test.ts)覆盖配置保留、备份、重复安装、冲突、权限、符号链接、版本冲突拒绝、发现与清理。[设置接入 smoke](../scripts/external-mcp-smoke.cjs)使用临时 Agent 配置目录，验证生产 IPC、确认/取消、剪贴板、构建后的 stdio 发现、连接错误及双语响应式主题。真实目标 Agent 重新加载及 Windows/Linux 宿主兼容性仍未验证。
+[接入测试](../tests/external-mcp.test.ts)覆盖 MCP 配置保留、备份、冲突、发现与清理。[Skills 测试](../tests/external-skills.test.ts)覆盖独立资源、完整目录一致性、幂等、部分安装/失败、直接替换、符号链接、权限及版本冲突拒绝。[设置接入 smoke](../scripts/external-mcp-smoke.cjs)包含 [Skills smoke](../scripts/external-skills-smoke.cjs)，验证生产 IPC/UI、无备份替换与取消、文件一致性、错误及重载；整套检查在临时 Agent 目录中验证双语响应式主题。[Electron smoke](../scripts/smoke.cjs)拒绝不可信 Skills IPC。真实目标 Agent 发现/重载及 Windows/Linux 宿主兼容性仍未验证。
 
 真实 Provider 认证、远程传输、外部日历/邮件动作及 Windows/Linux 渲染仍未验证或处于规划，测试 fixture 不代表已提供这些能力。
 

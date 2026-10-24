@@ -256,6 +256,34 @@ export const zhCN = {
     tabs: '浏览器标签页', closeTab: '关闭标签页', closeNamedTab: '关闭 {{title}}', newTab: '新建标签页', addressLabel: '搜索或输入网址', addressPlaceholder: '搜索或输入网址…', emptyHeading: '开始探索', emptyDescription: '在上方搜索内容或输入网址。'
   },
   inbox: { exit: '退出', configure: '连接你的邮箱', configureHelp: '在设置中选择网页邮箱服务商和地址，即可在此打开邮箱。', loadFailed: '无法打开邮箱' },
+  externalSkills: {
+    description: '三个 Job Agent Browser Skill 与 MCP 分开安装。Skill 提供 Agent 工作指引，调用业务工具仍需连接 MCP 服务。',
+    path: 'Skills 安装目录',
+    install: '安装 Skills',
+    installing: '正在安装 Skills…',
+    update: '更新 Skills',
+    installed: 'Skills 已安装',
+    saved: '三个 Skill 均已安装。请重新加载或重启目标 Agent 以发现它们。安装成功不代表已验证 Agent 加载。',
+    completed: '已写入：{{names}}',
+    pending: '尚待安装：{{names}}',
+    otherHelp: '其他 Agent 可将完整 Skill 文件夹复制到其支持的 Skills 目录中。文件夹包含中英文指引。',
+    open: '打开 Skills 文件夹',
+    opened: '已打开 Skills 文件夹，请将这些文件夹复制到目标 Agent 的 Skills 目录。',
+    replaceTitle: '替换已有 Skills？',
+    replaceHelp: '下列同名 Skill 与应用提供的版本不同。确认后将直接替换完整文件夹，不保存备份；其他 Skills 保留。',
+    conflicts: '将替换的 Skills',
+    confirmReplace: '直接替换，不备份',
+    states: { missing: '未安装', installed: '已安装', different: '内容不同', unavailable: '不可用' },
+    errors: {
+      INVALID_INPUT: 'Skills 安装请求无效。',
+      FORBIDDEN: '仅可信应用页面可管理 Skills。',
+      SKILLS_UNAVAILABLE: '无法读取内置 Skills 或安装目录。请检查文件访问权限后刷新。',
+      SKILLS_CHANGED: 'Skills 或目标目录已变化。请检查刷新后的状态并重试。',
+      REPLACE_REQUIRED: '已有 Skill 内容不同，请检查刷新后的状态并确认替换。',
+      INSTALL_FAILED: '未能完成 Skills 安装。请检查已完成和剩余项目，确认文件访问权限后刷新重试。',
+      OPEN_FAILED: '无法打开 Skills 文件夹。'
+    }
+  },
   externalMCP: {
     "title": "连接外部 Agent",
     "description": "将 Job Agent Browser MCP 添加到当前用户的全局 Agent 配置，所有项目均连接当前工作区数据。技能需另行安装。",

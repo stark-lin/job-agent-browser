@@ -58,6 +58,9 @@ app.on('browser-window-created', (_event, window) => {
       for (const method of ['inspect', 'install', 'test', 'copy']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('external-mcp:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
       }
+      for (const method of ['inspect', 'install', 'openBundle']) {
+        assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('external-skills:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
+      }
       await require('./window-close-smoke.cjs')(window)
       console.log('Electron smoke passed: production startup, sandboxed bridge, automatic audit, read semantics, deletion and rejected untrusted document.')
       // Main's earlier will-quit listener closes SQLite first. Avoid waiting on Chromium helpers.
