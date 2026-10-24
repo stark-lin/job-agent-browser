@@ -24,6 +24,62 @@ function fixture(t: TestContext) {
   const install = (target: ExternalMCPTarget = 'codex', replace = false) => service.install({ target, revision: status(target).revision, replace })
   return { root, home, source, service, status, install, opened: () => opened }
 }
+
+for (const target of externalMCPTargets) {
+  test(`${target}: reconnect reinstalls matching folders and selective deletion preserves other Skills`, t => {
+    const f = fixture(t), installed = f.install(target), path = installed.status.path
+    const before = skillTree(join(path, 'capture-job')).revision
+    const reconnected = f.service.reconnect({ target, revision: installed.status.revision, replace: false })
+    assert.equal(reconnected.operation, 'reconnect')
+    assert.deepEqual(reconnected.completed, externalSkillNames)
+    assert.notEqual(skillTree(join(path, 'capture-job')).revision, before)
+    assert.equal(reconnected.error, undefined)
+    fs.mkdirSync(join(path, 'unrelated')); fs.writeFileSync(join(path, 'unrelated', 'SKILL.md'), 'keep')
+    const removed = f.service.remove({ target, revision: f.status(target).revision, names: ['capture-job'] })
+    assert.equal(removed.operation, 'remove')
+    assert.equal(removed.error, undefined)
+    assert.deepEqual(removed.completed, ['capture-job'])
+    assert.deepEqual(removed.pending, [])
+    assert(!fs.existsSync(join(path, 'capture-job')))
+    assert(fs.existsSync(join(path, 'manage-applications', 'SKILL.md')))
+    assert.equal(fs.readFileSync(join(path, 'unrelated', 'SKILL.md'), 'utf8'), 'keep')
+    assert.equal(f.service.remove({ target, revision: installed.status.revision, names: ['manage-applications'] }).error, 'SKILLS_CHANGED')
+    const all = f.service.remove({ target, revision: f.status(target).revision, names: [...externalSkillNames] })
+    assert.equal(all.error, undefined)
+    assert(all.status.skills.every(skill => skill.state === 'missing'))
+    const again = f.service.remove({ target, revision: all.status.revision, names: [...externalSkillNames] })
+    assert.deepEqual(again.completed, [])
+    assert.equal(again.error, undefined)
+  })
+}
+
+test('deletion removes root links only, rejects stale confirmations and arbitrary names, and reports partial failures', t => {
+  const f = fixture(t), installed = f.install(), path = installed.status.path
+  fs.rmSync(join(path, 'capture-job'), { recursive: true })
+  fs.symlinkSync(join(f.source, 'capture-job'), join(path, 'capture-job'), 'dir')
+  const removed = f.service.remove({ target: 'codex', revision: f.status().revision, names: ['capture-job'] })
+  assert.equal(removed.error, undefined)
+  assert(fs.existsSync(join(f.source, 'capture-job', 'SKILL.md')))
+  assert(!fs.existsSync(join(path, 'capture-job')))
+  const request = { target: 'codex', revision: f.status().revision, names: ['manage-applications'] }
+  for (const names of [[], ['../unrelated'], ['unrelated'], ['capture-job', 'capture-job'], [null]]) {
+    assert.throws(() => f.service.remove({ ...request, names }), { code: 'INVALID_INPUT' })
+  }
+  assert.throws(() => f.service.remove({ ...request, path: '/arbitrary' }), { code: 'INVALID_INPUT' })
+  fs.writeFileSync(join(path, 'manage-applications', 'SKILL.md'), 'local edit')
+  assert.equal(f.service.remove(request).error, 'SKILLS_CHANGED')
+  assert.equal(f.service.reconnect({ target: 'codex', revision: f.status().revision, replace: false }).error, 'REPLACE_REQUIRED')
+  const remove = fs.rmSync
+  t.mock.method(fs, 'rmSync', (...args: Parameters<typeof remove>) => {
+    if (String(args[0]).endsWith('tailor-resume')) throw new Error('private path')
+    return remove(...args)
+  })
+  const result = f.service.remove({ ...request, revision: f.status().revision, names: ['manage-applications', 'tailor-resume'] })
+  assert.equal(result.error, 'REMOVE_FAILED')
+  assert.deepEqual(result.completed, ['manage-applications'])
+  assert.deepEqual(result.pending, ['tailor-resume'])
+  assert(!JSON.stringify(result).includes('private path'))
+})
 for (const target of externalMCPTargets) {
   test(`${target}: complete standalone installation is idempotent and preserves other Skills`, t => {
     const f = fixture(t), path = externalSkillsPath(f.home, target)
@@ -208,11 +264,14 @@ test('fixed operations reject arbitrary paths and malformed requests; folder ope
   await assert.rejects(failed.openBundle({}), { code: 'OPEN_FAILED' })
 })
 
-test('preload exposes only inspection, installation and opening the bundled directory', async () => {
+test('preload exposes only fixed Skills lifecycle and bundle operations', async () => {
   const calls: unknown[] = []
   const bridge = createExternalSkillsBridge(async (method, input) => { calls.push([method, input]); return { ok: true, value: null } })
-  assert.deepEqual(Object.keys(bridge), ['inspect', 'install', 'openBundle'])
+  assert.deepEqual(Object.keys(bridge), ['inspect', 'install', 'reconnect', 'remove', 'openBundle'])
   await bridge.inspect({}); await bridge.openBundle({})
   await bridge.install({ target: 'codex', revision: 'a'.repeat(64), replace: false })
-  assert.deepEqual(calls, [['inspect', {}], ['openBundle', {}], ['install', { target: 'codex', revision: 'a'.repeat(64), replace: false }]])
+  const change = { target: 'codex' as const, revision: 'a'.repeat(64), replace: false }
+  await bridge.reconnect(change); await bridge.remove({ target: change.target, revision: change.revision, names: ['capture-job'] })
+  assert.deepEqual(calls, [['inspect', {}], ['openBundle', {}], ['install', change], ['reconnect', change],
+    ['remove', { target: change.target, revision: change.revision, names: ['capture-job'] }]])
 })

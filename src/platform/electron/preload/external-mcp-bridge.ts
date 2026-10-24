@@ -5,6 +5,8 @@ export function createExternalMCPBridge(invoke: (method: string, input: unknown)
   return {
     inspect: input => invoke('inspect', input) as ReturnType<ExternalMCPAPI['inspect']>,
     install: input => invoke('install', input) as ReturnType<ExternalMCPAPI['install']>,
+    reconnect: input => invoke('reconnect', input) as ReturnType<ExternalMCPAPI['reconnect']>,
+    remove: input => invoke('remove', input) as ReturnType<ExternalMCPAPI['remove']>,
     test: input => invoke('test', input) as ReturnType<ExternalMCPAPI['test']>,
     copy: input => invoke('copy', input) as ReturnType<ExternalMCPAPI['copy']>
   }

@@ -92,8 +92,50 @@ export function createExternalMCPConfig(paths: ExternalMCPPaths, launch: MCPLaun
       return { ...base, state: code === 'CONFIG_INVALID' ? 'invalid' : 'unavailable', error: code }
     }
   }
+  function write(target: ExternalMCPTarget, saved: ReturnType<typeof snapshot>, body: string) {
+    const path = pathFor(target)
+    document(target, body)
+    mkdirSync(dirname(saved.actual), { recursive: true })
+    const temporary = `${saved.actual}.${randomUUID()}.tmp`
+    let backupPath: string | undefined
+    try {
+      writeFileSync(temporary, body, { mode: 0o600, flag: 'wx' })
+      if (snapshot(path).revision !== saved.revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
+      if (saved.body !== undefined) {
+        backupPath = `${saved.actual}.${randomUUID()}.bak`
+        writeFileSync(backupPath, saved.body, { mode: 0o600, flag: 'wx' })
+      }
+      if (snapshot(path).revision !== saved.revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
+      renameSync(temporary, saved.actual)
+    } finally {
+      try { unlinkSync(temporary) } catch { /* A successful rename removes the temporary file. */ }
+    }
+    return { status: inspect(target), ...(backupPath ? { backupPath } : {}) }
+  }
   return {
     inspect,
+    reconnect(target: ExternalMCPTarget, revision: string) {
+      const saved = snapshot(pathFor(target))
+      if (saved.revision !== revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
+      const { servers } = document(target, saved.body)
+      if (!matches(target, servers[serverName], launch)) throw new ExternalMCPFailure('REPLACE_REQUIRED')
+      // Re-publish the reviewed configuration so host file watchers can reload it.
+      // Preserve policy fields and original text rather than replacing a matching entry.
+      return write(target, saved, saved.body!)
+    },
+    remove(target: ExternalMCPTarget, revision: string) {
+      const saved = snapshot(pathFor(target))
+      if (saved.revision !== revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
+      const parsed = document(target, saved.body)
+      if (!Object.hasOwn(parsed.servers, serverName)) return { status: inspect(target) }
+      let body: string
+      if (target === 'codex') {
+        delete parsed.servers[serverName]
+        parsed.value[parsed.key] = parsed.servers
+        body = stringifyTOML(parsed.value, { numbersAsFloat: true })
+      } else body = applyEdits(saved.body!, modify(saved.body!, [parsed.key, serverName], undefined, {}))
+      return write(target, saved, body)
+    },
     install(target: ExternalMCPTarget, revision: string, replace: boolean) {
       const path = pathFor(target), saved = snapshot(path)
       if (saved.revision !== revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
@@ -110,23 +152,7 @@ export function createExternalMCPConfig(paths: ExternalMCPPaths, launch: MCPLaun
         body = applyEdits(saved.body ?? '{}', modify(saved.body ?? '{}', [parsed.key, serverName], next,
           { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' } }))
       }
-      document(target, body)
-      mkdirSync(dirname(saved.actual), { recursive: true })
-      const temporary = `${saved.actual}.${randomUUID()}.tmp`
-      let backupPath: string | undefined
-      try {
-        writeFileSync(temporary, body, { mode: 0o600, flag: 'wx' })
-        if (snapshot(path).revision !== saved.revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
-        if (saved.body !== undefined) {
-          backupPath = `${saved.actual}.${randomUUID()}.bak`
-          writeFileSync(backupPath, saved.body, { mode: 0o600, flag: 'wx' })
-        }
-        if (snapshot(path).revision !== saved.revision) throw new ExternalMCPFailure('CONFIG_CHANGED')
-        renameSync(temporary, saved.actual)
-      } finally {
-        try { unlinkSync(temporary) } catch { /* A successful rename removes the temporary file. */ }
-      }
-      return { status: inspect(target), ...(backupPath ? { backupPath } : {}) }
+      return write(target, saved, body)
     }
   }
 }

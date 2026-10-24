@@ -386,11 +386,11 @@
               <p>Static reference: Codex, Claude Code and Cursor user-wide MCP configuration and separate Skills installation.</p>
               <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
               <p><span class="badge badge-success">Configured</span></p>
-              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn" disabled>Test connection</button><button class="btn" disabled>Copy configuration</button></div>
+              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
               <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
               <dl class="ui-details-list"><div><dt>Skills installation directory</dt><dd>~/.agents/skills</dd></div><div><dt>capture-job</dt><dd><span class="badge badge-success">Installed</span></dd></div><div><dt>manage-applications</dt><dd><span class="badge">Not installed</span></dd></div><div><dt>tailor-resume</dt><dd><span class="badge">Different content</span></dd></div></dl>
-              <div class="settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Open Skills folder</button></div>
-              <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Completed and pending items have separate feedback; installation does not verify Agent discovery.</p>
+              <div class="settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
+              <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Delete one Skill from its row or delete all three after confirmation. Completed and pending items have separate feedback; reload the host to update its loaded configuration and Skills.</p>
               <label class="field"><span class="field-label">Other Agents: stdio MCP configuration</span><textarea class="control" rows="4" readonly>{ "mcpServers": { "job_agent_browser": { "command": "/absolute/path/Electron", "args": ["/absolute/path/job-agent-mcp.js"], "env": { "ELECTRON_RUN_AS_NODE": "1", "JOB_BROWSER_USER_DATA": "/absolute/path/user-data", "JOB_BROWSER_MCP_CALLER": "mcp-client", "JOB_BROWSER_ELECTRON": "/absolute/path/Electron" } } } }</textarea></label>
               <p>A different existing entry requires confirmation: Cancel / Back up and replace. Paths wrap; busy actions are disabled.</p>
             </section>

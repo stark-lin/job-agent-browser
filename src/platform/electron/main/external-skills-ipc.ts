@@ -12,7 +12,7 @@ export function registerExternalSkillsIPC(service: ExternalSkillsInstaller, rend
     if (!trustedDataSender({ windowOwned: Boolean(BrowserWindow.fromWebContents(sender)), mainFrame: frame === sender.mainFrame,
       url: frame?.url ?? '' }, expectedURL)) return { ok: false, error: 'FORBIDDEN' }
     try {
-      if (method === 'inspect' || method === 'install' || method === 'openBundle') return { ok: true, value: await service[method](input) }
+      if (method === 'inspect' || method === 'install' || method === 'reconnect' || method === 'remove' || method === 'openBundle') return { ok: true, value: await service[method](input) }
       return { ok: false, error: 'INVALID_INPUT' }
     } catch (error) { return { ok: false, error: skillsError(error) } }
   })

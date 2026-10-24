@@ -25,6 +25,7 @@
     "test:agent": "node scripts/test.cjs --agent && npm run build && node scripts/run-agent-smoke.cjs",
     "test:profile": "node scripts/test.cjs --agent && npm run build && node scripts/run-agent-smoke.cjs --profile",
     "test:mcp-server": "node scripts/test.cjs --mcp-server && npm run build && node scripts/run-mcp-server-smoke.cjs",
+    "test:integrations": "npm run build && node scripts/run-external-integrations-smoke.cjs",
     "skill:link": "node scripts/install-skills.cjs",
     "test:ask-ai": "node scripts/test.cjs --ask-ai && npm run build && node scripts/run-ask-ai-smoke.cjs"
   },

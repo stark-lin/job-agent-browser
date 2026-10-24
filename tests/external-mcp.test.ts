@@ -24,6 +24,44 @@ function save(path: string, body: string) { mkdirSync(dirname(path), { recursive
 const decode = (target: ExternalMCPTarget, body: string): Record<string, unknown> => target === 'codex' ? parseTOML(body, { integersAsBigInt: true }) : parseJSONC(body)
 
 for (const target of externalMCPTargets) {
+  test(`${target}: reconnect republishes reviewed configuration and removal retains unrelated settings with backups`, t => {
+    const f = fixture(t), path = externalMCPPath(target, f)
+    assert.equal(f.config.remove(target, f.config.inspect(target).revision).status.state, 'missing')
+    assert(!existsSync(path))
+    const installed = f.config.install(target, f.config.inspect(target).revision, false)
+    const original = readFileSync(path, 'utf8')
+    const connected = f.config.reconnect(target, installed.status.revision)
+    assert.notEqual(connected.status.revision, installed.status.revision)
+    assert.equal(readFileSync(path, 'utf8'), original)
+    assert.equal(readFileSync(connected.backupPath!, 'utf8'), original)
+    assert.throws(() => f.config.remove(target, installed.status.revision), { code: 'CONFIG_CHANGED' })
+    const prefix = target === 'codex' ? 'model = "keep"\n[mcp_servers.unrelated]\ncommand = "keep"\n' : undefined
+    save(path, target === 'codex' ? prefix + original : JSON.stringify({ keep: true,
+      mcpServers: { unrelated: { command: 'keep' }, job_agent_browser: externalMCPEntry(target, f.launch) } }))
+    const before = readFileSync(path, 'utf8'), removed = f.config.remove(target, f.config.inspect(target).revision)
+    assert.equal(removed.status.state, 'missing')
+    assert.equal(readFileSync(removed.backupPath!, 'utf8'), before)
+    const remaining = decode(target, readFileSync(path, 'utf8'))
+    assert.deepEqual(JSON.parse(JSON.stringify(remaining[target === 'codex' ? 'mcp_servers' : 'mcpServers'])), { unrelated: { command: 'keep' } })
+    assert.equal(remaining[target === 'codex' ? 'model' : 'keep'], target === 'codex' ? 'keep' : true)
+    assert.throws(() => f.config.reconnect(target, removed.status.revision), { code: 'REPLACE_REQUIRED' })
+    assert.equal(f.config.remove(target, removed.status.revision).backupPath, undefined)
+  })
+}
+
+test('lifecycle requests reject arbitrary inputs and removal needs no runnable service', async t => {
+  const f = fixture(t)
+  const service = createExternalMCPInstaller({ ...f, directory: f.home, bundleDirectory: f.home, executable: '/not-installed', writeClipboard() {} })
+  const status = service.inspect({}).clients[0]
+  assert.equal(service.remove({ target: 'codex', revision: status.revision }).status.state, 'missing')
+  for (const request of [{ target: 'other', revision: status.revision }, { target: 'codex', revision: 'bad' },
+    { target: 'codex', revision: status.revision, path: '/arbitrary' }]) {
+    assert.throws(() => service.remove(request), { code: 'INVALID_INPUT' })
+    await assert.rejects(service.reconnect(1, request), { code: 'INVALID_INPUT' })
+  }
+})
+
+for (const target of externalMCPTargets) {
   test(`${target}: global installation preserves other settings, backs up originals and is idempotent`, t => {
     const f = fixture(t), path = externalMCPPath(target, f)
     assert.equal(f.config.inspect(target).state, 'missing')
@@ -169,6 +207,14 @@ test('real generated stdio configuration discovers the public tools without busi
   assert.equal(f.outputs(), 0)
   assert.deepEqual(f.backend.dispatch('audit', 'list', {}), before)
   await assert.rejects(client!.listTools(), { code: 'TOOL_UNAVAILABLE' })
+  const current = service.inspect({}).clients[0]
+  const reconnect = await service.reconnect(1, { target: 'codex', revision: current.revision })
+  assert.equal(reconnect.toolCount, jobAgentAllowlist.length)
+  assert.equal(reconnect.error, undefined)
+  assert.equal(f.outputs(), 0)
+  assert.deepEqual(f.backend.dispatch('audit', 'list', {}), before)
+  assert(reconnect.backupPath)
+  assert.equal(service.remove({ target: 'codex', revision: reconnect.status.revision }).status.state, 'missing')
   await assert.rejects(service.test(1, { target: 'other' }), { code: 'INVALID_INPUT' })
 })
 
@@ -187,16 +233,35 @@ test('failed discovery is sanitized and the client closes; owner disposal aborts
   service.install({ target: status.target, revision: status.revision, replace: false })
   await assert.rejects(service.test(1, { target: 'codex' }), { code: 'CONNECTION_FAILED' })
   const pending = service.test(2, { target: 'codex' })
-  service.disposeOwner(2)
+  service.remove({ target: 'codex', revision: service.inspect({}).clients[0].revision })
   await assert.rejects(pending, { code: 'CONNECTION_FAILED' })
   assert.equal(closed, 2)
   service.dispose()
 })
 
-test('preload exposes only the four named setup operations', async () => {
+test('failed reconnect reports saved configuration separately from discovery failure', async t => {
+  const f = fixture(t)
+  for (const name of ['database.sqlite', 'job-agent-mcp.js', 'resume-output-worker.js']) writeFileSync(join(f.home, name), '')
+  let closed = false
+  const service = createExternalMCPInstaller({ ...f, directory: f.home, bundleDirectory: f.home, executable: process.execPath,
+    writeClipboard() {}, clientFactory: () => ({ async connect() { throw new Error('private process output') },
+      async listTools() { return [] }, async callTool() { throw new Error('business tools must not be called') }, async close() { closed = true } }) })
+  const installed = service.install({ target: 'codex', revision: service.inspect({}).clients[0].revision, replace: false })
+  const result = await service.reconnect(1, { target: 'codex', revision: installed.status.revision })
+  assert.equal(result.status.state, 'configured')
+  assert.equal(result.error, 'CONNECTION_FAILED')
+  assert.equal(result.toolCount, undefined)
+  assert(result.backupPath)
+  assert(closed)
+  assert(!JSON.stringify(result).includes('private process output'))
+})
+
+test('preload exposes only the named setup and lifecycle operations', async () => {
   const calls: unknown[] = []
   const bridge = createExternalMCPBridge(async (method, input) => { calls.push([method, input]); return { ok: true, value: null } })
-  assert.deepEqual(Object.keys(bridge), ['inspect', 'install', 'test', 'copy'])
+  assert.deepEqual(Object.keys(bridge), ['inspect', 'install', 'reconnect', 'remove', 'test', 'copy'])
   await bridge.inspect({}); await bridge.copy({ target: 'other' })
-  assert.deepEqual(calls, [['inspect', {}], ['copy', { target: 'other' }]])
+  const change = { target: 'codex' as const, revision: 'a'.repeat(64) }
+  await bridge.reconnect(change); await bridge.remove(change)
+  assert.deepEqual(calls, [['inspect', {}], ['copy', { target: 'other' }], ['reconnect', change], ['remove', change]])
 })

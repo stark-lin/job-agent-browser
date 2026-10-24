@@ -1,8 +1,8 @@
 import { accessSync, constants, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { externalMCPTargets, type ExternalMCPTarget } from '../../shared/external-mcp'
+import { externalMCPTargets, type ExternalMCPTarget, type ExternalMCPReconnectResult } from '../../shared/external-mcp'
 import { createMCPClient, type MCPClient } from './client'
-import { createExternalMCPConfig, ExternalMCPFailure, externalMCPEntry, externalMCPText, mcpInput, mcpTarget, type MCPLaunch } from './external-config'
+import { createExternalMCPConfig, externalMCPError, ExternalMCPFailure, externalMCPEntry, externalMCPText, mcpInput, mcpTarget, type MCPLaunch } from './external-config'
 
 export function createExternalMCPInstaller(options: {
   home: string; codexHome?: string; directory: string; bundleDirectory: string; executable: string
@@ -13,7 +13,7 @@ export function createExternalMCPInstaller(options: {
     ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: options.directory, JOB_BROWSER_ELECTRON: options.executable
   } }
   const config = createExternalMCPConfig(options, launch)
-  const pending = new Map<number, AbortController>()
+  const pending = new Map<number, { target: ExternalMCPTarget; controller: AbortController }>()
   const clients = new Set<MCPClient>()
   function runtimeReady() {
     try {
@@ -23,7 +23,12 @@ export function createExternalMCPInstaller(options: {
       }
     } catch { throw new ExternalMCPFailure('RUNTIME_UNAVAILABLE') }
   }
-  return {
+  function change(input: unknown) {
+    const value = mcpInput(input, ['target', 'revision']), target = mcpTarget(value.target)
+    if (typeof value.revision !== 'string' || !/^[a-f0-9]{64}$/.test(value.revision)) throw new ExternalMCPFailure('INVALID_INPUT')
+    return { target, revision: value.revision }
+  }
+  const service = {
     inspect(input: unknown) {
       mcpInput(input, [])
       return { clients: externalMCPTargets.map(config.inspect), genericConfig: externalMCPText('other', launch) }
@@ -36,6 +41,18 @@ export function createExternalMCPInstaller(options: {
       runtimeReady()
       return config.install(target, value.revision, value.replace)
     },
+    async reconnect(owner: number, input: unknown): Promise<ExternalMCPReconnectResult> {
+      const { target, revision } = change(input)
+      runtimeReady()
+      const result = config.reconnect(target, revision)
+      try { return { ...result, ...await service.test(owner, { target }) } }
+      catch (error) { return { ...result, error: externalMCPError(error) } }
+    },
+    remove(input: unknown) {
+      const { target, revision } = change(input), result = config.remove(target, revision)
+      for (const work of pending.values()) if (work.target === target) work.controller.abort()
+      return result
+    },
     async copy(input: unknown) {
       const value = mcpInput(input, ['target'])
       const target = value.target === 'other' ? 'other' : mcpTarget(value.target)
@@ -47,9 +64,9 @@ export function createExternalMCPInstaller(options: {
       const target: ExternalMCPTarget = mcpTarget(mcpInput(input, ['target']).target)
       if (config.inspect(target).state !== 'configured') throw new ExternalMCPFailure('REPLACE_REQUIRED')
       runtimeReady()
-      pending.get(owner)?.abort()
+      pending.get(owner)?.controller.abort()
       const controller = new AbortController()
-      pending.set(owner, controller)
+      pending.set(owner, { target, controller })
       const entry = externalMCPEntry(target, launch)
       let client: MCPClient | undefined
       try {
@@ -64,15 +81,16 @@ export function createExternalMCPInstaller(options: {
       } catch { throw new ExternalMCPFailure('CONNECTION_FAILED') }
       finally {
         try { await client?.close() }
-        finally { if (client) clients.delete(client); if (pending.get(owner) === controller) pending.delete(owner) }
+        finally { if (client) clients.delete(client); if (pending.get(owner)?.controller === controller) pending.delete(owner) }
       }
     },
-    disposeOwner(owner: number) { pending.get(owner)?.abort(); pending.delete(owner) },
+    disposeOwner(owner: number) { pending.get(owner)?.controller.abort(); pending.delete(owner) },
     async dispose() {
-      for (const controller of pending.values()) controller.abort()
+      for (const { controller } of pending.values()) controller.abort()
       pending.clear()
       await Promise.allSettled([...clients].map(client => client.close()))
     }
   }
+  return service
 }
 export type ExternalMCPInstaller = ReturnType<typeof createExternalMCPInstaller>

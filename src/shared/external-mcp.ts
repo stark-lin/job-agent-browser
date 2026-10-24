@@ -17,9 +17,14 @@ export interface ExternalMCPStatus {
 }
 export interface ExternalMCPInspection { clients: ExternalMCPStatus[]; genericConfig: string }
 export interface ExternalMCPInstall { target: ExternalMCPTarget; revision: string; replace: boolean }
+export type ExternalMCPChange = Pick<ExternalMCPInstall, 'target' | 'revision'>
+export interface ExternalMCPChangeResult { status: ExternalMCPStatus; backupPath?: string }
+export interface ExternalMCPReconnectResult extends ExternalMCPChangeResult { toolCount?: number; error?: ExternalMCPError }
 export interface ExternalMCPAPI {
   inspect(input: Record<string, never>): Promise<Result<ExternalMCPInspection, ExternalMCPError>>
   install(input: ExternalMCPInstall): Promise<Result<{ status: ExternalMCPStatus; backupPath?: string }, ExternalMCPError>>
+  reconnect(input: ExternalMCPChange): Promise<Result<ExternalMCPReconnectResult, ExternalMCPError>>
+  remove(input: ExternalMCPChange): Promise<Result<ExternalMCPChangeResult, ExternalMCPError>>
   test(input: { target: ExternalMCPTarget }): Promise<Result<{ toolCount: number }, ExternalMCPError>>
   copy(input: { target: ExternalMCPTarget | 'other' }): Promise<Result<null, ExternalMCPError>>
 }

@@ -6,13 +6,14 @@ import { useExternalSkills } from './useExternalSkills'
 import { ExternalSkillsBundle, ExternalSkillsConfirmation, ExternalSkillsControls } from './ExternalSkillsSettings'
 
 const names = { codex: 'Codex', 'claude-code': 'Claude Code', cursor: 'Cursor' }
-type Feedback = { error?: ExternalMCPError; saved?: boolean; copied?: boolean; toolCount?: number; backupPath?: string }
+type Feedback = { error?: ExternalMCPError; saved?: boolean; copied?: boolean; removed?: boolean; reconnected?: boolean; toolCount?: number; backupPath?: string }
 export function ExternalMCPSettings() {
   const { t } = useTranslation()
   const skills = useExternalSkills()
   const [inspection, setInspection] = useState<ExternalMCPInspection | null>(null)
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState<ExternalMCPError | null>(null)
   const [busy, setBusy] = useState<string | null>(null), [confirm, setConfirm] = useState<ExternalMCPStatus | null>(null)
+  const [removal, setRemoval] = useState<ExternalMCPStatus | null>(null)
   const [feedback, setFeedback] = useState<Partial<Record<ExternalMCPTarget | 'other', Feedback>>>({})
   const generation = useRef(0), alive = useRef(true), working = useRef(false)
   const disabled = Boolean(busy || skills.busy) || loading || skills.loading
@@ -32,16 +33,19 @@ export function ExternalMCPSettings() {
     void refresh()
     return () => { alive.current = false; generation.current++ }
   }, [])
-  async function action(target: ExternalMCPTarget | 'other', operation: 'install' | 'test' | 'copy', status?: ExternalMCPStatus, replace = false) {
+  async function action(target: ExternalMCPTarget | 'other', operation: 'install' | 'reconnect' | 'remove' | 'test' | 'copy', status?: ExternalMCPStatus, replace = false) {
     if (working.current) return
     working.current = true
     setBusy(`${target}:${operation}`); setFeedback(previous => ({ ...previous, [target]: {} }))
     try {
       let next: Feedback
-      if (operation === 'install' && target !== 'other' && status) {
-        const result = await window.externalMCP.install({ target, revision: status.revision, replace })
+      if ((operation === 'install' || operation === 'reconnect' || operation === 'remove') && target !== 'other' && status) {
+        const request = { target, revision: status.revision }
+        const result: Awaited<ReturnType<typeof window.externalMCP.reconnect>> = operation === 'install' ? await window.externalMCP.install({ ...request, replace })
+          : operation === 'reconnect' ? await window.externalMCP.reconnect(request) : await window.externalMCP.remove(request)
         if (result.ok) {
-          next = { saved: true, backupPath: result.value.backupPath }
+          next = { saved: operation === 'install', removed: operation === 'remove', reconnected: operation === 'reconnect', backupPath: result.value.backupPath,
+            toolCount: result.value.toolCount, error: result.value.error }
           if (alive.current) setInspection(previous => previous && ({ ...previous,
             clients: previous.clients.map(client => client.target === target ? result.value.status : client) }))
         } else {
@@ -64,6 +68,8 @@ export function ExternalMCPSettings() {
     return <>
       {notice?.error && <StatusMessage tone="error">{t($ => $.externalMCP.errors[notice.error!])}</StatusMessage>}
       {notice?.saved && <StatusMessage tone="success">{t($ => $.externalMCP.saved)}</StatusMessage>}
+      {notice?.removed && <StatusMessage tone="success">{t($ => $.externalMCP.removed)}</StatusMessage>}
+      {notice?.reconnected && <StatusMessage tone={notice.error ? 'info' : 'success'}>{t($ => notice.error ? $.externalMCP.reconnectSaved : $.externalMCP.reconnected)}</StatusMessage>}
       {notice?.copied && <StatusMessage tone="success">{t($ => $.externalMCP.copied)}</StatusMessage>}
       {notice?.toolCount !== undefined && <StatusMessage tone="success">{t($ => $.externalMCP.connected, { count: notice.toolCount })}</StatusMessage>}
       {notice?.backupPath && <DetailsList items={[{ label: t($ => $.externalMCP.backup), value: notice.backupPath }]} />}
@@ -88,14 +94,15 @@ export function ExternalMCPSettings() {
               else void action(status.target, 'install', status)
             }}>{busy === `${status.target}:install` ? t($ => $.externalMCP.installing) : status.state === 'different' ? t($ => $.externalMCP.replace) : t($ => $.externalMCP.add)}</Button>
             <Button data-mcp-test disabled={disabled || status.state !== 'configured'} onClick={() => void action(status.target, 'test')}>{busy === `${status.target}:test` ? t($ => $.settings.testing) : t($ => $.settings.testConnection)}</Button>
+            <Button data-mcp-reconnect disabled={disabled || status.state !== 'configured'} onClick={() => void action(status.target, 'reconnect', status)}>{busy === `${status.target}:reconnect` ? t($ => $.externalMCP.reconnecting) : t($ => $.externalMCP.reconnect)}</Button>
+            <Button data-mcp-remove variant="danger" disabled={disabled || status.state === 'missing' || Boolean(status.error)} onClick={() => setRemoval(status)}>{t($ => $.externalMCP.remove)}</Button>
             <Button data-mcp-copy disabled={disabled} onClick={() => void action(status.target, 'copy')}>{t($ => $.externalMCP.copy)}</Button>
           </div>
           {messages(status.target)}
           {skills.inspection?.clients.filter(client => client.target === status.target).map(client => <ExternalSkillsControls key={client.target}
-            status={client} outcome={skills.outcomes[client.target]} disabled={disabled} busy={skills.busy === client.target} onInstall={() => {
-              if (client.skills.some(skill => skill.state === 'different')) skills.setConfirm(client)
-              else void skills.install(client)
-            }} />)}
+            status={client} outcome={skills.outcomes[client.target]} disabled={disabled} busy={skills.busy === client.target}
+            onInstall={() => skills.requestInstall(client)} onReconnect={() => skills.requestInstall(client, 'reconnect')}
+            onRemove={names => skills.setRemoval({ status: client, names })} />)}
         </div>
       </SectionCard>)}
       {inspection && <SectionCard data-agent-target="other" title={t($ => $.externalMCP.other)} description={t($ => $.externalMCP.otherHelp)}>
@@ -111,6 +118,11 @@ export function ExternalMCPSettings() {
       onClose={() => setConfirm(null)} content={confirm && <DetailsList items={[{ label: t($ => $.externalMCP.path), value: confirm.path }]} />}>
       <Button autoFocus onClick={() => setConfirm(null)}>{t($ => $.settings.cancel)}</Button>
       <Button data-mcp-confirm variant="danger" onClick={() => { if (confirm) void action(confirm.target, 'install', confirm, true); setConfirm(null) }}>{t($ => $.externalMCP.confirmReplace)}</Button>
+    </Dialog>
+    <Dialog open={Boolean(removal)} title={t($ => $.externalMCP.removeTitle)} description={t($ => $.externalMCP.removeHelp, { agent: removal ? names[removal.target] : '' })}
+      onClose={() => setRemoval(null)} content={removal && <DetailsList items={[{ label: t($ => $.externalMCP.path), value: removal.path }]} />}>
+      <Button autoFocus onClick={() => setRemoval(null)}>{t($ => $.settings.cancel)}</Button>
+      <Button data-mcp-remove-confirm variant="danger" onClick={() => { if (removal) void action(removal.target, 'remove', removal); setRemoval(null) }}>{t($ => $.externalMCP.confirmRemove)}</Button>
     </Dialog>
     <ExternalSkillsConfirmation skills={skills} />
   </SectionCard>

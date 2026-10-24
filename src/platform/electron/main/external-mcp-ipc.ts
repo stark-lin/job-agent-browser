@@ -12,8 +12,8 @@ export function registerExternalMCPIPC(service: ExternalMCPInstaller, rendererPa
     if (!trustedDataSender({ windowOwned: Boolean(BrowserWindow.fromWebContents(sender)), mainFrame: frame === sender.mainFrame,
       url: frame?.url ?? '' }, expectedURL)) return { ok: false, error: 'FORBIDDEN' }
     try {
-      if (method === 'test') return { ok: true, value: await service.test(sender.id, input) }
-      if (method === 'inspect' || method === 'install' || method === 'copy') return { ok: true, value: await service[method](input) }
+      if (method === 'test' || method === 'reconnect') return { ok: true, value: await service[method](sender.id, input) }
+      if (method === 'inspect' || method === 'install' || method === 'remove' || method === 'copy') return { ok: true, value: await service[method](input) }
       return { ok: false, error: 'INVALID_INPUT' }
     } catch (error) { return { ok: false, error: externalMCPError(error) } }
   })

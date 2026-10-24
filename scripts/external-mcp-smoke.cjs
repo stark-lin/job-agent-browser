@@ -70,6 +70,7 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   }
   const size = window.getContentSize(), minimum = window.getMinimumSize()
   await require('./external-skills-smoke.cjs')({ window, evaluate, waitFor })
+  await require('./external-integrations-lifecycle-smoke.cjs')({ evaluate, waitFor, capture })
   window.setMinimumSize(320, 320)
   try {
     for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {

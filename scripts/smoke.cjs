@@ -55,10 +55,10 @@ app.on('browser-window-created', (_event, window) => {
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','profiles','applyImport',{})"), { ok: false, error: 'FORBIDDEN' })
       await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender|不可信的 IPC 发送方/)
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('resume:call','start',{})"), { ok: false, error: 'FORBIDDEN' })
-      for (const method of ['inspect', 'install', 'test', 'copy']) {
+      for (const method of ['inspect', 'install', 'reconnect', 'remove', 'test', 'copy']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('external-mcp:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
       }
-      for (const method of ['inspect', 'install', 'openBundle']) {
+      for (const method of ['inspect', 'install', 'reconnect', 'remove', 'openBundle']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('external-skills:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
       }
       await require('./window-close-smoke.cjs')(window)

@@ -6,7 +6,7 @@ export const externalSkillNames = ['capture-job', 'manage-applications', 'tailor
 export type ExternalSkillName = typeof externalSkillNames[number]
 export type ExternalSkillState = 'missing' | 'installed' | 'different' | 'unavailable'
 export const externalSkillsErrors = ['INVALID_INPUT', 'FORBIDDEN', 'SKILLS_UNAVAILABLE', 'SKILLS_CHANGED',
-  'REPLACE_REQUIRED', 'INSTALL_FAILED', 'OPEN_FAILED'] as const
+  'REPLACE_REQUIRED', 'INSTALL_FAILED', 'REMOVE_FAILED', 'OPEN_FAILED'] as const
 export type ExternalSkillsError = typeof externalSkillsErrors[number]
 export interface ExternalSkillStatus { name: ExternalSkillName; state: ExternalSkillState }
 export interface ExternalSkillsStatus {
@@ -19,6 +19,7 @@ export interface ExternalSkillsStatus {
 export interface ExternalSkillsInspection { clients: ExternalSkillsStatus[] }
 export interface ExternalSkillsInstall { target: ExternalMCPTarget; revision: string; replace: boolean }
 export interface ExternalSkillsOutcome {
+  operation: 'install' | 'reconnect' | 'remove'
   status: ExternalSkillsStatus
   completed: ExternalSkillName[]
   pending: ExternalSkillName[]
@@ -27,5 +28,7 @@ export interface ExternalSkillsOutcome {
 export interface ExternalSkillsAPI {
   inspect(input: Record<string, never>): Promise<Result<ExternalSkillsInspection, ExternalSkillsError>>
   install(input: ExternalSkillsInstall): Promise<Result<ExternalSkillsOutcome, ExternalSkillsError>>
+  reconnect(input: ExternalSkillsInstall): Promise<Result<ExternalSkillsOutcome, ExternalSkillsError>>
+  remove(input: { target: ExternalMCPTarget; revision: string; names: ExternalSkillName[] }): Promise<Result<ExternalSkillsOutcome, ExternalSkillsError>>
   openBundle(input: Record<string, never>): Promise<Result<null, ExternalSkillsError>>
 }
