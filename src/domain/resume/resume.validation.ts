@@ -10,7 +10,8 @@ export const config = v.object({ templateId: v.optional(v.choice(['default-v1'])
 const block = v.object({ id: v.id, text: v.text(20_000, 1), factIds: v.array(v.id, 1000) })
 const writingEntry = v.object({ profileItemId: v.id, bullets: v.array(block, 100) })
 export const writing = v.object({ summary: v.nullable(block), experience: v.array(writingEntry, 200), projects: v.array(writingEntry, 200), education: v.array(writingEntry, 200), skills: v.array(block, 200) })
-const entry = v.object({ profileItemId: v.id, title: v.text(500, 1), organization: v.text(300), role: v.text(300), location: v.text(1000),
+// Imported item titles may be empty; validateContent still requires exact snapshot metadata.
+const entry = v.object({ profileItemId: v.id, title: v.text(500), organization: v.text(300), role: v.text(300), location: v.text(1000),
   startDate: v.text(10), endDate: v.text(10), isCurrent: v.boolean, degree: v.text(200), major: v.text(200), gpa: v.text(50), url: v.optionalUrl, bullets: v.array(block, 100) })
 const version: v.Parser<1> = input => { if (input !== 1) fail('INVALID_INPUT'); return 1 }
 export const content = v.object({ schemaVersion: version, language, basics: contact, summary: v.nullable(block), experience: v.array(entry, 200), projects: v.array(entry, 200), education: v.array(entry, 200), skills: v.array(block, 200) })

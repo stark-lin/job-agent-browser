@@ -63,6 +63,36 @@ test('gate rejection is terminal and cancellation is idempotent', async t => {
   const stopped = data<{ status: string }>(await f.scope.execute('resume.cancel', { runId: f.runId }))
   assert.equal(stopped.status, 'FAILED'); assert.equal(f.backend.artifactForRun(f.runId), null)
 })
+test('imported entries with empty titles survive draft, polish and publication unchanged', async t => {
+  const f = await resumeTools(t)
+  const types = ['EDUCATION', 'EXPERIENCE', 'PROJECT'] as const
+  const imported = value(await f.api.profiles.applyImport({ sessionId: randomUUID(), batchId: randomUUID(), profileId: f.profile.id,
+    contact: {}, links: [], items: types.map(type => ({ draftId: randomUUID(), details: { type, title: '', organization: `Saved ${type}`,
+      metadata: type === 'EDUCATION' ? { degree: 'Bachelor of Computer Science', isCurrent: true } : {} } })), facts: [] }))
+  const attached = await Promise.all(imported.items.map(item => f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: item.id,
+    details: { kind: 'OTHER', content: `Saved ${item.type} evidence` } }).then(value)))
+  const { runId } = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
+  const facts = [f.fact, ...attached]
+  const call = (name: string, args = {}) => f.scope.execute(name, { runId, ...args })
+  await call('resume.submit_scores', { language: 'en', scores: facts.map(fact => ({ factId: fact.id, score: 80, reason: '' })) })
+  await call('resume.submit_gate', { gate: { passed: true, reason: '', missingRequirements: [] } })
+  await call('resume.submit_selection', { selection: { factIds: facts.map(fact => fact.id), itemIds: [f.item.id, ...imported.items.map(item => item.id)], wordBudget: 500 } })
+  const entries = (type: typeof types[number]) => imported.items.filter(item => item.type === type).map(item => {
+    const fact = attached.find(fact => fact.profileItemId === item.id)!
+    return { profileItemId: item.id, bullets: [{ id: randomUUID(), text: fact.content, factIds: [fact.id] }] }
+  })
+  const writing = { summary: null, experience: entries('EXPERIENCE'), projects: entries('PROJECT'), education: entries('EDUCATION'), skills: [] }
+  await call('resume.submit_draft', { writing }); await call('resume.submit_polished', { writing })
+  const { artifact } = data<{ artifact: { content: { education: { title: string; organization: string; degree: string }[];
+    experience: { title: string }[]; projects: { title: string }[] } } }>(await call('resume.publish'))
+  assert.equal(artifact.content.education[0].title, '')
+  assert.equal(artifact.content.education[0].organization, 'Saved EDUCATION')
+  assert.equal(artifact.content.education[0].degree, 'Bachelor of Computer Science')
+  assert.equal(artifact.content.experience[0].title, '')
+  assert.equal(artifact.content.projects[0].title, '')
+  assert(imported.items.every(item => item.title === ''))
+})
+
 test('oversized snapshots are rejected before creation and bounded score submissions can exceed the generic 64 KiB limit', async t => {
   const f = await resumeTools(t)
   for (let i = 0; i < 150; i++) value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'SKILL', content: `Fact ${i}` } }))

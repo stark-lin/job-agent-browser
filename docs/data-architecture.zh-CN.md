@@ -65,7 +65,7 @@
 
 [运行租约](../src/platform/database/runtime-leases.ts)每 5 秒续期，30 秒后过期，并检测已退出的本地 PID。启动及后台恢复仅中断无归属/失效实例的任务和未结束审计。Repository 阻止过期/其他实例的生成写入；输出使用独立尝试 Token 及独立目录，排斥并发编辑/构建，并隔离文件替换。[共享输出服务](../src/platform/resume-output/service.ts)记录文件前校验 Token/内容。UI 查询只读并轮询外部活动；其他会话不能接管中断生成。
 
-[ResumeDocument](../src/domain/resume/resume.types.ts)是 draft/polished/Artifact 唯一结构：语言、应用复制的基本信息及条目元数据、summary、experience/projects/education bullet 及 skills。每条生成表述包含稳定 UUID、文字和非空 `factIds`。[校验](../src/domain/resume/resume.validation.ts)强制唯一 ID、入选快照引用、条目归属、基本信息不变及语言感知预算；中日韩字符逐字计数。润色不能新增表述 ID、条目或扩大草稿表述的引用。`artifact_facts` 从表述派生，调用方不再提交独立溯源。引用合法不代表语义真实；[人工核对样本](../tests/fixtures/resume-evidence.json)明确将虚构数字及扩张职责标为无证据支持。
+[ResumeDocument](../src/domain/resume/resume.types.ts)是 draft/polished/Artifact 唯一结构：语言、应用复制的基本信息及条目元数据、summary、experience/projects/education bullet 及 skills。每条生成表述包含稳定 UUID、文字和非空 `factIds`。[校验](../src/domain/resume/resume.validation.ts)强制唯一 ID、入选快照引用、条目归属、基本信息不变及语言感知预算；中日韩字符逐字计数。导入条目的标题可以在简历中保持为空；元数据仍须与冻结快照完全一致，不得补造占位文本。润色不能新增表述 ID、条目或扩大草稿表述的引用。`artifact_facts` 从表述派生，调用方不再提交独立溯源。引用合法不代表语义真实；[人工核对样本](../tests/fixtures/resume-evidence.json)明确将虚构数字及扩张职责标为无证据支持。
 
 [输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
 
