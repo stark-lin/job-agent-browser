@@ -7,7 +7,7 @@ import { storageError } from './errors'
 import { createCapabilityAudit } from './capability-audit'
 
 export type Actor = 'USER' | 'AI' | 'SYSTEM' | 'EXTERNAL'
-const identities = { USER: ['local-user', 'RENDERER'], AI: ['generation-service', 'GENERATOR'], SYSTEM: ['system', 'STARTUP'], EXTERNAL: ['codex', 'MCP_SERVER'] } as const
+const identities = { USER: ['local-user', 'RENDERER'], AI: ['generation-service', 'GENERATOR'], SYSTEM: ['system', 'STARTUP'], EXTERNAL: ['mcp-client', 'MCP_SERVER'] } as const
 interface Context extends Omit<Command, 'target'> {
   target: AuditTargetType
   active: 'SUCCESS' | 'FAILURE'; requestId: string; transactionId: string; actorId: string; source: string
@@ -49,15 +49,16 @@ export class Transactions {
 
   /** Main-internal capability. No payload, provider configuration or arbitrary audit fields accepted. */
   recordAI(requestId: string, error: ErrorCode | null): void { this.recordModel(requestId, error, false) }
-  recordAgentModel(requestId: string, error: ErrorCode | null): void { this.recordModel(requestId, error, true) }
-  private recordModel(requestId: string, error: ErrorCode | null, agent: boolean): void {
+  recordAgentModel(requestId: string, error: ErrorCode | null, agentId = 'internal.resume'): void { this.recordModel(requestId, error, true, agentId) }
+  private recordModel(requestId: string, error: ErrorCode | null, agent: boolean, agentId = 'local-user'): void {
     id(requestId)
+    if (!/^[a-z][a-z0-9_.-]{0,63}$/.test(agentId)) throw new DataError('INVALID_INPUT')
     if (this.context || this.db.isTransaction) throw new DataError('INVALID_STATE')
     const allowed: readonly ErrorCode[] = ['INVALID_INPUT', 'ENCRYPTION_UNAVAILABLE', 'STORAGE_UNAVAILABLE', 'AI_NOT_CONFIGURED',
       'AI_AUTH_FAILED', 'AI_RATE_LIMITED', 'AI_PROVIDER_FAILED', 'AI_PROTOCOL_ERROR', 'AI_CONNECT_FAILED', 'AI_TIMEOUT', 'AI_CANCELLED']
     if (error !== null && !allowed.includes(error)) throw new DataError('INVALID_INPUT')
     const context: Context = { event: agent ? 'AGENT_MODEL_RESULT' : 'AI_STREAM_START', action: 'CREATE', target: 'ai_request', targetId: requestId,
-      active: error === null ? 'SUCCESS' : 'FAILURE', actorId: agent ? 'resume-agent' : 'local-user', source: agent ? 'GENERATOR' : 'AI_CLIENT', requestId, transactionId: randomUUID() }
+      active: error === null ? 'SUCCESS' : 'FAILURE', actorId: agentId, source: agent ? 'GENERATOR' : 'AI_CLIENT', requestId, transactionId: randomUUID() }
     this.context = context
     try {
       this.db.exec('BEGIN IMMEDIATE')

@@ -33,10 +33,9 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     request.resume(); request.on('end', () => {
       aiCalls++
       const output = malformed ? '{"id":"forbidden","title":"Bad output"}' : JSON.stringify(parsed)
-      const chunk = content => `data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: 'stop' }] })}\n\n`
-      response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-      if (slow) response.write(': waiting\n\n')
-      else response.end(chunk(output) + 'data: [DONE]\n\n')
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      if (slow) response.write('{"choices":')
+      else response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: output } }] }))
     })
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -112,7 +111,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
         }
       }
     }
-    console.log('Job smoke passed: manual/URL import, real HTML/SSE, restrictions, invalid output, cancel/retry, protected manual fields, NOT_STARTED save/source/details, list search/pagination/reload and bilingual theme/layout.')
+    console.log('Job smoke passed: manual/URL import, real HTML/AgentModel JSON, restrictions, invalid output, cancel/retry, protected manual fields, NOT_STARTED save/source/details, list search/pagination/reload and bilingual theme/layout.')
   } finally {
     dialog.showMessageBox = oldMessage
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)

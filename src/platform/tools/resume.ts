@@ -1,26 +1,22 @@
-import type { GenerationConfig, GenerationRun } from '../../domain/resume/resume.types'
+import type { GenerationRun } from '../../domain/resume/resume.types'
 import { isDeepStrictEqual } from 'node:util'
 import { materializeDocument, documentProvenance } from '../../domain/resume/document'
 import * as check from '../../domain/resume/resume.validation'
 import { DataError, fail } from '../../domain/common/errors'
-import { resumeReadTools, resumeSubmitTools } from '../../domain/resume/workflow'
 import type { composeBackend } from '../database/backend'
 import type { JsonSchema, JsonValue, RegisteredTool, ToolDescriptor, ToolExecutionContext } from '../../shared/tools/tool.types'
-import { createToolRegistry } from '../../shared/tools/registry'
 import { ToolError } from '../../shared/tools/errors'
 import { jsonCopy } from './schema'
 import { schemas } from './resume-schema'
 
-export const resumeAllowlist = ['job.list', 'profile.list', 'resume.start', ...resumeReadTools, ...resumeSubmitTools,
-  'resume.publish', 'resume.cancel', 'artifact.build', 'artifact.get'] as const
 type Backend = ReturnType<typeof composeBackend>
 type Args = Record<string, unknown> & { runId: string }
 const output = (value: unknown) => ({ content: [], structuredContent: value as JsonValue })
 const state = (run: GenerationRun) => ({ runId: run.id, status: run.status, stage: run.stage, language: run.language, error: run.error })
 
-/** The sole resume binding layer: both internal controllers and MCP execute these handlers. */
-export function createResumeTooling(backend: Backend, build: (id: string, signal: AbortSignal) => Promise<unknown>, config: Partial<GenerationConfig> = {}) {
-  const registry = createToolRegistry(), tools: RegisteredTool[] = []
+/** Server-side resume capability bindings. Agents only use the MCP protocol. */
+export function createResumeTools(backend: Backend, build: (id: string, signal: AbortSignal) => Promise<unknown>) {
+  const tools: RegisteredTool[] = []
   const run = (id: string) => backend.resumes.getRun({ id }).run
   function bind(name: string, description: string, schema: JsonSchema, write: boolean, operation: (args: Args, context: ToolExecutionContext) => unknown | Promise<unknown>) {
     const descriptor: ToolDescriptor = { name, description, inputSchema: schema, source: { type: 'native' }, tags: ['resume'], mode: write ? 'write' : 'read', risk: write ? 'WRITE' : 'READ' }
@@ -37,7 +33,8 @@ export function createResumeTooling(backend: Backend, build: (id: string, signal
       target: input => name === 'artifact.build' ? { type: 'artifact', id: String((input as Args).artifactId) } : undefined }))
   }
   bind('resume.start', 'Create and start an immutable resume snapshot. Reuse requestId only for an identical retry. Returns runId. Limits: 1000 facts, 200 items, context 256 KiB, each fact 8 KiB.', schemas.start, true, args => {
-    const current = backend.resumes.createRun({ jobId: args.jobId, profileId: args.profileId, config: { ...config, ...(args.targetWordCount === undefined ? {} : { targetWordCount: args.targetWordCount }) } },
+    const current = backend.resumes.createRun({ jobId: args.jobId, profileId: args.profileId, config: {
+      ...(args.model as { providerId: string; modelId: string } | undefined), ...(args.targetWordCount === undefined ? {} : { targetWordCount: args.targetWordCount }) } },
       { start: true, requestId: String(args.requestId), validateSnapshot: snapshot => {
         if (snapshot.facts.length > 1000 || snapshot.items.length > 200) fail('INVALID_INPUT')
         try {
@@ -97,11 +94,15 @@ export function createResumeTooling(backend: Backend, build: (id: string, signal
     const current = run(args.runId)
     return state(['PENDING', 'RUNNING'].includes(current.status) ? backend.resumes.cancelRun({ id: current.id }) : current)
   })
+  bind('resume.fail', 'Fail this runtime\'s unfinished resume with a fixed error code; terminal state is returned unchanged.', schemas.fail, true, args => {
+    backend.lease.assert('generation', args.runId)
+    const current = run(args.runId)
+    return state(['PENDING', 'RUNNING'].includes(current.status) ? backend.generation.failRun({ id: current.id, error: args.error }) : current)
+  })
   bind('artifact.build', 'Build HTML/PDF from a published Artifact without any model calls. Returns output status and local output file paths. Failed output can be retried.', schemas.artifact, true,
     (args, context) => {
       if (context.runId && backend.resumes.getArtifact({ id: args.artifactId }).artifact.generationRunId !== context.runId) fail('FORBIDDEN')
       return build(String(args.artifactId), context.signal)
     })
-  for (const tool of [...backend.toolCapabilities.read, ...tools]) registry.register(tool)
-  return { registry, tools, dispose() { registry.dispose() } }
+  return tools
 }

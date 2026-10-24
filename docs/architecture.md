@@ -1,6 +1,6 @@
 # Current Runtime Architecture
 
-Purpose: record verified runtime behavior. Status: **Implemented** React composition, mixed navigation, Settings, Profile editing/PDF import, jobs/applications, streaming chat and Resume Agent V1 with HTML/PDF. Interview Prep remains **Scaffolded**; additional product workflows remain **Planned**.
+Purpose: record verified runtime behavior. Status: **Implemented** React composition, mixed navigation, Settings, Profile editing/PDF import, Job Capture/Application Agents, streaming chat and Resume Agent V1 with HTML/PDF. Interview Prep remains **Scaffolded**; additional product workflows remain **Planned**.
 
 Language: English · [简体中文](architecture.zh-CN.md)
 
@@ -13,7 +13,7 @@ React App → Page → Preload → IPC → Main
                                   ├── Mixed history + WebContentsView → Session
                                   ├── Domain services → SQLite + audit
                                   ├── AI service → Provider SSE
-                                  └── ToolScope → audited capability → Domain / MCP stdio
+                                  └── MCP Client → stdio Server → ToolScope → audited capability → Domain
 ```
 
 The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data/AI bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
@@ -68,7 +68,7 @@ Follow system responds to native appearance updates; explicit Light/Dark overrid
 
 **Implemented Profile:** [page state](../src/pages/profile/useProfile.ts) loads every item/fact page and groups facts beneath their owning experience, project or education entry; unattached facts have their own section. Editing and import drafts use the native leave guard plus refresh protection. Router targets remount page state; confirmed abandonment discards the import session. Storage and explicit-save semantics belong to [data architecture](data-architecture.md).
 
-[Import IPC](../src/platform/electron/main/profile-import-ipc.ts) opens one native PDF selection and returns an opaque file ID. [The session service](../src/platform/profile-import/service.ts) owns bytes, tasks, draft IDs, save receipts and owner checks in memory. [PDF.js extraction](../src/platform/profile-import/pdf-worker.mjs) runs in a cancellable Node Worker copied beside Main by the build; CMaps, standard fonts and WASM resolve from the installed dependency. Limits are 10 MB, 20 pages and 60,000 extracted characters, with explicit encrypted/corrupt/no-text/limit errors. Text line/column ordering is heuristic, so review remains necessary.
+[Import IPC](../src/platform/electron/main/profile-import-ipc.ts) opens one native PDF selection and returns an opaque file ID. [The session service](../src/platform/profile-import/service.ts) owns bytes, tasks, draft IDs, save receipts and owner checks in memory. [PDF.js extraction](../src/platform/import/pdf-worker.mjs) runs in a cancellable Node Worker copied beside Main by the build; CMaps, standard fonts and WASM resolve from the installed dependency. Limits are 10 MB, 20 pages and 60,000 extracted characters, with explicit encrypted/corrupt/no-text/limit errors. Text line/column ordering is heuristic, so review remains necessary.
 
 Main sends PDF text to the disclosed saved default Provider/model, reusing AI timeouts, cancellation and startup audit. [Draft parsing](../src/platform/profile-import/draft.ts) validates JSON and groups multiple facts per entry. Import output contains no source quotes/page numbers or evidence checks; optional empty fields may be omitted. Saved facts still support Resume Agent statement associations. Raw streams are never presented as parsed records. Retry is manual. Raw PDFs, full text and unsaved drafts are not persisted; leave, refresh, crash and window disposal release sessions. OCR, original-file management and third-party Provider compatibility certification remain unimplemented.
 
@@ -78,9 +78,9 @@ The page is downloaded/cleaned once or the PDF text is extracted once before AI 
 
 | Import | Group | Extracted content |
 | --- | --- | --- |
-| Job URL | `basics` | Title, raw company name, location text/list, employment type and salary |
-| Job URL | `description` | Job description |
-| Job URL | `requirements` | Requirement text, category and keywords |
+| Job capture | `basics` | Title, raw company name, location text/list, employment type and salary |
+| Job capture | `description` | Job description |
+| Job capture | `requirements` | Requirement text, category and keywords |
 | PDF profile | `contact` | Contact fields, links and standalone facts |
 | PDF profile | `experience` | Work experience entries with their nested facts |
 | PDF profile | `projects` | Project entries with their nested facts |
@@ -88,21 +88,21 @@ The page is downloaded/cleaned once or the PDF text is extracted once before AI 
 
 In Parallel mode, job notes default to empty; source metadata is assembled locally. [Shared batches](../src/platform/import/batch.ts) permit at most three concurrent parts, so the fourth PDF group waits for a slot. Each group can return only its assigned fields/item types; deterministic merging happens after all groups succeed. Profile merging removes matching kind/content duplicates within a parent and matching standalone copies of attached facts; equal facts under different parents remain separate.
 
-[The AI service](../src/platform/ai/service.ts) queues import calls within four active requests per window and sixteen globally, with at most eighty accepted active/queued requests. Request timeouts start at execution. Each group reports its state and in-memory queue/processing duration; cancelling removes queued requests and aborts running requests. The shared batch refreshes queued/running durations every 100 ms using a monotonic clock, even before model output arrives. Terminal groups retain their final durations; retry resets only failed groups. Completion, failure and cancellation release the refresh timer.
+[The AI service](../src/platform/ai/service.ts) queues Profile imports within four active requests per window/sixteen globally and eighty accepted active/queued requests. Job Capture uses AgentModel with up to three concurrent groups per window-owned task. Each group reports memory-only queue/processing durations; [shared batches](../src/platform/import/batch.ts) refresh every 100 ms with a monotonic clock, preserve terminal durations and reset only failed parts on retry. Completion/failure/cancellation release the timer.
 
 When a part fails, completed results remain in memory and the page offers “Retry failed parts” only when the task reports `retryable`. Retrying reuses the original source, model choice, mode and successful results; it neither downloads/extracts again nor writes business data. Read/extraction failures or final merge failures without a failed part require a fresh parse. Replacement, discard, navigation/window disposal and process exit release the relevant task/cache. Retry identifiers belong to [data architecture](data-architecture.md#5-api-contract-and-access).
 
 Every group receives the full input, so input tokens/cost can increase. Smaller outputs and concurrent requests can reduce waiting, but provider concurrency, model throughput and network latency determine the result; local fixture tests do not establish a live-provider speedup.
 
-**Implemented Add Job:** [the page](../src/pages/find-jobs/AddJobPage.tsx) retains `app://find` and supports manual entry or one URL AI import. Its shared form covers existing job fields; AI fills empty fields, treating arrays/salary as whole fields. The default Provider/model is disclosed; manual entry works without AI. Profile and Add Job share [unsaved protection](../src/app/navigation/useUnsavedGuard.ts). Save/status/source semantics belong to [data architecture](data-architecture.md).
+**Implemented Add Job:** [the page](../src/pages/find-jobs/AddJobPage.tsx) supports manual entry and URL/text/PDF capture through [Capture Agent](../src/platform/agent/capture.ts). It fills empty fields, preserves existing arrays/salary and shows the selected model. Reading and interpretation make no JAB MCP calls; edited drafts are saved through job.import after review. Manual forms retain typed IPC. [Unsaved protection](../src/app/navigation/useUnsavedGuard.ts) is shared with Profile; storage rules belong to [data architecture](data-architecture.md).
 
 [The public URL reader](../src/platform/job-import/url-reader.ts) reads HTTP(S) HTML in Main without website cookies or page scripts: the saved page-read timeout, up to 5 redirects, 2 MB HTML, 60,000 text characters and 40,000 JobPosting metadata characters. [HTML parsing](../src/platform/job-import/html.ts) uses htmlparser2 and excludes scripts/navigation. HTTP denials, detected login/challenge pages and unreadable content return fixed errors. Script-only pages and unrecognized challenges may fail; compatibility with all job sites is not guaranteed.
 
-[Asynchronous tasks](../src/platform/job-import/service.ts) enforce window ownership and reuse AI timeout/cancellation/startup audit. [Group parsing](../src/platform/job-import/parts.ts) validates allowlisted JSON without system IDs/status. Leave, refresh, crashes and window disposal release tasks and suppress late results. Domain [snapshot/capability interfaces](../src/domain/job/job.extractor.ts) reserve reuse by future authenticated Browser capture; login, captcha handling and automatic retry remain unimplemented.
+[Capture tasks](../src/platform/job-import/service.ts) own source bytes, draft state, retries and a stable save requestId per window. [Common PDF reading](../src/platform/import/pdf.ts) shares the Profile worker and limits. Job parsing uses AgentModel; [group parsing](../src/platform/job-import/parts.ts) rejects managed fields and preserves successful groups for retry. Window disposal suppresses late results. Authenticated Browser capture, login/captcha handling, OCR and original-file management remain unimplemented.
 
-[Applications](../src/pages/applications/ApplicationsPage.tsx) lists unarchived jobs with title/company search, status filters, 25-row pages, explicit refresh and read-only details/sources. Saving sets the shared Job ID and navigates to its details; a committed save is not resubmitted if navigation fails. Status editing, calendar and deduplication remain planned.
+[Applications](../src/pages/applications/ApplicationsPage.tsx) supports search/status/archive filters, 25-row pages and explicit refresh. Details contain sources, paginated events and an [Application Agent panel](../src/pages/applications/ApplicationAgentPanel.tsx). Clear instructions execute local status/note/event/detail/archive actions through MCP; missing details trigger questions, and partial failures retain completed actions. Saving a Job opens its details. External calendar/email actions and duplicate merging remain planned.
 
-**Implemented Resume Agent V1:** [Main tasks](../src/platform/agent/resume-tasks.ts) freeze the default provider/model and collect immutable inputs before starting the [Domain workflow](../src/domain/resume/resume.agent.ts). [The asynchronous bridge](../src/platform/electron/resume-contract.ts) powers [Tailor Resume](../src/pages/tailor-resume/TailorResumePage.tsx), restores tasks on return, bounds one active task per window and cancels work on destruction. Failed output is retried independently of generation; publication remains successful. [Data architecture](data-architecture.md#3-generation-output-and-deletion) owns document, provenance, output and recovery semantics; [MCP architecture](mcp-architecture.md) owns AgentModel/AgentLoop and snapshot scope boundaries.
+**Implemented Resume Agent V1:** [Main tasks](../src/platform/electron/resume-tasks.ts) compose a fixed five-stage [Resume Agent](../src/platform/agent/resume.ts) and a real first-party stdio MCP session. Immutable start/read/submission/publish/fail/cancel/build all cross MCP; UI queries/preview/export remain separate Main operations. [The asynchronous bridge](../src/platform/electron/resume-contract.ts) powers Tailor Resume, retains history, limits one active task per window and cancels destroyed-window work. [Data architecture](data-architecture.md#3-generation-output-and-deletion) owns persistence/output; [MCP architecture](mcp-architecture.md) owns Agent boundaries.
 
 ## 4. Session, security and storage
 
@@ -115,7 +115,7 @@ Remote views share `persist:job-agent-browser`, retaining website storage across
 
 Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
 
-**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) composes Native readers and optional stdio Servers through the [tool runtime](../src/platform/mcp/runtime.ts), starts external connections in the background and settles tooling/AI before closing SQLite. The [MCP architecture](mcp-architecture.md) owns registration, scopes, reviewed schemas, bounded execution and lifecycle. Renderer has no generic tool-execution bridge; the internal Resume Agent uses model Tool Calling and a bounded loop. The independent [Node Server](../src/platform/mcp-server/runtime.ts) exposes the shared Resume workflow to Codex and uses a background Electron PDF worker; the main application window may remain closed. Per-instance recovery is owned by data architecture.
+**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) separately owns optional third-party consumption and [first-party sessions](../src/platform/mcp/first-party-client.ts). All three internal Agents and external hosts use the same 27-tool [Node Server](../src/platform/mcp-server/runtime.ts); caller labels affect audit only. Renderer exposes named workflow IPC, never generic tool execution. [MCP architecture](mcp-architecture.md) owns registration, bounds and shutdown; data architecture owns multi-process recovery.
 
 ## 5. Internationalization
 

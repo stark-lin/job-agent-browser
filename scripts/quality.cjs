@@ -13,6 +13,9 @@ function files(dir) {
 }
 const sourceFiles = files(path.join(root, 'src')).filter((file) => /\.tsx?$/.test(file))
 const graph = new Map()
+const forbiddenAgentDependency = (name) => /^src\/platform\/(?:database|tools|mcp-server)\//.test(name)
+  || /^src\/shared\/tools\/(?:registry|index)(?:\.ts)?$/.test(name)
+  || /^src\/domain\/.*\.(?:service|repository)(?:\.ts)?$/.test(name)
 for (const file of sourceFiles) {
   const relative = path.relative(root, file).replaceAll('\\', '/')
   const text = fs.readFileSync(file, 'utf8')
@@ -31,6 +34,16 @@ for (const file of sourceFiles) {
     visitUI(ast)
   }
   const imports = ast.statements.filter((node) => ts.isImportDeclaration(node) || ts.isExportDeclaration(node)).filter((node) => node.moduleSpecifier)
+  function dynamicImports(node) {
+    if (relative.startsWith('src/platform/agent/') && ts.isIdentifier(node)) assert(node.text !== 'ToolScope', `${relative}: ToolScope is a Server implementation detail`)
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === 'require')) {
+      const argument = node.arguments[0]
+      if (relative.startsWith('src/platform/agent/')) assert(argument && ts.isStringLiteral(argument), `${relative}: dynamic module names cannot bypass Agent boundaries`)
+      if (argument && ts.isStringLiteral(argument)) imports.push({ moduleSpecifier: { text: argument.text } })
+    }
+    ts.forEachChild(node, dynamicImports)
+  }
+  dynamicImports(ast)
   const runtimeEdges = []
   for (const node of imports) {
     const module = node.moduleSpecifier.text
@@ -38,6 +51,7 @@ for (const file of sourceFiles) {
     const resolved = module.startsWith('.') ? path.resolve(path.dirname(file), module)
       : module.startsWith('@shared/') ? path.resolve(root, 'src/shared', module.slice(8)) : module
     const destination = path.relative(root, resolved).replaceAll('\\', '/')
+    if (relative.startsWith('src/platform/agent/')) assert(!forbiddenAgentDependency(destination), `${relative}: Agent capabilities must cross the MCP Client protocol boundary (${destination})`)
     if (/^src\/(app|renderer|pages)\//.test(relative) && destination.startsWith('src/shared/ui/')) {
       assert(module.endsWith('.css') || ['src/shared/ui/index', 'src/shared/ui/index.ts'].includes(destination),
         `${relative}: import central components through src/shared/ui/index.ts`)
@@ -82,6 +96,18 @@ function walk(file) {
   visiting.delete(file); visited.add(file)
 }
 for (const file of graph.keys()) walk(file)
+for (const file of sourceFiles.filter(file => file.startsWith(root + '/src/platform/agent/'))) {
+  const seen = new Set()
+  function agentBoundary(current) {
+    if (seen.has(current)) return
+    seen.add(current)
+    const relative = path.relative(root, current).replaceAll('\\', '/')
+    assert(!forbiddenAgentDependency(relative), `${path.relative(root, file)}: indirect privileged dependency ${relative}`)
+    if (relative.startsWith('src/platform/mcp/')) return // The protocol adapter owns its own transport implementation.
+    for (const next of graph.get(current) ?? []) agentBoundary(next)
+  }
+  agentBoundary(file)
+}
 
 const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !file.includes('/diagrams/'))
   .concat(['README', 'AGENTS', 'DESIGN'].flatMap((name) => [root + `/${name}.md`, root + `/${name}.zh-CN.md`]))

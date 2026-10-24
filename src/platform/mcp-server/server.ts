@@ -3,15 +3,17 @@ import type { ToolRegistry } from '../../shared/tools/registry'
 import type { ToolScopePolicy } from '../../shared/tools/tool.types'
 import { toolError } from '../../shared/tools/errors'
 import { mcpResult, mcpTool } from './tool-adapter'
+import { mcpCaller } from './caller'
 
 /** Transport-only bridge. The policy and registry are supplied by the composition root. */
-export function createMCPServer(registry: ToolRegistry, policy: ToolScopePolicy, signal: AbortSignal) {
+export function createMCPServer(registry: ToolRegistry, policy: ToolScopePolicy, signal: AbortSignal, caller?: string) {
+  const agentId = mcpCaller(caller)
   const server = new Server({ name: 'job-agent-browser', version: '0.1.0' }, { capabilities: { tools: {} } })
-  const visible = registry.scope(policy, { agentId: 'codex', signal })
+  const visible = registry.scope(policy, { agentId, signal })
   const active = new Set<Promise<unknown>>()
   server.setRequestHandler('tools/list', async () => ({ tools: visible.list().map(mcpTool) }))
   server.setRequestHandler('tools/call', async (request, context) => {
-    const scope = registry.scope(policy, { agentId: 'codex', signal: AbortSignal.any([signal, context.mcpReq.signal]) })
+    const scope = registry.scope(policy, { agentId, signal: AbortSignal.any([signal, context.mcpReq.signal]) })
     const pending = scope.execute(request.params.name, request.params.arguments ?? {})
     active.add(pending)
     try { return mcpResult(await pending) }

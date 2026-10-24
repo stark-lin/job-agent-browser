@@ -6,11 +6,14 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createBackend } from '../../database/backend'
 import { trustedDataSender, registerDataIPC } from './data-ipc'
+import { createAgentModels } from '../../ai/agent-factory'
 import { createAIService, type AIService } from '../../ai'
 import { registerAIIPC } from './ai-ipc'
 import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
 import { registerProfileImportIPC } from './profile-import-ipc'
-import { createResumeTasks, type ResumeTasks } from '../../agent/resume-tasks'
+import { createResumeTasks, type ResumeTasks } from '../resume-tasks'
+import { createApplicationTasks, type ApplicationTasks } from '../application-tasks'
+import { registerApplicationIPC } from './application-ipc'
 import { registerResumeIPC } from './resume-ipc'
 import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
@@ -33,6 +36,7 @@ import { createMainWindow } from './window'
 import { applyTheme } from './theme'
 import type { BrowserManager } from '../../browser/browserManager'
 import { createToolRuntime, type ToolRuntime } from '../../mcp/runtime'
+import { createFirstPartyRuntime, type FirstPartyRuntime } from '../../mcp/first-party-client'
 import { readMCPConfiguration } from '../../storage/mcp-config'
 
 let browser: BrowserManager | undefined
@@ -42,7 +46,9 @@ let ai: AIService | undefined
 let profileImporter: ProfileImporter | undefined
 let jobImporter: JobImporter | undefined
 let tools: ToolRuntime | undefined
+let applicationTasks: ApplicationTasks | undefined
 let resumes: ResumeTasks | undefined
+let firstParty: FirstPartyRuntime | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -68,9 +74,13 @@ app.whenReady().then(async () => {
   void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
   profileImporter = createProfileImporter({ ai, settings: () => preferences.get({}).ai, apply: input => backend!.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
-  jobImporter = createJobImporter({ ai, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
-  resumes = createResumeTasks({ backend, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
+  firstParty = createFirstPartyRuntime(directory, __dirname)
+  const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAgentModel })
+  jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
+  resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
+  applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })
+  registerApplicationIPC(applicationTasks, join(__dirname, '../renderer/index.html'))
   registerResumeIPC(resumes, join(__dirname, '../renderer/index.html'))
   registerDataIPC(backend, join(__dirname, '../renderer/index.html'), profileImporter)
   registerProfileImportIPC(profileImporter, join(__dirname, '../renderer/index.html'))
@@ -78,7 +88,7 @@ app.whenReady().then(async () => {
   registerJobImportIPC(jobImporter, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id
-    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner) }
+    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner); applicationTasks?.disposeOwner(owner) }
     contents.on('destroyed', disposeOwner)
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
@@ -100,12 +110,11 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', event => {
   profileImporter?.dispose()
-  jobImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (shuttingDown) return
   if (!ai && !tools && !resumes) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([ai?.dispose(), resumes?.dispose()]).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {

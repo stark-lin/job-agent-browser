@@ -7,8 +7,8 @@ const { spawnSync } = require('node:child_process')
 const { Client } = require('@modelcontextprotocol/client')
 const { StdioClientTransport } = require('@modelcontextprotocol/client/stdio')
 const { createBackend } = require('../.cache/tests/src/platform/database/backend.js')
-const { extractPdf } = require('../.cache/tests/src/platform/profile-import/pdf.js')
-const { resumeAllowlist } = require('../.cache/tests/src/platform/tools/resume.js')
+const { extractPdf } = require('../.cache/tests/src/platform/import/pdf.js')
+const { jobAgentAllowlist } = require('../.cache/tests/src/platform/tools/index.js')
 
 async function until(check, message) {
   const deadline = Date.now() + 10000
@@ -30,7 +30,7 @@ async function main() {
   const call = async (name, args) => { const result = await client.callTool({ name, arguments: args }, { timeout: 100000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
   try {
     await client.connect(transport)
-    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...resumeAllowlist].sort())
+    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist].sort())
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING', 'MCP startup must preserve another process task')
     assert.equal((await call('job.list', {})).items[0].id, job.id)
     assert.equal((await call('profile.list', {})).items[0].id, profile.id)

@@ -1,6 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位/申请以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume Agent V1 均**已实现**。其余产品流程为**规划**。
+用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位采集/申请 Agent以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume Agent V1 均**已实现**。其余产品流程为**规划**。
 
 语言：简体中文 · [English](data-architecture.md)
 
@@ -21,12 +21,13 @@
 | `audit_logs` | 不含业务内容的成功/失败事件 |
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
+| `operation_receipts` | 跨会话创建回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts) |
 
 ## 二、业务规则
 
 [职位用例](../src/domain/job/job.service.ts) 接收白名单详情。来源 URL 移除片段并排序查询参数，清洗内容计算哈希；公开 URL 提取已实现，重复匹配/合并仍为规划。归档独立于申请状态。删除 Company 会解除 Job 关联并保留原始公司名称。
 
-[新增工作](../src/pages/find-jobs/AddJobPage.tsx) 继续使用 `jobs.saveJob` 原子保存职位及可选来源，不增加表或迁移。名称和公司必填；新职位为 `NOT_STARTED`，申请/关闭时间为空，不创建状态事件。解析草稿不写入业务表；保存时才保留来源正文及提取的 JobPosting 元数据。手工录入可不提供 URL。
+[新增工作](../src/pages/find-jobs/AddJobPage.tsx)的手工保存使用 typed IPC，经审核的 Agent 草稿使用 MCP job.import，二者均原子复用 jobs.saveJob。名称和公司必填，新职位为 NOT_STARTED，申请/关闭时间为空且不创建事件。URL/文本/PDF 解析不写业务表，保存时才保留可选真实网页来源；无 URL 的文本/PDF 使用 source:null。持久化 receipt 见下文。
 
 [申请用例](../src/domain/application/application.service.ts) 原子写入状态变化及时间线事件。允许的状态转换如下：
 
@@ -39,7 +40,7 @@
 | `OFFER` | `ACCEPTED`, `REJECTED`, `WITHDRAWN` |
 | `ACCEPTED`, `REJECTED`, `WITHDRAWN` | 终态；不再变更状态 |
 
-归档 Job 拒绝变更状态及安排/调整日程。`APPLIED` 设置申请时间，终态设置关闭时间。系统生成的状态事件不能单独删除。日历范围包含两端，按日程开始时间筛选。邮件同步/事件仍为规划。
+归档 Job 拒绝变更状态及安排/调整日程，但允许备注和详情编辑。同状态请求返回原数据且不重复创建事件，同值详情/归档/改期不产生变更。[申请流程](../src/domain/application/workflow.ts)统一管理状态转换与 allowedNextStatuses。APPLIED 设置申请时间，终态设置关闭时间；系统状态事件不能单独删除。日历范围包含两端，邮件同步仍为规划。
 
 [个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。全部已保存 Fact 均可参与生成，不存在确认状态、数据库列或确认操作。
 
@@ -53,7 +54,7 @@
 
 ## 三、生成、成品与删除
 
-[简历请求](../src/domain/resume/resume.service.ts)原子收集 Job、Profile、全部已保存 Fact 及关联条目。无 Facts 的资料或已归档职位失败。配置固定模板/预算、可信 `runtimeKind` 及内部 Provider/模型；外部 run 的 Provider/模型 ID 为空。凭据不进入快照。[共享能力](mcp-architecture.zh-CN.md#五resume-server-与-codex)封装创建及阶段；[Domain controller](../src/domain/resume/resume.agent.ts)保留注入的 runner。
+[简历请求](../src/domain/resume/resume.service.ts)原子快照 Job、Profile、全部 Fact 和相关条目；空事实资料及归档职位失败。配置固定模板/预算和 Server 运行时类型，可选 Provider/模型是调用方声明的溯源元数据，不构成权限或凭据。历史配置继续可读。[MCP 能力](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)服务内部与外部 Agent，[Resume 推理](../src/platform/agent/resume.ts)位于 Domain 持久化层之外。
 
 可信 [GenerationService](../src/domain/resume/generation.service.ts)持久化 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。内部模型只获得读取工具；可信 controller 和 Codex 使用共享阶段能力。门控拒绝持久化缺失证据并停止。发布创建唯一 Artifact 并标记 `SUCCEEDED`；输出失败保留发布结果。启动回执及阶段 handler 支持相同重试，冲突提交失败。
 
@@ -76,6 +77,8 @@
 
 ## 四、审计与事务
 
+[操作回执](../src/platform/database/operation-receipts.ts)保存 (operation, request_id)、规范化输入哈希、逻辑目标、首次结果 JSON 和创建时间。job.import/application.add_note/application.schedule_event 在与业务行及成功审计相同的 Domain 事务内写入 receipt。跨进程/重启的相同重试返回首次结果，不同内容或已删除目标返回冲突；目标删除后仍保留 receipt 结果快照，删除并非隐私清除；不自动重建，也不嵌套服务事务。Resume start 保留独立的同运行时 receipt/lease 规则。
+
 [事务管理](../src/platform/database/transactions.ts) 与[数据库触发器](../src/platform/database/migrations/audit-triggers.ts) 为每条变更业务记录自动追加审计。调用方只提交业务参数。一次写入操作拥有一个内部事务：全部变更与成功审计一起提交或全部回滚。多记录操作共享请求和事务 ID。普通业务/审计查询保持只读；显式能力读取会额外记录下述访问审计。
 
 | 要素 | SQL 字段 | 允许内容 |
@@ -97,7 +100,7 @@
 
 每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。对话历史只在页面内存中，不新增 AI 运行/消息表。
 
-**Agent 模型审计：**每次非流式调用通过 `recordAgentModel` 尝试记录一次固定 `AGENT_MODEL_RESULT` 结果；组件 `ai`、位置 `agent.model`、来源 `GENERATOR`、主体 `resume-agent`。仅保存不透明请求 ID 及固定结果，不保存提示词、输出、密钥或隐藏推理。审计失败终止执行。
+**Agent 模型审计：**每次非流式调用通过 recordAgentModel 记录一次固定 AGENT_MODEL_RESULT 结果，组件为 ai、位置为 agent.model、来源为 GENERATOR，主体使用 Main 绑定的内部 Agent 标识。仅保存不透明请求 ID 和固定结果，不保存提示词、输出、密钥或隐藏推理；审计失败终止执行。
 
 **已实现审计浏览：**只读 [Settings 查看器](../src/pages/settings/AuditViewerSection.tsx)使用 `audit.list`，不更改数据库结构或 IPC。默认每页 25 条，按序号倒序排列。类型/状态、目标/请求/事务 ID 精确匹配及包含边界的时间范围组合现有筛选。[筛选转换](../src/pages/settings/audit-filters.ts)校验 ID/范围，并将本地日期时间转换为规范 UTC；详情同时显示本地化时间和存储的 UTC 值。刷新/重置/应用筛选均回到第一页。分页使用 offset，新增写入可能移动后续页记录，应刷新获取最新顺序。不提供导出、自动轮询、日志修改或业务内容重建。设置/密钥写入仍不进入审计，AI 成功仍仅表示启动。
 
@@ -148,7 +151,7 @@
 | `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题、邮箱或 `ai` 配置 → 带版本的 Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 通过 `provider` 指定 Provider 实例 ID；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
 
-API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。可信服务经共享能力持久化生成阶段；MCP 独立于此 IPC API。调用方应按以下错误码处理，不依赖数据库消息。变更不自动重试或保证幂等；结果不确定时先刷新状态再重试。
+API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。Agent 生成阶段使用独立于人工/UI IPC API 的 MCP。IPC 变更不自动重试或保证幂等，不确定时先刷新状态；MCP 创建 receipt 是第四节明确说明的例外。使用以下固定错误码，不依赖数据库消息。
 
 | 错误码 | 含义 |
 | --- | --- |
@@ -175,7 +178,7 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 受控运行时共享 `database.sqlite`、SQLite 辅助文件及 `userData/artifacts/`。Main 管理 `userData/settings.json` 和 `userData/secrets.enc`；MCP Server 不加载应用凭据。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
 
-可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#四配置与生命周期)管理配置示例和限制。
+可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#三内部与第三方-client)管理配置示例和限制。
 
 [偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
 

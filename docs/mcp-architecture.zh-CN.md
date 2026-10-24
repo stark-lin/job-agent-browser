@@ -1,89 +1,53 @@
 # 工具与 MCP 运行时
 
-用途：定义能力注册、受限执行及 MCP 集成。状态：审计工具、兼容 AgentModel/AgentLoop、共享 Resume 工作流能力、外部 MCP Client 及本地 stdio Resume Server 均**已实现**。Browser 工具及远程 Transport 仍为**规划**。
+用途：定义能力注册、Agent 边界与 MCP 集成。状态：三个内部 Agent、统一 Job Agent Browser MCP 公共能力、带审计能力及第三方 stdio 消费均**已实现**。远程传输仍为**规划**。
 
 语言：简体中文 · [English](mcp-architecture.md)
 
-## 一、归属与调用链
-
-Main 创建唯一[运行时](../src/platform/mcp/runtime.ts)，注入已封装审计的能力。业务 Agent 接收仅类型的 [ToolScope 契约](../src/shared/tools/index.ts)，不接收 Registry 修改接口、SDK Client、SQL、审计写入器、Electron 对象或 Secret 读取器。Renderer 没有工具 IPC。
+## 一、归属与调用路径
 
 ```text
-Main-bound caller → ToolScope → validated Tool binding
-                                  ↓
-                         audited read / write capability
-                                  ↓
-                       Domain Service or MCP Client
+Agent → MCP Client → stdio Server → ToolScope → audited capability → Domain → SQLite
+UI    → typed IPC → Domain
 ```
 
-[原生绑定](../src/platform/tools/native.ts)提供 `job.get`、`job.list`、`profile.get`、`profile.list`、`profile.list_facts` 和 `artifact.get`。`job.set_archived` 仍不向 Agent 注册。[Resume 绑定](../src/platform/tools/resume.ts)封装可信生成操作；`generation`、SQL、事务及 Secret 继续保留。存储/审计语义归属[数据架构](data-architecture.zh-CN.md#四审计与事务)。
+[AgentTools](../src/shared/agent/index.ts) 是异步发现/调用契约，生产实现只有 [MCPAgentTools](../src/platform/mcp/first-party-client.ts)。Agent 不接收 ToolScope、Domain 服务、Repository、backend dispatch 或数据库句柄。资料读取和模型推理属于业务 MCP 外的宿主能力。[架构检查](../scripts/quality.cjs)禁止 Agent 模块直接/间接依赖特权实现，以及通过重新导出、动态导入或 ToolScope 绕过。
 
-[AI SSE 适配器](../src/platform/ai/compatible.ts)保留无工具的流式对话。[AgentModel](../src/shared/agent/index.ts)独立定义非流式消息、工具批次、最终文本、取消及错误；[兼容适配](../src/platform/agent/compatible.ts)共享配置/HTTP 基础，将含点名称无冲突地映射为 Provider 名称。每个已接受模型调用记录一次固定结果审计，不持久化提示词/输出。
+[Main](../src/platform/electron/main/index.ts)负责模型配置、凭据、窗口归属和只读 UI 投影。人工表单保留 typed IPC；Agent 保存、流程提交、失败、取消和输出构建必须经过 MCP。Ask AI 仍为不含业务工具的流式对话；Profile 导入保留独立的审核导入流程。
 
-## 二、注册与 Scope
+## 二、注册与流程契约
 
-[Registry](../src/shared/tools/registry.ts)拒绝重复名称和保留的可信操作命名空间。MCP 名称必须以配置中唯一的 Server ID 开头，不能占用原生命名空间。Server 整批工具先校验再替换。描述符经克隆和冻结，不含执行函数。
+唯一公共组合入口是 [createJobAgentTooling](../src/platform/tools/index.ts)。[Server](../src/platform/mcp-server/server.ts)列出受限描述符，并交由服务端 ToolScope 执行；Registry/Policy 不再是 Agent API。[能力层](../src/platform/tools/capabilities.ts)管理访问/执行审计、受限 JSON/schema 校验和取消，Domain 管理业务校验与状态转换。
 
-[策略](../src/shared/tools/policy.ts)要求明确提供 `allow`，空数组不授予能力。仅支持完整名称或 `profile.*` 形式的尾部命名空间通配符。Deny 优先，`*.delete` 和任意 glob 模式无效。风险顺序为 `READ < COMPUTE < WRITE < EXTERNAL_ACTION`，默认最高风险为 `READ`。
+[Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含删除、公司写入、SQL、设置、密钥、Provider 配置、浏览器控制、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
 
-Scope 在创建时固定允许的条目、策略及 Main 绑定的调用身份，新工具不会进入已有 Scope。移除/替换撤销旧条目和进行中的调用；旧 Scope 不会自动绑定重连后的工具。释放 Scope 或取消调用方会终止当前调用。消费外部 MCP 的运行时仅接受 `READ / COMPUTE`；可信 Resume controller 和明确的 Resume Server 白名单使用原生 `WRITE` 能力。
+[AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)使用非流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
 
-通用 [AgentLoop](../src/platform/agent/loop.ts)每阶段最多调用模型 8 次。先记录完整 assistant 调用列表，再顺序执行工具并追加对应 observation。普通工具错误可作为 observation；取消和审计失败立即终止。空/非法输出、重复 call ID 及超限明确失败。不提供自动重试、fallback、planner、memory 或并行工具。
+[Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
 
-[共享 Resume 工具](../src/platform/tools/resume.ts)替代任务专用别名。内部模型仅获得绑定当前 run ID 的 `resume.get_context` 及分页 `resume.list_facts`，读取 `GenerationRun.inputSnapshot`。[Domain controller](../src/domain/resume/resume.agent.ts)接收写 Scope 和阶段 runner；Codex 经 MCP 提交同样的阶段载荷。两条路径共享描述符、校验、审计和 handler。内部模型 Scope 不含实时读取或外部 MCP 工具。
+## 三、内部与第三方 Client
 
-## 三、Provider 审核与转换
+[first-party runtime](../src/platform/mcp/first-party-client.ts)按流程惰性创建真实 stdio 会话，复用到断连/关闭。它使用 Electron 可执行文件的 Node 模式启动构建产物，显式传入 userData；同一 Resume run 始终使用原会话。会话丢失后不会回退本地服务或接管旧 run，后续新任务可创建新会话。
 
-每个 [Provider](../src/platform/mcp/provider.ts)根据明确的本地审核清单筛选发现结果。清单管理应用名称、原始名称、描述、风险、标签、输入 Schema 和可选输出 Schema。上游描述、指令及风险提示不能授予权限或替换审核后的描述；未知工具被忽略。
+[Client](../src/platform/mcp/client.ts)只允许可信组合入口传入 processEnv，userData/mcp.json 不接受任意环境变量配置。内部标识为 internal.resume、internal.job-capture 和 internal.application。[Caller 校验](../src/platform/mcp-server/caller.ts)遵循审计标识格式，无效值回退为 mcp-client。JOB_BROWSER_MCP_CALLER 不改变权限、schema、工具列表或语义。
 
-[Schema 指纹](../src/platform/mcp/tool-adapter.ts)忽略对象属性顺序，但拒绝其他任何输入/输出 Schema 变化，包括增删 `outputSchema`。缺失或变化的工具被隔离。发现变更通知时先撤销当前批次，再刷新；刷新失败时保持不可用。不自动重连或重试执行，Main 可显式重连。
+第三方消费保留[审核配置](../src/platform/mcp/server-config.ts)、[Provider 筛选](../src/platform/mcp/provider.ts)和 [schema 指纹](../src/platform/mcp/tool-adapter.ts)。本地审核决定名称、描述、schema 和 READ/COMPUTE 风险，上游提示不能授予权限。缺失/变化的 schema 会被隔离；变更通知先撤销当前批次再发现。不隐式重连或重试执行。
 
-[校验](../src/platform/tools/schema.ts)支持对象输入及 JSON Schema 2020-12，包括本地引用。拒绝其他方言、远程引用和动态引用；不做类型转换、不填默认值、不删除字段。JSON 边界拒绝 getter、循环、非 JSON 值及超限/过深数据。
+可选 mcp.json 缺失不阻止窗口；无效配置保持原样，仅返回脱敏诊断。第三方进程使用 SDK 的有限环境继承，不接收应用凭据；这些是可信可执行程序，并非 OS 沙箱。HTTP/OAuth、MCP resources/prompts、多模态结果和远程交互输入仍为规划。
 
-结果支持文本块和可选 JSON `structuredContent`，声明输出 Schema 时执行校验。`isError` 转换为稳定执行错误；图片、音频、资源读取及额外输入/交互流程暂不支持。SDK、进程及 Server 错误正文不会成为公开异常。
+## 四、限制、错误与生命周期
 
-## 四、配置与生命周期
+对象输入使用 JSON Schema 2020-12 和本地引用，校验不转换类型或删除字段。Getter、循环引用、非 JSON 值、过深/过多节点均失败。默认输入/schema 为 64 KiB，结果 1 MiB，传输 2 MiB，深度 32，JSON 节点 16,384。职位导入/修改及评分输入允许 1 MiB，Resume 写作允许 512 KiB。发现上限为 16 页/500 工具，连接/发现各十秒；单个 Client 最多四个并发调用，审计能力层最多十六个活跃调用。
 
-Main 通过[配置适配器](../src/platform/storage/mcp-config.ts)读取可选的版本 1 `userData/mcp.json`。文件缺失时不启动外部进程；文件无效时保留原文，产生不含敏感信息的诊断，不阻塞窗口。暂不提供 Settings UI、凭据字段、OAuth 或自动安装。配置及 Secret 存储规则归属[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)。
+结果包含文本与 structuredContent。内部适配器只保留已知的服务端固定错误码，畸形/未知错误体会脱敏；第三方错误保持通用映射。能力审计不保存 prompt、资料正文、模型输出、凭据或原始进程错误。
 
-以下人工审核示例与[测试 Server](../tests/fixtures/mcp-server.mjs)的 `echo` Schema 一致。须将可执行文件和脚本路径替换为已安装文件的绝对路径；接入其他 Server 时必须审核其真实 Schema，不能原样照搬清单。
+取消会通知 Server 并中止 Worker，但不能撤销已提交写入。[Receipt](data-architecture.zh-CN.md#四审计与事务)保障不确定创建请求的重试安全。窗口释放停止所属任务；退出先取消/等待任务，再关闭 Client 和 Main SQLite。Server EOF 中止任务、等待调用/输出、结束 lease 后关闭连接。Resume start 结果不确定且审计持续失败时，会话被结束，由正常恢复机制标记中断。
 
-```json
-{
-  "version": 1,
-  "servers": [{
-    "id": "example",
-    "enabled": true,
-    "transport": "stdio",
-    "command": "/absolute/path/node",
-    "args": ["/absolute/path/server.mjs"],
-    "tools": [{
-      "name": "example.echo",
-      "originalName": "echo",
-      "description": "Echo supplied text.",
-      "risk": "READ",
-      "inputSchema": {
-        "type": "object",
-        "properties": { "text": { "type": "string" } },
-        "required": ["text"],
-        "additionalProperties": false
-      }
-    }]
-  }]
-}
-```
+## 五、Job Agent Browser MCP
 
-[SDK v2 Client](../src/platform/mcp/client.ts)通过 stdio 使用默认的旧版初始化握手，不经 shell 启动绝对路径命令，使用 SDK 限定的环境变量继承，丢弃 stderr，不注入应用凭据。使用 Electron 自身可执行文件时选择其 Node 模式。本地进程属于受信任的可执行程序，不是操作系统沙盒。
+[Node 入口](../src/platform/mcp-server/stdio.ts)要求 JOB_BROWSER_USER_DATA 指向包含现有 database.sqlite 的目录，不猜测工作空间。使用带 DatabaseSync.setAuthorizer 的 Node >=24.10。[构建入口](../electron.vite.config.ts)生成 out/main/job-agent-mcp.js 和 out/main/resume-output-worker.js；stdout 只输出 MCP 消息。Server 不加载 AI 设置、凭据、模型或外部 MCP Client。
 
-[连接池](../src/platform/mcp/client-pool.ts)合并待完成连接，拒绝 Server ID 配置冲突。发现最多聚合 16 页/500 个工具；连接和发现各有 10 秒上限。调用默认 30 秒、最高 120 秒，每 Server 最多并发 4 个请求，全局最多 16 个活动能力，超限立即失败。Schema/输入限制 64 KiB，结果 1 MiB，Transport 消息 2 MiB，嵌套 32 层，JSON 节点 16,384 个。
-
-Main 在后台启动可选连接。断连时撤销工具并终止其本地等待。超时/取消会通知 Server，即使操作忽略信号，本地调用也会结束，但不保证远端副作用已撤销。单次取消不关闭共享连接。退出时先撤销 Scope、完成调用审计并关闭 Client，再关闭 SQLite；SDK 关闭 stdin，随后按有界清理流程逐级终止进程。
-
-## 五、Resume Server 与 Codex
-
-[Node 入口](../src/platform/mcp-server/stdio.ts)要求显式 `JOB_BROWSER_USER_DATA`，其中必须已有 `database.sqlite`；不猜测目录或创建空工作区。使用带 `DatabaseSync.setAuthorizer` 的 Node >=24.10。[构建入口](../electron.vite.config.ts)生成 `out/main/job-agent-mcp.js` 和 `out/main/resume-output-worker.js`；Server SDK 属于运行依赖。
-
-完成 README 的构建/链接命令后，将以下示例加入 Codex 用户配置或可信项目配置，并替换绝对路径。见[官方 MCP 配置](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。直接启动 Node 入口，使 stdout 只包含 MCP 消息。
+构建后执行 npm run skill:link，再为宿主配置绝对路径：
 
 ```toml
 [mcp_servers.job_agent_browser]
@@ -93,36 +57,40 @@ tool_timeout_sec = 100
 
 [mcp_servers.job_agent_browser.env]
 JOB_BROWSER_USER_DATA = "/absolute/path/existing-user-data"
+JOB_BROWSER_MCP_CALLER = "codex"
 ```
 
-[适配器](../src/platform/mcp-server/tool-adapter.ts)转换描述符/结果；[Server](../src/platform/mcp-server/server.ts)只列出 Scope 内描述符并调用 `ToolScope.execute()`。错误只含固定代码；取消传到 handler 和 Worker 进程。EOF/退出先完成调用清理再关闭 SQLite。[运行时](../src/platform/mcp-server/runtime.ts)不初始化应用 AI 设置、凭据、模型或外部 MCP Client。
+内部 Agent、Codex 和其他外部 MCP 宿主是平等 Client，发现相同的 27 个工具：
 
-| 公开能力 | 契约 |
+| 公共能力 | 契约 |
 | --- | --- |
-| `job.list`, `profile.list` | 选择已保存的输入 ID |
-| `resume.start` | 原子快照/启动及同会话请求 UUID 回执 |
-| `resume.get_context`, `resume.list_facts` | 不可变上下文/进度/文档及分页事实 |
-| `resume.submit_scores`, `resume.submit_gate`, `resume.submit_selection` | 接受下一阶段；相同重试返回已接受状态 |
-| `resume.submit_draft`, `resume.submit_polished` | 只接受 writing；应用从快照补齐元数据 |
-| `resume.publish`, `resume.cancel` | 发布一次或取消自有未完成 run |
-| `artifact.build`, `artifact.get` | 构建 HTML/PDF、返回本地路径及查看文档/溯源 |
+| job.list, job.get, profile.list, profile.get, profile.list_facts | 已保存记录、筛选和分页，保留现有结果形状 |
+| job.import | 仅保存结构化职位，带 requestId receipt 和可选真实网页来源 |
+| job.update, job.set_archived | 部分详情变更或归档/恢复，相同值不产生变更 |
+| application.get, application.set_status | 当前状态/allowedNextStatuses 与 Domain 强制的幂等转换 |
+| application.list_events, application.add_note | 分页时间线，带 receipt 的备注也可写入归档职位 |
+| application.schedule_event, application.reschedule_event | 本地 UTC 日程，创建 receipt、事件/Job 归属及归档校验 |
+| resume.start | 原子快照/启动与同会话请求 UUID receipt，可声明 Provider/模型元数据 |
+| resume.get_context, resume.list_facts | 快照/进度/文档及分页事实 |
+| resume.submit_scores, resume.submit_gate, resume.submit_selection | 有序阶段与相同输入重试 |
+| resume.submit_draft, resume.submit_polished | 经校验的写作、应用复制的快照元数据与派生溯源 |
+| resume.publish, resume.fail, resume.cancel | 发布或以固定错误码失败/取消本运行时拥有的 run |
+| artifact.get, artifact.build | 内容/溯源或无需模型的 HTML/PDF 输出和本地路径 |
 
-[白名单和 Schema](../src/platform/tools/resume.ts)将最高风险限定为 `WRITE`，不含 `EXTERNAL_ACTION`。快照上限为 1000 Facts、200 条目、256 KiB 上下文及每条 Fact 8 KiB。事实每页最多 100 条。评分理由最多 512 字符；评分输入允许 1 MiB，writing 输入允许 512 KiB；其他输入/结果/深度/节点限制不变。进度/溯源视图也必须符合结果容量；容量失败在创建/变更前拒绝。阶段冲突失败；结构校验不证明语义真实。
+Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、每事实 8 KiB；每页最多 100 个事实。冲突/乱序提交失败，语义真实性仍需核对证据。中断生成不能由其他 Server 会话继续接管。
 
-[共享输出服务](../src/platform/resume-output/service.ts)管理状态/文件。MCP 使用可取消的 [Electron Worker 适配器](../src/platform/resume-output/worker-client.ts)，无需主应用窗口，但仍需要图形 Electron 环境。二进制文件来自已安装 Electron 包或 `JOB_BROWSER_ELECTRON`。UI 与 Worker 复用 exporter、分页及固定字体。输出失败可无模型调用重建；生命周期归属由数据架构管理。
+[输出生命周期](../src/platform/resume-output/service.ts)管理受控文件与状态；构建使用可取消的 [Electron Worker](../src/platform/resume-output/worker-client.ts)，需要图形环境但不需要主应用窗口。JOB_BROWSER_ELECTRON 可指定 Electron 二进制文件。失败输出可独立于模型调用重建。
 
-双语 [Skill](../skills/tailor-resume/SKILL.zh-CN.md)说明五个推理阶段，[工作流常量](../src/domain/resume/workflow.ts)定义阶段/工具顺序。`skill:link` 创建仓库 `.agents/skills/tailor-resume` 符号链接。运行时不把 Skill 文字加载为业务规则。发现未刷新时重启宿主，见[官方 Skill 发现规则](https://learn.chatgpt.com/docs/build-skills)。
+双语 [capture-job](../skills/capture-job/SKILL.zh-CN.md)、[manage-applications](../skills/manage-applications/SKILL.zh-CN.md)、[tailor-resume](../skills/tailor-resume/SKILL.zh-CN.md)是标准推理指南。[skill:link](../scripts/install-skills.cjs)幂等安装三个仓库链接，拒绝覆盖无关目标。运行时 Prompt 实现相同流程，不把 Skill 文本作为业务规则加载。
 
-## 六、验证与后续交付
+## 六、验证与待交付内容
 
-[工具测试](../tests/tools.test.ts)、[MCP 测试](../tests/mcp.test.ts)和[能力审计测试](../tests/capability-audit.test.ts)覆盖权限、撤销、输入/输出/隐私边界、真实分页 stdio、Schema 变化、错误、超时、取消、不可变审计及本地写事务。
+[业务工具测试](../tests/business-tools.test.ts)、[申请测试](../tests/application-agent.test.ts)、[采集测试](../tests/capture-agent.test.ts)、[Resume 一致性](../tests/resume-runtime-parity.test.ts)和 [lease 测试](../tests/runtime-leases.test.ts)覆盖真实 stdio、共享 SQLite、发现一致性、归属、并发写入、receipt/重启、失败和取消。[Server smoke](../scripts/run-mcp-server-smoke.cjs)使用构建入口和真实 Electron HTML/PDF；[Agent smoke](../scripts/run-agent-smoke.cjs)覆盖生产 UI。命令归属 [README](../README.zh-CN.md)。
 
-[运行时 smoke](../scripts/run-mcp-smoke.cjs)将实际组装模块按 CJS 和生产依赖外置规则打包，在 Electron Node 运行时中执行，使用临时存储验证 Native/MCP 调用、写审计、取消、断连/重连、重启恢复及子进程清理。命令归属 [README](../README.zh-CN.md)。
-
-[Resume 工具测试](../tests/resume-tools.test.ts)、[运行时一致性](../tests/resume-runtime-parity.test.ts)、[租约测试](../tests/runtime-leases.test.ts)及 [Server smoke](../scripts/run-mcp-server-smoke.cjs)覆盖共享 handler、归属、真实 stdio 和 Electron 输出。**规划：**真实第三方服务、HTTP/OAuth、Browser 适配、Resources/Prompts、多模态结果、高风险确认、自动安装及能力审计查看器。本地样本测试不证明 Windows/Linux 兼容性或宿主自动调用已验证。
+真实 Provider 认证、远程传输、外部日历/邮件动作及 Windows/Linux 渲染仍未验证或处于规划，测试 fixture 不代表已提供这些能力。
 
 ## 相关文档
 
 - [代码架构](code-architecture.zh-CN.md)：依赖与进程边界。
-- [数据架构](data-architecture.zh-CN.md)：带审计的 read/write 持久化及配置。
-- [当前架构](architecture.zh-CN.md)：应用运行行为及限制。
+- [数据架构](data-architecture.zh-CN.md)：存储、receipt 与审计。
+- [当前架构](architecture.zh-CN.md)：产品运行与限制。

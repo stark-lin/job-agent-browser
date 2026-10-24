@@ -2,14 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { seed, value } from './helpers'
-import { createResumeTooling, resumeAllowlist } from '../src/platform/tools/resume'
+import { createJobAgentTooling, jobAgentAllowlist } from '../src/platform/tools'
 import type { ToolOutput } from '../src/shared/tools/tool.types'
 
 export const data = <T>(output: ToolOutput) => output.structuredContent as unknown as T
 export async function resumeTools(t: Parameters<typeof seed>[0]) {
-  const f = await seed(t), tooling = createResumeTooling(f.backend, async () => ({ output: { status: 'READY' } }))
+  const f = await seed(t), tooling = createJobAgentTooling(f.backend, async () => ({ output: { status: 'READY' } }))
   t.after(() => tooling.dispose())
-  const scope = tooling.registry.scope({ allow: resumeAllowlist, maxRisk: 'WRITE' }, { agentId: 'codex', signal: new AbortController().signal })
+  const scope = tooling.registry.scope({ allow: jobAgentAllowlist, maxRisk: 'WRITE' }, { agentId: 'codex', signal: new AbortController().signal })
   t.after(() => scope.dispose())
   const requestId = randomUUID(), start = { requestId, jobId: f.job.id, profileId: f.profile.id }
   const { runId } = data<{ runId: string }>(await scope.execute('resume.start', start))

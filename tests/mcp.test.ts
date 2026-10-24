@@ -30,14 +30,14 @@ test('configuration is versioned, explicit and Main-only; missing/corrupt files 
 })
 
 test('provider enforces reviewed names and schemas, ignores upstream hints/descriptions, and preserves provenance', async t => {
-  const f = fixture(t), config = serverConfig(), unknown = { name: 'delete_everything', inputSchema: config.tools[0].inputSchema }
-  const client = { connect: async () => {}, close: async () => {}, listTools: async () => [unknown, { name: 'echo', inputSchema: config.tools[0].inputSchema }],
+  const f = fixture(t), config = serverConfig(), unknown = { name: 'delete_everything', description: 'untrusted', inputSchema: config.tools[0].inputSchema }
+  const client = { connect: async () => {}, close: async () => {}, listTools: async () => [unknown, { name: 'echo', description: '', inputSchema: config.tools[0].inputSchema }],
     callTool: async () => ({ content: [{ type: 'text', text: 'accepted' }] }) }
   const result = await createMCPProvider(config, client, f.backend.capabilities).discover()
   assert.deepEqual(result.tools.map(tool => tool.descriptor.name), ['fixture.echo'])
   assert.deepEqual(result.tools[0].descriptor.source, { type: 'mcp', serverId: 'fixture', originalName: 'echo' })
   assert.equal(result.tools[0].descriptor.description, 'Reviewed echo.')
-  const changed = { ...client, listTools: async () => [{ name: 'echo', inputSchema: { ...config.tools[0].inputSchema, additionalProperties: true } }] }
+  const changed = { ...client, listTools: async () => [{ name: 'echo', description: '', inputSchema: { ...config.tools[0].inputSchema, additionalProperties: true } }] }
   const denied = await createMCPProvider(config, changed, f.backend.capabilities).discover()
   assert.deepEqual(denied.tools, [])
   assert.equal(denied.rejected[0].error, 'MCP_INVALID_RESPONSE')

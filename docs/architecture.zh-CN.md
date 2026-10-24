@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 组装、混合导航、设置、个人资料编辑/PDF 导入、职位/申请、流式对话及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**，更多产品流程仍为**规划**。
+用途：记录已验证的运行行为。状态：React 组装、混合导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、流式对话及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**，更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -13,7 +13,7 @@ React App → Page → Preload → IPC → Main
                                   ├── Mixed history + WebContentsView → Session
                                   ├── Domain services → SQLite + audit
                                   ├── AI service → Provider SSE
-                                  └── ToolScope → audited capability → Domain / MCP stdio
+                                  └── MCP Client → stdio Server → ToolScope → audited capability → Domain
 ```
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据/AI 桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
@@ -68,7 +68,7 @@ React App → Page → Preload → IPC → Main
 
 **已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与显式保存语义归属[数据架构](data-architecture.zh-CN.md)。
 
-[导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/profile-import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
+[导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
 
 Main 将 PDF 文字发送给已展示的全局默认 Provider/模型，复用 AI 超时、取消和启动审计。[草稿解析](../src/platform/profile-import/draft.ts)校验 JSON，将多个事实归入同一条目。导入输出不包含原文引用、页码及证据校验，可省略空的可选字段；已保存事实仍支持 Resume Agent 表述关联。原始流不作为已解析资料展示，重试由用户手动发起。原始 PDF、完整文字和未保存草稿不持久化，离页、刷新、崩溃和窗口销毁会释放会话。OCR、原始文件管理和真实第三方 Provider 兼容性认证尚未实现。
 
@@ -88,21 +88,21 @@ AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位�
 
 并行模式下职位备注默认为空，来源元数据由本地组装。[共用批次](../src/platform/import/batch.ts)最多并发三组，PDF 的第四组等待空闲位置。每组只能返回分配的字段/条目类型；所有组成功后按固定顺序合并。资料合并按事实类别/内容去除同一父项内的重复及独立事实对条目事实的重复；不同父项下的相同事实分别保留。
 
-[AI 服务](../src/platform/ai/service.ts)在每窗口四个、全局十六个活动请求的额度内排队导入调用，活动/排队合计最多接受八十个。请求超时从执行时起算。每组报告状态和仅存内存的排队/处理耗时；取消移除排队请求并中止运行请求。共用批次使用单调时钟，每 100 毫秒更新排队/运行耗时，无需等待模型输出。终态分组保留最终耗时，重试只重置失败组；完成、失败及取消均释放刷新计时器。
+[AI 服务](../src/platform/ai/service.ts)为 Profile 导入排队，每窗口四个/全局十六个活动请求，活动与排队合计最多八十个。职位采集通过 AgentModel 在每个窗口任务内最多并发三组。各组报告仅存内存的排队/处理耗时；[共用批次](../src/platform/import/batch.ts)使用单调时钟每 100 毫秒刷新，保留终态耗时，重试只重置失败组，完成/失败/取消释放计时器。
 
 分组失败时，成功结果留在内存；只有任务返回 `retryable`，页面才提供“重试失败部分”。重试复用原来源、模型选择、模式和成功结果，不重新下载/提取，也不写业务数据。读取/提取失败，或没有失败组的最终合并失败，需要重新解析。替换、放弃、导航/窗口释放和进程退出会释放对应任务/缓存。重试标识规则见[数据架构](data-architecture.zh-CN.md#五api-契约与访问)。
 
 每组接收完整输入，因此输入 token/费用可能增加。较短输出和并发请求可以减少等待，但效果取决于服务商并发、模型吞吐及网络延迟；本地样本测试不代表真实服务提速。
 
-**已实现新增工作：**[新增页面](../src/pages/find-jobs/AddJobPage.tsx) 在兼容的 `app://find` 入口提供手工录入和单个 URL AI 导入；共享表单覆盖现有职位字段，AI 仅填空缺字段，数组/薪资整体保留已有值。解析前显示默认 Provider/模型；未配置 AI 仍可手工填写。[未保存保护](../src/app/navigation/useUnsavedGuard.ts)由 Profile 和新增工作共用。保存状态及来源语义归[数据架构](data-architecture.zh-CN.md)。
+**已实现新增工作：**[页面](../src/pages/find-jobs/AddJobPage.tsx)支持手工录入及 URL/文本/PDF [采集 Agent](../src/platform/agent/capture.ts)。解析仅回填空字段，保留已有数组/薪资并显示所选模型。读取和理解期间不调用 JAB MCP，审核编辑后的草稿通过 job.import 保存；人工表单保留 typed IPC。[未保存保护](../src/app/navigation/useUnsavedGuard.ts)与 Profile 共用，存储规则归属[数据架构](data-architecture.zh-CN.md)。
 
 [公开 URL 读取器](../src/platform/job-import/url-reader.ts)在 Main 读取 HTTP(S) HTML，不发送网站 Cookie，不执行网页脚本；使用已保存的网页读取超时，最多 5 次重定向、2 MB HTML、60,000 个正文字符及 40,000 个 JobPosting 元数据字符。[HTML 解析](../src/platform/job-import/html.ts)使用 htmlparser2 去除脚本/导航等内容；HTTP 拒绝、登录/验证页及无可读内容返回固定错误。仅脚本生成或无法识别的限制页可能无法解析，不保证所有招聘网站兼容。
 
-[异步任务](../src/platform/job-import/service.ts)隔离窗口归属，复用 AI 服务的超时、取消及启动审计；[分组解析](../src/platform/job-import/parts.ts)校验字段白名单及 JSON，不接受系统 ID/状态。离开、刷新、崩溃及窗口销毁清理任务，迟到结果被忽略。Domain 的[快照和能力接口](../src/domain/job/job.extractor.ts)为后续 Browser 登录态采集预留复用入口；登录、验证码处理及自动重试未实现。
+[采集任务](../src/platform/job-import/service.ts)按窗口管理原始字节、草稿、重试和稳定保存 requestId。[通用 PDF 读取](../src/platform/import/pdf.ts)与 Profile 共用 Worker 和上限。职位解析使用 AgentModel；[分组解析](../src/platform/job-import/parts.ts)拒绝受控字段，保留成功分组供重试。窗口释放阻止迟到结果。登录态 Browser 采集、登录/验证码、OCR 和原文件管理仍未实现。
 
-[申请记录](../src/pages/applications/ApplicationsPage.tsx)显示未归档工作，支持名称/公司搜索、状态筛选、25 条分页、手动刷新及只读详情/来源。保存后更新共享 Job ID，跳转并打开新职位详情；跳转失败时不重复提交已保存记录。状态编辑、日历和去重仍为规划。
+[申请记录](../src/pages/applications/ApplicationsPage.tsx)支持搜索/状态/归档筛选、25 条分页和手动刷新。详情包含来源、分页事件及[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)。明确指令通过 MCP 执行本地状态/备注/日程/详情/归档动作，缺少信息时追问，部分失败保留已完成动作。保存 Job 后打开其详情。外部日历/邮件动作及重复合并仍为规划。
 
-**已实现 Resume Agent V1：**[Main 任务](../src/platform/agent/resume-tasks.ts)在启动 [Domain 工作流](../src/domain/resume/resume.agent.ts)前固定默认 Provider/模型并收集不可变输入。[异步桥接](../src/platform/electron/resume-contract.ts)驱动[定制简历](../src/pages/tailor-resume/TailorResumePage.tsx)，返回页面恢复任务，每窗口限制一个活动任务，窗口销毁取消工作。输出失败独立重试，发布继续保持成功。[数据架构](data-architecture.zh-CN.md#三生成成品与删除)管理文档、溯源、输出与恢复语义；[MCP 架构](mcp-architecture.zh-CN.md)管理 AgentModel/AgentLoop 及快照 Scope 边界。
+**已实现 Resume Agent V1：**[Main 任务](../src/platform/electron/resume-tasks.ts)组装固定五阶段的 [Resume Agent](../src/platform/agent/resume.ts)与真实 first-party stdio MCP 会话。不可变 start/read/submit/publish/fail/cancel/build 均经过 MCP，UI 查询/预览/导出属于独立 Main 操作。[异步桥接](../src/platform/electron/resume-contract.ts)驱动定制简历，保留历史、每窗口限制一个活动任务，并取消被销毁窗口的工作。[数据架构](data-architecture.zh-CN.md#三生成成品与删除)管理持久化/输出，[MCP 架构](mcp-architecture.zh-CN.md)管理 Agent 边界。
 
 ## 四、会话、安全与存储
 
@@ -115,7 +115,7 @@ AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位�
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
-**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)通过[工具运行时](../src/platform/mcp/runtime.ts)组装原生读取及可选 stdio Server，在后台启动外部连接，退出时完成工具/AI 清理后再关闭 SQLite。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、Scope、审核 Schema、有界执行及生命周期。暂不提供 Renderer 工具桥接或 Renderer 通用工具执行。 独立 [Node Server](../src/platform/mcp-server/runtime.ts)向 Codex 暴露共享 Resume 工作流，使用后台 Electron PDF Worker；主应用窗口可关闭。实例级恢复由数据架构管理。
+**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)分别管理可选第三方能力消费与 [first-party 会话](../src/platform/mcp/first-party-client.ts)。三个内部 Agent 与外部宿主共用提供 27 个工具的 [Node Server](../src/platform/mcp-server/runtime.ts)，Caller 标识仅影响审计。Renderer 只暴露命名流程 IPC，不开放通用工具执行。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、上限和退出，数据架构管理多进程恢复。
 
 ## 五、国际化
 

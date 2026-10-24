@@ -5,7 +5,7 @@ import type { Result } from '../../../shared/ipc'
 import type { composeBackend } from '../../database/backend'
 import type { ProfileImporter } from '../../profile-import/service'
 import { errorCode } from '../../../domain/common/errors'
-import { ImportFailure } from '../../profile-import/pdf'
+import { ImportFailure } from '../../import/pdf'
 
 export interface Sender {
   windowOwned: boolean; mainFrame: boolean; url: string

@@ -46,3 +46,9 @@ Check this table before adding a document; create one only for a distinct topic 
 - Follow the [component-library specification](docs/design-system.md) for UI additions and edits; use shared tokens for spacing, sizes, type, corners and semantic colors.
 - All UI components must reuse the central library through `src/shared/ui/index.ts`. Build page/domain components from its primitives; add missing primitives or variants centrally before using them. Pages may define layout and behavior, but must not duplicate control markup/styles or override central presentation with inline styles.
 - Change canonical tokens and regenerate shared CSS/browser geometry together. Run design validation and relevant runtime checks; keep the reference gallery and both specification editions aligned.
+
+## Agent capability boundaries
+
+- All Agent-originated business capability calls MUST cross the Job Agent Browser MCP protocol boundary, including workflow submissions, persistence, cancellation, failure and output builds.
+- `ToolScope` is a server-side implementation primitive and MUST NOT be used as an Agent interface. Agent code uses `AgentModel`, `AgentTools` and pure workflow contracts; never import Domain services/repositories, database adapters or tool registries, including through re-exports or dynamic imports.
+- Host source reading and model reasoning happen outside the business MCP. `job.import` persists structured data only. Human forms and read-only UI projection may continue using typed IPC and Domain services.

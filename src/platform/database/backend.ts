@@ -14,6 +14,7 @@ import { repositories } from './repositories'
 import { auditReader, references } from './audit-reader'
 import { createAuditedCapabilities } from '../tools/capabilities'
 import { createNativeCapabilities } from '../tools/native'
+import { operationReceipts } from './operation-receipts'
 import { createRuntimeLease } from './runtime-leases'
 
 /** Shared runtime composition. All services share one connection; generation has a trusted runtime identity. */
@@ -22,10 +23,12 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   database.transactions.capabilities.setRuntime(lease)
   const store = new Store(database.connection, database.transactions), repo = repositories(store, lease)
   const user = database.transactions.forActor('USER'), system = database.transactions.forActor('SYSTEM')
+  const business = kind === 'external' ? database.transactions.forActor('EXTERNAL') : user
+  const receipts = operationReceipts(database.connection)
   const runtime = { id: randomUUID, now: () => new Date().toISOString() }
   const services = {
-    jobs: createJobService(repo.jobs, user, runtime), profiles: createCandidateService(repo.candidate, user, runtime),
-    applications: createApplicationService(repo.jobs, repo.applications, user, runtime),
+    jobs: createJobService(repo.jobs, business, runtime, receipts), profiles: createCandidateService(repo.candidate, user, runtime),
+    applications: createApplicationService(repo.jobs, repo.applications, business, runtime, receipts),
     resumes: createResumeService(repo.jobs, repo.candidate, repo.resumes, kind === 'external' ? database.transactions.forActor('EXTERNAL') : user, runtime, references(store), kind),
     audit: auditReader(store, user), ...storage
   } satisfies ServiceContract
@@ -48,6 +51,8 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
     recover,
     outputTransaction: system,
     resumes: services.resumes,
+    jobs: services.jobs,
+    applications: services.applications,
     ownedStart(requestId: string) {
       const row = database.connection.prepare('SELECT run_id FROM resume_start_receipts WHERE request_id=? AND runtime_id=?').get(requestId, lease.id)
       return row ? services.resumes.getRun({ id: String(row.run_id) }).run : null

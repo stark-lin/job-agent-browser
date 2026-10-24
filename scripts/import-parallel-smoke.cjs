@@ -35,12 +35,13 @@ module.exports = async function parallelImportSmoke({ window, call, evaluate, wa
       response.end('<title>Parallel job</title><main>Engineer at Parallel company. Build reliable services and work with SQL in an experienced engineering team.</main>'); return
     }
     let body = ''; request.on('data', chunk => { body += chunk }); request.on('end', () => {
-      const prompt = JSON.parse(body).messages[0].content, group = /This is the (\w+) extraction group/.exec(prompt)?.[1]
+      const input = JSON.parse(body), prompt = input.messages[0].content, group = /This is the (\w+) extraction group/.exec(prompt)?.[1]
       assert(outputs[group], `unexpected group ${group}`); counts[group] = (counts[group] ?? 0) + 1
-      if (hanging) { response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.write(': waiting\n\n'); return }
+      if (hanging) { response.writeHead(200, { 'Content-Type': input.stream ? 'text/event-stream' : 'application/json' }); response.write(input.stream ? ': waiting\n\n' : '{\"choices\":'); return }
       const reply = () => {
         if (response.destroyed) return
         if (failures.delete(group)) { response.writeHead(429); response.end('retry part'); return }
+        if (!input.stream) { response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(outputs[group]) } }] })); return }
         const chunk = `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(outputs[group]) }, finish_reason: 'stop' }] })}\n\n`
         response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.end(chunk + 'data: [DONE]\n\n')
       }
@@ -82,7 +83,7 @@ module.exports = async function parallelImportSmoke({ window, call, evaluate, wa
     await waitFor(async () => (await evaluate('window.data.settings.get({})')).value.ai.providers[0].parallelModels?.includes('fixture'), 'parallel setting persisted through real form')
     await call('navigate', 'app://find')
     await waitFor(() => evaluate('!!document.querySelector("option[value=parallel]") && !document.querySelector("option[value=parallel]").disabled'), 'parallel mode enabled')
-    await field('.job-page select', 'parallel', true)
+    await field('.job-page select[name=importMode]', 'parallel', true)
     await field('[name=jobUrl]', `${origin}/job`); await button('Parse with AI')
     await button('Retry failed parts'); assert.equal(reads, 1)
     await waitFor(() => evaluate('document.querySelector("[name=title]").value === "Parallel engineer"'), 'merged parallel job draft')

@@ -9,7 +9,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin(), { name: 'profile-pdf-worker', writeBundle() {
       mkdirSync(resolve(__dirname, 'out/main'), { recursive: true })
       cpSync(resolve(__dirname, 'resources/fonts'), resolve(__dirname, 'out/main/fonts'), { recursive: true })
-      copyFileSync(resolve(__dirname, 'src/platform/profile-import/pdf-worker.mjs'), resolve(__dirname, 'out/main/pdf-worker.mjs'))
+      copyFileSync(resolve(__dirname, 'src/platform/import/pdf-worker.mjs'), resolve(__dirname, 'out/main/pdf-worker.mjs'))
     } }],
     build: {
       rollupOptions: {

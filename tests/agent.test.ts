@@ -3,15 +3,14 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { runAgent } from '../src/platform/agent/loop'
-import { compatibleAgentModel } from '../src/platform/agent/compatible'
-import type { AgentModel, AgentResponse } from '../src/shared/agent'
-import type { ToolScope } from '../src/shared/tools/tool.types'
+import { compatibleAgentModel } from '../src/platform/ai/agent-model'
+import type { AgentModel, AgentResponse, AgentTools } from '../src/shared/agent'
 import { ToolError } from '../src/shared/tools/errors'
 
 const signal = () => new AbortController().signal
 const descriptor = (name: string) => ({ name, description: name, source: { type: 'native' as const }, tags: [], mode: 'read' as const, risk: 'READ' as const, inputSchema: { type: 'object', additionalProperties: false } })
-function scope(execute: ToolScope['execute'] = async () => ({ content: [] })): ToolScope {
-  return { list: () => [descriptor('profile.get'), descriptor('profile_get')], get: () => null, execute, dispose() {} }
+function scope(execute: AgentTools['call'] = async () => ({})): AgentTools {
+  return { list: async () => [descriptor('profile.get'), descriptor('profile_get')], call: execute }
 }
 function model(responses: AgentResponse[]): AgentModel { return { complete: async () => responses.shift()! } }
 const call = (id: string, name = 'profile.get') => ({ id, name, arguments: {} })
@@ -60,7 +59,7 @@ test('empty finals, repeated call IDs and 8-call exhaustion fail explicitly', as
 })
 test('adapter rejects illegal JSON arguments, protocol variants, truncation and empty output; timeout and auditing are bounded', async () => {
   const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
-  const input = { messages: [], tools: scope().list(), signal: signal() }
+  const input = { messages: [], tools: [descriptor('profile.get'), descriptor('profile_get')], signal: signal() }
   for (const payload of [null, { choices: [] }, { choices: [{ finish_reason: 'length', message: { role: 'assistant', content: 'partial' } }] },
     { choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '' } }] },
     { choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', tool_calls: [{ id: 'a', type: 'function', function: { name: 'tool_0', arguments: '{' } }] } }] }]) {

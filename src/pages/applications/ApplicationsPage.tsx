@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, DataTable, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Badge, Button, Checkbox, DataTable, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { applicationStatuses, type ApplicationStatus } from '../../domain/job/job.types'
@@ -11,14 +11,16 @@ import '../find-jobs/job.css'
 export function ApplicationsPage() {
   const { t, i18n } = useTranslation(), { openPage } = useNavigation(), { context } = useServices(), viewer = useApplications()
   const [search, setSearch] = useState(''), [status, setStatus] = useState<ApplicationStatus | ''>('')
+  const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState<string | null>(() => context.getSnapshot().jobId)
   return <main className="job-page"><div className="job-content">
     <div className="page-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
     <PageHeading title={t($ => $.navigation.pages.applications)} description={t($ => $.jobs.listHelp)} />
     <SectionCard title={t($ => $.jobs.savedJobs)}><div className="job-stack">
-      <form className="job-stack" onSubmit={event => { event.preventDefault(); setSelected(null); viewer.apply(search, status) }}>
+      <form className="job-stack" onSubmit={event => { event.preventDefault(); setSelected(null); viewer.apply(search, status, archived) }}>
         <div className="job-fields"><FormField label={t($ => $.jobs.search)}>{props => <TextInput {...props} name="jobSearch" value={search} maxLength={200} onChange={event => setSearch(event.target.value)} />}</FormField>
           <FormField label={t($ => $.jobs.status)}>{props => <Select {...props} name="jobStatus" value={status} onChange={event => setStatus(event.target.value as ApplicationStatus | '')}><option value="">{t($ => $.jobs.allStatuses)}</option>{applicationStatuses.map(status => <option key={status} value={status}>{t($ => $.jobs.statuses[status])}</option>)}</Select>}</FormField></div>
+        <Checkbox label={t($ => $.applicationAgent.archivedJobs)} name="archivedJobs" checked={archived} onChange={event => setArchived(event.target.checked)} />
         <div className="job-actions"><Button type="submit" disabled={viewer.loading}>{t($ => $.jobs.applyFilters)}</Button><Button disabled={viewer.loading} onClick={viewer.refresh}>{t($ => $.jobs.refresh)}</Button><Button variant="primary" onClick={() => void openPage('find')}>{t($ => $.navigation.pages.find)}</Button></div>
       </form>
       <div className="job-stack" aria-busy={viewer.loading}>
@@ -35,6 +37,6 @@ export function ApplicationsPage() {
         </>}
       </div>
     </div></SectionCard>
-    <JobDetailsDialog id={selected} onClose={() => setSelected(null)} />
+    <JobDetailsDialog id={selected} onChanged={viewer.refresh} onClose={() => setSelected(null)} />
   </div></main>
 }

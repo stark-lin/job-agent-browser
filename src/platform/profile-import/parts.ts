@@ -2,7 +2,7 @@ import type { ImportDraft } from '../../domain/candidate/import.types'
 import type { ImportMode } from '../../shared/import'
 import type { ImportPart } from '../import/batch'
 import { importPrompt, parseImportDraft, parseRawImport } from './draft'
-import { ImportFailure, type PdfPage } from './pdf'
+import { ImportFailure, type PdfPage } from '../import/pdf'
 
 type Raw = ReturnType<typeof parseRawImport>
 const empty = () => ({ contact: {}, links: [], items: [], facts: [] })

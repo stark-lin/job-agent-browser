@@ -3,7 +3,7 @@ import type { JobDraft, JobPageSnapshot } from '../../domain/job/job.extractor'
 import type { ImportMode } from '../../shared/import'
 import type { ImportPart } from '../import/batch'
 import { JobImportFailure } from './errors'
-import { jobPrompt } from './extractor'
+import { jobPrompt } from './prompt'
 
 export function parseJobPart(text: string, keys?: readonly string[]): Partial<JobDraft> {
   try {

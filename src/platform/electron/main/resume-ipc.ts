@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { RESUME_CALL, RESUME_EVENT, resumeMethods, type ResumeEvent } from '../resume-contract'
 import { trustedDataSender } from './data-ipc'
-import { resumeError, type ResumeTasks } from '../../agent/resume-tasks'
+import { resumeError, type ResumeTasks } from '../resume-tasks'
 
 export function registerResumeIPC(service: ResumeTasks, rendererPath: string) {
   const expected = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(rendererPath).href
@@ -19,7 +19,7 @@ export function registerResumeIPC(service: ResumeTasks, rendererPath: string) {
       if (method === 'start') value = await service.start(sender.id, input, emit)
       else if (method === 'getTask') value = service.getTask(sender.id, input)
       else if (method === 'cancel') value = await service.cancel(sender.id, input)
-      else if (method === 'retryOutput') value = service.retryOutput(sender.id, input, emit)
+      else if (method === 'retryOutput') value = await service.retryOutput(sender.id, input, emit)
       else if (method === 'getPreview') value = await service.getPreview(input)
       else {
         const pdf = await service.pdf(input)

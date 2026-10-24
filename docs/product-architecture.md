@@ -166,13 +166,13 @@ Stage 1 establishes page hosting and navigation controls; Stage 3 completes the 
 
 This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Resume V1 now implements business orchestration and reference context; mailbox entry configuration must ship alongside Inbox.
 
-The [MCP foundation](mcp-architecture.md) now supplies scoped, audited Native/stdio capabilities. The next tooling milestones are one real-service integration with its required transport/credentials, Resume V1 now provides model Tool Calling and one business Agent; these do not replace the staged product workflows above.
+[MCP infrastructure](mcp-architecture.md) now provides one public capability surface used by internal Resume/Capture/Application Agents and external hosts. Ask AI remains plain streaming chat. Future tooling milestones include a real-service integration and its required transport/credentials; these do not replace the staged product workflows above.
 
 The foundation milestone is:
 
 > Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
 
-Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual/public-URL Job capture, Applications listing, Resume V1 HTML/PDF and reference-only App Context. Additional workflows and full page-context capture remain planned; accessible page skeletons do not complete the MVP.
+Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual and URL/text/PDF Job capture, application management within the existing details page, Resume V1 HTML/PDF and reference-only App Context. The three business Agents use MCP. Interview Prep, external calendar/email actions and full page-context capture remain planned; accessible skeletons do not complete the MVP.
 
 ## 11. How to use this baseline
 

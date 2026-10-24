@@ -4,8 +4,10 @@ import { fail } from '../common/errors'
 import * as v from '../common/validation'
 import { companyDetails, jobDetails, jobFilter, sourceDetails } from './job.validation'
 import type { Job, JobSource } from './job.types'
+import { withReceipt, type OperationReceipts } from '../common/receipts'
+import { parseJobChanges, persistableJobFields } from './workflow'
 
-export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: Runtime) {
+export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: Runtime, receipts?: OperationReceipts) {
   const validateDetails = (input: unknown) => {
     const details = jobDetails(input)
     if (details.companyId) repo.getCompany(details.companyId)
@@ -23,13 +25,25 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
     return source
   }
   return {
-    saveJob(input: unknown) {
+    saveJob(input: unknown, requestId?: string) {
       return tx.write({ event: 'JOB_SAVE', action: 'CREATE', target: 'job' }, () => {
         const args = v.object({ details: jobDetails, source: v.optional(v.nullable(sourceDetails), null) })(input)
-        const now = runtime.now()
-        const job: Job = { ...validateDetails(args.details), id: runtime.id(), applicationStatus: 'NOT_STARTED', savedAt: now, appliedAt: null, closedAt: null, archivedAt: null, createdAt: now, updatedAt: now }
-        repo.insert(job)
-        if (args.source) addSource(job.id, args.source)
+        return withReceipt(receipts, 'job.import', requestId, args, 'job', () => {
+          const now = runtime.now()
+          const job: Job = { ...validateDetails(args.details), id: runtime.id(), applicationStatus: 'NOT_STARTED', savedAt: now, appliedAt: null, closedAt: null, archivedAt: null, createdAt: now, updatedAt: now }
+          repo.insert(job)
+          if (args.source) addSource(job.id, args.source)
+          return job
+        })
+      })
+    },
+    patchDetails(input: unknown) {
+      return tx.write({ event: 'JOB_EDIT', action: 'UPDATE', target: 'job' }, () => {
+        const { id, changes } = v.object({ id: v.id, changes: parseJobChanges })(input), previous = repo.get(id)
+        const details = validateDetails({ ...Object.fromEntries(persistableJobFields.map(key => [key, previous[key]])), ...changes })
+        if (Object.entries(details).every(([key, value]) => JSON.stringify(previous[key as keyof Job]) === JSON.stringify(value))) return previous
+        const job = { ...previous, ...details, updatedAt: runtime.now() }
+        repo.save(job)
         return job
       })
     },
@@ -52,6 +66,7 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       return tx.write({ event: 'JOB_ARCHIVE', action: 'UPDATE', target: 'job' }, () => {
         const { id, archived } = v.object({ id: v.id, archived: v.boolean })(input)
         const job = repo.get(id)
+        if (Boolean(job.archivedAt) === archived) return job
         job.archivedAt = archived ? runtime.now() : null
         job.updatedAt = runtime.now()
         repo.save(job)

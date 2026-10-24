@@ -1,13 +1,13 @@
-import { abortable, AgentError, type AgentMessage, type AgentModel } from '../../shared/agent'
-import type { ToolScope } from '../../shared/tools/tool.types'
+import { abortable, AgentError, type AgentMessage, type AgentModel, type AgentTools } from '../../shared/agent'
 import { ToolError } from '../../shared/tools/errors'
 
 /** A bounded sequential conversation. Domain stages decide what the final text means. */
-export async function runAgent(model: AgentModel, scope: ToolScope, initial: AgentMessage[], signal: AbortSignal): Promise<string> {
+export async function runAgent(model: AgentModel, tools: AgentTools | undefined, initial: AgentMessage[], signal: AbortSignal): Promise<string> {
   const messages = structuredClone(initial), seen = new Set<string>()
+  const descriptors = tools ? await abortable(tools.list(), signal) : []
   for (let step = 0; step < 8; step++) {
     if (signal.aborted) throw new AgentError('AGENT_CANCELLED')
-    const response = await abortable(model.complete({ messages: structuredClone(messages), tools: scope.list(), signal }), signal)
+    const response = await abortable(model.complete({ messages: structuredClone(messages), tools: descriptors, signal }), signal)
     if (signal.aborted) throw new AgentError('AGENT_CANCELLED')
     if (!response || typeof response.content !== 'string' || !Array.isArray(response.toolCalls) || response.toolCalls.length > 32) throw new AgentError('AGENT_PROTOCOL_ERROR')
     for (const call of response.toolCalls) {
@@ -18,11 +18,12 @@ export async function runAgent(model: AgentModel, scope: ToolScope, initial: Age
       if (!response.content.trim()) throw new AgentError('AGENT_PROTOCOL_ERROR')
       return response.content
     }
+    if (!tools) throw new AgentError('AGENT_PROTOCOL_ERROR')
     messages.push({ role: 'assistant', ...structuredClone(response) })
     for (const call of response.toolCalls) {
       if (signal.aborted) throw new AgentError('AGENT_CANCELLED')
       let observation: string
-      try { observation = JSON.stringify(await abortable(scope.execute(call.name, call.arguments), signal)) }
+      try { observation = JSON.stringify(await abortable(tools.call(call.name, call.arguments, signal), signal)) }
       catch (error) {
         if (signal.aborted || error instanceof AgentError || error instanceof ToolError && ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE'].includes(error.code)) throw error
         observation = JSON.stringify({ error: error instanceof ToolError ? error.code : 'TOOL_EXECUTION_FAILED' })

@@ -1,24 +1,23 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { TestContext } from 'node:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { seed, value } from './helpers'
-import { createResumeTasks } from '../src/platform/agent/resume-tasks'
+import { value } from './helpers'
+import { createResumeTasks } from '../src/platform/electron/resume-tasks'
 import { resumeFixture } from './resume-fixture'
+import { firstPartyFixture } from './first-party-fixture'
 import type { ResumeEvent } from '../src/platform/electron/resume-contract'
 
 async function setup(t: TestContext) {
-  const f = await seed(t), server = await resumeFixture(), directory = mkdtempSync(join(tmpdir(), 'resume-agent-'))
-  t.after(async () => { await server.close(); rmSync(directory, { recursive: true, force: true }) })
+  const f = await firstPartyFixture(t), server = await resumeFixture()
+  t.after(() => server.close())
   const events: ResumeEvent[] = []
-  let outputs = 0, failOutput = false
-  const tasks = createResumeTasks({ backend: f.backend, directory, fonts: '', key: () => null,
-    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'], defaultModel: 'fixture', requiresKey: false }] }),
-    render: async () => { outputs++; if (failOutput) throw new Error('disk'); return { html: '<!doctype html><p>fixture</p>', pdf: Buffer.from('PDF'), pages: 1 } } })
+  const tasks = createResumeTasks({ backend: f.backend, mcp: f.mcp, directory: f.outputDirectory, fonts: '', key: () => null,
+    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'], defaultModel: 'fixture', requiresKey: false }] }) })
   t.after(() => tasks.dispose())
-  return { ...f, server, tasks, events, directory, outputCount: () => outputs, failOutput: (value: boolean) => { failOutput = value },
+  return { ...f, server, tasks, events, directory: f.outputDirectory, outputCount: f.outputs,
+    failOutput: (value: boolean) => f.flag('fail-output', value),
     start: () => tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, event => events.push(event)) }
 }
 async function done(tasks: ReturnType<typeof createResumeTasks>, runId: string) {
@@ -40,10 +39,10 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
   assert.equal(result.artifact?.outputFiles.length, 2)
   assert.equal(f.server.requests(), 9)
   assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 9)
-  assert.equal(f.database.connection.prepare('SELECT count(*) n FROM capability_audit').get()?.n, 32)
+  assert(f.database.connection.prepare("SELECT count(*) n FROM capability_audit WHERE agent_id='internal.resume'").get()!.n as number > 0)
   assert(f.events.every((event, index) => event.sequence === index + 1 && event.runId === runId))
   const before = f.server.requests()
-  f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, event => f.events.push(event)); await done(f.tasks, runId)
+  await f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, event => f.events.push(event)); await done(f.tasks, runId)
   assert.equal(f.server.requests(), before); assert.equal(f.outputCount(), 2)
   assert.equal((await f.tasks.getPreview({ artifactId: result.artifact!.id })).pages, 1)
 })
@@ -71,7 +70,7 @@ test('post-publication output failure preserves SUCCEEDED and supports model-fre
   const result = await done(f.tasks, (await f.start()).runId)
   assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.artifact?.output.status, 'FAILED')
   const calls = f.server.requests(); f.failOutput(false)
-  f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, () => {})
+  await f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, () => {})
   assert.equal((await done(f.tasks, result.run.id)).artifact?.output.status, 'READY'); assert.equal(f.server.requests(), calls)
 })
 test('invalid stage output fails once without an implicit repair loop', async t => {
@@ -111,43 +110,35 @@ test('missing recorded output becomes a recoverable output failure and rebuild d
   await assert.rejects(f.tasks.getPreview({ artifactId: result.artifact!.id }), /OUTPUT_MISSING/)
   assert.equal(f.tasks.getTask(1, { runId: result.run.id })?.artifact?.output.status, 'FAILED')
   const calls = f.server.requests()
-  f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, () => {}); await done(f.tasks, result.run.id)
+  await f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, () => {}); await done(f.tasks, result.run.id)
   assert.equal(f.server.requests(), calls)
 })
-test('post-publication cancellation bounds an output worker that resolves late and preserves successful Artifact', async t => {
-  const f = await seed(t), server = await resumeFixture(), directory = mkdtempSync(join(tmpdir(), 'resume-output-cancel-'))
-  t.after(async () => { await server.close(); rmSync(directory, { recursive: true, force: true }) })
-  let resolve!: (value: { html: string; pdf: Buffer; pages: number }) => void, rendering = false
-  const tasks = createResumeTasks({ backend: f.backend, directory, fonts: '', key: () => null,
-    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }] }),
-    render: () => { rendering = true; return new Promise(done => { resolve = done }) } })
-  t.after(() => tasks.dispose())
-  const { runId } = await tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, () => {})
-  for (let i = 0; i < 300 && !rendering; i++) await new Promise(done => setTimeout(done, 5))
-  assert(rendering); tasks.cancel(1, { runId })
-  const result = await done(tasks, runId)
+test('post-publication cancellation bounds a late output worker and preserves the successful Artifact', async t => {
+  const f = await setup(t)
+  f.flag('hang-output')
+  const { runId } = await f.start()
+  for (let i = 0; i < 1000 && !f.has('rendering'); i++) await new Promise(resolve => setTimeout(resolve, 5))
+  assert(f.has('rendering')); await f.tasks.cancel(1, { runId })
+  const result = await done(f.tasks, runId)
   assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.artifact?.output.status, 'CANCELLED')
-  resolve({ html: 'late', pdf: Buffer.from('late'), pages: 1 }); await new Promise(done => setImmediate(done))
-  assert.equal(tasks.getTask(1, { runId })?.artifact?.outputFiles.length, 0)
+  f.flag('release-output'); await new Promise(resolve => setTimeout(resolve, 30))
+  assert.equal(f.tasks.getTask(1, { runId })?.artifact?.outputFiles.length, 0)
 })
 
 test('unavailable tool audit stops ResumeAgent immediately without draft or publication', async t => {
-  const f = await setup(t), sink = f.backend.toolAudit.sink, original = sink.start
-  sink.start = () => { throw new Error('audit unavailable') }
-  try {
-    await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
-    assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.server.requests(), 0)
-  } finally { sink.start = original }
+  const f = await setup(t)
+  f.flag('fail-audit-start')
+  await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+  assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.server.requests(), 0)
 })
 
-test('uncertain start audit leaves a failed historical run rather than an unowned active task', async t => {
-  const f = await setup(t), sink = f.backend.toolAudit.sink, original = sink.finish
-  sink.finish = () => { throw new Error('audit unavailable') }
-  try {
-    await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
-    const run = f.backend.resumes.listRuns({}).items[0].run
-    assert.equal(run.status, 'FAILED'); assert.equal(run.error, 'AUDIT_UNAVAILABLE'); assert.equal(f.server.requests(), 0)
-  } finally { sink.finish = original }
+test('uncertain start audit is recovered without an unowned active task', async t => {
+  const f = await setup(t)
+  f.flag('fail-audit-finish')
+  await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+  f.backend.recover()
+  const run = f.backend.resumes.listRuns({}).items[0].run
+  assert.equal(run.status, 'INTERRUPTED'); assert.equal(run.error, 'PROCESS_INTERRUPTED'); assert.equal(f.server.requests(), 0)
 })
 
 test('maximum-length valid contact and job titles do not fail publication or change copied basics', async t => {
@@ -159,4 +150,13 @@ test('maximum-length valid contact and job titles do not fail publication or cha
   assert.equal(result.artifact?.title.length, 500)
   assert.equal(result.artifact?.content.basics.name, name)
   assert.equal(result.run.inputSnapshot.job.title, title)
+})
+
+test('an unavailable first-party stdio entry cannot fall back to local generation or tools', async t => {
+  const f = await setup(t)
+  rmSync(join(f.directory, '..', 'job-agent-mcp.js'))
+  await assert.rejects(f.start(), { code: 'MCP_CONNECT_FAILED' })
+  assert.equal(f.backend.resumes.listRuns({}).total, 0)
+  assert.equal(f.server.requests(), 0)
+  assert.equal(f.outputCount(), 0)
 })

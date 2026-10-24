@@ -6,7 +6,7 @@ import { jsonCopy } from '../tools/schema'
 import type { MCPServerConfig } from './server-config'
 import { mcpError } from './errors'
 
-export interface MCPDiscoveredTool { name: string; inputSchema: JsonSchema; outputSchema?: JsonSchema }
+export interface MCPDiscoveredTool { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema }
 export interface MCPClient {
   connect(signal?: AbortSignal): Promise<void>
   listTools(signal?: AbortSignal): Promise<MCPDiscoveredTool[]>
@@ -14,13 +14,13 @@ export interface MCPClient {
   close(): Promise<void>
 }
 export interface ClientHooks { closed(): void; changed(): void }
-export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, options: { connectMs?: number; discoveryMs?: number } = {}): MCPClient {
+export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, options: { connectMs?: number; discoveryMs?: number; processEnv?: Record<string, string> } = {}): MCPClient {
   let connected = false, closed = false, closing: Promise<void> | undefined, active = 0
   const lifecycle = new AbortController()
   const client = new Client({ name: 'job-agent-browser', version: '0.1.0' }, { listMaxPages: 16,
     inputRequired: { autoFulfill: false }, listChanged: { tools: { autoRefresh: false, debounceMs: 0, onChanged: () => hooks.changed() } } })
   const transport = new StdioClientTransport({ command: config.command, args: [...config.args], cwd: config.cwd,
-    env: process.versions.electron && config.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {},
+    env: { ...(process.versions.electron && config.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {}), ...options.processEnv },
     stderr: 'ignore', maxBufferSize: 2097152 })
   client.onerror = () => {} // Errors are classified at request/connection boundaries, never printed raw.
   client.onclose = () => { connected = false; lifecycle.abort(); hooks.closed() }
@@ -47,7 +47,7 @@ export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, opt
         const result = await client.listTools(undefined, { signal: AbortSignal.any([signalFor(signal), timeout]), timeout: options.discoveryMs ?? 10000, cacheMode: 'refresh' })
         if (result.tools.length > 500) toolFail('MCP_INVALID_RESPONSE')
         jsonCopy(result.tools, 1048576, 'MCP_INVALID_RESPONSE')
-        return result.tools.map(tool => ({ name: tool.name, inputSchema: tool.inputSchema as JsonSchema,
+        return result.tools.map(tool => ({ name: tool.name, description: tool.description ?? '', inputSchema: tool.inputSchema as JsonSchema,
           ...(tool.outputSchema ? { outputSchema: tool.outputSchema as JsonSchema } : {}) }))
       } catch (error) {
         if (timeout.aborted) toolFail('TOOL_TIMEOUT')

@@ -1,4 +1,11 @@
-import type { ToolDescriptor } from '../tools/tool.types'
+import type { JsonSchema } from '../tools/tool.types'
+
+export interface AgentToolDescriptor { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema }
+/** A protocol client contract. Business results are returned as structured JSON. */
+export interface AgentTools {
+  list(): Promise<readonly AgentToolDescriptor[]>
+  call(name: string, args: unknown, signal: AbortSignal): Promise<unknown>
+}
 
 export interface AgentToolCall { id: string; name: string; arguments: unknown }
 export type AgentMessage = { role: 'system' | 'user'; content: string }
@@ -6,7 +13,7 @@ export type AgentMessage = { role: 'system' | 'user'; content: string }
   | { role: 'tool'; callId: string; content: string }
 export interface AgentResponse { content: string; toolCalls: AgentToolCall[] }
 export interface AgentModel {
-  complete(input: { messages: readonly AgentMessage[]; tools: readonly ToolDescriptor[]; signal: AbortSignal }): Promise<AgentResponse>
+  complete(input: { messages: readonly AgentMessage[]; tools: readonly AgentToolDescriptor[]; signal: AbortSignal }): Promise<AgentResponse>
 }
 export type AgentErrorCode = 'AGENT_CANCELLED' | 'AGENT_TIMEOUT' | 'AGENT_PROTOCOL_ERROR' | 'AGENT_STEP_LIMIT'
   | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED' | 'AUDIT_UNAVAILABLE'

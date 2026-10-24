@@ -7,7 +7,7 @@ export function ImportModeField({ value, onChange, allowed, disabled }: {
 }) {
   const { t } = useTranslation()
   return <FormField label={t($ => $.imports.mode)} help={t($ => $.imports[allowed ? 'parallelHelp' : 'enableHelp'])}>{props => <Select {...props}
-    disabled={disabled} value={allowed ? value : 'single'} onChange={event => onChange(event.target.value as ImportMode)}>
+    name="importMode" disabled={disabled} value={allowed ? value : 'single'} onChange={event => onChange(event.target.value as ImportMode)}>
     <option value="single">{t($ => $.imports.single)}</option><option value="parallel" disabled={!allowed}>{t($ => $.imports.parallel)}</option>
   </Select>}</FormField>
 }

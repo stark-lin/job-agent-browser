@@ -4,7 +4,7 @@ import { createServerRuntime } from './runtime'
 async function main() {
   const directory = process.env.JOB_BROWSER_USER_DATA
   if (!directory) throw new Error('MCP_DATA_REQUIRED')
-  const runtime = createServerRuntime(directory, __dirname)
+  const runtime = createServerRuntime(directory, __dirname, undefined, process.env.JOB_BROWSER_MCP_CALLER)
   let closing: Promise<void> | undefined
   const close = () => closing ??= runtime.dispose().finally(() => { process.exitCode = 0 })
   runtime.server.onclose = () => { void close() }

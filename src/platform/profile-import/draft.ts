@@ -3,8 +3,8 @@ import * as v from '../../domain/common/validation'
 import { importFactDetails, importItemDetails, validateItemDates } from '../../domain/candidate/candidate.validation'
 import { factKinds, itemTypes } from '../../domain/candidate/candidate.types'
 import type { ImportDraft, DraftFact } from '../../domain/candidate/import.types'
-import type { PdfPage } from './pdf'
-import { ImportFailure } from './pdf'
+import type { PdfPage } from '../import/pdf'
+import { ImportFailure } from '../import/pdf'
 
 const rawFact = v.object({ kind: v.choice(factKinds), content: v.optionalText(20000), tags: v.optional(v.array(v.text(100, 1), 100), []) })
 const rawItem = v.object({

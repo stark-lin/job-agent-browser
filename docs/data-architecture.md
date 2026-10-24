@@ -1,6 +1,6 @@
 # V1 Data Architecture and API
 
-Purpose: define implemented local storage and business API boundaries. Status: **Implemented** transactional SQLite/audit, Settings/secrets, Profile editing/import, jobs/applications and Resume Agent V1 with immutable evidence, HTML/PDF output and asynchronous IPC. Remaining product flows are **Planned**.
+Purpose: define implemented local storage and business API boundaries. Status: **Implemented** transactional SQLite/audit, Settings/secrets, Profile editing/import, Job Capture/Application Agents and Resume Agent V1 with immutable evidence, HTML/PDF output and asynchronous IPC. Remaining product flows are **Planned**.
 
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
@@ -21,12 +21,13 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | `audit_logs` | Content-free success/failure events |
 | `capability_audit` | Content-free access/execution audit owned by read/write capabilities; [version-3 schema](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | Process/work ownership, invocation ownership and atomic start receipts; [version-4 schema](../src/platform/database/migrations/runtime-leases.ts) |
+| `operation_receipts` | Cross-session creation receipts; [version-5 schema](../src/platform/database/migrations/operation-receipts.ts) |
 
 ## 2. Business rules
 
 [Job use cases](../src/domain/job/job.service.ts) accept allowlisted details. Sources normalize URL fragments/query order and hash cleaned content; public-URL extraction is implemented; duplicate matching/merging remain planned. Archiving is independent of application status. Deleting a Company detaches Jobs and preserves their raw company names.
 
-[Add Job](../src/pages/find-jobs/AddJobPage.tsx) reuses `jobs.saveJob` to save the job and optional source atomically, without new tables or migrations. Title/company are required; new jobs are `NOT_STARTED` with null application/closure dates and no status event. Parsing drafts do not write business tables; source text and extracted JobPosting metadata are retained only on Save. Manual entry may omit the URL.
+[Add Job](../src/pages/find-jobs/AddJobPage.tsx) uses typed IPC for manual saves and MCP job.import for reviewed Agent drafts; both reuse jobs.saveJob atomically. Title/company are required, new jobs are NOT_STARTED with null application/closure dates and no event. URL/text/PDF parsing does not write business tables; optional genuine web source is retained only on Save. Text/PDF without a URL uses source:null. Durable receipts are described below.
 
 [Application use cases](../src/domain/application/application.service.ts) write status changes and timeline events atomically. Allowed transitions are:
 
@@ -39,7 +40,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | `OFFER` | `ACCEPTED`, `REJECTED`, `WITHDRAWN` |
 | `ACCEPTED`, `REJECTED`, `WITHDRAWN` | Terminal; no status change |
 
-Archived Jobs reject status changes and scheduling/rescheduling. `APPLIED` sets the application time; terminal states set the closed time. System-created status events cannot be independently deleted. Calendar bounds are inclusive and filter schedule start times. Email synchronization/events remain planned.
+Archived Jobs reject status changes and scheduling/rescheduling but permit notes and detail edits. Same-state status requests return unchanged data without duplicate events; same-value detail/archive/reschedule requests do not mutate. [Application workflow](../src/domain/application/workflow.ts) owns transitions and allowedNextStatuses. APPLIED sets application time and terminal states set closure time. System-created status events cannot be deleted independently. Calendar bounds are inclusive; email synchronization remains planned.
 
 [Candidate use cases](../src/domain/candidate/candidate.service.ts) enforce same-profile parent/fact references, acyclic item nesting, valid date ranges and immutable item type. Item kinds are `EXPERIENCE / PROJECT / EDUCATION`. Fact kinds are `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`. All saved Facts may participate in generation; no confirmation status, column or operation exists.
 
@@ -53,7 +54,7 @@ Import creates `PROFILE_IMPORT` audit events for each changed record under a sha
 
 ## 3. Generation, output and deletion
 
-[Resume requests](../src/domain/resume/resume.service.ts) atomically snapshot the Job, Profile, every saved Fact and related items. Empty-fact profiles and archived jobs fail. Configuration fixes template/budget, trusted `runtimeKind` and the internal provider/model; external runs use empty provider/model IDs. Credentials stay outside snapshots. [Shared capabilities](mcp-architecture.md#5-resume-server-and-codex) wrap creation and stages; [the Domain controller](../src/domain/resume/resume.agent.ts) retains the injected runner.
+[Resume requests](../src/domain/resume/resume.service.ts) atomically snapshot the Job, Profile, all Facts and related items. Empty-fact profiles and archived jobs fail. Configuration fixes template/budget and the Server runtime kind; optional provider/model metadata is caller-declared provenance, never authority or credentials. Historical configuration remains readable. [MCP capabilities](mcp-architecture.md#5-job-agent-browser-mcp) serve both internal and external Agents; [Resume reasoning](../src/platform/agent/resume.ts) stays outside the Domain persistence layer.
 
 The trusted [GenerationService](../src/domain/resume/generation.service.ts) persists `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`. Internal models receive only read tools; trusted controllers and Codex use shared stage capabilities. Gate rejection persists missing evidence and stops. Publishing creates one Artifact and marks `SUCCEEDED`; output failures preserve publication. Start receipts and stage handlers support identical retries; conflicting submissions fail.
 
@@ -76,6 +77,8 @@ The trusted [GenerationService](../src/domain/resume/generation.service.ts) pers
 
 ## 4. Audit and transactions
 
+[Operation receipts](../src/platform/database/operation-receipts.ts) use (operation, request_id), normalized input hash, logical target, first result JSON and creation time. job.import/application.add_note/application.schedule_event write the receipt inside the same Domain transaction as business rows and success audit. Identical retries return the first result across processes/restarts; changed payload or a deleted target conflicts. Receipt result snapshots are retained after target deletion; deletion is not a privacy purge. No automatic recreation or nested service transaction occurs. Resume start keeps its separate same-runtime receipt/lease rule.
+
 [Transactions](../src/platform/database/transactions.ts) and [database triggers](../src/platform/database/migrations/audit-triggers.ts) automatically append audit for every changed business row. Callers supply business parameters only. A write operation owns one internal transaction: all mutations and success audit commit together, or all roll back. Multi-row operations share a request and transaction ID. Ordinary business/audit queries remain read-only; explicit capability reads add access audit below.
 
 | Element | SQL fields | Allowed contents |
@@ -97,7 +100,7 @@ Failed writes first roll back, then append one failure audit in a separate trans
 
 Each accepted request attempts one audit: the first valid SSE chunk commits `SUCCESS` before content is forwarded; startup failure/cancellation commits `FAILURE` with a fixed code. Success means the stream started, not that output completed. Post-start completion, failure and cancellation add no call audit. A manual retry creates a new request. Audit failure stops forwarding/aborts the request and reports `AUDIT_UNAVAILABLE`; the external call may already have occurred. No provider/model/URL, usage, duration, message, prompt, output, business snapshot or extra metadata is persisted. Chat history remains page-memory only; no AI run/message tables are added.
 
-**Agent model audit:** each non-streaming call attempts one fixed `AGENT_MODEL_RESULT` outcome using `recordAgentModel`; component `ai`, location `agent.model`, source `GENERATOR`, actor `resume-agent`. It stores only opaque request IDs and fixed outcomes, never prompts, output, keys or hidden reasoning. Audit failure terminates execution.
+**Agent model audit:** every non-streaming call records one fixed AGENT_MODEL_RESULT outcome through recordAgentModel, with component ai, location agent.model, source GENERATOR and a Main-bound internal Agent label. Only opaque request IDs and fixed outcomes are stored; prompts, outputs, secrets and hidden reasoning are excluded. Audit failure terminates execution.
 
 **Implemented audit browsing:** the read-only [Settings viewer](../src/pages/settings/AuditViewerSection.tsx) uses `audit.list` without schema/IPC changes. It defaults to 25 records per page, ordered by descending sequence. Type/status, exact target/request/transaction IDs and inclusive time boundaries compose existing filters. [Filter conversion](../src/pages/settings/audit-filters.ts) validates IDs/ranges and converts local datetime inputs to canonical UTC; details show localized time plus its stored UTC value. Refresh/reset/filter application restart at page one. Pages use offset pagination; new writes can shift subsequent pages, so refresh to see the latest ordering. No export, automatic polling, log mutation or business-content reconstruction is provided. Settings/key writes remain outside audit; AI success retains its startup-only meaning.
 
@@ -148,7 +151,7 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `settings.get`, `settings.savePreferences` | `{}` / partial language, `light / dark / system` theme, mailbox or `ai` configuration → versioned Preferences |
 | `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | Provider instance ID as `provider`; save also accepts `apiKey` → `{ configured, available }`, never a key |
 
-The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Trusted services persist generation stages through shared capabilities; MCP is separate from this IPC API. Callers should branch on the following codes rather than database messages. Mutations are not automatically retried/idempotent; refresh uncertain state before retrying.
+The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Agent generation stages use MCP, separate from this manual/UI IPC API. IPC mutations are not automatically retried/idempotent; refresh uncertain state before retrying. MCP creation receipts provide the explicit exceptions described in section 4. Use the following fixed codes rather than database messages.
 
 | Error code | Meaning |
 | --- | --- |
@@ -175,7 +178,7 @@ The separate [AI API](../src/shared/ai.ts) retains streaming chat. [Resume IPC](
 
 Controlled runtimes share `database.sqlite`, its auxiliary files and `userData/artifacts/`. Main owns `userData/settings.json` and `userData/secrets.enc`; the MCP Server does not load application credentials. Electron Session separately owns website cookies/storage. Ordinary business audit cannot be disabled.
 
-The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads version-1 `userData/mcp.json` without creating/resetting it. Configuration contains reviewed stdio executable/arguments and tool manifests; it accepts no environment/credential fields and is excluded from Renderer preferences. MCP credentials/OAuth are planned; do not put secrets in command arguments. The [MCP document](mcp-architecture.md#4-configuration-and-lifecycle) owns configuration examples and limits.
+The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads version-1 `userData/mcp.json` without creating/resetting it. Configuration contains reviewed stdio executable/arguments and tool manifests; it accepts no environment/credential fields and is excluded from Renderer preferences. MCP credentials/OAuth are planned; do not put secrets in command arguments. The [MCP document](mcp-architecture.md#3-first-party-and-third-party-clients) owns configuration examples and limits.
 
 [Preferences](../src/platform/storage/preferences.ts) validate version 1, English/Simplified Chinese, a `light / dark / system` theme and optional Gmail/Outlook/custom HTTPS webmail without embedded credentials. Existing version-1 light files remain compatible; the version stays 1. Light remains the default. Store the preference (including `system`), not its resolved color scheme; unrelated partial saves preserve it. Apply saved preferences only after successful atomic replacement. Missing files use defaults without writing. Partial saves merge the latest file; malformed/future files fail without resetting. [Atomic replacement](../src/platform/storage/files.ts) uses a private temporary file and rename; failed writes preserve previous data.
 

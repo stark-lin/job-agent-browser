@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { AgentError, abortable, type AgentErrorCode, type AgentMessage, type AgentModel, type AgentResponse } from '../../shared/agent'
-import type { ToolDescriptor } from '../../shared/tools/tool.types'
-import type { ChatRequest, Fetch } from '../ai/compatible'
-import { postChat, requestTimeout } from '../ai/transport'
+import type { AgentToolDescriptor } from '../../shared/agent'
+import type { ChatRequest, Fetch } from './compatible'
+import { postChat, requestTimeout } from './transport'
 import { DataError, type ErrorCode } from '../../domain/common/errors'
 
 function protocol(): never { throw new AgentError('AGENT_PROTOCOL_ERROR') }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : protocol()
 /** Index mapping is injective, deterministic and independent of punctuation in business names. */
-export function providerTools(tools: readonly ToolDescriptor[]) {
+export function providerTools(tools: readonly AgentToolDescriptor[]) {
   const names = new Map(tools.map((tool, index) => [tool.name, `tool_${index}`]))
   if (names.size !== tools.length) protocol()
   return { names, tools: tools.map(tool => ({ type: 'function', function: { name: names.get(tool.name), description: tool.description, parameters: tool.inputSchema } })) }

@@ -3,6 +3,7 @@ import { useServices } from '../../app/providers'
 import { allowsParallelImport, type AISettings } from '../../shared/ai'
 import type { ImportMode, ImportGroupProgress } from '../../shared/import'
 import type { JobImportDraft } from '../../domain/job/job.extractor'
+import type { JobInput, SourceInput } from '../../domain/job/job.types'
 import type { JobImportEvent } from '../../platform/electron/job-import-contract'
 
 export function useJobImport(onReady: (draft: JobImportDraft) => void) {
@@ -10,6 +11,7 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
   const [settings, setSettings] = useState<AISettings | null>(null), [mode, setMode] = useState<ImportMode>('single')
   const [groups, setGroups] = useState<ImportGroupProgress[]>([]), [retryable, setRetryable] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'reading' | 'parsing'>('idle'), [error, setError] = useState('')
+  const draftTask = useRef('')
   const task = useRef(''), starting = useRef(false), running = useRef(false), early = useRef<JobImportEvent[]>([])
   const alive = useRef(true), generation = useRef(0), ready = useRef(onReady)
   ready.current = onReady
@@ -22,7 +24,7 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
     else if (event.type === 'progress') setGroups(event.groups)
     else {
       running.current = false; setPhase('idle')
-      if (event.type === 'ready') { task.current = ''; setRetryable(false); ready.current(event.draft) }
+      if (event.type === 'ready') { draftTask.current = event.taskId; task.current = ''; setRetryable(false); ready.current(event.draft) }
       else if (event.type === 'failed') { setError(event.error); setRetryable(Boolean(event.retryable)); if (!event.retryable) task.current = '' }
       else { task.current = ''; setRetryable(false) }
     }
@@ -35,10 +37,11 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
     return () => {
       disposed = true; alive.current = false; generation.current++; unsubscribe()
       if (task.current) void jobImport.cancel({ taskId: task.current }).catch(() => {})
+      if (draftTask.current) void jobImport.cancel({ taskId: draftTask.current }).catch(() => {})
       task.current = ''; starting.current = false; early.current = []
     }
   }, [data, jobImport])
-  async function start(url: string, retry = false) {
+  async function start(source: { url: string } | { text: string } | { fileId: string }, retry = false) {
     if (starting.current || running.current || !settings?.default) return
     const previousTask = task.current, version = ++generation.current
     task.current = ''; starting.current = true; running.current = true; early.current = []
@@ -46,7 +49,7 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
     if (!retry) setGroups([])
     try {
       const result = retry ? await jobImport.retry({ taskId: previousTask })
-        : await jobImport.start({ url, choice: settings.default, mode: allowsParallelImport(settings, settings.default) ? mode : 'single' })
+        : await jobImport.start({ ...source, choice: settings.default, mode: allowsParallelImport(settings, settings.default) ? mode : 'single' })
       if (!alive.current || version !== generation.current) {
         if (result.ok) void jobImport.cancel(result.value).catch(() => {})
         return
@@ -64,6 +67,8 @@ export function useJobImport(onReady: (draft: JobImportDraft) => void) {
   }
   function clearError() { setError(''); if (!running.current) { cancel(); setGroups([]) } }
   const choice = settings?.default, provider = settings?.providers.find(provider => provider.id === choice?.providerId)
-  return { start, cancel, clearError, phase, error, groups, retryable, mode, setMode, parallelAllowed: allowsParallelImport(settings, choice ?? null),
+  const save = (input: { details: JobInput; source?: SourceInput | null }) => draftTask.current
+    ? jobImport.save({ taskId: draftTask.current, ...input }) : data.jobs.saveJob(input)
+  return { start, save, selectPdf: jobImport.selectPdf, cancel, clearError, phase, error, groups, retryable, mode, setMode, parallelAllowed: allowsParallelImport(settings, choice ?? null),
     configured: Boolean(choice), provider: provider?.name ?? '', model: choice?.modelId ?? '' }
 }

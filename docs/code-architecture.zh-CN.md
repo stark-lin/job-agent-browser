@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile/职位流程及带 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
+用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -133,13 +133,13 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
-[Shared Tools](../src/shared/tools/index.ts)管理仅类型的 Agent 契约。[Platform Tools](../src/platform/tools/resume.ts)绑定共享且带审计的 Resume 能力。只有 `platform/mcp/`（Client）及 `platform/mcp-server/`（Server）导入 MCP SDK；Renderer 不得导入这些运行时。[MCP 架构](mcp-architecture.zh-CN.md)管理策略/契约。Domain controller 接收 Scope 和 runner，不接收具体 Platform 服务。
+[Shared Agent 契约](../src/shared/agent/index.ts)管理 AgentModel/AgentTools。[Platform Tools](../src/platform/tools/index.ts)是唯一公共 MCP Registry，ToolScope 只属于 Server。只有 platform/mcp 和 platform/mcp-server 导入 MCP SDK。Agent 模块可导入纯 Domain 流程/校验，但不得直接或间接导入 Service、Repository、Registry 或数据库适配器。[MCP 架构](mcp-architecture.zh-CN.md)管理能力和会话行为。
 
 [Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 
-简历保留八个核心概念：[AgentModel](../src/shared/agent/index.ts)、[AgentLoop](../src/platform/agent/loop.ts)、[ToolScope](../src/shared/tools/tool.types.ts)、[ResumeAgent](../src/domain/resume/resume.agent.ts)、[GenerationService](../src/domain/resume/generation.service.ts)、[ResumeDocument](../src/domain/resume/resume.types.ts)、[HTMLCompiler](../src/platform/resume-output/compiler.ts) 和 [PDFExporter](../src/platform/resume-output/exporter.ts)。Domain 管理工作流/校验，接收阶段 runner 及共享写 Scope。Main 组装内部模型；Node Server 经共享输出服务委托 Electron Worker 渲染。[Resume IPC](../src/platform/electron/resume-contract.ts)独立于 DataContract 及对话，页面 hook 只协调展示。
+[Platform Agent](../src/platform/agent/)通过 AgentTools 实现 Resume 五阶段推理、资料采集和申请动作规划。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
 
 ## 六、质量与后续交付
 

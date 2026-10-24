@@ -10,6 +10,8 @@ import { aiPreferences } from '../src/platform/storage/ai-preferences'
 import { allowsParallelImport, type AIEvent, type AISettings } from '../src/shared/ai'
 import type { ImportGroupProgress } from '../src/shared/import'
 import type { AIService } from '../src/platform/ai'
+import type { AgentModel } from '../src/shared/agent'
+import { DataError } from '../src/domain/common/errors'
 import type { JobImportEvent } from '../src/platform/electron/job-import-contract'
 import type { ImportEvent } from '../src/platform/electron/profile-import-contract'
 
@@ -34,7 +36,15 @@ function mockAI(beginImmediately = true) {
     emit({ requestId, type: 'delta', text: JSON.stringify(output) }); emit({ requestId, type: 'completed' })
   }
   const fail = (index: number) => calls[index].emit({ requestId: calls[index].id, type: 'failed', error: 'AI_RATE_LIMITED' })
-  return { ai, calls, finish, fail, cancelled }
+  const model: AgentModel = { complete: input => new Promise((resolve, reject) => {
+    let output = ''
+    ai.start(1, { choice, messages: input.messages.filter(message => message.role === 'user') }, event => {
+      if (event.type === 'delta') output += event.text
+      else if (event.type === 'completed') resolve({ content: output, toolCalls: [] })
+      else if (event.type === 'failed') reject(new DataError(event.error))
+    })
+  }) }
+  return { ai, model, calls, finish, fail, cancelled }
 }
 
 test('parallel opt-in is scoped to provider/model, validated and backward compatible', () => {
@@ -94,7 +104,7 @@ test('job groups enforce field ownership and salary rules and match single-reque
 test('job retries keep the source and model, enforce ownership and expose no partial draft', async () => {
   const mock = mockAI(), events: JobImportEvent[] = []; let reads = 0
   const config = structuredClone(settings)
-  const importer = createJobImporter({ ai: mock.ai, settings: () => config, reader: { read: async () => { reads++; return snapshot } } })
+  const importer = createJobImporter({ model: () => mock.model, mcp: { session: async () => assert.fail('Capture must not connect during parsing'), dispose: async () => {} }, settings: () => config, reader: { read: async () => { reads++; return snapshot } } })
   assert.throws(() => importer.start(1, { url: snapshot.url, choice: { ...choice, modelId: 'other' }, mode: 'parallel' }, () => {}), /INVALID_INPUT/)
   const task = importer.start(1, { url: snapshot.url, choice, mode: 'parallel' }, event => events.push(event))
   await tick(); assert.equal(mock.calls.length, 3)

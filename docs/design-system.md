@@ -48,7 +48,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 - Keep reusable appearance, sizes, visual states and accessibility defaults in the central library. Page CSS may arrange components with shared tokens; it must not duplicate control styles, redefine `.ui-*` selectors or bypass the library with inline styles.
 - Pages own placement, business data, enabled/loading state, navigation and event handlers. Shared UI accepts props and composition slots; it must not import App/Page/Domain/Platform behavior. A `className` is for composition, not a second component skin.
 
-[HomeTile](../src/pages/home/HomeTile.tsx), [Browser controls](../src/pages/browser/BrowserControls.tsx), [AddressBar](../src/pages/browser/AddressBar.tsx) and [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) and [SettingsPage](../src/pages/settings/SettingsPage.tsx) show current consumption. Add Job uses the central `plus` glyph; Applications uses the shared table, badge and details dialog. Do not copy gallery markup into a page or import a private implementation file instead of the public entry.
+[HomeTile](../src/pages/home/HomeTile.tsx), [Browser controls](../src/pages/browser/BrowserControls.tsx), [AddressBar](../src/pages/browser/AddressBar.tsx), [Add Job](../src/pages/find-jobs/AddJobPage.tsx) and [Settings](../src/pages/settings/SettingsPage.tsx) consume these primitives. Capture source selection and the [Application Agent panel](../src/pages/applications/ApplicationAgentPanel.tsx) compose existing Select/TextArea/Button/SectionCard/StatusMessage; event history uses DetailsList. No new control skin or token is introduced. Do not copy gallery markup into a page or import private implementations.
 
 ## 3. Layout, geometry and typography
 

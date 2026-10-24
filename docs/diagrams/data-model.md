@@ -4,6 +4,8 @@ erDiagram
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
     JOB ||--o{ JOB_EVENT : has
+    JOB o|..o{ OPERATION_RECEIPT : logical_job
+    JOB_EVENT o|..o{ OPERATION_RECEIPT : logical_event
     JOB o|..o{ GENERATION_RUN : logical_target
     PROFILE ||--o{ PROFILE_ITEM : contains
     PROFILE ||--o{ FACT : owns
@@ -20,6 +22,15 @@ erDiagram
     ARTIFACT o|..o| RUNTIME_WORK : output_owner
     INVOCATION_OWNER o|..o{ CAPABILITY_AUDIT : logical_invocation
 
+    OPERATION_RECEIPT {
+        string operation PK
+        string request_id PK
+        string input_hash
+        string target_type
+        string target_id
+        json result_json
+        datetime created_at
+    }
     COMPANY {
         string id PK
         string name

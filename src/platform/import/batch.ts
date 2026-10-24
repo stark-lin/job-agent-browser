@@ -13,6 +13,9 @@ export function importErrorCode(error: unknown): string {
 }
 /** Results and timing stay in task memory. Only failed parts are submitted again. */
 export function createImportBatch<T>(ai: Pick<AIService, 'start' | 'cancel'>, owner: number, choice: AIChoice, parts: ImportPart<T>[]) {
+  return createTaskBatch(parts, (prompt, signal, onRunning) => collect(ai, owner, choice, prompt, signal, onRunning))
+}
+export function createTaskBatch<T>(parts: ImportPart<T>[], execute: (prompt: string, signal: AbortSignal, onRunning: () => void) => Promise<string>) {
   const values = new Map<ImportGroup, T>()
   const states = parts.map(part => ({ id: part.id, state: 'queued', queueMs: 0, elapsedMs: 0 }) as ImportGroupProgress)
   const errors = new Map<ImportGroup, unknown>()
@@ -51,7 +54,7 @@ export function createImportBatch<T>(ai: Pick<AIService, 'start' | 'cancel'>, ow
               state.queueMs = began - queuedAt; state.state = 'running'; publish()
             }
             try {
-              const text = await collect(ai, owner, choice, part.prompt, signal, begin)
+              const text = await execute(part.prompt, signal, begin)
               signal.throwIfAborted()
               values.set(part.id, part.parse(text)); state.state = 'completed'
             } catch (error) {

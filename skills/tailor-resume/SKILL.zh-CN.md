@@ -5,7 +5,7 @@ description: 通过 Job Agent Browser MCP 工具，根据已保存的职位和 P
 
 # 为已保存职位定制简历
 
-用途：使用 Codex 执行已实现 Resume 工作流的五个推理阶段。应用负责校验提交并构建文件。
+用途：通过 Job Agent Browser MCP 执行内部 Agent 与外部宿主共用的标准 Resume Agent 流程。应用负责验证提交内容并生成文件。
 
 语言：[English](SKILL.md) · 简体中文
 

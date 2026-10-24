@@ -46,3 +46,9 @@
 - UI 新增和修改遵循[组件库规范](docs/design-system.zh-CN.md)，间距、尺寸、排版、圆角和语义色使用共享 Tokens。
 - 所有 UI 组件必须通过 `src/shared/ui/index.ts` 引用中央组件库；页面和业务组件由中央基础组件组合，缺失的基础组件或变体必须先加入中央库。页面可定义布局与行为，不得重复编写控件结构/样式或通过内联样式覆盖中央外观。
 - 修改权威 Tokens 时同步生成共享 CSS/浏览器尺寸，运行设计验证和相关运行检查；参考展示库与两个语言版本的规范保持一致。
+
+## Agent 能力边界
+
+- 所有由 Agent 发起的业务能力调用必须跨越 Job Agent Browser MCP 协议边界，包括流程提交、持久化、取消、失败收尾和产物构建。
+- `ToolScope` 是服务端实现细节，不得作为 Agent 接口。Agent 代码使用 `AgentModel`、`AgentTools` 和纯流程契约；禁止导入 Domain Service/Repository、数据库适配器或工具 Registry，也不得通过重新导出或动态导入绕过。
+- 宿主资料读取和模型推理在业务 MCP 外完成。`job.import` 仅保存结构化数据。人工表单和只读 UI 投影可继续使用 typed IPC 与 Domain 服务。

@@ -5,7 +5,7 @@ description: Generate a tailored resume from a saved Job Agent Browser job and p
 
 # Tailor a saved profile to a saved job
 
-Purpose: run the implemented Resume workflow using Codex for the five reasoning stages. The application validates submissions and builds the files.
+Purpose: run the canonical Resume Agent workflow over Job Agent Browser MCP, shared by internal Agents and external hosts. The application validates submissions and builds the files.
 
 Language: English · [简体中文](SKILL.zh-CN.md)
 
@@ -32,5 +32,7 @@ Every submission also includes runId. An identical retry returns the accepted st
 ## Publish and deliver
 
 Call `resume.publish`, then `artifact.build` with its artifactId, then `artifact.get` with `{id: artifactId}`. Build returns output status and local HTML/PDF paths; artifact.get returns the document and provenance. Publication success and file output success are separate. A failed build may be retried once without regenerating or invoking an application AI Provider; report any remaining output failure.
+
+On a non-cancellation execution failure, call `resume.fail` with runId and a supported fixed error code while the original Server session is available; never bypass MCP to update the run. A disconnected session cannot take over the run; interruption recovery belongs to the application.
 
 If the user cancels an unfinished run, call `resume.cancel` and report its terminal status. Deliver links to the ready HTML/PDF and a concise account of the tailoring choices. Identify evidence gaps without inventing qualifications.

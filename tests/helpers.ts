@@ -6,7 +6,7 @@ import { composeBackend } from '../src/platform/database/backend'
 import { createDataBridge } from '../src/platform/electron/preload/data-bridge'
 import type { Result } from '../src/shared/ipc'
 
-export function fixture(t: TestContext, path = ':memory:') {
+export function fixture(t: Pick<TestContext, 'after'>, path = ':memory:') {
   const database = openDatabase(path), backend = composeBackend(database)
   const api = createDataBridge(async (group, method, input) => backend.dispatch(group, method, input))
   t.after(() => { if (database.connection.isOpen) backend.close() })
@@ -18,7 +18,7 @@ export function value<T>(result: Result<T>): T {
   return result.value
 }
 
-export async function seed(t: TestContext, path = ':memory:') {
+export async function seed(t: Pick<TestContext, 'after'>, path = ':memory:') {
   const f = fixture(t, path)
   const job = value(await f.api.jobs.saveJob({ details: { title: 'PRIVATE_JOB_TITLE', companyNameRaw: 'PRIVATE_COMPANY' }, source: { url: 'https://example.com/job', cleanedContent: 'PRIVATE_JOB_BODY' } }))
   const profile = value(await f.api.profiles.createProfile({ name: 'PRIVATE_PERSON', email: 'private@example.com' }))
@@ -27,7 +27,7 @@ export async function seed(t: TestContext, path = ':memory:') {
   return { ...f, job, profile, item, fact }
 }
 
-export async function published(t: TestContext, path = ':memory:') {
+export async function published(t: Pick<TestContext, 'after'>, path = ':memory:') {
   const f = await seed(t, path), run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
   const blockId = randomUUID()
   const content = { schemaVersion: 1 as const, language: 'en' as const,

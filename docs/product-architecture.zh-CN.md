@@ -166,13 +166,13 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；Resume V1 已实现业务编排及引用上下文；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
-[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供受限、带审计的 Native/stdio 能力。工具后续里程碑是接入首个真实服务及其所需 Transport/凭据，Resume V1 已实现模型 Tool Calling 及一个业务 Agent；这些工作不替代上述分阶段产品流程。
+[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供内部 Resume/采集/申请 Agent 与外部宿主共用的公共能力。Ask AI 保持普通流式对话。工具后续里程碑包括真实服务集成及其 Transport/凭据，不替代上述分阶段产品流程。
 
 基础里程碑为：
 
 > 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
 
-当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手动/公开 URL 职位采集、Applications 列表、Resume V1 HTML/PDF 及引用型 App Context。更多流程及完整页面上下文捕获仍为规划，可访问页面骨架不代表 MVP 完成。
+当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手工与 URL/文本/PDF 职位采集、现有详情页内的申请管理、Resume V1 HTML/PDF 及引用型 App Context。三个业务 Agent 均使用 MCP。面试准备、外部日历/邮件动作及完整页面上下文捕获仍为规划，可访问骨架不代表 MVP 完成。
 
 ## 十一、基线使用规则
 

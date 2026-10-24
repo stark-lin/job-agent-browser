@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { extractPdf, readPdf } from '../src/platform/profile-import/pdf'
+import { extractPdf, readPdf } from '../src/platform/import/pdf'
 
 const { pdfFixture } = require(resolve(process.cwd(), 'scripts/profile-fixtures.cjs')) as { pdfFixture: (options?: { pages?: number; scanned?: boolean; cjk?: boolean; columns?: boolean; encrypted?: boolean; lines?: number; text?: string }) => Buffer }
-const worker = resolve(process.cwd(), 'src/platform/profile-import/pdf-worker.mjs')
+const worker = resolve(process.cwd(), 'src/platform/import/pdf-worker.mjs')
 const extract = (bytes: Uint8Array) => extractPdf(bytes, new AbortController().signal, () => {}, worker)
 test('real PDF.js worker extracts multipage English, Chinese resources, and column reading order', async () => {
   const pages = await extract(pdfFixture({ pages: 2, columns: true }))

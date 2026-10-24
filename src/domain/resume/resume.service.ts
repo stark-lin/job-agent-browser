@@ -29,7 +29,7 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
         const run: GenerationRun = { id: runtime.id(), jobId: job.id, type: 'RESUME', status: 'PENDING', stage: 'snapshot', language: null,
           inputSnapshot: { schemaVersion: 1, job, profile, facts, items },
           scores: null, gate: null, selection: null, draft: null, polished: null,
-          config: { ...args.config, runtimeKind, ...(runtimeKind === 'external' ? { providerId: '', modelId: '' } : {}) }, error: null,
+          config: { ...args.config, runtimeKind }, error: null,
           createdAt: now, updatedAt: now, finishedAt: null }
         options.validateSnapshot?.(run.inputSnapshot)
         repo.insertRun(run)

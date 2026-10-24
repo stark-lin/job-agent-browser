@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import { createAIService } from '../src/platform/ai'
 import { requestConfig } from '../src/platform/ai/transport'
-import { compatibleAgentModel } from '../src/platform/agent/compatible'
+import { compatibleAgentModel } from '../src/platform/ai/agent-model'
 import { createURLReader } from '../src/platform/job-import/url-reader'
 import { defaultAITimeouts, type AISettings, type AIEvent } from '../src/shared/ai'
 

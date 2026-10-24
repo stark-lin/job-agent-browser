@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, FormField, PageHeading, SectionCard, StatusMessage, TextInput } from '../../shared/ui'
+import { Button, FormField, PageHeading, SectionCard, StatusMessage, TextInput, Select, TextArea } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { useUnsavedGuard } from '../../app/navigation/useUnsavedGuard'
@@ -14,27 +14,28 @@ import { useJobImport } from './useJobImport'
 import './job.css'
 
 export function AddJobPage() {
-  const { t } = useTranslation(), { data, context, navigation } = useServices(), { openPage, active } = useNavigation()
+  const { t } = useTranslation(), { context, navigation } = useServices(), { openPage, active } = useNavigation()
   const [details, setDetails] = useState(emptyJob), [url, setUrl] = useState(''), [source, setSource] = useState<SourceDetails | null>(null)
+  const [sourceKind, setSourceKind] = useState<'url' | 'text' | 'pdf'>('url'), [text, setText] = useState(''), [pdf, setPdf] = useState<{ fileId: string; bytes: number } | null>(null)
   const [saving, setSaving] = useState(false), [saved, setSaved] = useState(false), [notice, setNotice] = useState(false), [error, setError] = useState('')
   const lock = useRef(false), alive = useRef(true)
   const importer = useJobImport(draft => { setDetails(current => fillEmptyJob(current, draft.details)); setSource(draft.source); setNotice(true) })
-  const busy = importer.phase !== 'idle', dirty = !saved && (busy || Boolean(url) || JSON.stringify(details) !== JSON.stringify(emptyJob()))
+  const busy = importer.phase !== 'idle', dirty = !saved && (busy || Boolean(url) || Boolean(text) || Boolean(pdf) || JSON.stringify(details) !== JSON.stringify(emptyJob()))
   useUnsavedGuard(dirty)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
-  const errorText = (code: string) => t($ => $.jobs.errors[code as keyof typeof en.jobs.errors], { defaultValue: t($ => $.ai.errors[code as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })
+  const errorText = (code: string) => t($ => $.jobs.errors[code as keyof typeof en.jobs.errors], { defaultValue: t($ => $.ai.errors[code as keyof typeof en.ai.errors], { defaultValue: t($ => $.profile.errors[code as keyof typeof en.profile.errors], { defaultValue: t($ => $.errors.actionFailed) }) }) })
   async function save() {
     if (lock.current || busy || saved) return
     let input
     try {
       input = { details: jobDetails({ ...details, title: details.title.trim(), companyNameRaw: details.companyNameRaw.trim() }),
-        source: url.trim() ? sourceDetails(source?.url === url.trim() ? source : { url: url.trim() }) : null }
+        source: sourceKind === 'url' && url.trim() ? sourceDetails(source?.url === url.trim() ? source : { url: url.trim() }) : null }
       if (input.details.salary && input.details.salary.min !== null && input.details.salary.max !== null && input.details.salary.min > input.details.salary.max) throw new Error('INVALID_INPUT')
     } catch { setError('INVALID_INPUT'); return }
     lock.current = true; setSaving(true); setError('')
     let committed = false
     try {
-      const result = await data.jobs.saveJob(input)
+      const result = await importer.save(input)
       if (!alive.current) return
       if (!result.ok) { setError(result.error); return }
       committed = true; context.setReferences({ jobId: result.value.id }); setSaved(true)
@@ -48,12 +49,19 @@ export function AddJobPage() {
     <div className="page-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
     <PageHeading title={t($ => $.navigation.pages.find)} description={t($ => $.jobs.subtitle)} />
     <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
-      <FormField label={t($ => $.jobs.url)}>{props => <TextInput {...props} name="jobUrl" type="url" value={url} maxLength={4096} disabled={saving || busy || saved} onChange={event => { setUrl(event.target.value); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}</FormField>
+      <FormField label={t($ => $.jobs.inputKind)}>{props => <Select {...props} name="captureSource" value={sourceKind} disabled={busy || saving || saved} onChange={event => { setSourceKind(event.target.value as typeof sourceKind); setSource(null); importer.clearError() }}>
+        <option value="url">{t($ => $.jobs.url)}</option><option value="text">{t($ => $.jobs.pastedJD)}</option><option value="pdf">{t($ => $.jobs.pdf)}</option>
+      </Select>}</FormField>
+      {sourceKind === 'url' && <FormField label={t($ => $.jobs.url)}>{props => <TextInput {...props} name="jobUrl" type="url" value={url} maxLength={4096} disabled={saving || busy || saved} onChange={event => { setUrl(event.target.value); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}</FormField>}
+      {sourceKind === 'text' && <FormField label={t($ => $.jobs.pastedJD)}>{props => <TextArea {...props} name="jobText" value={text} maxLength={60000} disabled={busy || saving || saved} onChange={event => { setText(event.target.value); importer.clearError() }} />}</FormField>}
+      {sourceKind === 'pdf' && <div className="job-actions"><Button disabled={busy || saving || saved} onClick={() => { void importer.selectPdf().then(result => { if (result.ok) setPdf(result.value); else setError(result.error) }).catch(() => setError('PDF_INVALID')) }}>{t($ => $.jobs.selectPdf)}</Button>
+        {pdf && <StatusMessage>{t($ => $.jobs.pdfSelected, { bytes: pdf.bytes })}</StatusMessage>}</div>}
+
       {importer.configured ? <StatusMessage>{t($ => $.jobs.selectedModel, { provider: importer.provider, model: importer.model })}</StatusMessage> : <StatusMessage>{t($ => $.jobs.noAI)}</StatusMessage>}
       <ImportModeField value={importer.mode} allowed={importer.parallelAllowed} disabled={busy || saving || saved}
         onChange={mode => { importer.clearError(); importer.setMode(mode) }} />
-      <div className="job-actions"><Button disabled={!url.trim() || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(url.trim()) }}>{t($ => $.jobs.parse)}</Button>
-        {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start(url.trim(), true)}>{t($ => $.imports.retry)}</Button>}
+      <div className="job-actions"><Button disabled={!(sourceKind === 'url' ? url.trim() : sourceKind === 'text' ? text.trim() : pdf) || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(sourceKind === 'url' ? { url: url.trim() } : sourceKind === 'text' ? { text } : { fileId: pdf!.fileId }) }}>{t($ => $.jobs.parse)}</Button>
+        {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start({ url: url.trim() }, true)}>{t($ => $.imports.retry)}</Button>}
         {busy && <Button onClick={importer.cancel}>{t($ => $.jobs.cancelParse)}</Button>}
         {!importer.configured && <Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>}
       </div>

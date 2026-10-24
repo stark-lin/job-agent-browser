@@ -28,7 +28,7 @@ export async function resumeFixture() {
         ] }, 'tool_calls')
       }
       if (observations.length) {
-        const [context, facts] = observations.map((message: { content: string }) => JSON.parse(message.content).structuredContent)
+        const [context, facts] = observations.map((message: { content: string }) => (JSON.parse(message.content).structuredContent ?? JSON.parse(message.content)))
         cache.set(runId, { schemaVersion: 1, job: context.job, profile: context.profile, items: context.items, facts: facts.items })
       }
       const snapshot = cache.get(runId)!

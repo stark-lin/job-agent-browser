@@ -11,11 +11,11 @@ export const zhCN = {
   },
   home: {
     brand: 'Job Browser', heading: '你想做什么？', subtitle: '在一个工作区中完成求职所需的一切。', footer: '专注于整个求职过程的工作区。', comingSoon: '{{label}} — 即将推出',
-    cards: { find: '手工新增或从职位 URL 导入', resume: '为特定职位调整简历', interview: '为特定职位准备面试', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
+    cards: { find: '手工新增或采集职位 URL、文本或 PDF', resume: '为特定职位调整简历', interview: '为特定职位准备面试', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
   },
   features: {
     comingSoon: '即将推出', notImplemented: '此功能尚未实现。',
-    descriptions: { find: '手工新增或从职位 URL 导入。', resume: '为特定职位调整简历。', interview: '为特定职位准备面试。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
+    descriptions: { find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', interview: '为特定职位准备面试。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
   },
   imports: {
     mode: '导入模式', single: '普通模式', parallel: '并行模式',
@@ -27,18 +27,29 @@ export const zhCN = {
     groups: { single: '完整解析', basics: '职位信息与待遇', description: '职位描述', requirements: '任职要求', contact: '联系方式与独立事实', experience: '工作经历', projects: '项目经历', education: '教育经历' },
     states: { queued: '排队中', running: '处理中', completed: '已完成', failed: '失败', cancelled: '已取消' }
   },
+  applicationAgent: {
+    configure: '在设置中选择默认 AI 服务商和模型，即可执行申请管理指令。',
+    title: '管理这条申请', help: '描述状态变更、备注、面试、职位修改或归档操作。明确的指令会直接执行；缺少信息时会先追问。',
+    instruction: '你想更新什么？', answer: '补充回答', submit: '执行指令', cancel: '取消', retry: '重试未完成的变更',
+    failed: '指令未能完成（{{code}}）。已完成的变更会保留。', events: '申请事件', noEvents: '暂无事件。', archivedJobs: '显示已归档职位',
+    states: { planning: '正在读取当前状态并理解指令…', waiting: '需要补充信息。', executing: '正在执行变更…', succeeded: '指令已完成。', failed: '部分或全部变更未能完成。', cancelled: '指令已取消，已完成的变更会保留。' },
+    results: { pending: '待执行', succeeded: '已完成', failed: '失败' },
+    actions: { set_status: '更新申请状态', add_note: '添加备注', schedule_event: '创建日程', reschedule_event: '调整日程', update_job: '修改职位信息', set_archived: '归档或恢复职位' },
+    eventTypes: { STATUS_CHANGED: '状态变更', APPLICATION_SUBMITTED: '已提交申请', INTERVIEW: '面试', DEADLINE: '截止时间', FOLLOW_UP: '跟进', NOTE: '备注' }
+  },
   jobs: {
+    inputKind: '资料来源', pastedJD: '粘贴职位描述', pdf: 'PDF 文档', selectPdf: '选择 PDF', pdfSelected: '已选择 PDF（{{bytes}} 字节）',
     discardTitle: '放弃本次新增工作？',
     discardDescription: '未保存的工作内容将被丢弃，正在进行的解析也会停止。',
-    "subtitle": "手工填写，或通过职位 URL 导入。核对字段后保存。",
-    "importTitle": "从 URL 导入",
-    "importHelp": "一次导入一个公开职位页面。网页文字会发送给下方显示的服务商和模型。访问受限或无法读取时会报错，你仍可手工填写。",
+    "subtitle": "手工填写，或采集职位 URL、粘贴描述或 PDF。核对字段后保存。",
+    "importTitle": "采集职位",
+    "importHelp": "读取一个公开职位页面、粘贴描述或 PDF。资料文字会发送给下方显示的服务商和模型，核对提取字段后再保存。",
     "url": "职位 URL（选填）",
     "selectedModel": "AI：{{provider}} / {{model}}",
-    "noAI": "在设置中选择默认服务商和模型后，即可解析 URL。手工填写无需配置 AI。",
+    "noAI": "在设置中选择默认服务商和模型后，即可采集资料。手工填写无需配置 AI。",
     "parse": "AI 解析",
     "cancelParse": "取消解析",
-    "reading": "正在读取职位页面…",
+    "reading": "正在读取资料…",
     "parsing": "正在使用 AI 解析职位信息…",
     "parsed": "已填入空缺字段，并保留已有内容。请核对后保存。",
     "basic": "职位信息",
@@ -129,7 +140,7 @@ export const zhCN = {
     "previous": "上一页",
     "next": "下一页",
     "sources": "来源",
-    "noSource": "手工录入，未提供来源 URL。",
+    "noSource": "未附加网页来源 URL。",
     "close": "关闭",
     "errors": {
       "JOB_SAVED_NAV_FAILED": "工作已保存，请打开申请记录查看，无需再次保存。",

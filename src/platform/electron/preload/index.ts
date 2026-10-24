@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { createApplicationBridge } from './application-bridge'
+import { APPLICATION_CALL } from '../application-contract'
 import { createResumeBridge } from './resume-bridge'
 import { RESUME_CALL, RESUME_EVENT, type ResumeEvent } from '../resume-contract'
 import { createDataBridge } from './data-bridge'
@@ -6,7 +8,7 @@ import { DATA_CALL } from '../../../shared/ipc'
 import { AI_START, AI_CANCEL, AI_EVENT, AI_MODELS, type AIEvent } from '../../../shared/ai'
 import { createAIBridge } from './ai-bridge'
 import type { JobImportAPI, JobImportEvent } from '../job-import-contract'
-import { JOB_IMPORT_START, JOB_IMPORT_CANCEL, JOB_IMPORT_EVENT, JOB_IMPORT_RETRY } from '../../../shared/job-import'
+import { JOB_IMPORT_START, JOB_IMPORT_CANCEL, JOB_IMPORT_EVENT, JOB_IMPORT_RETRY, JOB_IMPORT_SELECT, JOB_IMPORT_SAVE, JOB_IMPORT_GET } from '../../../shared/job-import'
 import type { ProfileImportAPI, ImportEvent } from '../profile-import-contract'
 import { PROFILE_IMPORT_RETRY, PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
 import {
@@ -49,6 +51,9 @@ const browserAPI: BrowserAPI = {
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
 const jobImport: JobImportAPI = {
+  selectPdf: () => ipcRenderer.invoke(JOB_IMPORT_SELECT),
+  save: input => ipcRenderer.invoke(JOB_IMPORT_SAVE, input),
+  getTask: input => ipcRenderer.invoke(JOB_IMPORT_GET, input),
   retry: input => ipcRenderer.invoke(JOB_IMPORT_RETRY, input),
   start: input => ipcRenderer.invoke(JOB_IMPORT_START, input), cancel: input => ipcRenderer.invoke(JOB_IMPORT_CANCEL, input),
   onEvent: callback => {
@@ -85,3 +90,5 @@ contextBridge.exposeInMainWorld('resume', createResumeBridge((method, input) => 
   ipcRenderer.on(RESUME_EVENT, listener)
   return () => ipcRenderer.removeListener(RESUME_EVENT, listener)
 }))
+
+contextBridge.exposeInMainWorld('applicationAgent', createApplicationBridge((method, input) => ipcRenderer.invoke(APPLICATION_CALL, method, input)))

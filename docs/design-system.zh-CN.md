@@ -48,7 +48,7 @@
 - 通用外观、尺寸、视觉状态和无障碍默认行为归中央库。页面 CSS 可通过共享 Tokens 安排布局，不得复制控件样式、重写 `.ui-*` 选择器或通过内联样式绕过中央库。
 - 页面管理位置、业务数据、启用/加载状态、导航和事件处理。Shared UI 通过 props 与组合插槽接收配置，不得导入 App/Page/Domain/Platform 行为。`className` 用于组合，不用于另建组件外观。
 
-[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx) 和 [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx)及 [SettingsPage](../src/pages/settings/SettingsPage.tsx) 展示当前引用方式；新增工作入口复用中央 `plus` 图标，申请记录复用表格、徽标及详情弹窗。不得将展示库结构复制到页面，或用私有实现文件导入代替公共入口。
+[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx)、[新增工作](../src/pages/find-jobs/AddJobPage.tsx)和[设置](../src/pages/settings/SettingsPage.tsx)使用这些原语。采集来源选择与[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)组合现有 Select/TextArea/Button/SectionCard/StatusMessage，事件历史使用 DetailsList，不引入新控件外观或 Token。不要把图库标记复制到页面或导入私有实现。
 
 ## 三、布局、尺寸与排版
 

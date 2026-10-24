@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const { resolve } = require('node:path')
 assert(process.env.JOB_BROWSER_SMOKE_DATA, 'Job runner requires disposable storage')
 app.setPath('userData', process.env.JOB_BROWSER_SMOKE_DATA)
-const timeout = setTimeout(() => { console.error('Job smoke timed out'); app.exit(1) }, 30_000)
+const timeout = setTimeout(() => { console.error('Job smoke timed out'); app.exit(1) }, 60_000)
 app.once('browser-window-created', (_event, window) => {
   window.webContents.setBackgroundThrottling(false)
   window.webContents.once('did-finish-load', async () => {
@@ -31,6 +31,7 @@ app.once('browser-window-created', (_event, window) => {
       } else {
         await require('./job-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
         await require('./import-parallel-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
+        await require('./job-agent-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
       }
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) }); app.quit()
     } catch (error) { clearTimeout(timeout); console.error(error); app.exit(1) }

@@ -3,6 +3,7 @@ import type { JsonSchema, JsonValue, RegisteredTool, ToolDescriptor } from '../.
 import { ToolError } from '../../shared/tools/errors'
 import { DataError } from '../../domain/common/errors'
 import type { AuditedCapabilities } from './capabilities'
+import { jobSchemas } from './business-schema'
 
 const uuid = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' }
 const byId: JsonSchema = { type: 'object', properties: { id: uuid }, required: ['id'], additionalProperties: false }
@@ -22,7 +23,7 @@ export function createNativeCapabilities(services: Pick<ServiceContract, 'jobs' 
     }, { target: targetType ? input => ({ type: targetType, id: (input as Record<string, string>)[targetKey] }) : undefined })
   }
   read.push(bind('job.get', 'Read a saved job by ID.', byId, services.jobs.getJob, 'job'))
-  read.push(bind('job.list', 'List saved jobs.', { type: 'object', properties: page, additionalProperties: false }, services.jobs.listJobs))
+  read.push(bind('job.list', 'List saved jobs; filter by search, status and archived (default false).', jobSchemas.list, services.jobs.listJobs))
   read.push(bind('profile.get', 'Read a saved profile by ID.', byId, services.profiles.getProfile, 'profile'))
   read.push(bind('profile.list', 'List saved profiles for resume input selection.', { type: 'object', properties: page, additionalProperties: false }, services.profiles.listProfiles))
   read.push(bind('profile.list_facts', 'List facts belonging to a profile.', { type: 'object', properties: { profileId: uuid, ...page },
