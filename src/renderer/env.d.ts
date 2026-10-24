@@ -1,3 +1,4 @@
+import type { AskAgentAPI } from '../platform/electron/ask-agent-contract'
 import type { ApplicationAgentAPI } from '../platform/electron/application-contract'
 import type { ResumeAPI } from '../platform/electron/resume-contract'
 import type { BrowserAPI } from '../shared/browser'
@@ -8,6 +9,7 @@ import type { JobImportAPI } from '../platform/electron/job-import-contract'
 
 declare global {
   interface Window {
+    askAgent: AskAgentAPI
     applicationAgent: ApplicationAgentAPI
     resume: ResumeAPI
     browser: BrowserAPI

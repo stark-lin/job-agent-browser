@@ -22,6 +22,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | `capability_audit` | Content-free access/execution audit owned by read/write capabilities; [version-3 schema](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | Process/work ownership, invocation ownership and atomic start receipts; [version-4 schema](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | Cross-session creation receipts; [version-5 schema](../src/platform/database/migrations/operation-receipts.ts) |
+| `chat_sessions`, `chat_runs`, `chat_items` | Host-owned transcript/model snapshots, request receipts, ordered visible items; [additive version-6 schema](../src/platform/database/migrations/chat.ts) |
 
 ## 2. Business rules
 
@@ -98,9 +99,9 @@ Failed writes first roll back, then append one failure audit in a separate trans
 
 **Implemented AI call audit:** the Main-internal `recordAI` capability in [Transactions](../src/platform/database/transactions.ts) writes `AI_STREAM_START`, `CREATE`, component `ai`, location `chat.stream`, source `AI_CLIENT` and actor `local-user`. `targetType = ai_request`; target/request IDs are the same generated opaque request UUID, with no business-object mapping. Time, record ID and transaction ID are database-layer generated. [Audit queries](../src/platform/database/audit-reader.ts) accept this logical target without treating it as a business entity/table.
 
-Each accepted request attempts one audit: the first valid SSE chunk commits `SUCCESS` before content is forwarded; startup failure/cancellation commits `FAILURE` with a fixed code. Success means the stream started, not that output completed. Post-start completion, failure and cancellation add no call audit. A manual retry creates a new request. Audit failure stops forwarding/aborts the request and reports `AUDIT_UNAVAILABLE`; the external call may already have occurred. No provider/model/URL, usage, duration, message, prompt, output, business snapshot or extra metadata is persisted. Chat history remains page-memory only; no AI run/message tables are added.
+Each accepted request attempts one audit: the first valid SSE chunk commits `SUCCESS` before content is forwarded; startup failure/cancellation commits `FAILURE` with a fixed code. Success means the stream started, not that output completed. Post-start completion, failure and cancellation add no call audit. A manual retry creates a new request. Audit failure stops forwarding/aborts the request and reports `AUDIT_UNAVAILABLE`; the external call may already have occurred. No provider/model/URL, usage, duration, message, prompt, output, business snapshot or extra metadata is persisted. This legacy API remains for connection tests/imports; Ask AI uses the transcript storage below.
 
-**Agent model audit:** every non-streaming call records one fixed AGENT_MODEL_RESULT outcome through recordAgentModel, with component ai, location agent.model, source GENERATOR and a Main-bound internal Agent label. Only opaque request IDs and fixed outcomes are stored; prompts, outputs, secrets and hidden reasoning are excluded. Audit failure terminates execution.
+**Agent model audit:** every complete or streaming call records one fixed AGENT_MODEL_RESULT outcome through recordAgentModel, with component ai, location agent.model, source GENERATOR and a Main-bound internal Agent label. Only opaque request IDs and fixed outcomes are stored; prompts, outputs, secrets and hidden reasoning are excluded. Audit failure terminates execution.
 
 **Implemented audit browsing:** the read-only [Settings viewer](../src/pages/settings/AuditViewerSection.tsx) uses `audit.list` without schema/IPC changes. It defaults to 25 records per page, ordered by descending sequence. Type/status, exact target/request/transaction IDs and inclusive time boundaries compose existing filters. [Filter conversion](../src/pages/settings/audit-filters.ts) validates IDs/ranges and converts local datetime inputs to canonical UTC; details show localized time plus its stored UTC value. Refresh/reset/filter application restart at page one. Pages use offset pagination; new writes can shift subsequent pages, so refresh to see the latest ordering. No export, automatic polling, log mutation or business-content reconstruction is provided. Settings/key writes remain outside audit; AI success retains its startup-only meaning.
 
@@ -110,6 +111,16 @@ The [controlled-runtime sink](../src/platform/database/capability-audit.ts) writ
 
 Start-audit failure prevents execution. End-audit failure reports `TOOL_AUDIT_UNAVAILABLE` without retry or rollback claims; an external or committed local write may already have happened. Only unmatched starts owned by dead instances receive an `INTERRUPTED` end; live calls are preserved. The existing `audit.list`/Settings viewer still reads only business/AI `audit_logs`; capability diagnostics remain runtime-internal. [Tests](../tests/capability-audit.test.ts) cover privacy, failure, rollback and immutable records; [MCP architecture](mcp-architecture.md) owns execution policies/lifecycle.
 
+### Ask AI transcript storage
+
+The [Chat repository](../src/platform/database/repositories/chats.ts) atomically creates Session/Run/User Item on first Send, with an input-hashed request UUID receipt. A partial unique index permits one running Run per Session; a composite foreign key binds every Item to its Run/Session. Model choices persist per Session and are copied per Run. New chat drafts stay in Renderer memory. Session deletion cascades transcript rows and receipts, requires no active Run and does not undo business changes or erase audit.
+
+Only the [Main recorder](../src/platform/electron/ask-agent-recorder.ts) appends model/tool Items. It saves visible text, explicitly public reasoning summaries, allowlisted scalar tool summaries and fixed errors; never raw tool arguments/results, system prompts, hidden reasoning, credentials or raw exceptions. Transcript content is separate from content-free audit. Item skeletons precede events; text uses one-second checkpoints and final writes, not per-token SQLite updates. A crash may lose text since the last checkpoint.
+
+Run ownership uses runtime_instances. Recovery interrupts only dead/expired owners; live MCP Server startup cannot interrupt Main work. Active text becomes interrupted and pending tools uncertain. Runs never auto-resume. Event snapshots include the in-memory partial text and monotonic watermark for resubscription. History includes at most 40 completed user/assistant Items and 256 KiB, starting at a user boundary; current-run tool observations are separately bounded at 2 MiB. Tool/reasoning history is not replayed.
+
+[Ask IPC](../src/platform/electron/ask-agent-contract.ts) exposes start/cancel/getRun/listActive/onEvent with trusted-frame and window ownership checks. Manual Chat CRUD uses typed data IPC; Renderer cannot fabricate Runs or output Items. Retry creates a new Run, while a run that attempted writes requires state review rather than automatic replay. [Tests](../tests/chat.test.ts) cover constraints/recovery and [projection tests](../tests/ask-store.test.ts) cover snapshot races/gaps.
+
 ## 5. API contract and access
 
 The sandboxed [Preload](../src/platform/electron/preload/index.ts) exposes `window.data`. The complete typed inputs/outputs live in [DataContract](../src/platform/electron/data-contract.ts); field/enumeration definitions remain in the linked Domain types. [Main IPC](../src/platform/electron/main/data-ipc.ts) requires an owned window, its top frame and the exact trusted renderer document. External pages/subframes cannot access data.
@@ -118,38 +129,15 @@ Every method accepts one input object and resolves to `{ ok: true, value }` or `
 
 Optional detail text and optional URLs default to empty strings, arrays to empty arrays, nullable IDs/dates/salary to null, and item order to 0. Required source/contact-link URLs must use HTTP(S) without credentials. ResumeDocument must contain at least one sourced statement; its budget uses the shared language-aware counter. Exact accepted shapes and limits are enforced by the Domain validation modules.
 
-| Namespace / methods | Input and result / behavior |
+| Namespace | Implemented responsibility; exact signatures are owned by [DataContract](../src/platform/electron/data-contract.ts) |
 | --- | --- |
-| `jobs.saveJob` | `{ details, source? }` → Job; optionally attach source atomically |
-| `jobs.updateDetails` | `{ id, details }` → Job; lifecycle fields are excluded |
-| `jobs.attachSource` | `{ jobId, source }` → JobSource |
-| `jobs.setArchived` | `{ id, archived }` → Job |
-| `jobs.deleteJob`, `jobs.getJob` | `{ id }` → deleted ID / Job |
-| `jobs.listJobs` | Page + `status? / archived? / search?` → Jobs; default unarchived |
-| `jobs.listSources` | `{ jobId }` + Page → JobSources |
-| `jobs.registerCompany`, `jobs.updateCompany` | Company details / `{ id, details }` → Company |
-| `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → deleted ID / Companies |
-| `profiles.createProfile`, `profiles.editContact` | Contact details / `{ id, details }` → Profile |
-| `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / deleted ID / Profiles |
-| `profiles.applyImport` | Explicit subset + session/batch IDs → saved Profile/items/Facts and draft-ID mappings; owner-checked, atomic |
-| `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
-| `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
-| `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → deleted ID / ProfileItems |
-| `profiles.addFact`, `profiles.editFact` | `{ profileId, profileItemId?, details }` / `{ id, profileItemId?, details }` → Fact |
-| `profiles.deleteFact`, `profiles.listFacts` | `{ id }` / `{ profileId }` + Page → deleted ID / Facts |
-| `applications.changeStatus` | `{ jobId, status }` → Job and internally recorded status event |
-| `applications.scheduleEvent` | `{ jobId, type, title, description?, startsAt, endsAt? }` → scheduled event |
-| `applications.rescheduleEvent` | `{ id, startsAt, endsAt? }` → scheduled event |
-| `applications.addNote`, `applications.deleteEvent` | `{ jobId, text }` / `{ id }` → event / deleted ID |
-| `applications.listEvents`, `applications.listCalendar` | `{ jobId }` / `{ from, to }` + Page → events |
-| `resumes.createRun` | `{ jobId, profileId, config? }` → GenerationRun |
-| `resumes.cancelRun`, `resumes.deleteRun`, `resumes.getRun` | `{ id }` → run / deleted ID / `{ run, references }` |
-| `resumes.listRuns` | Page + `jobId?` → `{ run, references }` entries, including deleted Job history |
-| `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
-| `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content }` / `{ id }` → Artifact / deleted ID |
-| `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → audit entries, newest sequence first |
-| `settings.get`, `settings.savePreferences` | `{}` / partial language, `light / dark / system` theme, mailbox or `ai` configuration → versioned Preferences |
-| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | Provider instance ID as `provider`; save also accepts `apiKey` → `{ configured, available }`, never a key |
+| `jobs` | Job/company CRUD, source attachment, archive and paginated queries |
+| `profiles` | Contact/item/fact CRUD and explicit reviewed import |
+| `applications` | Legal status changes, notes, schedules, event/calendar queries |
+| `resumes` | Manual Run/Artifact CRUD and provenance queries; Agent stages use MCP |
+| `chats` | Session list/get/rename/model/delete, paginated items and runs; no output creation |
+| `audit` | Read-only content-free audit browsing |
+| `settings`, `secrets` | Validated file preferences and key status/save/delete; never return keys |
 
 The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Agent generation stages use MCP, separate from this manual/UI IPC API. IPC mutations are not automatically retried/idempotent; refresh uncertain state before retrying. MCP creation receipts provide the explicit exceptions described in section 4. Use the following fixed codes rather than database messages.
 
@@ -170,7 +158,7 @@ The API offers no raw SQL/table CRUD, unrestricted filters, transaction manageme
 
 [The PDF import bridge](../src/platform/electron/profile-import-contract.ts) exposes `window.profileImport.selectPdf/start/retry/cancel/discard/onEvent`, without path-reading access. Both import `start` operations accept optional `mode` (`single` by default); events include `progress.groups` with states and `queueMs`/`elapsedMs`, and `failed.retryable` indicates cached part retry. PDF `retry({sessionId})` retains the session and returns a new `taskId`. File/network work stays outside synchronous business transactions.
 
-The separate [AI API](../src/shared/ai.ts) retains streaming chat. [Resume IPC](../src/platform/electron/resume-contract.ts) exposes `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`; events carry run ID and monotonic sequence, never hidden reasoning. Each window permits one active task; navigation preserves it, window disposal cancels it. Before publication cancel terminates the run; afterward it stops output only. Export opens a system save dialog and copies the existing PDF; `PDF_EXPORT_FAILED` leaves that application copy ready for another save attempt.
+The separate [AI API](../src/shared/ai.ts) retains non-Agent streaming tasks. [Resume IPC](../src/platform/electron/resume-contract.ts) exposes `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`; events carry run ID and monotonic sequence, never hidden reasoning. Each window permits one active task; navigation preserves it, window disposal cancels it. Before publication cancel terminates the run; afterward it stops output only. Export opens a system save dialog and copies the existing PDF; `PDF_EXPORT_FAILED` leaves that application copy ready for another save attempt.
 
 [The job import bridge](../src/platform/electron/job-import-contract.ts) exposes `window.jobImport.start/retry/cancel/onEvent`, separately from synchronous business dispatch. Job `retry({taskId})` retains that task ID; both retries require ownership and a failed retryable batch. New read/parse errors remain bridge-only. Each submitted AI part has its own startup audit, while cached successful parts create no new request/audit on retry; content is excluded.
 

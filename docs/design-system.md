@@ -12,7 +12,7 @@ Language: English · [简体中文](design-system.zh-CN.md)
 | Public React components | [Central entry](../src/shared/ui/index.ts) |
 | Shared application appearance | [components.css](../src/shared/ui/components.css) |
 | Reference examples and their presentation | [Gallery HTML](components/job-browser-component-library-8px.html) and [component-library.css](../src/shared/ui/component-library.css) |
-| Generated exports | [Tokens CSS](../src/shared/ui/design-tokens.css), [native colors](../src/shared/ui/theme-colors.ts), [native geometry](../src/shared/ui/geometry.ts), [sidebar responsive CSS](../src/shared/ui/sidebar-responsive.css), [standalone reference CSS](components/job-browser-component-library-8px.css) |
+| Generated exports | [Tokens CSS](../src/shared/ui/design-tokens.css), [native colors](../src/shared/ui/theme-colors.ts), [native geometry](../src/shared/ui/geometry.ts), [standalone reference CSS](components/job-browser-component-library-8px.css) |
 
 The [Renderer entry](../src/renderer/main.tsx) imports `components.css`, which imports generated tokens. The gallery loads the standalone reference CSS and provides downloads for that CSS, Tokens CSS and Tokens JSON. Save its HTML and standalone CSS together for offline viewing; no build or external fonts are required. Tokens JSON is a flat map of CSS values, not a DTCG schema.
 
@@ -33,7 +33,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | `ListInput` | Comma-separated lists using `TextInput` presentation; retains trailing delimiters while typing and resets on external value changes | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | Business source HTTP(S) links; reject credentials/other schemes and open externally | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
 | `Glyph` | Shared named SVG symbols used by Home and workspace navigation | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
-| `Sidebar`, `NavigationGroup`, `NavigationItem` | Generic sidebar composition, group headings and named native buttons with current-page state | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
+| `Sidebar`, `NavigationGroup`, `NavigationItem` | Icon rail, accessible navigation groups and named native buttons with hover tooltips and current-page state | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG glyph and neutral/primary icon container | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | Feature entry with icon, label and description | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
 | `FormField`, `Select` | Associated labels, help/errors and native selection | [Form.tsx](../src/shared/ui/Form.tsx) |
@@ -58,7 +58,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | Controls | Small 32px / default 40px / large 48px | `--control-sm`, `--control-md`, `--control-lg` |
 | Toolbar | 48px | `--toolbar-height` |
 | Browser tab strip / total chrome | 48px / 96px | `--tab-strip-height`, `--browser-chrome-height` |
-| Workspace sidebar | 208px wide above 960px; 64px icon rail at or below 960px; 40px minimum navigation items | `--sidebar-width`, `--sidebar-compact-width`, `--sidebar-breakpoint`, `--control-md` |
+| Workspace sidebar | 64px icon rail at every viewport width; 48px navigation items with 24px icons | `--sidebar-width`, `--control-lg`, `--space-3` |
 | List row | 64px minimum; grow for content when necessary | `--list-row-height` |
 | Home card | 144px minimum at every viewport size | `--feature-card-height` |
 | Icon / container | 16px / 32px or 40px | `--icon-size`, `--icon-box`, `--icon-box-lg` |
@@ -92,7 +92,7 @@ Generated CSS supports `data-theme="light"` / `data-theme="dark"`; without an ex
 
 These are requirements for UI additions and changes; they do not establish full accessibility certification:
 
-- Sidebar items retain their complete accessible name and native tooltip when labels are hidden; use `aria-current="page"` for the active destination. Settings remains reachable in the fixed footer while the middle groups scroll.
+- The sidebar has no brand header or visible text labels. Preserve the original order: Home, Job search, Manage, Tools, then fixed-footer Settings. Centered 24px horizontal rules using `--line` and `--border-width` separate these sections; rules are decorative, while groups retain translated accessible names. Items retain their complete translated accessible name and native hover tooltip; use `aria-current="page"` for the active destination. Settings remains reachable while the middle groups scroll.
 - Give every control an accessible name. `IconButton` requires `aria-label`; inputs need an associated label or accessible name. `Icon` is decorative by default, so communicate meaning through the owning control or explicitly configure its accessible semantics.
 - Settings composes 40px fields in 16px-radius panels with 24px padding (16px at narrow widths); page CSS owns layout only. Success feedback uses readable text on the success background/border. The gallery Settings example references these shared rules.
 - Import mode controls compose central `FormField`/`Select`; model opt-in uses `Checkbox`. Independent part states/timings use `DetailsList`; only the completion summary uses live status text so timer ticks are not repeatedly announced, with explicit failed-part retry actions. Mode controls are disabled during work; unavailable parallel options explain the Settings prerequisite. The Forms gallery includes these controls.
@@ -105,6 +105,16 @@ These are requirements for UI additions and changes; they do not establish full 
 - Honor reduced-motion preferences and review wrapping, clipping and scroll behavior at narrow widths. Runtime motion rules live in [central styles](../src/shared/ui/components.css) and [browser styles](../src/renderer/styles/global.css).
 
 Contrast, screen-reader behavior, enlarged text and complete keyboard coverage require manual review; current static checks do not prove them.
+
+### Ask AI V2 conversation
+
+[Conversation primitives](../src/shared/ui/Conversation.tsx) own ChatMessage, Collapsible, ActivityRow, SessionEntry, Drawer and ComposerSurface; [Markdown](../src/shared/ui/Markdown.tsx) renders a safe subset with escaped HTML, HTTP(S)-only links, code copying and locally scrollable code/tables. All are exported centrally. The Feedback gallery includes static conversation references.
+
+The persistent application icon rail stays 64px. The chat session list uses `--chat-sidebar-width` (256px), becoming a modal drawer below 960px; the content column uses `--chat-content-width` (768px). Ask AI has no top bar, role/model message cards or duplicate Home button. User messages have a subtle bubble; assistant output uses direct typography. The bottom composer contains a compact model selector beside Send/Stop. Empty chats center the introduction/composer.
+
+Public reasoning summaries expand while streaming and collapse on completion unless the user changed their state. Models without summaries show Working and separate tool activity. Tool rows use state symbols, text and allowlisted summaries; unknown write outcomes explicitly request state review. Completed writes remain visible after Stop. Delete requires an idle session and confirmation; attempted writes suppress automatic Retry.
+
+Enter sends, Shift+Enter inserts a line break and IME composition never sends. Busy chats retain editable drafts with Send disabled; switching chats restores drafts and scroll positions. Near-bottom output follows automatically; upward scrolling preserves position and offers a jump to latest. Loading earlier Items preserves the viewport. Focusable controls, drawer Escape/focus containment, reduced motion and concise live status apply; token deltas are not announced individually.
 
 ## 6. Maintenance and verification
 
@@ -131,8 +141,9 @@ npm run quality
 | [Quality checker](../scripts/quality.cjs) | Native reusable JSX controls/icons and explicit JSX `style` attributes rejected outside central UI; App/Page/Renderer component imports use the public entry; documentation parity, paths and lengths | Different-class duplicates, prop-spread bypasses and dynamically constructed elements still require review |
 | [Browser smoke](../scripts/browser-smoke.cjs) | Home at 320/640/1200px, minimum card height, overflow, central card geometry and rendered chrome meeting native bounds | Not a complete gallery, accessibility or visual-regression suite |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | Full-content native bounds, no app chrome, resizing, redirects, history and load recovery | Uses local fixtures; does not certify provider websites |
-| [Sidebar smoke](../scripts/sidebar-smoke.cjs) | All destinations, active state, keyboard activation, responsive width and native-view clearance | Does not certify all assistive technology |
+| [Sidebar smoke](../scripts/sidebar-smoke.cjs) | All destinations, active state, keyboard activation, fixed icon-rail width, hover tooltip labels and native-view clearance | Does not certify all assistive technology |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider endpoint/timeout forms, model detection/selection with central controls, real SSE/IPC, cancellation and 320/640/1200px overflow checks | Local fixtures do not certify third-party provider behavior |
+| [Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs) | Streaming activity, concurrent sessions, targeted Stop, draft/scroll restoration, bilingual themes at 320/640/1200px and forced-process recovery | Local fixtures; not live-provider or screen-reader certification |
 | [Audit Viewer smoke](../scripts/audit-viewer-smoke.cjs) | Filters, pagination, metadata dialogs, keyboard dismissal, no page overflow at 320/640/1200px and read-only/error/loading states | Does not certify screen readers or a snapshot across pages during concurrent writes |
 | [Profile smoke](../scripts/profile-smoke.cjs) | Manual entries/facts, built PDF Worker/SSE, explicit saves/ignore controls, partial saves, reload/pagination, bilingual light/dark layout at 320/640/1200px and leave guards | Uses generated PDFs/local AI fixtures; does not certify third-party Providers, arbitrary PDF layouts or screen readers |
 | [Settings smoke](../scripts/settings-smoke.cjs) | Real forms, labels, 40px controls, 16px panels, 320/640/1200px layout, language, validation and key lifecycle | Does not certify screen-reader behavior or provider access |

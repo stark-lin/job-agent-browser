@@ -1,6 +1,6 @@
 # Tools and MCP Runtime
 
-Purpose: define capability registration, Agent boundaries and MCP integration. Status: **Implemented** three internal Agents, one public Job Agent Browser MCP surface, audited capabilities and third-party stdio consumption. Remote transports remain **Planned**.
+Purpose: define capability registration, Agent boundaries and MCP integration. Status: **Implemented** four internal Agents, one public Job Agent Browser MCP surface, audited capabilities and third-party stdio consumption. Remote transports remain **Planned**.
 
 Language: English · [简体中文](mcp-architecture.zh-CN.md)
 
@@ -13,7 +13,7 @@ UI    → typed IPC → Domain
 
 [AgentTools](../src/shared/agent/index.ts) is an asynchronous discovery/call contract. Its only production implementation is [MCPAgentTools](../src/platform/mcp/first-party-client.ts); no Agent receives ToolScope, Domain services, repositories, backend dispatch or database handles. Source readers and model reasoning are host capabilities outside the business MCP. [Architecture checks](../scripts/quality.cjs) reject direct/indirect privileged dependencies, re-exports, dynamic imports and ToolScope use in Agent modules.
 
-[Main](../src/platform/electron/main/index.ts) owns model configuration, credentials, window ownership and read-only UI projection. UI forms retain typed IPC; Agent-originated saves, workflow submissions, failures, cancellation and output builds cross MCP. Ask AI remains streaming chat without business tools; Profile import retains its separate reviewed import workflow.
+[Main](../src/platform/electron/main/index.ts) owns model configuration, credentials, window ownership and read-only UI projection. UI forms retain typed IPC; Agent-originated saves, workflow submissions, failures, cancellation and output builds cross MCP. Ask AI uses a persistent multi-session streaming Agent runtime over a scoped first-party MCP session; Profile import retains its separate reviewed import workflow.
 
 ## 2. Registration and workflow contracts
 
@@ -21,15 +21,17 @@ The sole public composition is [createJobAgentTooling](../src/platform/tools/ind
 
 [Registry policies](../src/shared/tools/policy.ts) require an allowlist; deny takes priority, and wildcard syntax is limited to trailing namespace patterns. The public surface caps risk at WRITE. Delete, company writes, SQL, settings, secrets, provider configuration, browser control, email and external actions are absent. New descriptors never silently appear in an existing scope; removed/replaced entries are revoked.
 
-[AgentLoop](../src/platform/agent/loop.ts) permits eight sequential model turns per stage, checks complete assistant call batches, and preserves fixed errors. Cancellation/audit failure terminate immediately. [AgentModel adaptation](../src/platform/ai/agent-model.ts) uses non-streaming compatible Chat Completions, maps dotted tool names injectively, and records content-free request outcomes. Model settings and credentials stay in Main.
+[AgentLoop](../src/platform/agent/loop.ts) permits eight sequential model turns per stage, checks complete assistant call batches, and preserves fixed errors. Cancellation/audit failure terminate immediately. [AgentModel adaptation](../src/platform/ai/agent-model.ts) supports both complete and streaming compatible Chat Completions, maps dotted tool names injectively, and records content-free request outcomes. Model settings and credentials stay in Main.
 
 [Resume](../src/platform/agent/resume.ts) follows score/gate/select/draft/polish; the model sees only immutable snapshot read tools bound to its run. [Capture](../src/platform/agent/capture.ts) reads no JAB tools during interpretation and saves only after review. [Application management](../src/platform/agent/application.ts) reads current Job/state/events before producing a validated action plan; Main binds actions to the selected Job and executes them in order. Missing details trigger a question; partial failures retain completed actions and request IDs.
+
+[Ask Agent](../src/platform/agent/ask.ts) uses the [streaming loop](../src/platform/agent/stream-loop.ts) and a fixed [allowlist](../src/platform/agent/tool-presentation.ts): Job read/update/archive, Profile reads, Application state/events/notes/local scheduling and artifact.get. Import, Resume workflow/build, third-party tools and delegation are excluded. Tools execute sequentially after complete-batch validation; ordinary errors become observations, while cancellation or audit failure stops the run. Summary presentation excludes raw inputs/results. Main alone records transcript events; that recorder is not an Agent business API and cannot bypass MCP business writes.
 
 ## 3. First-party and third-party Clients
 
 The [first-party runtime](../src/platform/mcp/first-party-client.ts) lazily creates one real stdio session for each workflow and reuses it until disconnect/shutdown. It runs the built Node entry using Electron's executable in Node mode, passes explicit userData, and keeps each Resume run in its original session. A lost session cannot fall back to local services or take over an old run; a later task may open a new session.
 
-The [Client](../src/platform/mcp/client.ts) accepts processEnv only from trusted composition. Arbitrary environment configuration is not accepted in userData/mcp.json. Internal labels are internal.resume, internal.job-capture and internal.application. [Caller validation](../src/platform/mcp-server/caller.ts) accepts the audit identifier format and falls back to mcp-client. JOB_BROWSER_MCP_CALLER never changes permissions, schemas, tool lists or semantics.
+The [Client](../src/platform/mcp/client.ts) accepts processEnv only from trusted composition. Arbitrary environment configuration is not accepted in userData/mcp.json. Internal labels are internal.resume, internal.job-capture, internal.application and internal.ask-ai. [Caller validation](../src/platform/mcp-server/caller.ts) accepts the audit identifier format and falls back to mcp-client. JOB_BROWSER_MCP_CALLER never changes permissions, schemas, tool lists or semantics.
 
 Third-party consumption retains [reviewed configuration](../src/platform/mcp/server-config.ts), [Provider filtering](../src/platform/mcp/provider.ts) and [schema fingerprints](../src/platform/mcp/tool-adapter.ts). Local review owns names, descriptions, schemas and READ/COMPUTE risk; upstream hints cannot grant rights. Missing/changed schemas are quarantined. Schema-change notification revokes the current batch before discovery. There is no implicit reconnect or execution retry.
 

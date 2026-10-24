@@ -12,9 +12,12 @@ export type AgentMessage = { role: 'system' | 'user'; content: string }
   | { role: 'assistant'; content: string; toolCalls: AgentToolCall[] }
   | { role: 'tool'; callId: string; content: string }
 export interface AgentResponse { content: string; toolCalls: AgentToolCall[] }
-export interface AgentModel {
-  complete(input: { messages: readonly AgentMessage[]; tools: readonly AgentToolDescriptor[]; signal: AbortSignal }): Promise<AgentResponse>
-}
+export interface AgentModelInput { messages: readonly AgentMessage[]; tools: readonly AgentToolDescriptor[]; signal: AbortSignal }
+export interface AgentModel { complete(input: AgentModelInput): Promise<AgentResponse> }
+export type AgentModelEvent = { type: 'content.delta' | 'reasoning.delta'; text: string }
+  | { type: 'tool_call.ready'; call: AgentToolCall }
+  | { type: 'completed'; response: AgentResponse }
+export interface StreamingAgentModel extends AgentModel { stream(input: AgentModelInput): AsyncIterable<AgentModelEvent> }
 export type AgentErrorCode = 'AGENT_CANCELLED' | 'AGENT_TIMEOUT' | 'AGENT_PROTOCOL_ERROR' | 'AGENT_STEP_LIMIT'
   | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED' | 'AUDIT_UNAVAILABLE'
 export class AgentError extends Error {

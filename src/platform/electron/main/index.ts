@@ -1,3 +1,5 @@
+import { createAskAgentTasks, type AskAgentTasks } from '../ask-agent-tasks'
+import { registerAskAgentIPC } from './ask-agent-ipc'
 import { t, i18n } from '../../../shared/i18n'
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
 import { createPreferences } from '../../storage/preferences'
@@ -49,6 +51,7 @@ let tools: ToolRuntime | undefined
 let applicationTasks: ApplicationTasks | undefined
 let resumes: ResumeTasks | undefined
 let firstParty: FirstPartyRuntime | undefined
+let askAgent: AskAgentTasks | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -79,6 +82,8 @@ app.whenReady().then(async () => {
   jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
+  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, model: choice => models('internal.ask-ai', choice) })
+  registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })
   registerApplicationIPC(applicationTasks, join(__dirname, '../renderer/index.html'))
   registerResumeIPC(resumes, join(__dirname, '../renderer/index.html'))
@@ -88,7 +93,7 @@ app.whenReady().then(async () => {
   registerJobImportIPC(jobImporter, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id
-    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner); applicationTasks?.disposeOwner(owner) }
+    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner); applicationTasks?.disposeOwner(owner); askAgent?.disposeOwner(owner) }
     contents.on('destroyed', disposeOwner)
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
@@ -114,7 +119,7 @@ app.on('will-quit', event => {
   if (shuttingDown) return
   if (!ai && !tools && !resumes) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {

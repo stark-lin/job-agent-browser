@@ -30,7 +30,7 @@ The rows represent three groups:
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, basic Ask AI chat and Profile editing/PDF import are implemented; Add Job and the Applications list are implemented; two other feature entries remain scaffolded. Add new capabilities within existing entry points whenever possible.
+A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, Ask AI V2 and Profile editing/PDF import are implemented; Add Job and the Applications list are implemented; Interview Prep remains scaffolded. Add new capabilities within existing entry points whenever possible.
 
 Initial Add Job supports manual entry or one public-URL AI import, reviewed saving as `NOT_STARTED` and navigation to Applications. Restricted access reports an error; authenticated Browser capture and deduplication remain planned. Runtime details belong to [current architecture](architecture.md).
 
@@ -52,7 +52,7 @@ The shell provides these global capabilities:
 | Browser | Open URLs; maintain web sessions and cookies; upload and download files; retrieve page content; accept pasted URLs or page content |
 | Agent | Keep an Agent button available; send the current page, current job, or selected text to AI |
 
-The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both are planned to use shared context and the configured AI capability. Basic Ask AI chat already supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each conversation can override it. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
+The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both are planned to use shared context and the configured AI capability. Ask AI V2 supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each persistent conversation can override it. Its current scope is saved Job/Profile/Application data and observable local tool actions. Specialist delegation, uploads, cross-session memory, search, folders and branching remain planned. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
 
 ## 4. Anything is URL
 
@@ -79,7 +79,7 @@ A single navigation journey can therefore cross internal pages and websites:
 Home → Add Job → Applications → Tailor Resume → Company Application
 ```
 
-Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Home has no Back button; other business pages provide Go home as their only page navigation button, and keyboard history navigation remains available. Browser retains its own Home/Back/Forward controls. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
+Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Home has no Back button; other business pages provide Go home as their only page navigation button (Ask AI V2 uses the persistent sidebar Home entry), and keyboard history navigation remains available. Browser retains its own Home/Back/Forward controls. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
 
 ## 5. Shared Context
 
@@ -100,7 +100,7 @@ Current Page + Job   → Ask AI
 
 The MVP is local first and does not require a complex backend. Local storage is the starting point; external websites and configured AI services may still require a network connection.
 
-The [V1 data architecture](data-architecture.md) owns the implemented 12-table model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
+The [V1 data architecture](data-architecture.md) owns the implemented data model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
 
 Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. Each experience, project or education item can contain multiple independent facts; standalone facts belong directly to the Profile. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
 
@@ -166,13 +166,13 @@ Stage 1 establishes page hosting and navigation controls; Stage 3 completes the 
 
 This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Resume V1 now implements business orchestration and reference context; mailbox entry configuration must ship alongside Inbox.
 
-[MCP infrastructure](mcp-architecture.md) now provides one public capability surface used by internal Resume/Capture/Application Agents and external hosts. Ask AI remains plain streaming chat. Future tooling milestones include a real-service integration and its required transport/credentials; these do not replace the staged product workflows above.
+[MCP infrastructure](mcp-architecture.md) now provides one public capability surface used by internal Resume/Capture/Application Agents and external hosts. Ask AI V2 adds persistent multi-session Agent conversations over a fixed first-party tool allowlist. Future tooling milestones include a real-service integration and its required transport/credentials; these do not replace the staged product workflows above.
 
 The foundation milestone is:
 
 > Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
 
-Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual and URL/text/PDF Job capture, application management within the existing details page, Resume V1 HTML/PDF and reference-only App Context. The three business Agents use MCP. Interview Prep, external calendar/email actions and full page-context capture remain planned; accessible skeletons do not complete the MVP.
+Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual and URL/text/PDF Job capture, application management within the existing details page, Resume V1 HTML/PDF and reference-only App Context. All four internal Agents use MCP. Interview Prep, external calendar/email actions and full page-context capture remain planned; accessible skeletons do not complete the MVP.
 
 ## 11. How to use this baseline
 

@@ -23,7 +23,7 @@ test('migrations create all tables once and enforce configured SQLite settings',
   const f = fixture(t), db = f.database.connection
   assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1)
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all()
-  assert.equal(tables.length, 18)
+  assert.equal(tables.length, 21)
   migrate(db)
   assert.equal(db.prepare('SELECT count(*) count FROM schema_migrations').get()?.count, migrations.length)
 })
@@ -168,4 +168,18 @@ test('matching-generation version-4 upgrade adds durable receipts and preserves 
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=4 ORDER BY version').all(), versions)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v4 job')
   assert.equal(next.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 0)
+})
+
+test('matching-generation version-5 upgrade adds chat storage without changing prior checksums, jobs or audits', t => {
+  const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
+  migrate(connection, migrations.slice(0, 5)); transactions.protectAudit()
+  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
+  const saved = jobs.saveJob({ details: { title: 'Existing v5 job', companyNameRaw: 'Company' } })
+  const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
+  connection.close()
+  const next = openDatabase(path); t.after(next.close)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=5 ORDER BY version').all(), versions)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
+  assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v5 job')
+  for (const table of ['chat_sessions', 'chat_runs', 'chat_items']) assert.equal(next.connection.prepare(`SELECT COUNT(*) n FROM ${table}`).get()?.n, 0)
 })

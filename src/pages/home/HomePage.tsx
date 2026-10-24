@@ -9,7 +9,6 @@ export function HomePage({ onNavigate }: { onNavigate: (page: InternalPage) => v
     <main className="home-page">
       <section className="home" aria-labelledby="home-heading">
         <div className="home-heading">
-          <div className="home-eyebrow">{t($ => $.home.brand)}</div>
           <h1 id="home-heading">{t($ => $.home.heading)}</h1>
           <div className="home-sub">{t($ => $.home.subtitle)}</div>
         </div>

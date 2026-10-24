@@ -1,3 +1,6 @@
+import { createAskAgentBridge } from './ask-agent-bridge'
+import { ASK_AGENT_CALL, ASK_AGENT_EVENT } from '../ask-agent-contract'
+import type { AgentRunEvent } from '../../../domain/chat/chat.types'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createApplicationBridge } from './application-bridge'
 import { APPLICATION_CALL } from '../application-contract'
@@ -92,3 +95,9 @@ contextBridge.exposeInMainWorld('resume', createResumeBridge((method, input) => 
 }))
 
 contextBridge.exposeInMainWorld('applicationAgent', createApplicationBridge((method, input) => ipcRenderer.invoke(APPLICATION_CALL, method, input)))
+
+contextBridge.exposeInMainWorld('askAgent', createAskAgentBridge((method, input) => ipcRenderer.invoke(ASK_AGENT_CALL, method, input), callback => {
+  const listener = (_event: Electron.IpcRendererEvent, message: AgentRunEvent) => callback(message)
+  ipcRenderer.on(ASK_AGENT_EVENT, listener)
+  return () => ipcRenderer.removeListener(ASK_AGENT_EVENT, listener)
+}))

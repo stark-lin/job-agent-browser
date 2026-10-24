@@ -22,6 +22,7 @@
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | 跨会话创建回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts) |
+| `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
 
 ## 二、业务规则
 
@@ -98,9 +99,9 @@
 
 **已实现 AI 调用审计：**[Transactions](../src/platform/database/transactions.ts)中的 Main 内部 `recordAI` 能力写入 `AI_STREAM_START`、`CREATE`、组件 `ai`、位置 `chat.stream`、来源 `AI_CLIENT` 和主体 `local-user`。`targetType = ai_request`；目标/请求 ID 为同一个生成的不透明请求 UUID，不映射业务对象。时间、记录 ID 和事务 ID 由数据库层生成。[审计查询](../src/platform/database/audit-reader.ts)接受此逻辑目标，不将其视为业务实体/表。
 
-每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。对话历史只在页面内存中，不新增 AI 运行/消息表。
+每次已接受请求只尝试一次审计：首个有效 SSE 块提交 `SUCCESS` 后才转发内容；启动失败/取消提交带固定错误码的 `FAILURE`。成功仅表示流已启动，不代表输出完成。启动后的完成、失败和取消不追加调用审计。手动重试创建新请求。审计失败会停止转发/中止请求并报告 `AUDIT_UNAVAILABLE`，此时外部调用可能已经发生。不持久化 Provider/模型/URL、用量、耗时、消息、提示词、输出、业务快照或额外元数据。此旧 API 保留给连接测试/导入；Ask AI 使用下述会话存储。
 
-**Agent 模型审计：**每次非流式调用通过 recordAgentModel 记录一次固定 AGENT_MODEL_RESULT 结果，组件为 ai、位置为 agent.model、来源为 GENERATOR，主体使用 Main 绑定的内部 Agent 标识。仅保存不透明请求 ID 和固定结果，不保存提示词、输出、密钥或隐藏推理；审计失败终止执行。
+**Agent 模型审计：**每次普通或流式调用通过 recordAgentModel 记录一次固定 AGENT_MODEL_RESULT 结果，组件为 ai、位置为 agent.model、来源为 GENERATOR，主体使用 Main 绑定的内部 Agent 标识。仅保存不透明请求 ID 和固定结果，不保存提示词、输出、密钥或隐藏推理；审计失败终止执行。
 
 **已实现审计浏览：**只读 [Settings 查看器](../src/pages/settings/AuditViewerSection.tsx)使用 `audit.list`，不更改数据库结构或 IPC。默认每页 25 条，按序号倒序排列。类型/状态、目标/请求/事务 ID 精确匹配及包含边界的时间范围组合现有筛选。[筛选转换](../src/pages/settings/audit-filters.ts)校验 ID/范围，并将本地日期时间转换为规范 UTC；详情同时显示本地化时间和存储的 UTC 值。刷新/重置/应用筛选均回到第一页。分页使用 offset，新增写入可能移动后续页记录，应刷新获取最新顺序。不提供导出、自动轮询、日志修改或业务内容重建。设置/密钥写入仍不进入审计，AI 成功仍仅表示启动。
 
@@ -110,6 +111,16 @@
 
 开始审计失败时不执行；结束审计失败返回 `TOOL_AUDIT_UNAVAILABLE`，不重试，也不声称已回滚，此时外部操作或本地提交可能已完成。仅为失效实例缺少结束记录的调用追加 `INTERRUPTED`，保留存活调用。现有 `audit.list`/Settings 查看器仍只读取业务/AI `audit_logs`，能力诊断仅运行时内部可见。[测试](../tests/capability-audit.test.ts)覆盖隐私、失败、回滚及不可变记录；执行策略/生命周期归属 [MCP 架构](mcp-architecture.zh-CN.md)。
 
+### Ask AI 会话存储
+
+[Chat Repository](../src/platform/database/repositories/chats.ts)在首次发送时原子创建 Session/Run/User Item，以请求 UUID 及输入哈希作为回执。部分唯一索引保证每 Session 一个运行中 Run，复合外键绑定 Item 所属 Run/Session。Session 保存模型选择并复制到各 Run，新会话草稿只在 Renderer 内存中。删除会话要求无活动 Run，级联移除会话记录及回执，不撤销业务修改或清除审计。
+
+只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存可见文字、明确公开的思考摘要、允许的标量工具摘要及固定错误码；不保存原始工具参数/结果、系统提示词、隐藏推理、凭据或原始异常。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。
+
+Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner，活跃 MCP Server 启动不能中断 Main 任务。未完成文字标记 interrupted，工具标记 uncertain，不自动续跑。事件快照包含内存片段及递增水位以支持重新订阅。历史最多取 40 个已完成 user/assistant Item、256 KiB，并从用户消息边界开始；当前 Run 工具观察另限制为 2 MiB。不重放历史工具/思考内容。
+
+[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。
+
 ## 五、API 契约与访问
 
 沙盒 [Preload](../src/platform/electron/preload/index.ts) 暴露 `window.data`。完整类型化输入/输出在 [DataContract](../src/platform/electron/data-contract.ts)；字段/枚举定义保留在所链接的 Domain 类型中。[Main IPC](../src/platform/electron/main/data-ipc.ts) 要求自有窗口、顶层 frame 及精确匹配的可信 Renderer 文档。外部网页/子 frame 无权访问数据。
@@ -118,38 +129,15 @@
 
 可选详情文本及可选 URL 默认空字符串，数组默认空数组，可空 ID/日期/薪资默认空值，条目顺序默认 0。必填来源/联系方式链接 URL 必须使用 HTTP(S) 且不含凭据。ResumeDocument 至少包含一条有来源表述；预算使用统一的语言感知计数函数。具体结构及上限由 Domain 校验模块执行。
 
-| 命名空间 / 方法 | 输入及结果 / 行为 |
+| 命名空间 | 已实现职责；完整签名归属 [DataContract](../src/platform/electron/data-contract.ts) |
 | --- | --- |
-| `jobs.saveJob` | `{ details, source? }` → Job；可原子附加来源 |
-| `jobs.updateDetails` | `{ id, details }` → Job；不包含生命周期字段 |
-| `jobs.attachSource` | `{ jobId, source }` → JobSource |
-| `jobs.setArchived` | `{ id, archived }` → Job |
-| `jobs.deleteJob`, `jobs.getJob` | `{ id }` → 删除 ID / Job |
-| `jobs.listJobs` | Page + `status? / archived? / search?` → Jobs；默认未归档 |
-| `jobs.listSources` | `{ jobId }` + Page → JobSources |
-| `jobs.registerCompany`, `jobs.updateCompany` | 公司详情 / `{ id, details }` → Company |
-| `jobs.deleteCompany`, `jobs.listCompanies` | `{ id }` / Page → 删除 ID / Companies |
-| `profiles.createProfile`, `profiles.editContact` | 联系方式详情 / `{ id, details }` → Profile |
-| `profiles.getProfile`, `profiles.deleteProfile`, `profiles.listProfiles` | `{ id }` / Page → Profile / 删除 ID / Profiles |
-| `profiles.applyImport` | 显式子集及会话/批次 ID → 已保存 Profile/条目/事实和草稿 ID 映射；校验归属，原子保存 |
-| `profiles.addItem` | `{ profileId, parentItemId?, details }` → ProfileItem |
-| `profiles.editItem`, `profiles.moveItem` | `{ id, details }` / `{ id, parentItemId, sortOrder }` → ProfileItem |
-| `profiles.deleteItem`, `profiles.listItems` | `{ id }` / `{ profileId }` + Page → 删除 ID / ProfileItems |
-| `profiles.addFact`, `profiles.editFact` | `{ profileId, profileItemId?, details }` / `{ id, profileItemId?, details }` → Fact |
-| `profiles.deleteFact`, `profiles.listFacts` | `{ id }` / `{ profileId }` + Page → 删除 ID / Facts |
-| `applications.changeStatus` | `{ jobId, status }` → Job，内部记录状态事件 |
-| `applications.scheduleEvent` | `{ jobId, type, title, description?, startsAt, endsAt? }` → 日程事件 |
-| `applications.rescheduleEvent` | `{ id, startsAt, endsAt? }` → 日程事件 |
-| `applications.addNote`, `applications.deleteEvent` | `{ jobId, text }` / `{ id }` → 事件 / 删除 ID |
-| `applications.listEvents`, `applications.listCalendar` | `{ jobId }` / `{ from, to }` + Page → 事件 |
-| `resumes.createRun` | `{ jobId, profileId, config? }` → GenerationRun |
-| `resumes.cancelRun`, `resumes.deleteRun`, `resumes.getRun` | `{ id }` → 任务 / 删除 ID / `{ run, references }` |
-| `resumes.listRuns` | Page + `jobId?` → `{ run, references }` 列表，包含已删除 Job 的历史 |
-| `resumes.getArtifact` | `{ id }` → `{ artifact, provenance, references }` |
-| `resumes.editArtifact`, `resumes.deleteArtifact` | `{ id, title, content }` / `{ id }` → Artifact / 删除 ID |
-| `audit.list` | Page + `targetType? / targetId? / requestId? / transactionId? / status? / from? / to?` → 审计，序号倒序 |
-| `settings.get`, `settings.savePreferences` | `{}` / 部分语言、`light / dark / system` 主题、邮箱或 `ai` 配置 → 带版本的 Preferences |
-| `secrets.hasProviderKey`, `secrets.saveProviderKey`, `secrets.deleteProviderKey` | 通过 `provider` 指定 Provider 实例 ID；保存另接收 `apiKey` → `{ configured, available }`，不返回密钥 |
+| `jobs` | 职位/公司 CRUD、来源关联、归档及分页查询 |
+| `profiles` | 联系方式/条目/事实 CRUD 与明确审核的导入 |
+| `applications` | 合法状态变更、备注、日程及事件/日历查询 |
+| `resumes` | 人工 Run/Artifact CRUD 与来源查询；Agent 阶段经过 MCP |
+| `chats` | Session 列表/读取/重命名/模型/删除、Item 与 Run 分页；不能创建模型输出 |
+| `audit` | 只读且不含业务内容的审计查看 |
+| `settings`, `secrets` | 校验后的文件偏好及密钥状态/保存/删除；不返回密钥 |
 
 API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。Agent 生成阶段使用独立于人工/UI IPC API 的 MCP。IPC 变更不自动重试或保证幂等，不确定时先刷新状态；MCP 创建 receipt 是第四节明确说明的例外。使用以下固定错误码，不依赖数据库消息。
 
@@ -170,7 +158,7 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 [PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)暴露 `window.profileImport.selectPdf/start/retry/cancel/discard/onEvent`，不提供路径读取。两种导入的 `start` 均接受可选 `mode`（默认 `single`）；事件包含携带分组状态及 `queueMs`/`elapsedMs` 的 `progress.groups`，`failed.retryable` 表示可用缓存重试失败组。PDF 的 `retry({sessionId})` 保留会话并返回新 `taskId`。文件/网络操作与同步业务事务分离。
 
-独立的 [AI API](../src/shared/ai.ts)保留流式对话。[简历 IPC](../src/platform/electron/resume-contract.ts)暴露 `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`；事件携带 run ID 和递增序号，不显示隐藏推理。每个窗口只允许一个活动任务；页面导航保留任务，窗口释放取消。发布前取消终止 run，发布后只停止输出。导出打开系统保存对话框并复制已有 PDF；`PDF_EXPORT_FAILED` 保留应用内文件，允许再次另存。
+独立的 [AI API](../src/shared/ai.ts)保留非 Agent 流式任务。[简历 IPC](../src/platform/electron/resume-contract.ts)暴露 `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`；事件携带 run ID 和递增序号，不显示隐藏推理。每个窗口只允许一个活动任务；页面导航保留任务，窗口释放取消。发布前取消终止 run，发布后只停止输出。导出打开系统保存对话框并复制已有 PDF；`PDF_EXPORT_FAILED` 保留应用内文件，允许再次另存。
 
 [职位导入桥接](../src/platform/electron/job-import-contract.ts) 暴露 `window.jobImport.start/retry/cancel/onEvent`，与同步业务分发分离。职位的 `retry({taskId})` 保留该任务 ID；两种重试均要求归属匹配且批次处于可重试失败状态。新读取/解析错误仅属于桥接。每次提交的 AI 分组分别产生启动审计；重试时缓存成功组不产生新请求/审计，内容不进入审计。
 

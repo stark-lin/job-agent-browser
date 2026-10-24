@@ -4,7 +4,7 @@ import { ToolError, toolErrorCodes, toolFail } from '../../shared/tools/errors'
 import { jsonCopy, toolOutput } from '../tools/schema'
 import { createMCPClient, type MCPClient } from './client'
 
-export type FirstPartyAgent = 'resume' | 'job-capture' | 'application'
+export type FirstPartyAgent = 'resume' | 'job-capture' | 'application' | 'ask-ai'
 export interface AgentBinding { runId?: string; jobId?: string }
 
 /** The only production AgentTools implementation: all calls use the stdio Client. */

@@ -43,15 +43,16 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
     for (const width of [320, 640, 960, 968, 1200]) {
       window.setContentSize(width, 820)
       await waitFor(() => evaluate(`innerWidth === ${width}`), `sidebar viewport ${width}`)
-      const expected = width <= 960 ? 64 : 208
+      const expected = 64
       const geometry = await evaluate(`(() => {
         const sidebar = document.querySelector('.ui-sidebar'), content = document.querySelector('.app-content');
         return { width: sidebar.getBoundingClientRect().width, x: content.getBoundingClientRect().x,
-          labelVisible: getComputedStyle(document.querySelector('.ui-navigation-label')).display !== 'none',
+          iconOnly: [...sidebar.querySelectorAll('button')].every(button => !button.textContent.trim() && button.querySelector('svg')),
+          brandAbsent: !document.body.textContent.includes('Job Browser'),
           overflow: document.querySelector('.app-shell').scrollWidth > innerWidth,
-          names: [...sidebar.querySelectorAll('button')].every(button => button.getAttribute('aria-label') && button.title) };
+          names: [...sidebar.querySelectorAll('button')].every(button => button.getAttribute('aria-label') && button.title === button.getAttribute('aria-label')) };
       })()`)
-      assert.deepEqual(geometry, { width: expected, x: expected, labelVisible: width > 960, overflow: false, names: true })
+      assert.deepEqual(geometry, { width: expected, x: expected, iconOnly: true, brandAbsent: true, overflow: false, names: true })
       if (width === 320) await capture('sidebar-compact.png')
       if (width === 1200) await capture('sidebar-home.png')
     }
@@ -62,5 +63,5 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
     await waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings reachable in compact sidebar')
     await select('Home')
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
-  console.log('Sidebar smoke passed: all destinations, active state, keyboard activation, compact/wide geometry, accessible names and short-window reachability.')
+  console.log('Sidebar smoke passed: all destinations, active state, keyboard activation, fixed icon-rail geometry, accessible names and short-window reachability.')
 }

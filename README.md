@@ -13,7 +13,7 @@ npm install
 JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 ```
 
-The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI streams chat through the selected provider/model; My Profile manages entries with multiple facts and reviewed PDF imports; Add Job supports manual entry and URL/text/PDF Agent capture, opening Applications after saving as Not started; Applications manages statuses, notes, local events and archive/detail changes through its Agent; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left workspace sidebar; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
+The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI provides persistent multi-session streaming Agent conversations over scoped first-party MCP tools; My Profile manages entries with multiple facts and reviewed PDF imports; Add Job supports manual entry and URL/text/PDF Agent capture, opening Applications after saving as Not started; Applications manages statuses, notes, local events and archive/detail changes through its Agent; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left icon sidebar with hover labels and section dividers; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
 
 Configure an AI provider, credentials and a global default model to capture a job URL/text/PDF, manage an application or import a PDF resume. Save the model’s parallel-import opt-in in Settings to make Parallel selectable at either import entry. Grouping, retries and compact output are explained in [current architecture](docs/architecture.md).
 
@@ -30,6 +30,7 @@ npm run test:mcp
 npm run test:mcp-server
 npm run test:agent
 npm run test:profile
+npm run test:ask-ai
 ```
 
 The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL/text/PDF capture, application Agent actions, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
@@ -37,6 +38,8 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 `test:mcp` checks the existing MCP Client runtime. `test:mcp-server` checks the public Job/Application/Resume surface, runtime parity and a built Node stdio Server with real Electron HTML/PDF output and disposable storage. Both runtime smokes also run in `check`; Server PDF checks require a graphical desktop. See [MCP architecture](docs/mcp-architecture.md).
 
 `test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. Live-provider compatibility and Windows/Linux PDF rendering remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
+
+`test:ask-ai` checks transcript storage, streaming adapters/loop, real MCP read/write and event resync, then exercises concurrent chats, Stop, drafts, Markdown, bilingual themes, responsive layout and forced-process recovery in Electron. It uses local fixtures and disposable userData; live-provider reasoning/tool compatibility remains unverified. V6 upgrades matching-generation databases additively.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 
@@ -55,6 +58,6 @@ To use Codex, build the application, run `npm run skill:link`, and connect the s
 | [Capture Job Skill](skills/capture-job/SKILL.md) · [简体中文](skills/capture-job/SKILL.zh-CN.md) | Host source understanding followed by structured MCP persistence |
 | [Manage Applications Skill](skills/manage-applications/SKILL.md) · [简体中文](skills/manage-applications/SKILL.zh-CN.md) | State, notes, local events, details and archive workflow |
 | [Resume Skill](skills/tailor-resume/SKILL.md) · [简体中文](skills/tailor-resume/SKILL.zh-CN.md) | Codex reasoning workflow over shared Resume tools; setup belongs to MCP architecture |
-| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 17-table model; shared by both data architecture editions |
+| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 20-table model; shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
 | [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |

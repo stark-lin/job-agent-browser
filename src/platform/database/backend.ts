@@ -1,10 +1,12 @@
+import { chatRepository } from './repositories/chats'
+import { createChatService } from '../../domain/chat/chat.service'
 import { randomUUID } from 'node:crypto'
 import { createJobService } from '../../domain/job/job.service'
 import { createCandidateService } from '../../domain/candidate/candidate.service'
 import { createApplicationService } from '../../domain/application/application.service'
 import { createResumeService } from '../../domain/resume/resume.service'
 import { createGenerationService } from '../../domain/resume/generation.service'
-import { errorCode } from '../../domain/common/errors'
+import { errorCode, fail } from '../../domain/common/errors'
 import type { Result } from '../../shared/ipc'
 import { methodNames, type ServiceContract } from '../electron/data-contract'
 import { storageScaffold } from '../storage'
@@ -26,7 +28,11 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   const business = kind === 'external' ? database.transactions.forActor('EXTERNAL') : user
   const receipts = operationReceipts(database.connection)
   const runtime = { id: randomUUID, now: () => new Date().toISOString() }
+  const chats = chatRepository(database.connection, lease)
   const services = {
+    chats: createChatService(chats, choice => {
+      if (!storage.settings.get({}).ai.providers.some(p => p.id === choice.providerId && p.models.includes(choice.modelId))) fail('AI_NOT_CONFIGURED')
+    }),
     jobs: createJobService(repo.jobs, business, runtime, receipts), profiles: createCandidateService(repo.candidate, user, runtime),
     applications: createApplicationService(repo.jobs, repo.applications, business, runtime, receipts),
     resumes: createResumeService(repo.jobs, repo.candidate, repo.resumes, kind === 'external' ? database.transactions.forActor('EXTERNAL') : user, runtime, references(store), kind),
@@ -34,6 +40,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   } satisfies ServiceContract
   const generation = createGenerationService(repo.resumes, database.transactions.forActor(kind === 'external' ? 'EXTERNAL' : 'AI'), runtime)
   function recover() {
+    chats.recover()
     createGenerationService(repo.resumes, system, runtime).recoverInterrupted()
     const interrupted = database.connection.prepare("SELECT id FROM artifacts WHERE json_extract(output_json,'$.status')='RUNNING'").all()
     for (const row of interrupted) if (!lease.active('output', String(row.id))) {
@@ -47,6 +54,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   const capabilities = createAuditedCapabilities(database.transactions.capabilities.sink)
   return {
     generation,
+    chats,
     lease,
     recover,
     outputTransaction: system,

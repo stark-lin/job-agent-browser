@@ -30,7 +30,7 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、基础 Ask AI 对话和 Profile 编辑/PDF 导入已实现，新增工作和申请记录基础列表已实现，其余两个功能入口仍为占位。新增能力优先放进现有入口。
+常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、Ask AI V2和 Profile 编辑/PDF 导入已实现，新增工作和申请记录基础列表已实现，面试准备仍为占位。新增能力优先放进现有入口。
 
 新增工作初版支持手工录入或单个公开 URL AI 导入，核对后保存为 `NOT_STARTED` 并进入申请记录。访问受限时报错；登录态 Browser 采集及职位去重仍为规划，运行细节见[当前架构](architecture.zh-CN.md)。
 
@@ -52,7 +52,7 @@ Shell 提供以下全局能力：
 | Browser | 打开 URL；管理网页 Session / Cookie；文件上传下载；获取网页内容；接收粘贴的 URL 或网页内容 |
 | Agent | 提供常驻 Agent 按钮；将当前页面、当前职位或选中文字交给 AI |
 
-全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。基础 Ask AI 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每次对话可覆盖。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
+全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。Ask AI V2 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每个持久化会话可覆盖。当前范围为已保存的职位/资料/申请数据及可观察的本地工具操作；专用 Agent 委派、上传、跨会话记忆、搜索、文件夹及分支仍为规划。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
 
 ## 四、Anything is URL
 
@@ -79,7 +79,7 @@ Shell 提供以下全局能力：
 Home → Add Job → Applications → Tailor Resume → Company Application
 ```
 
-每个标签具有独立的内部页面/网站混合历史。Home 在当前标签新增历史，切换标签不新增历史。启动、新建或关闭最后一个标签后打开 Home。Browser 卡片打开空白工作区，访问网站前地址框为空。Home 不显示 Back 按钮，其他业务页面的页面导航按钮只保留回到主页，键盘历史导航仍可用。Browser 保留自己的 Home/Back/Forward 控件。按钮归属遵循[代码架构](code-architecture.zh-CN.md#页面按钮归属)。运行实现细节归当前架构管理。
+每个标签具有独立的内部页面/网站混合历史。Home 在当前标签新增历史，切换标签不新增历史。启动、新建或关闭最后一个标签后打开 Home。Browser 卡片打开空白工作区，访问网站前地址框为空。Home 不显示 Back 按钮，其他业务页面的页面导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），键盘历史导航仍可用。Browser 保留自己的 Home/Back/Forward 控件。按钮归属遵循[代码架构](code-architecture.zh-CN.md#页面按钮归属)。运行实现细节归当前架构管理。
 
 ## 五、Shared Context
 
@@ -100,7 +100,7 @@ Current Page + Job   → Ask AI
 
 MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部网站和已配置的 AI 服务仍可能需要联网。
 
-[V1 数据架构](data-architecture.zh-CN.md) 负责已实现的 12 表模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
+[V1 数据架构](data-architecture.zh-CN.md) 负责已实现的数据模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
 
 Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。每条经历、项目或教育条目可包含多个独立事实，未关联条目的事实直接归属 Profile。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
 
@@ -166,13 +166,13 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；Resume V1 已实现业务编排及引用上下文；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
-[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供内部 Resume/采集/申请 Agent 与外部宿主共用的公共能力。Ask AI 保持普通流式对话。工具后续里程碑包括真实服务集成及其 Transport/凭据，不替代上述分阶段产品流程。
+[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供内部 Resume/采集/申请 Agent 与外部宿主共用的公共能力。Ask AI V2 基于固定 first-party 工具允许列表提供持久化多会话 Agent 对话。工具后续里程碑包括真实服务集成及其 Transport/凭据，不替代上述分阶段产品流程。
 
 基础里程碑为：
 
 > 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
 
-当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手工与 URL/文本/PDF 职位采集、现有详情页内的申请管理、Resume V1 HTML/PDF 及引用型 App Context。三个业务 Agent 均使用 MCP。面试准备、外部日历/邮件动作及完整页面上下文捕获仍为规划，可访问骨架不代表 MVP 完成。
+当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手工与 URL/文本/PDF 职位采集、现有详情页内的申请管理、Resume V1 HTML/PDF 及引用型 App Context。四个内部 Agent 均使用 MCP。面试准备、外部日历/邮件动作及完整页面上下文捕获仍为规划，可访问骨架不代表 MVP 完成。
 
 ## 十一、基线使用规则
 

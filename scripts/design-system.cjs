@@ -54,15 +54,7 @@ const generated = {
     `export const TOOLBAR_HEIGHT = ${pixels('toolbar-height')}\n` +
     'export const BROWSER_CHROME_HEIGHT = TAB_STRIP_HEIGHT + TOOLBAR_HEIGHT\n' +
     `export const SIDEBAR_WIDTH = ${pixels('sidebar-width')}\n` +
-    `export const SIDEBAR_COMPACT_WIDTH = ${pixels('sidebar-compact-width')}\n` +
-    `export const SIDEBAR_BREAKPOINT = ${pixels('sidebar-breakpoint')}\n` +
-    'export const getSidebarWidth = (width: number): number => width <= SIDEBAR_BREAKPOINT ? SIDEBAR_COMPACT_WIDTH : SIDEBAR_WIDTH\n',
-  'src/shared/ui/sidebar-responsive.css': '/* Generated from design-tokens.json: npm run design:tokens */\n' +
-    `@media (max-width: ${pixels('sidebar-breakpoint')}px) {\n` +
-    '  :root { --sidebar-current-width: var(--sidebar-compact-width); }\n' +
-    '  .ui-sidebar-brand-label, .ui-navigation-label, .ui-navigation-group-title { display: none; }\n' +
-    '  .ui-sidebar-brand, .ui-navigation-item { justify-content: center; }\n' +
-    '}\n'
+    'export const getSidebarWidth = (): number => SIDEBAR_WIDTH\n'
 }
 generated['docs/components/job-browser-component-library-8px.css'] =
   generated['src/shared/ui/design-tokens.css'] + '\n' +
@@ -75,7 +67,7 @@ assert.equal(pixels('browser-chrome-height'), pixels('tab-strip-height') + pixel
 for (const [name, size] of Object.entries({
   'control-sm': 32, 'control-md': 40, 'control-lg': 48, 'toolbar-height': 48,
   'tab-strip-height': 48, 'list-row-height': 64, 'feature-card-height': 144,
-  'icon-size': 16, 'icon-box': 32, 'icon-box-lg': 40, 'sidebar-width': 208, 'sidebar-compact-width': 64, 'sidebar-breakpoint': 960
+  'icon-size': 16, 'icon-box': 32, 'icon-box-lg': 40, 'sidebar-width': 64
 })) assert.equal(pixels(name), size, `${name}: keep the component sizing standard`)
 assert.deepEqual(['font-xs', 'font-sm', 'font-md', 'font-lg', 'font-xl', 'font-display'].map(pixels), [12, 14, 16, 20, 32, 40])
 assert.deepEqual(['line-xs', 'line-sm', 'line-md', 'line-lg', 'line-xl', 'line-display'].map(pixels), [16, 24, 24, 32, 40, 48])

@@ -17,7 +17,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
     view.webContents.setBackgroundThrottling(false)
     await waitFor(() => view.getVisible(), 'full-page mailbox visible')
     const [width, height] = window.getContentSize()
-    const sidebarWidth = width <= 960 ? 64 : 208
+    const sidebarWidth = 64
     assert.deepEqual(view.getBounds(), { x: sidebarWidth, y: 0, width: width - sidebarWidth, height })
     const sidebar = await evaluate(`(() => {
       const nav = document.querySelector('.ui-sidebar'), rect = nav.getBoundingClientRect();

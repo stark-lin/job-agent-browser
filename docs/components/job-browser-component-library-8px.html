@@ -273,14 +273,24 @@
           <div class="demo-label">Workspace sidebar — shared navigation</div>
           <div class="demo-stage">
             <nav class="workspace-sidebar-example" aria-label="Workspace navigation example">
-              <div class="label">Job Browser</div>
-              <button class="workspace-navigation-item" aria-current="page">Home</button>
-              <div class="workspace-navigation-heading">Job search</div>
-              <button class="workspace-navigation-item">Add Job</button><button class="workspace-navigation-item">Tailor Resume</button><button class="workspace-navigation-item">Interview Prep</button>
-              <div class="workspace-navigation-heading">Manage</div>
-              <button class="workspace-navigation-item">Applications</button><button class="workspace-navigation-item">Inbox</button><button class="workspace-navigation-item">My Profile</button>
-              <div class="workspace-navigation-heading">Tools</div>
-              <button class="workspace-navigation-item">Browser</button><button class="workspace-navigation-item">Ask AI</button><button class="workspace-navigation-item">Settings</button>
+              <button class="workspace-navigation-item" aria-label="Home" title="Home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3z"/></svg></button>
+              <section class="workspace-navigation-group" aria-label="Job search">
+              <button class="workspace-navigation-item" aria-label="Add Job" title="Add Job"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Tailor Resume" title="Tailor Resume"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Interview Prep" title="Interview Prep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 18v-7a3 3 0 013-3h10a3 3 0 013 3v7"/><circle cx="12" cy="5" r="2"/><path d="M8 18h8"/></svg></button>
+              </section>
+              <section class="workspace-navigation-group" aria-label="Manage">
+              <button class="workspace-navigation-item" aria-label="Applications" title="Applications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Inbox" title="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 7l8 6 8-6"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="My Profile" title="My Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0114 0"/></svg></button>
+              </section>
+              <section class="workspace-navigation-group" aria-label="Tools">
+              <button class="workspace-navigation-item" aria-label="Browser" title="Browser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Ask AI" title="Ask AI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14z"/></svg></button>
+              </section>
+              <div class="workspace-navigation-footer">
+              <button class="workspace-navigation-item" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21h-4v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H3v-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 001.9.3A1.7 1.7 0 0010 3V3h4v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1H21v4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+              </div>
             </nav>
           </div>
         </div>
@@ -492,6 +502,18 @@
         <div class="demo">
           <div class="demo-label">DocumentPreview · isolated document</div>
           <div class="demo-stage"><iframe class="ui-document-preview" title="Document preview sample" sandbox="" referrerpolicy="no-referrer" srcdoc="&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src 'none'; script-src 'none'&quot;&gt;&lt;h1&gt;Resume preview&lt;/h1&gt;&lt;p&gt;Static document container sample.&lt;/p&gt;"></iframe></div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">Conversation · static reference, no model request</div>
+          <div class="demo-stage vstack">
+            <div class="ui-chat-message ui-chat-message--user">Which saved jobs fit my profile?</div>
+            <details class="ui-collapsible"><summary>Thought for 5s</summary><div class="ui-collapsible-content">Public provider summary only.</div></details>
+            <div class="ui-activity ui-activity--completed"><span class="ui-activity-symbol" aria-hidden="true">✓</span><div class="ui-activity-body">Read saved jobs<div class="ui-activity-description">Found 8 jobs</div></div></div>
+            <div class="ui-activity ui-activity--running"><span class="ui-activity-symbol" aria-hidden="true">◌</span><div class="ui-activity-body">Reading profile</div></div>
+            <div class="ui-activity ui-activity--uncertain"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Operation may have completed<div class="ui-activity-description">Check the current state before trying again.</div></div></div>
+            <div class="ui-chat-message">Your experience matches these requirements.</div>
+            <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Example message" placeholder="Ask anything about your job search…"></textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Example model"><option>Example model</option></select><button class="btn" aria-label="Send example" disabled>↑</button></div></div>
+          </div>
         </div>
       </section>
 

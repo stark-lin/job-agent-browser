@@ -1,3 +1,4 @@
+import type { ChatSession, ChatRun, ChatItem } from '../../domain/chat/chat.types'
 import type { Result } from '../../shared/ipc'
 import type { Preferences, PreferencePatch } from '../../shared/settings'
 import type { ErrorCode } from '../../domain/common/errors'
@@ -13,6 +14,16 @@ type Endpoint<I, O> = [input: I, output: O]
 
 /** Public business capability contract. Database rows, transaction contexts and audit writers are private. */
 export interface DataContract {
+  chats: {
+    listSessions: Endpoint<Page, PageResult<ChatSession>>
+    getSession: Endpoint<Id, ChatSession>
+    getRun: Endpoint<Id, ChatRun>
+    listItems: Endpoint<{ sessionId: string; limit?: number; beforeSequence?: number }, PageResult<ChatItem>>
+    listRuns: Endpoint<{ sessionId: string } & Page, PageResult<ChatRun>>
+    renameSession: Endpoint<{ id: string; title: string }, ChatSession>
+    setModel: Endpoint<{ id: string; choice: { providerId: string; modelId: string } }, ChatSession>
+    deleteSession: Endpoint<Id, null>
+  }
   jobs: {
     saveJob: Endpoint<{ details: JobInput; source?: SourceInput | null }, Job>
     updateDetails: Endpoint<{ id: string; details: JobInput }, Job>
@@ -88,6 +99,7 @@ export type ServiceContract = {
 
 // This is the sole allowlist used by the sandboxed bridge and Main dispatcher.
 export const methodNames = {
+  chats: ['listSessions', 'getSession', 'getRun', 'listItems', 'listRuns', 'renameSession', 'setModel', 'deleteSession'],
   jobs: ['saveJob', 'updateDetails', 'attachSource', 'setArchived', 'deleteJob', 'getJob', 'listJobs', 'listSources', 'registerCompany', 'updateCompany', 'deleteCompany', 'listCompanies'],
   profiles: ['createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
   applications: ['changeStatus', 'scheduleEvent', 'rescheduleEvent', 'addNote', 'deleteEvent', 'listEvents', 'listCalendar'],

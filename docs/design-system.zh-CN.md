@@ -12,7 +12,7 @@
 | 公共 React 组件 | [中央入口](../src/shared/ui/index.ts) |
 | 共享应用外观 | [components.css](../src/shared/ui/components.css) |
 | 参考示例及其展示样式 | [展示库 HTML](components/job-browser-component-library-8px.html) 和 [component-library.css](../src/shared/ui/component-library.css) |
-| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[侧栏响应式 CSS](../src/shared/ui/sidebar-responsive.css)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
+| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
 
 [Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。
 
@@ -33,7 +33,7 @@
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
 | `Glyph` | Home 与工作区导航复用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
-| `Sidebar`, `NavigationGroup`, `NavigationItem` | 通用侧栏组合、分组标题及带当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
+| `Sidebar`, `NavigationGroup`, `NavigationItem` | 图标栏、无障碍导航分组及带悬停提示和当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | 带图标、标题和描述的功能入口 | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
 | `FormField`, `Select` | 关联标签、帮助/错误及原生选择 | [Form.tsx](../src/shared/ui/Form.tsx) |
@@ -58,7 +58,7 @@
 | 控件 | 小号 32px / 默认 40px / 大号 48px | `--control-sm`, `--control-md`, `--control-lg` |
 | Toolbar | 48px | `--toolbar-height` |
 | Browser 标签栏 / 浏览器栏总高度 | 48px / 96px | `--tab-strip-height`, `--browser-chrome-height` |
-| 工作区侧栏 | 超过 960px 时宽 208px，否则为 64px 图标栏；导航项最小 40px | `--sidebar-width`, `--sidebar-compact-width`, `--sidebar-breakpoint`, `--control-md` |
+| 工作区侧栏 | 所有窗口宽度下均为 64px 图标栏；导航项高 48px，图标为 24px | `--sidebar-width`, `--control-lg`, `--space-3` |
 | List Row | 最小 64px；必要时随内容增高 | `--list-row-height` |
 | Home Card | 所有视口下最小 144px | `--feature-card-height` |
 | 图标 / 容器 | 16px / 32px 或 40px | `--icon-size`, `--icon-box`, `--icon-box-lg` |
@@ -92,7 +92,7 @@
 
 以下是 UI 新增和修改的要求，不代表已获得完整无障碍认证：
 
-- 侧栏隐藏文字时仍保留完整无障碍名称及原生提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，底部固定的 Settings 仍可访问。
+- 侧栏不显示品牌头部或文字标签，保留原有顺序：Home、Job search、Manage、Tools，最后是固定在底部的 Settings。分区之间用居中的 24px 短横线分隔，颜色和线宽分别使用 `--line` 与 `--border-width`；横线仅作装饰，分组保留翻译后的无障碍名称。导航项保留完整翻译后的无障碍名称及原生悬停提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
 - Settings 在 16px 圆角面板中组合 40px 字段，内边距为 24px（窄屏为 16px）；页面 CSS 仅管理布局。成功反馈使用可读文字及成功背景/边框。展示库 Settings 示例引用这些共享规则。
 - 导入模式用中央 `FormField`/`Select`，模型许可用 `Checkbox`；独立分组状态和耗时用 `DetailsList`；仅完成数量摘要使用实时状态文字，避免每次计时刷新都被重复朗读，失败组提供明确重试按钮。工作期间禁用模式切换；不可用的并行选项说明 Settings 前置条件。Forms 图库包含这些控件。
@@ -105,6 +105,16 @@
 - 遵循减少动态效果偏好，检查窄屏换行、裁剪和滚动。运行时动效规则位于[中央样式](../src/shared/ui/components.css)和[浏览器样式](../src/renderer/styles/global.css)。
 
 对比度、屏幕阅读器表现、放大文字和完整键盘覆盖仍需人工审查，当前静态检查不能证明这些方面。
+
+### Ask AI V2 对话
+
+[对话基础组件](../src/shared/ui/Conversation.tsx)管理 ChatMessage、Collapsible、ActivityRow、SessionEntry、Drawer 和 ComposerSurface；[Markdown](../src/shared/ui/Markdown.tsx)渲染安全子集，HTML 转义、链接仅限 HTTP(S)，支持复制代码及代码/表格局部滚动。全部从中央入口导出，Feedback 图库包含静态对话参考。
+
+常驻应用图标栏保持 64px。会话列表使用 `--chat-sidebar-width`（256px），低于 960px 改为模态抽屉；内容列使用 `--chat-content-width`（768px）。Ask AI 不显示顶部栏、角色/模型消息卡片或重复主页按钮。用户消息使用浅色气泡，助手正文直接排版。底部输入区在发送/停止旁放置紧凑模型选择器；空会话居中显示介绍和输入区。
+
+公开思考摘要在流式期间展开，完成后折叠，用户手动选择后保留其状态。不提供摘要的模型显示处理中及独立工具活动。工具行结合状态符号、文字及允许的摘要，写入结果不确定时明确要求核对当前状态。停止后保留已完成写入；删除要求会话空闲并确认，尝试过写入的 Run 不提供自动重试。
+
+Enter 发送、Shift+Enter 换行，输入法组合期间不发送。运行中保留可编辑草稿并禁用发送，切换会话恢复草稿和滚动位置。靠近底部时跟随输出，向上滚动后保留位置并提供跳转最新；加载旧 Item 保留视口。控件支持键盘焦点，抽屉支持 Escape/焦点约束，遵循减少动画设置并仅播报简短状态，不逐 token 播报。
 
 ## 六、维护与验证
 
@@ -131,8 +141,9 @@ npm run quality
 | [质量检查器](../scripts/quality.cjs) | 中央 UI 外禁止原生通用 JSX 控件/图标及显式 JSX `style` 属性；App/Page/Renderer 组件经公共入口导入；文档双语、路径和篇幅检查 | 不同类名的重复实现、props 展开绕过和动态创建元素仍需审查 |
 | [Browser smoke](../scripts/browser-smoke.cjs) | Home 在 320/640/1200px 下的表现、卡片最小高度、溢出、中央卡片尺寸，以及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
-| [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、响应式宽度及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
+| [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、固定图标栏宽度、悬停提示名称及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider endpoint/超时表单、复用中央控件的模型检测/选择、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
+| [Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs) | 流式活动、并发会话、定向停止、草稿/滚动恢复、双语主题的 320/640/1200px 布局及强制结束进程后的恢复 | 本地样本，不证明真实 Provider 或屏幕阅读器兼容性 |
 | [审计查看器 smoke](../scripts/audit-viewer-smoke.cjs) | 筛选、分页、元数据弹窗、键盘关闭、320/640/1200px 页面无溢出及只读/错误/加载状态 | 不认证读屏或并发写入时跨页快照一致性 |
 | [个人资料 smoke](../scripts/profile-smoke.cjs) | 手动条目/事实、构建后的 PDF Worker/SSE、显式保存/忽略、分批保存、重载/分页、320/640/1200px 双语浅/暗布局及离开保护 | 使用生成 PDF/本地 AI 样本，不认证第三方 Provider、任意 PDF 排版或读屏器 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |

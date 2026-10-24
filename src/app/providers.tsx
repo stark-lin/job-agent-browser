@@ -1,3 +1,5 @@
+import { AskStore } from './ai/askStore'
+import type { AskAgentAPI } from '../platform/electron/ask-agent-contract'
 import { t } from '../shared/i18n'
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { BrowserAPI } from '../shared/browser'
@@ -12,14 +14,15 @@ import type { JobImportAPI } from '../platform/electron/job-import-contract'
 
 import type { ApplicationAgentAPI } from '../platform/electron/application-contract'
 
-interface Services { applicationAgent: ApplicationAgentAPI; navigation: NavigationStore; context: ContextStore; data: DataAPI; ai: AIAPI; profileImport: ProfileImportAPI; jobImport: JobImportAPI; resume: ResumeAPI }
+interface Services { ask: AskStore; applicationAgent: ApplicationAgentAPI; navigation: NavigationStore; context: ContextStore; data: DataAPI; ai: AIAPI; profileImport: ProfileImportAPI; jobImport: JobImportAPI; resume: ResumeAPI }
 const ServicesContext = createContext<Services | null>(null)
 
-export function AppProviders({ children, browser = window.browser, data = window.data, ai = window.ai, profileImport = window.profileImport, jobImport = window.jobImport, resume = window.resume, applicationAgent = window.applicationAgent }: {
-  children: ReactNode; applicationAgent?: ApplicationAgentAPI; browser?: BrowserAPI; data?: DataAPI; ai?: AIAPI; profileImport?: ProfileImportAPI; jobImport?: JobImportAPI; resume?: ResumeAPI
+export function AppProviders({ children, browser = window.browser, data = window.data, ai = window.ai, profileImport = window.profileImport, jobImport = window.jobImport, resume = window.resume, applicationAgent = window.applicationAgent, askAgent = window.askAgent }: {
+  children: ReactNode; askAgent?: AskAgentAPI; applicationAgent?: ApplicationAgentAPI; browser?: BrowserAPI; data?: DataAPI; ai?: AIAPI; profileImport?: ProfileImportAPI; jobImport?: JobImportAPI; resume?: ResumeAPI
 }) {
-  const [services] = useState<Services>(() => ({ navigation: new NavigationStore(browser), context: new ContextStore(), applicationAgent, data, ai, profileImport, jobImport, resume }))
+  const [services] = useState<Services>(() => ({ ask: new AskStore(askAgent, data), navigation: new NavigationStore(browser), context: new ContextStore(), applicationAgent, data, ai, profileImport, jobImport, resume }))
   useEffect(() => services.navigation.start(), [services])
+  useEffect(() => services.ask.start(), [services])
   return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>
 }
 

@@ -100,7 +100,7 @@ module.exports = async function browserSmoke(window) {
     const firstContents = firstView.webContents
     assert(firstView.getVisible())
     assert.equal(firstView.getBounds().y, 96)
-    const sidebarWidth = window.getContentSize()[0] <= 960 ? 64 : 208
+    const sidebarWidth = 64
     assert.equal(firstView.getBounds().x, sidebarWidth)
     assert.equal(firstView.getBounds().width, window.getContentSize()[0] - sidebarWidth)
     const chrome = await evaluate(`(() => {

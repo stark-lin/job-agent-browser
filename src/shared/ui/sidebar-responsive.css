@@ -1,6 +1,0 @@
-/* Generated from design-tokens.json: npm run design:tokens */
-@media (max-width: 960px) {
-  :root { --sidebar-current-width: var(--sidebar-compact-width); }
-  .ui-sidebar-brand-label, .ui-navigation-label, .ui-navigation-group-title { display: none; }
-  .ui-sidebar-brand, .ui-navigation-item { justify-content: center; }
-}

@@ -1,6 +1,6 @@
 # 工具与 MCP 运行时
 
-用途：定义能力注册、Agent 边界与 MCP 集成。状态：三个内部 Agent、统一 Job Agent Browser MCP 公共能力、带审计能力及第三方 stdio 消费均**已实现**。远程传输仍为**规划**。
+用途：定义能力注册、Agent 边界与 MCP 集成。状态：四个内部 Agent、统一 Job Agent Browser MCP 公共能力、带审计能力及第三方 stdio 消费均**已实现**。远程传输仍为**规划**。
 
 语言：简体中文 · [English](mcp-architecture.md)
 
@@ -13,7 +13,7 @@ UI    → typed IPC → Domain
 
 [AgentTools](../src/shared/agent/index.ts) 是异步发现/调用契约，生产实现只有 [MCPAgentTools](../src/platform/mcp/first-party-client.ts)。Agent 不接收 ToolScope、Domain 服务、Repository、backend dispatch 或数据库句柄。资料读取和模型推理属于业务 MCP 外的宿主能力。[架构检查](../scripts/quality.cjs)禁止 Agent 模块直接/间接依赖特权实现，以及通过重新导出、动态导入或 ToolScope 绕过。
 
-[Main](../src/platform/electron/main/index.ts)负责模型配置、凭据、窗口归属和只读 UI 投影。人工表单保留 typed IPC；Agent 保存、流程提交、失败、取消和输出构建必须经过 MCP。Ask AI 仍为不含业务工具的流式对话；Profile 导入保留独立的审核导入流程。
+[Main](../src/platform/electron/main/index.ts)负责模型配置、凭据、窗口归属和只读 UI 投影。人工表单保留 typed IPC；Agent 保存、流程提交、失败、取消和输出构建必须经过 MCP。Ask AI 使用基于限定 first-party MCP 会话的持久化多会话流式 Agent 运行时；Profile 导入保留独立的审核导入流程。
 
 ## 二、注册与流程契约
 
@@ -21,15 +21,17 @@ UI    → typed IPC → Domain
 
 [Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含删除、公司写入、SQL、设置、密钥、Provider 配置、浏览器控制、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
 
-[AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)使用非流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
+[AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)支持普通及流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
 
 [Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
+
+[Ask Agent](../src/platform/agent/ask.ts)使用[流式循环](../src/platform/agent/stream-loop.ts)及固定[允许列表](../src/platform/agent/tool-presentation.ts)：职位读取/更新/归档、资料读取、申请状态/事件/备注/本地日程及 artifact.get。不开放导入、Resume 流程/构建、第三方工具及委派。完整批次校验后顺序执行工具，普通失败成为观察结果，取消或审计失败终止 Run。展示摘要不含原始输入/结果。只有 Main 记录会话事件；记录器不是 Agent 业务 API，不能绕过 MCP 写业务数据。
 
 ## 三、内部与第三方 Client
 
 [first-party runtime](../src/platform/mcp/first-party-client.ts)按流程惰性创建真实 stdio 会话，复用到断连/关闭。它使用 Electron 可执行文件的 Node 模式启动构建产物，显式传入 userData；同一 Resume run 始终使用原会话。会话丢失后不会回退本地服务或接管旧 run，后续新任务可创建新会话。
 
-[Client](../src/platform/mcp/client.ts)只允许可信组合入口传入 processEnv，userData/mcp.json 不接受任意环境变量配置。内部标识为 internal.resume、internal.job-capture 和 internal.application。[Caller 校验](../src/platform/mcp-server/caller.ts)遵循审计标识格式，无效值回退为 mcp-client。JOB_BROWSER_MCP_CALLER 不改变权限、schema、工具列表或语义。
+[Client](../src/platform/mcp/client.ts)只允许可信组合入口传入 processEnv，userData/mcp.json 不接受任意环境变量配置。内部标识为 internal.resume、internal.job-capture、internal.application 和 internal.ask-ai。[Caller 校验](../src/platform/mcp-server/caller.ts)遵循审计标识格式，无效值回退为 mcp-client。JOB_BROWSER_MCP_CALLER 不改变权限、schema、工具列表或语义。
 
 第三方消费保留[审核配置](../src/platform/mcp/server-config.ts)、[Provider 筛选](../src/platform/mcp/provider.ts)和 [schema 指纹](../src/platform/mcp/tool-adapter.ts)。本地审核决定名称、描述、schema 和 READ/COMPUTE 风险，上游提示不能授予权限。缺失/变化的 schema 会被隔离；变更通知先撤销当前批次再发现。不隐式重连或重试执行。
 

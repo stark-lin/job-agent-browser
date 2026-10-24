@@ -73,10 +73,7 @@
   --focus-width: 2px;
   --tab-strip-height: 48px;
   --browser-chrome-height: 96px;
-  --sidebar-width: 208px;
-  --sidebar-compact-width: 64px;
-  --sidebar-breakpoint: 960px;
-  --sidebar-current-width: var(--sidebar-width);
+  --sidebar-width: 64px;
   --tab-width: 200px;
   --content-width: 760px;
   --library-width: 1200px;
@@ -131,6 +128,8 @@
   --skeleton-highlight: #f4f4f1;
   --gallery-backdrop: rgba(23,23,23,.14);
   --document-preview-height: 640px;
+  --chat-sidebar-width: 256px;
+  --chat-content-width: 768px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {

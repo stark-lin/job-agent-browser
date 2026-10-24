@@ -1,45 +1,30 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, FormField, PageHeading, SectionCard, Select, StatusMessage, TextArea } from '../../shared/ui'
+import { Button, Drawer, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
-import { useChat } from './useChat'
+import { useAskAgent } from './useAskAgent'
+import { SessionSidebar } from './SessionSidebar'
+import { ConversationTimeline } from './ConversationTimeline'
+import { Composer } from './Composer'
 import './ai.css'
-
 export function AskAIPage() {
-  const { t } = useTranslation(), { openPage } = useNavigation(), chat = useChat(), end = useRef<HTMLDivElement>(null)
-  const provider = chat.config?.providers.find(p => p.id === chat.choice?.providerId)
-  useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }) }, [chat.turns])
-  return <main className="ai-page"><div className="ai-content">
-    <div className="ai-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button><Button disabled={chat.busy || !chat.turns.length} onClick={chat.reset}>{t($ => $.ai.newChat)}</Button></div>
-    <PageHeading title={t($ => $.navigation.pages.ai)} description={t($ => $.ai.subtitle)} />
-    {chat.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : <>
-      <div className="ai-selectors">
-        <FormField label={t($ => $.settings.provider)}>{props => <Select {...props} value={provider?.id ?? ''} disabled={chat.busy} onChange={event => {
-          const next = chat.config?.providers.find(p => p.id === event.target.value)
-          chat.setChoice(next ? { providerId: next.id, modelId: next.defaultModel || next.models[0] || '' } : null)
-        }}><option value="">{t($ => $.ai.selectProvider)}</option>{chat.config?.providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>}</FormField>
-        <FormField label={t($ => $.ai.model)}>{props => <Select {...props} value={chat.choice?.modelId ?? ''} disabled={chat.busy || !provider} onChange={event => chat.setChoice(provider ? { providerId: provider.id, modelId: event.target.value } : null)}>
-          <option value="">{t($ => $.settings.none)}</option>{provider?.models.map(model => <option key={model} value={model}>{model}</option>)}
-        </Select>}</FormField>
+  const { t } = useTranslation(), { openPage } = useNavigation(), chat = useAskAgent(), [drawer, setDrawer] = useState(false)
+  const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 959px)').matches)
+  useEffect(() => { const media = matchMedia('(max-width: 959px)'), change = () => { setNarrow(media.matches); setDrawer(false) }; media.addEventListener('change', change); return () => media.removeEventListener('change', change) }, [])
+  const running = new Set(Object.entries(chat.state.runs).filter(([, runs]) => runs.some(r => r.state === 'running')).map(([id]) => id))
+  const sidebar = <SessionSidebar sessions={chat.state.sessions} total={chat.state.total} activeId={chat.id} running={running} select={id => { chat.ask.select(id); setDrawer(false) }} more={() => void chat.ask.refreshSessions(true)} rename={(id, title) => chat.ask.rename(id, title)} remove={id => chat.ask.remove(id)} />
+  const error = chat.state.error, knownError = error && Object.hasOwn(t($ => $.ask.errors, { returnObjects: true }), error)
+  return <main className="ai-page">
+    {narrow ? <Drawer open={drawer} title={t($ => $.ask.sessions)} closeLabel={t($ => $.ask.close)} onClose={() => setDrawer(false)}>{sidebar}</Drawer> : <aside className="ai-session-sidebar">{sidebar}</aside>}
+    <section className={`ai-conversation${!chat.id ? ' ai-conversation--empty' : ''}`} aria-label={t($ => $.ask.conversation)}>
+      {narrow && <div className="ai-session-toggle"><Button variant="ghost" aria-label={t($ => $.ask.openSessions)} aria-expanded={drawer} onClick={() => setDrawer(true)}>☰</Button></div>}
+      {chat.state.loading ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : !chat.id ? <div className="ai-empty"><h1>{t($ => $.ask.empty)}</h1><p>{t($ => $.ask.emptyHint)}</p></div> :
+        <ConversationTimeline key={chat.id} id={chat.id} items={chat.items} runs={chat.runs} total={chat.state.totals[chat.id]} retryEnabled={chat.valid && !chat.state.sending} positions={chat.ask.scroll} loadOlder={() => chat.ask.load(chat.id!, true)} retry={message => { if (chat.valid && chat.choice) void chat.ask.send(chat.choice, message) }} />}
+      <div className="ai-composer-dock">
+        {error && <StatusMessage tone="error">{knownError ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.errors.UNKNOWN)}</StatusMessage>}
+        {!chat.valid && <div className="ai-configure"><StatusMessage>{t($ => $.ask.configure)}</StatusMessage><Button variant="ghost" onClick={() => void openPage('settings')}>{t($ => $.ask.settings)}</Button></div>}
+        <Composer text={chat.text} setText={chat.ask.setDraft} busy={Boolean(chat.active)} sending={chat.state.sending} valid={chat.valid} choice={chat.choice} config={chat.config} onChoice={choice => void chat.ask.setChoice(choice)} send={() => { if (chat.choice) void chat.ask.send(chat.choice) }} stop={() => { if (chat.active) void chat.ask.stop(chat.active.id) }} />
       </div>
-      {(!provider || !chat.choice?.modelId) && <div className="ai-actions"><StatusMessage>{t($ => $.ai.configure)}</StatusMessage><Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button></div>}
-      <div className="ai-transcript" role="log" aria-label={t($ => $.ai.conversation)} aria-live="polite" aria-relevant="additions text">
-        {!chat.turns.length && <StatusMessage>{t($ => $.ai.empty)}</StatusMessage>}
-        {chat.turns.map(turn => <SectionCard key={turn.id} title={turn.role === 'user' ? t($ => $.ai.you) : t($ => $.ai.assistant)} description={turn.role === 'assistant' ? `${turn.provider ?? ''} · ${turn.model ?? ''}` : undefined}>
-          <div className="ai-message">{turn.content || (turn.state === 'streaming' ? t($ => $.ai.waiting) : '')}</div>
-          {turn.state === 'cancelled' && <StatusMessage>{t($ => $.ai.cancelled)}</StatusMessage>}
-        </SectionCard>)}<div ref={end} />
-      </div>
-      {chat.error && <StatusMessage tone="error">{t($ => $.ai.errors[chat.error!])}</StatusMessage>}
-      <form className="ai-composer" onSubmit={event => { event.preventDefault(); void chat.send() }}>
-        <FormField label={t($ => $.ai.message)}>{props => <TextArea {...props} value={chat.text} maxLength={128000} disabled={chat.busy} onChange={event => chat.setText(event.target.value)} />}</FormField>
-        <div className="ai-actions"><StatusMessage>{t($ => $.ai.memoryOnly)}</StatusMessage><div className="ai-buttons">
-          {chat.busy ? <Button onClick={chat.stop}>{t($ => $.ai.stop)}</Button> : <>
-            {(chat.error || chat.turns.at(-1)?.state === 'cancelled') && chat.turns.length > 0 && <Button disabled={!chat.choice?.modelId} onClick={() => void chat.send(true)}>{t($ => $.ai.retry)}</Button>}
-            <Button variant="primary" type="submit" disabled={!chat.text.trim() || !chat.choice?.modelId}>{t($ => $.ai.send)}</Button>
-          </>}
-        </div></div>
-      </form>
-    </>}
-  </div></main>
+    </section>
+  </main>
 }

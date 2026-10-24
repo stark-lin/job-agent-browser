@@ -1,6 +1,10 @@
 ```mermaid
 erDiagram
     direction TB
+    CHAT_SESSION ||--o{ CHAT_RUN : contains
+    CHAT_SESSION ||--o{ CHAT_ITEM : orders
+    CHAT_RUN ||--o{ CHAT_ITEM : records
+    RUNTIME_INSTANCE ||--o{ CHAT_RUN : owns
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
     JOB ||--o{ JOB_EVENT : has
@@ -22,6 +26,31 @@ erDiagram
     ARTIFACT o|..o| RUNTIME_WORK : output_owner
     INVOCATION_OWNER o|..o{ CAPABILITY_AUDIT : logical_invocation
 
+    CHAT_SESSION {
+        string id PK
+        string title
+        string provider_id
+        string model_id
+        datetime updated_at
+    }
+    CHAT_RUN {
+        string id PK
+        string session_id FK
+        string owner_runtime_id FK
+        string request_id UK
+        string request_hash
+        string state
+        int event_sequence
+        boolean write_started
+    }
+    CHAT_ITEM {
+        string id PK
+        string session_id FK
+        string run_id FK
+        int sequence
+        string state
+        json content_json
+    }
     OPERATION_RECEIPT {
         string operation PK
         string request_id PK

@@ -44,6 +44,7 @@ src/
 ├── domain/
 │   ├── job/
 │   ├── resume/
+│   ├── chat/
 │   ├── candidate/
 │   ├── application/
 │   ├── interview/
@@ -112,7 +113,7 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 ### 页面按钮归属
 
 - App 管理常驻工作区侧栏和功能导航元数据；Pages 管理各自流程按钮、位置、启用/加载状态及处理函数。侧栏复用相同导航 API 和离开保护，不提供全局 Back/Next/Forward 栏。
-- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页，不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward 工具栏。
+- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward 工具栏。
 - 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用混合页面历史。业务操作和链接仍由所属页面管理。
 - Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作和回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
@@ -134,6 +135,8 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 [Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
 [Shared Agent 契约](../src/shared/agent/index.ts)管理 AgentModel/AgentTools。[Platform Tools](../src/platform/tools/index.ts)是唯一公共 MCP Registry，ToolScope 只属于 Server。只有 platform/mcp 和 platform/mcp-server 导入 MCP SDK。Agent 模块可导入纯 Domain 流程/校验，但不得直接或间接导入 Service、Repository、Registry 或数据库适配器。[MCP 架构](mcp-architecture.zh-CN.md)管理能力和会话行为。
+
+[Chat Domain](../src/domain/chat/)管理纯会话契约及人工 CRUD 校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)管理 Run 生命周期并注入私有 SQLite 记录器；[AskStore](../src/app/ai/askStore.ts)管理 App 生命周期内的事件投影，Pages 组合中央控件。Agent 代码仅接收模型、MCP 工具及纯事件回调，不导入会话 Repository。流式协议/分帧位于 platform/ai，工具/模型状态机位于 platform/agent。
 
 [Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
 

@@ -97,7 +97,7 @@ export class BrowserManager {
 
   layout(): void {
     const { width, height } = this.window.getContentBounds()
-    const sidebar = getSidebarWidth(width)
+    const sidebar = getSidebarWidth()
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
       if (item.kind === 'web') {
         const inset = item.segment.surface === 'inbox' ? 0 : BROWSER_CHROME_HEIGHT
