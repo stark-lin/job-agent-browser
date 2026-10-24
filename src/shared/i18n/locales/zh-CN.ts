@@ -256,6 +256,44 @@ export const zhCN = {
     tabs: '浏览器标签页', closeTab: '关闭标签页', closeNamedTab: '关闭 {{title}}', newTab: '新建标签页', addressLabel: '搜索或输入网址', addressPlaceholder: '搜索或输入网址…', emptyHeading: '开始探索', emptyDescription: '在上方搜索内容或输入网址。'
   },
   inbox: { exit: '退出', configure: '连接你的邮箱', configureHelp: '在设置中选择网页邮箱服务商和地址，即可在此打开邮箱。', loadFailed: '无法打开邮箱' },
+  externalMCP: {
+    "title": "连接外部 Agent",
+    "description": "将 Job Agent Browser MCP 添加到当前用户的全局 Agent 配置，所有项目均连接当前工作区数据。技能需另行安装。",
+    "path": "配置文件",
+    "backup": "原文件备份",
+    "refresh": "刷新状态",
+    "add": "添加 MCP",
+    "installing": "正在添加 MCP…",
+    "replace": "更新 MCP",
+    "copy": "复制配置",
+    "copied": "配置已复制。",
+    "saved": "MCP 已配置。请重新加载或重启目标 Agent，使配置生效。",
+    "connected": "连接已验证，发现 {{count}} 个工具，未调用业务工具。",
+    "other": "其他 Agent",
+    "otherHelp": "对于其他支持 stdio MCP 的本地 Agent，请将此条目合并到其 MCP 配置中。",
+    "genericConfig": "stdio MCP 配置",
+    "replaceTitle": "替换已有 MCP 配置？",
+    "replaceHelp": "{{agent}} 已有不同的 job_agent_browser 条目。确认后将备份原文件，删除该条目并写入当前应用的配置，保留其他设置。",
+    "confirmReplace": "备份并替换",
+    "states": {
+      "missing": "未配置",
+      "configured": "已配置",
+      "different": "配置不同",
+      "invalid": "配置文件无效",
+      "unavailable": "配置不可用"
+    },
+    "errors": {
+      "INVALID_INPUT": "请求无效，请刷新后重试。",
+      "FORBIDDEN": "此页面无权修改 Agent 配置。",
+      "CONFIG_INVALID": "配置文件格式无效。请修复后刷新，原文件已保留。",
+      "CONFIG_UNAVAILABLE": "无法读写配置。请检查文件权限，刷新后重试。",
+      "CONFIG_CHANGED": "配置已发生变化，请检查刷新后的状态并重试。",
+      "REPLACE_REQUIRED": "请先添加或更新此 MCP 配置，再测试连接。",
+      "RUNTIME_UNAVAILABLE": "应用运行环境、MCP 构建或数据库缺失，请重新构建或安装应用后重试。",
+      "CONNECTION_FAILED": "无法连接 MCP 服务，请刷新配置后重试。",
+      "COPY_FAILED": "无法复制配置，请重试。"
+    }
+  },
   settings: {
     "aiDescription": "配置兼容 OpenAI Chat Completions 的服务。每个 Provider 的密钥分别加密保存。",
     "requestTimeout": "AI 请求超时（秒）",

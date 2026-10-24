@@ -49,7 +49,13 @@ UI    → typed IPC → Domain
 
 [Node 入口](../src/platform/mcp-server/stdio.ts)要求 JOB_BROWSER_USER_DATA 指向包含现有 database.sqlite 的目录，不猜测工作空间。使用带 DatabaseSync.setAuthorizer 的 Node >=24.10。[构建入口](../electron.vite.config.ts)生成 out/main/job-agent-mcp.js 和 out/main/resume-output-worker.js；stdout 只输出 MCP 消息。Server 不加载 AI 设置、凭据、模型或外部 MCP Client。
 
-构建后执行 npm run skill:link，再为宿主配置绝对路径：
+**已实现一键接入：**[设置页面](../src/pages/settings/ExternalMCPSettings.tsx)通过独立的[类型化 IPC](../src/shared/external-mcp.ts)和 [Main 处理器](../src/platform/electron/main/external-mcp-ipc.ts)为本机 Codex、Claude Code 和 Cursor 添加全局配置。这是用户触发的宿主操作，不属于业务 MCP 或 Agent 接口；仅可信应用文档的主框架可检查、安装、测试或复制配置。
+
+[配置适配器](../src/platform/mcp/external-config.ts)仅更新 `~/.codex/config.toml`（或 `CODEX_HOME/config.toml`）、`~/.claude.json` 或 `~/.cursor/mcp.json` 中的 `job_agent_browser` 条目。保留其他配置值；TOML 序列化可能改变格式/注释，JSON 局部编辑保留周边文本。相同配置不写文件；不同配置需确认后替换。已有文件先保存权限受限的原文 `.bak` 备份，再原子替换，并在写入前检查文件版本。格式错误、不可访问或被并发修改的文件保持原样；已有文件符号链接保留其目标。尚不支持自定义 Claude/Cursor 目录和项目级配置。
+
+[安装服务](../src/platform/mcp/external-install.ts)从当前运行的应用生成绝对路径，以 Electron 的 Node 模式启动，设置 `ELECTRON_RUN_AS_NODE`、当前 `JOB_BROWSER_USER_DATA`、仅用于审计的 `JOB_BROWSER_MCP_CALLER`，以及输出构建使用的 `JOB_BROWSER_ELECTRON`；Codex 工具超时设为 100 秒，无需 Agent CLI。安装与连接反馈独立：测试只连接并发现工具，随后关闭 Client；窗口释放/应用退出中止待完成测试。安装后需重新加载或重启目标 Agent。其他本机 stdio 宿主提供可复制 JSON 条目。不返回或记录原配置中的凭据；Skills 单独安装。
+
+手动接入时，先构建再为宿主配置绝对路径（可选 Skills 单独执行 npm run skill:link）：
 
 ```toml
 [mcp_servers.job_agent_browser]
@@ -88,6 +94,8 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 ## 六、验证与待交付内容
 
 [业务工具测试](../tests/business-tools.test.ts)、[申请测试](../tests/application-agent.test.ts)、[采集测试](../tests/capture-agent.test.ts)、[Resume 一致性](../tests/resume-runtime-parity.test.ts)和 [lease 测试](../tests/runtime-leases.test.ts)覆盖真实 stdio、共享 SQLite、发现一致性、归属、并发写入、receipt/重启、失败和取消。[Server smoke](../scripts/run-mcp-server-smoke.cjs)使用构建入口和真实 Electron HTML/PDF；[Agent smoke](../scripts/run-agent-smoke.cjs)覆盖生产 UI。命令归属 [README](../README.zh-CN.md)。
+
+[接入测试](../tests/external-mcp.test.ts)覆盖配置保留、备份、重复安装、冲突、权限、符号链接、版本冲突拒绝、发现与清理。[设置接入 smoke](../scripts/external-mcp-smoke.cjs)使用临时 Agent 配置目录，验证生产 IPC、确认/取消、剪贴板、构建后的 stdio 发现、连接错误及双语响应式主题。真实目标 Agent 重新加载及 Windows/Linux 宿主兼容性仍未验证。
 
 真实 Provider 认证、远程传输、外部日历/邮件动作及 Windows/Linux 渲染仍未验证或处于规划，测试 fixture 不代表已提供这些能力。
 

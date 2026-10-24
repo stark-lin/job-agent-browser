@@ -43,7 +43,7 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 
-To use Codex, build the application, run `npm run skill:link`, and connect the stdio entry to the same existing userData directory. The [MCP connection instructions](docs/mcp-architecture.md#5-job-agent-browser-mcp) own configuration; the capture, application-management and Resume Skills own the external reasoning workflows. Codex generation does not require an application AI Provider.
+To connect local Codex, Claude Code or Cursor, open Settings → Connect external Agents → Add MCP. Optional Skills use `npm run skill:link` separately. The [MCP connection instructions](docs/mcp-architecture.md#5-job-agent-browser-mcp) own configuration; the capture, application-management and Resume Skills own the external reasoning workflows. Codex generation does not require an application AI Provider.
 
 ## Documentation index
 

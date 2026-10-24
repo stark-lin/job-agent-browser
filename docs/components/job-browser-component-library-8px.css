@@ -672,7 +672,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .settings-panel h3 { margin: 0; font-size: var(--font-lg); line-height: var(--line-lg); font-weight: var(--weight-semibold); }
 .settings-panel p { margin: var(--space-1) 0 var(--space-3); color: var(--muted); font-size: var(--font-sm); line-height: var(--line-sm); }
 .settings-panel .grid-2 { gap: var(--space-3); }
-.settings-panel-actions { display: flex; justify-content: flex-end; margin-top: var(--space-2); }
+.settings-panel-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
 @media (max-width: 640px) { .settings-panel { padding: var(--space-2); } .settings-panel .grid-2 { grid-template-columns: 1fr; gap: var(--space-2); } }
 
 

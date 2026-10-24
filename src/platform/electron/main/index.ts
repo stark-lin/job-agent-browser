@@ -1,7 +1,9 @@
 import { createAskAgentTasks, type AskAgentTasks } from '../ask-agent-tasks'
 import { registerAskAgentIPC } from './ask-agent-ipc'
 import { t, i18n } from '../../../shared/i18n'
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage } from 'electron'
+import { createExternalMCPInstaller, type ExternalMCPInstaller } from '../../mcp/external-install'
+import { registerExternalMCPIPC } from './external-mcp-ipc'
 import { createPreferences } from '../../storage/preferences'
 import { createSecrets } from '../../storage/secrets'
 import { join } from 'node:path'
@@ -52,6 +54,7 @@ let applicationTasks: ApplicationTasks | undefined
 let resumes: ResumeTasks | undefined
 let firstParty: FirstPartyRuntime | undefined
 let askAgent: AskAgentTasks | undefined
+let externalMCP: ExternalMCPInstaller | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -71,6 +74,9 @@ app.whenReady().then(async () => {
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)
   })
   backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
+  externalMCP = createExternalMCPInstaller({ home: app.getPath('home'), codexHome: process.env.CODEX_HOME,
+    directory, bundleDirectory: __dirname, executable: process.execPath, writeClipboard: text => clipboard.writeText(text) })
+  registerExternalMCPIPC(externalMCP, join(__dirname, '../renderer/index.html'))
   tools = createToolRuntime({ configuration: () => readMCPConfiguration(join(directory, 'mcp.json')), capabilities: backend.capabilities,
     native: backend.toolCapabilities.read, recoverAudit: backend.toolAudit.recoverInterrupted })
   // Optional external capabilities never delay window creation or reject the application startup.
@@ -93,7 +99,7 @@ app.whenReady().then(async () => {
   registerJobImportIPC(jobImporter, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id
-    const disposeOwner = () => { ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner); applicationTasks?.disposeOwner(owner); askAgent?.disposeOwner(owner) }
+    const disposeOwner = () => { externalMCP?.disposeOwner(owner); ai?.disposeOwner(owner); profileImporter?.disposeOwner(owner); jobImporter?.disposeOwner(owner); resumes?.disposeOwner(owner); applicationTasks?.disposeOwner(owner); askAgent?.disposeOwner(owner) }
     contents.on('destroyed', disposeOwner)
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
@@ -117,9 +123,9 @@ app.on('will-quit', event => {
   profileImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (shuttingDown) return
-  if (!ai && !tools && !resumes) { backend?.close(); backend = undefined; return }
+  if (!ai && !tools && !resumes && !externalMCP) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {

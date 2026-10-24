@@ -49,7 +49,13 @@ Cancellation notifies the Server and aborts workers; it cannot reverse an alread
 
 The [Node entry](../src/platform/mcp-server/stdio.ts) requires JOB_BROWSER_USER_DATA containing an existing database.sqlite. It never guesses a workspace. Use Node >=24.10 with DatabaseSync.setAuthorizer. [Build entries](../electron.vite.config.ts) produce out/main/job-agent-mcp.js and out/main/resume-output-worker.js; stdout is reserved for MCP messages. The Server does not load AI settings, credentials, models or external MCP Clients.
 
-Build, run npm run skill:link, then configure the host with absolute paths:
+**Implemented one-click setup:** [Settings](../src/pages/settings/ExternalMCPSettings.tsx) uses separate [typed IPC](../src/shared/external-mcp.ts) and a [Main handler](../src/platform/electron/main/external-mcp-ipc.ts) to configure local Codex, Claude Code and Cursor globally. This human-triggered host operation is absent from business MCP and Agent interfaces. Only the trusted application document/top frame may inspect, install, test or copy configuration.
+
+The [configuration adapter](../src/platform/mcp/external-config.ts) writes only `job_agent_browser` in `~/.codex/config.toml` (or `CODEX_HOME/config.toml`), `~/.claude.json` or `~/.cursor/mcp.json`. Unrelated values remain; TOML serialization may change formatting/comments, while JSON edits preserve surrounding text. Matching configurations are no-ops; differing entries require confirmation before replacement. Existing files receive a private original-text `.bak` backup before atomic replacement, with revision checks before writing. Invalid, inaccessible or concurrently changed files are retained; existing file symlinks keep their destination. Custom Claude/Cursor directories and project configuration remain unsupported.
+
+The [installer](../src/platform/mcp/external-install.ts) generates absolute paths from the running application, using Electron in Node mode with `ELECTRON_RUN_AS_NODE`, current `JOB_BROWSER_USER_DATA`, audit-only `JOB_BROWSER_MCP_CALLER` and `JOB_BROWSER_ELECTRON` for output builds. Codex gets a 100-second tool timeout. No Agent CLI is required. Installation and connectivity have separate feedback: testing only connects/discovers tools, then closes its client; window disposal/shutdown aborts pending tests. Reload/restart the target Agent after installation. Other local stdio hosts receive a copyable JSON entry. No credentials from existing configurations are returned or logged; Skills remain separate.
+
+For manual setup, build and configure the host with absolute paths (optional Skills use npm run skill:link separately):
 
 ```toml
 [mcp_servers.job_agent_browser]
@@ -88,6 +94,8 @@ Bilingual [capture-job](../skills/capture-job/SKILL.md), [manage-applications](.
 ## 6. Verification and remaining delivery
 
 [Business tool tests](../tests/business-tools.test.ts), [application tests](../tests/application-agent.test.ts), [capture tests](../tests/capture-agent.test.ts), [Resume parity](../tests/resume-runtime-parity.test.ts) and [lease tests](../tests/runtime-leases.test.ts) exercise real stdio, shared SQLite, discovery equality, ownership, concurrent writes, receipts/restart, failures and cancellation. [Server smoke](../scripts/run-mcp-server-smoke.cjs) uses the built entry and real Electron HTML/PDF; [Agent smoke](../scripts/run-agent-smoke.cjs) covers production UI. Commands belong to [README](../README.md).
+
+[Setup tests](../tests/external-mcp.test.ts) cover preservation, backups, idempotence, conflicts, permissions, symlinks, revision rejection, discovery and cleanup. [Settings setup smoke](../scripts/external-mcp-smoke.cjs) exercises production IPC, confirmation/cancellation, clipboard, built stdio discovery, connection errors and bilingual responsive themes using disposable Agent configuration directories. Live target-Agent reload and Windows/Linux host compatibility remain unverified.
 
 Real-provider certification, remote transports, external-calendar/email actions and Windows/Linux rendering remain unverified or planned. No test fixture establishes those capabilities.
 

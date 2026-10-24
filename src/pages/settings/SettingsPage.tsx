@@ -6,6 +6,7 @@ import { mailURLs, type Language, type MailProvider, type ThemePreference } from
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
 import { AuditViewerSection } from './AuditViewerSection'
+import { ExternalMCPSettings } from './ExternalMCPSettings'
 import './settings.css'
 
 export function SettingsPage() {
@@ -33,7 +34,7 @@ export function SettingsPage() {
         <StatusMessage tone="error">{t($ => $.settings.loadFailed)}</StatusMessage><Button onClick={settings.retry}>{t($ => $.settings.retry)}</Button>
       </div> : <div className="settings-sections">
         <SectionCard title={t($ => $.settings.general)} description={t($ => $.settings.generalDescription)}>
-          <form className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.save('general') }}>
+          <form data-settings-general className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.save('general') }}>
             <div className="settings-fields">
               <FormField label={t($ => $.settings.language)}>{props => <Select {...props} value={draft.language} disabled={Boolean(saving)} onChange={event => settings.changeLanguage(event.target.value as Language)}>
                 <option value="en" lang="en">English</option><option value="zh-CN" lang="zh-CN">简体中文</option>
@@ -46,8 +47,8 @@ export function SettingsPage() {
           </form>
         </SectionCard>
         <AISettingsSection settings={settings} />
-        <SectionCard title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
-          <form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>
+        <SectionCard data-settings-mailbox title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
+          <form data-settings-mailbox-form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>
             <FormField label={t($ => $.settings.mailProvider)}>{props => <Select {...props} value={draft.mailbox.provider} disabled={Boolean(saving)} onChange={event => {
               const provider = event.target.value as MailProvider
               settings.changeMailbox({ provider, url: provider === 'none' ? '' : provider === 'custom' ? draft.mailbox.url : mailURLs[provider] }); setMailError(false)
@@ -56,6 +57,7 @@ export function SettingsPage() {
             <div className="settings-actions">{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" disabled={!settings.mailDirty || Boolean(saving)}>{saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
           </form>
         </SectionCard>
+        <ExternalMCPSettings />
         <div className="settings-stack"><StatusMessage>{t($ => $.settings.local)}</StatusMessage><StatusMessage>{t($ => $.settings.localDescription)}</StatusMessage></div>
       </div>}
       <AuditViewerSection />

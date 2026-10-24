@@ -46,6 +46,8 @@ React App → Page → Preload → IPC → Main
 
 [Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、历史遍历、标签切换/关闭及窗口关闭前确认放弃未保存的设置和个人资料；通过标签/目标标识忽略过期草稿登记。刷新保护在导航提交前保留当前目标/草稿，取消刷新保留导入会话，已确认关闭不重复询问。已配置的 `app://inbox` 在写入历史前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
 
+**已实现外部 Agent 接入：**[设置页面](../src/pages/settings/ExternalMCPSettings.tsx)通过[独立宿主 IPC](../src/platform/electron/main/external-mcp-ipc.ts)提供全局 MCP 安装、确认替换、剪贴板导出及独立连接检查，不改变偏好草稿，也不安装 Skills。配置保护、运行路径与限制归属 [MCP 架构](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)。
+
 **已实现审计查看器：**[Settings 审计区块](../src/pages/settings/AuditViewerSection.tsx)通过[查看器 hook](../src/pages/settings/useAuditViewer.ts)独立于偏好表单加载，提供每页 25 条、显式筛选/刷新、元数据详情、空状态/错误/重试，并丢弃过期响应。筛选仅在页面内存中保留，不标记偏好为未保存。读取语义与审计范围归属[数据架构](data-architecture.zh-CN.md#四审计与事务)。
 
 **已实现主题：**Settings 通过现有中央 `Select` 提供浅色、暗夜及跟随系统。主题与语言属于通用设置草稿：成功写入后点击保存生效；保存失败及放弃草稿保留当前主题。默认仍为浅色，偏好存储语义归属[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)。

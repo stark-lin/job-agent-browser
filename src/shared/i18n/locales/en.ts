@@ -283,6 +283,44 @@ export const en = {
     configure: 'Connect your mailbox', configureHelp: 'Choose your webmail provider and address in Settings to open your mailbox here.',
     loadFailed: 'Unable to open your mailbox'
   },
+  externalMCP: {
+    "title": "Connect external Agents",
+    "description": "Add Job Agent Browser MCP to your user-wide Agent configuration. All projects use this workspace’s data. Skills are installed separately.",
+    "path": "Configuration file",
+    "backup": "Original file backup",
+    "refresh": "Refresh status",
+    "add": "Add MCP",
+    "installing": "Adding MCP…",
+    "replace": "Update MCP",
+    "copy": "Copy configuration",
+    "copied": "Configuration copied.",
+    "saved": "MCP configured. Reload or restart the target Agent to load the configuration.",
+    "connected": "Connection verified: {{count}} tools discovered. No business tools were called.",
+    "other": "Other Agents",
+    "otherHelp": "For other local Agents supporting stdio MCP, merge this entry into their MCP configuration.",
+    "genericConfig": "stdio MCP configuration",
+    "replaceTitle": "Replace existing MCP configuration?",
+    "replaceHelp": "{{agent}} already has a different job_agent_browser entry. Back up the original file, delete that entry and replace it with this application’s configuration. Other settings are retained.",
+    "confirmReplace": "Back up and replace",
+    "states": {
+      "missing": "Not configured",
+      "configured": "Configured",
+      "different": "Different configuration",
+      "invalid": "Invalid configuration file",
+      "unavailable": "Configuration unavailable"
+    },
+    "errors": {
+      "INVALID_INPUT": "Invalid request. Refresh and try again.",
+      "FORBIDDEN": "This page cannot change Agent configuration.",
+      "CONFIG_INVALID": "The configuration file is invalid. Fix it, then refresh. The original file has been retained.",
+      "CONFIG_UNAVAILABLE": "Unable to read or write the configuration. Check file permissions, then refresh and retry.",
+      "CONFIG_CHANGED": "The configuration changed. Review the refreshed status and try again.",
+      "REPLACE_REQUIRED": "Add or update this MCP configuration before testing the connection.",
+      "RUNTIME_UNAVAILABLE": "The application runtime, MCP build or database is missing. Rebuild or reinstall the application, then retry.",
+      "CONNECTION_FAILED": "Unable to connect to the MCP service. Refresh the configuration and retry.",
+      "COPY_FAILED": "Unable to copy the configuration. Try again."
+    }
+  },
   settings: {
     "aiDescription": "Configure OpenAI-compatible Chat Completions services. Keys are stored separately for each provider.",
     "requestTimeout": "AI request timeout (seconds)",

@@ -2,6 +2,8 @@ import { createAskAgentBridge } from './ask-agent-bridge'
 import { ASK_AGENT_CALL, ASK_AGENT_EVENT } from '../ask-agent-contract'
 import type { AgentRunEvent } from '../../../domain/chat/chat.types'
 import { contextBridge, ipcRenderer } from 'electron'
+import { EXTERNAL_MCP_CALL } from '../../../shared/external-mcp'
+import { createExternalMCPBridge } from './external-mcp-bridge'
 import { createApplicationBridge } from './application-bridge'
 import { APPLICATION_CALL } from '../application-contract'
 import { createResumeBridge } from './resume-bridge'
@@ -53,6 +55,7 @@ const browserAPI: BrowserAPI = {
 }
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
+contextBridge.exposeInMainWorld('externalMCP', createExternalMCPBridge((method, input) => ipcRenderer.invoke(EXTERNAL_MCP_CALL, method, input)))
 const jobImport: JobImportAPI = {
   selectPdf: () => ipcRenderer.invoke(JOB_IMPORT_SELECT),
   save: input => ipcRenderer.invoke(JOB_IMPORT_SAVE, input),

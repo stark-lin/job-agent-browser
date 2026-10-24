@@ -1,4 +1,5 @@
 import type { AskAgentAPI } from '../platform/electron/ask-agent-contract'
+import type { ExternalMCPAPI } from '../shared/external-mcp'
 import type { ApplicationAgentAPI } from '../platform/electron/application-contract'
 import type { ResumeAPI } from '../platform/electron/resume-contract'
 import type { BrowserAPI } from '../shared/browser'
@@ -9,6 +10,7 @@ import type { JobImportAPI } from '../platform/electron/job-import-contract'
 
 declare global {
   interface Window {
+    externalMCP: ExternalMCPAPI
     askAgent: AskAgentAPI
     applicationAgent: ApplicationAgentAPI
     resume: ResumeAPI

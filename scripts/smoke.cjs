@@ -6,6 +6,7 @@ const { resolve } = require('node:path')
 const storage = process.env.JOB_BROWSER_SMOKE_DATA
 assert(storage, 'The smoke runner must provide disposable storage')
 app.setPath('userData', storage)
+require('./external-mcp-test-home.cjs')(storage)
 const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 60_000)
 let mainWindowSelected = false
 app.on('browser-window-created', (_event, window) => {
@@ -54,6 +55,9 @@ app.on('browser-window-created', (_event, window) => {
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','profiles','applyImport',{})"), { ok: false, error: 'FORBIDDEN' })
       await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender|不可信的 IPC 发送方/)
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('resume:call','start',{})"), { ok: false, error: 'FORBIDDEN' })
+      for (const method of ['inspect', 'install', 'test', 'copy']) {
+        assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('external-mcp:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
+      }
       await require('./window-close-smoke.cjs')(window)
       console.log('Electron smoke passed: production startup, sandboxed bridge, automatic audit, read semantics, deletion and rejected untrusted document.')
       // Main's earlier will-quit listener closes SQLite first. Avoid waiting on Chromium helpers.

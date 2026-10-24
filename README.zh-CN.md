@@ -43,7 +43,7 @@ npm run test:ask-ai
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 
-使用 Codex 时，先构建应用，执行 `npm run skill:link`，并将 stdio 入口连接到同一个现有 userData 目录。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理配置，职位采集、申请管理和 Resume Skill 管理外部推理工作流。Codex 生成无需应用 AI Provider。
+接入本机 Codex、Claude Code 或 Cursor 时，打开设置 → 连接外部 Agent → 添加 MCP。可选 Skills 单独执行 `npm run skill:link`。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理配置，职位采集、申请管理和 Resume Skill 管理外部推理工作流。Codex 生成无需应用 AI Provider。
 
 ## 文档索引
 

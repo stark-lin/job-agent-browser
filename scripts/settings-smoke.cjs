@@ -15,7 +15,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     await frames()
   }
   const data = async (group, method, input) => evaluate(`window.data.${group}.${method}(${JSON.stringify(input)})`)
-  const submit = index => evaluate(`document.querySelectorAll('.settings-page form:not([data-audit-filters])')[${index}].requestSubmit()`)
+  const submit = index => evaluate(`document.querySelector(${JSON.stringify(['[data-settings-general]', '[data-ai-config]', '[data-ai-key]', '[data-settings-mailbox-form]'][index])}).requestSubmit()`)
   const capture = async name => {
     mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     await frames()
@@ -34,6 +34,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await require('./audit-viewer-smoke.cjs')({ window, call, evaluate, waitFor, field, data, capture })
   await formsReady()
   await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data })
+  await require('./external-mcp-smoke.cjs')({ window, evaluate, waitFor, data, capture })
   await capture('settings-en.png')
 
   // Change through React controls and the production IPC, then reload the renderer.
@@ -67,8 +68,8 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await submit(0)
   await waitFor(() => evaluate('document.documentElement.lang === "en"'), 'English restored')
   // Invalid URLs receive field feedback and never persist.
-  await field('.settings-sections > section:nth-child(3) select', 'custom', 'select')
-  await field('.settings-sections > section:nth-child(3) input', 'https://user:password@example.com')
+  await field('[data-settings-mailbox] select', 'custom', 'select')
+  await field('[data-settings-mailbox] input', 'https://user:password@example.com')
   await submit(3)
   await waitFor(() => evaluate('!!document.querySelector("input[aria-invalid=true]")'), 'invalid mailbox feedback')
   assert.equal((await data('settings', 'get', {})).value.mailbox.provider, 'none')
@@ -101,9 +102,9 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   } finally { dialog.showMessageBox = originalDialog }
 
   await call('navigate', 'app://settings'); await formsReady()
-  assert.equal(await evaluate('document.querySelector(".settings-sections > section:nth-child(3) select").value'), 'none')
-  await field('.settings-sections > section:nth-child(3) select', 'gmail', 'select')
-  assert.equal(await evaluate('document.querySelector(".settings-sections > section:nth-child(3) input").value'), 'https://mail.google.com/')
+  assert.equal(await evaluate('document.querySelector("[data-settings-mailbox] select").value'), 'none')
+  await field('[data-settings-mailbox] select', 'gmail', 'select')
+  assert.equal(await evaluate('document.querySelector("[data-settings-mailbox] input").value'), 'https://mail.google.com/')
   await submit(3)
   await waitFor(async () => (await data('settings', 'get', {})).value.mailbox.provider === 'gmail', 'saved mailbox')
   // Cancel network loading: verify routing without relying on an external website.

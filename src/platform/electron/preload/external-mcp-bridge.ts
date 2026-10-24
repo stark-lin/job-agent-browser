@@ -1,0 +1,11 @@
+import type { ExternalMCPAPI, ExternalMCPError } from '../../../shared/external-mcp'
+import type { Result } from '../../../shared/ipc'
+
+export function createExternalMCPBridge(invoke: (method: string, input: unknown) => Promise<Result<unknown, ExternalMCPError>>): ExternalMCPAPI {
+  return {
+    inspect: input => invoke('inspect', input) as ReturnType<ExternalMCPAPI['inspect']>,
+    install: input => invoke('install', input) as ReturnType<ExternalMCPAPI['install']>,
+    test: input => invoke('test', input) as ReturnType<ExternalMCPAPI['test']>,
+    copy: input => invoke('copy', input) as ReturnType<ExternalMCPAPI['copy']>
+  }
+}

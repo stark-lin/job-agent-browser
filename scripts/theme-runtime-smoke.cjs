@@ -6,6 +6,7 @@ const { resolve } = require('node:path')
 
 assert(process.env.JOB_BROWSER_SMOKE_DATA, 'Theme runner requires disposable storage')
 app.setPath('userData', process.env.JOB_BROWSER_SMOKE_DATA)
+require('./external-mcp-test-home.cjs')(process.env.JOB_BROWSER_SMOKE_DATA)
 const timeout = setTimeout(() => { console.error('Theme smoke timed out'); app.exit(1) }, 30_000)
 app.once('browser-window-created', (_event, window) => {
   window.webContents.setBackgroundThrottling(false)

@@ -374,12 +374,22 @@
           <div class="demo-stage">
             <section class="settings-panel" aria-labelledby="settings-example-title">
               <h3 id="settings-example-title">General</h3>
-              <p>Choose the language for your workspace.</p>
+              <p>Choose the language and appearance for your workspace.</p>
               <div class="grid-2">
                 <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
-                <label class="field"><span class="field-label">Appearance</span><select class="control" disabled><option>Light</option></select><span class="field-help">Currently available in light appearance.</span></label>
+                <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
               </div>
               <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
+            </section>
+            <section class="settings-panel" aria-labelledby="external-agent-example-title">
+              <h3 id="external-agent-example-title">Connect external Agents</h3>
+              <p>Static reference: Codex, Claude Code and Cursor user-wide MCP configuration. Skills are installed separately.</p>
+              <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
+              <p><span class="badge badge-success">Configured</span></p>
+              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn" disabled>Test connection</button><button class="btn" disabled>Copy configuration</button></div>
+              <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
+              <label class="field"><span class="field-label">Other Agents: stdio MCP configuration</span><textarea class="control" rows="4" readonly>{ "mcpServers": { "job_agent_browser": { "command": "/absolute/path/Electron", "args": ["/absolute/path/job-agent-mcp.js"], "env": { "ELECTRON_RUN_AS_NODE": "1", "JOB_BROWSER_USER_DATA": "/absolute/path/user-data", "JOB_BROWSER_MCP_CALLER": "mcp-client", "JOB_BROWSER_ELECTRON": "/absolute/path/Electron" } } } }</textarea></label>
+              <p>A different existing entry requires confirmation: Cancel / Back up and replace. Paths wrap; busy actions are disabled.</p>
             </section>
           </div>
         </div>
