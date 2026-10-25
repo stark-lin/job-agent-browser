@@ -17,7 +17,9 @@ export function operationReceipts(db: DatabaseSync): OperationReceipts {
       const row = db.prepare('SELECT * FROM operation_receipts WHERE operation=? AND request_id=?').get(operation, requestId)
       if (!row) return null
       if (row.input_hash !== hash(input)) fail('CONFLICT')
-      const table = row.target_type === 'job' ? 'jobs' : 'job_events'
+      const tables: Record<string, string> = { job: 'jobs', job_event: 'job_events', profile: 'profiles', profile_item: 'profile_items', fact: 'facts' }
+      const table = tables[String(row.target_type)]
+      if (!table) fail('CONFLICT')
       if (!db.prepare(`SELECT id FROM ${table} WHERE id=?`).get(row.target_id)) fail('CONFLICT')
       return JSON.parse(String(row.result_json)) as T
     },

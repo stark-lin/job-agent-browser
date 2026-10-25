@@ -1,7 +1,7 @@
 const { mkdirSync, symlinkSync, existsSync, lstatSync, realpathSync } = require('node:fs')
 const { resolve, relative, join } = require('node:path')
 const root = resolve(__dirname, '..'), parent = resolve(root, '.agents/skills')
-const names = ['capture-job', 'manage-applications', 'tailor-resume']
+const names = ['capture-job', 'manage-applications', 'tailor-resume', 'distill-resume', 'distill-project']
 // Validate every existing destination before creating any link.
 for (const name of names) {
   const source = join(root, 'skills', name), target = join(parent, name)

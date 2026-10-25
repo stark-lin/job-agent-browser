@@ -46,7 +46,7 @@ npm run test:ask-ai
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 
-接入本机 Codex、Claude Code 或 Cursor 时，打开设置 → 连接外部 Agent → 添加 MCP，再单独点击“安装 Skills”安装三个内置工作流。其他 Agent 可通过“打开 Skills 文件夹”复制；`npm run skill:link` 保留为仅用于仓库的替代方式。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理接入及限制。Codex 生成无需应用 AI Provider。
+接入本机 Codex、Claude Code 或 Cursor 时，打开设置 → 连接外部 Agent → 添加 MCP，再单独点击“安装 Skills”安装五个内置工作流。其他 Agent 可通过“打开 Skills 文件夹”复制；`npm run skill:link` 保留为仅用于仓库的替代方式。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理接入及限制。Codex 生成无需应用 AI Provider。
 
 ## 文档索引
 

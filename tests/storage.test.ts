@@ -187,7 +187,7 @@ test('matching-generation version-5 upgrade adds chat storage without changing p
 })
 
 
-test('version-6 upgrade adds an empty introduction without changing old profile values, audits or checksums', t => {
+test('version-6 upgrade adds introduction and revision defaults without changing old profile values, audits or checksums', t => {
   const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 6)); transactions.protectAudit()
   const store = new Store(connection, transactions), profile = { id: randomUUID(), name: 'Existing person', email: '', phone: '', location: '', links: [], updatedAt: new Date().toISOString() }
@@ -195,7 +195,7 @@ test('version-6 upgrade adds an empty introduction without changing old profile 
   const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
   const next = openDatabase(path); t.after(next.close)
-  assert.deepEqual(new Store(next.connection, next.transactions).get('profile', profile.id), { ...profile, introduction: '' })
+  assert.deepEqual(new Store(next.connection, next.transactions).get('profile', profile.id), { ...profile, introduction: '', revision: 1 })
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
 })

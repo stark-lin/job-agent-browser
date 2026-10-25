@@ -11,6 +11,9 @@ erDiagram
     JOB o|..o{ OPERATION_RECEIPT : logical_job
     JOB_EVENT o|..o{ OPERATION_RECEIPT : logical_event
     JOB o|..o{ GENERATION_RUN : logical_target
+    PROFILE o|..o{ OPERATION_RECEIPT : logical_profile
+    PROFILE_ITEM o|..o{ OPERATION_RECEIPT : logical_item
+    FACT o|..o{ OPERATION_RECEIPT : logical_fact
     PROFILE ||--o{ PROFILE_ITEM : contains
     PROFILE ||--o{ FACT : owns
     PROFILE_ITEM o|--o{ FACT : contextualizes
@@ -95,6 +98,7 @@ erDiagram
         string name
         string email
         text introduction
+        int revision
         json links_json
     }
     PROFILE_ITEM {

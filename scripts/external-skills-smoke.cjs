@@ -4,7 +4,7 @@ const { join, resolve } = require('node:path')
 const { shell } = require('electron')
 
 module.exports = async function externalSkillsSmoke({ window, evaluate, waitFor }) {
-  const names = ['capture-job', 'manage-applications', 'tailor-resume']
+  const names = ['capture-job', 'manage-applications', 'tailor-resume', 'distill-resume', 'distill-project']
   const bundle = resolve(__dirname, '../out/main/skills')
   const api = (method, input) => evaluate(`window.externalSkills.${method}(${JSON.stringify(input)})`)
   const selector = target => `[data-agent-skills="${target}"]`

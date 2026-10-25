@@ -119,7 +119,7 @@ Remote views share `persist:job-agent-browser`, retaining website storage across
 
 Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
 
-**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) separately owns optional third-party consumption and [first-party sessions](../src/platform/mcp/first-party-client.ts). All four internal Agents and external hosts use the same 27-tool [Node Server](../src/platform/mcp-server/runtime.ts); caller labels affect audit only. Renderer exposes named workflow IPC, never generic tool execution. [MCP architecture](mcp-architecture.md) owns registration, bounds and shutdown; data architecture owns multi-process recovery.
+**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) separately owns optional third-party consumption and [first-party sessions](../src/platform/mcp/first-party-client.ts). All four internal Agents and external hosts use the same 34-tool [Node Server](../src/platform/mcp-server/runtime.ts); caller labels affect audit only. Renderer exposes named workflow IPC, never generic tool execution. [MCP architecture](mcp-architecture.md) owns registration, bounds and shutdown; data architecture owns multi-process recovery.
 
 ## 5. Internationalization
 

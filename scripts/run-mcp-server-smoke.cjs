@@ -34,6 +34,18 @@ async function main() {
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING', 'MCP startup must preserve another process task')
     assert.equal((await call('job.list', {})).items[0].id, job.id)
     assert.equal((await call('profile.list', {})).items[0].id, profile.id)
+    // Exercise the built profile surface, not only the compiled test runtime.
+    const imported = await call('profile.create', { requestId: randomUUID(), details: { name: 'Distillation fixture', email: 'keep@example.com' } })
+    const updated = await call('profile.update', { id: imported.id, requestId: randomUUID(), expectedRevision: imported.revision, changes: { phone: '123' } })
+    assert.equal(updated.email, imported.email)
+    const projectRequest = { profileId: imported.id, requestId: randomUUID(), expectedRevision: updated.revision, details: { type: 'PROJECT', title: 'Inspected repository' } }
+    const project = await call('profile.add_item', projectRequest)
+    assert.deepEqual(await call('profile.add_item', projectRequest), project)
+    const changedProject = await call('profile.update_item', { id: project.id, profileId: imported.id, requestId: randomUUID(), expectedRevision: project.revision, changes: { metadata: { technologies: ['TypeScript'] } } })
+    const sourceFact = await call('profile.add_fact', { profileId: imported.id, profileItemId: project.id, requestId: randomUUID(), expectedRevision: changedProject.revision, details: { kind: 'OTHER', content: 'Project validates structured inputs.', evidence: 'repo@fixture src/input.ts:1; inspected implementation, attribution unknown' } })
+    const changedFact = await call('profile.update_fact', { id: sourceFact.id, profileId: imported.id, requestId: randomUUID(), expectedRevision: sourceFact.revision, changes: { tags: ['validation'] } })
+    assert.equal(changedFact.evidence, sourceFact.evidence); assert.equal(changedFact.profileItemId, project.id)
+    assert.equal((await call('profile.list_items', { profileId: imported.id })).items[0].id, project.id)
     const { runId } = await call('resume.start', { jobId: job.id, profileId: profile.id, requestId: randomUUID() })
     dispatch('profiles', 'editContact', { id: profile.id, details: { name: 'LIVE PROFILE CHANGED' } })
     const context = await call('resume.get_context', { runId }), facts = await call('resume.list_facts', { runId })

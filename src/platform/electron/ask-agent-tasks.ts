@@ -7,7 +7,6 @@ import type { ChatRecorder } from '../database/repositories/chats'
 import type { FirstPartyRuntime } from '../mcp/first-party-client'
 import { ToolError } from '../../shared/tools/errors'
 import { runAskAgent } from '../agent/ask'
-import { ASK_AI_TOOL_ALLOWLIST } from '../agent/tool-presentation'
 import { createAskRecorder } from './ask-agent-recorder'
 
 export function askError(error: unknown): string {
@@ -51,7 +50,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
           const signal = AbortSignal.any([controller.signal, tools.signal])
           const user = snapshot.items[0]
           const history = deps.chats.history(result.sessionId, user.sequence, 262144 - Buffer.byteLength(args.message.trim()) - 2048)
-          await runAskAgent(model, tools.view(ASK_AI_TOOL_ALLOWLIST), history.map(m => m.role === 'assistant' ? { role: 'assistant', content: m.content, toolCalls: [] } : { role: 'user', content: m.content }), args.message.trim(), signal, recorder.receive)
+          await runAskAgent(model, tools, history.map(m => m.role === 'assistant' ? { role: 'assistant', content: m.content, toolCalls: [] } : { role: 'user', content: m.content }), args.message.trim(), signal, recorder.receive)
           signal.throwIfAborted()
           recorder.finish('completed', null)
         })().catch(error => {

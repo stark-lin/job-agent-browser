@@ -2,6 +2,7 @@ import { chatRepository } from './repositories/chats'
 import { createChatService } from '../../domain/chat/chat.service'
 import { randomUUID } from 'node:crypto'
 import { createJobService } from '../../domain/job/job.service'
+import { createProfileWriteService } from '../../domain/candidate/write.service'
 import { createCandidateService } from '../../domain/candidate/candidate.service'
 import { createApplicationService } from '../../domain/application/application.service'
 import { createResumeService } from '../../domain/resume/resume.service'
@@ -33,7 +34,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
     chats: createChatService(chats, choice => {
       if (!storage.settings.get({}).ai.providers.some(p => p.id === choice.providerId && p.models.includes(choice.modelId))) fail('AI_NOT_CONFIGURED')
     }),
-    jobs: createJobService(repo.jobs, business, runtime, receipts), profiles: createCandidateService(repo.candidate, user, runtime),
+    jobs: createJobService(repo.jobs, business, runtime, receipts), profiles: createCandidateService(repo.candidate, business, runtime),
     applications: createApplicationService(repo.jobs, repo.applications, business, runtime, receipts),
     resumes: createResumeService(repo.jobs, repo.candidate, repo.resumes, kind === 'external' ? database.transactions.forActor('EXTERNAL') : user, runtime, references(store), kind),
     audit: auditReader(store, user), ...storage
@@ -54,12 +55,14 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   const capabilities = createAuditedCapabilities(database.transactions.capabilities.sink)
   return {
     generation,
+    profileWrites: createProfileWriteService(repo.candidate, business, runtime, receipts),
     chats,
     lease,
     recover,
     outputTransaction: system,
     resumes: services.resumes,
     jobs: services.jobs,
+    profiles: services.profiles,
     applications: services.applications,
     ownedStart(requestId: string) {
       const row = database.connection.prepare('SELECT run_id FROM resume_start_receipts WHERE request_id=? AND runtime_id=?').get(requestId, lease.id)

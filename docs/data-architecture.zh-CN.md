@@ -21,7 +21,7 @@
 | `audit_logs` | 不含业务内容的成功/失败事件 |
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
-| `operation_receipts` | 跨会话创建回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts) |
+| `operation_receipts` | 跨会话写入回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts)和[版本 8 扩展](../src/platform/database/migrations/profile-writes.ts) |
 | `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
 
 ## 二、业务规则
@@ -46,6 +46,8 @@
 [个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。全部已保存 Fact 均可参与生成，不存在确认状态、数据库列或确认操作。
 
 `Profile.introduction` 保存可选个人简介（最多 2,000 字符），与简历的纯联系方式 basics 和条目背景简介分开。[版本 7 迁移](../src/platform/database/migrations/profile-introduction.ts)添加默认空值，不修改历史快照。[资料编辑](../src/domain/candidate/candidate.service.ts)在字段省略时保留原简介，显式空值用于清空；[导入审核](../src/platform/profile-import/draft.ts)保留原文，缺失或空白简介默认忽略，审核后才替换已有内容。
+
+[MCP 资料命令](../src/domain/candidate/write.service.ts)提供创建及部分更新，沿用同资料引用、日期和条目类型限制；对历史导入的空值，更新无关字段时保留。新增资料/条目/事实仍要求姓名/名称/内容。`Profile.revision` 由[版本 8 迁移](../src/platform/database/migrations/profile-writes.ts)初始化为 1，数据库触发器在基本资料、条目或事实的实际变更（包括 UI、导入、删除/级联）时单调推进。MCP 更新/新增条目和事实必须提交 expectedRevision；同一 BEGIN IMMEDIATE 事务内校验版本、写业务数据及 receipt，无实际变化不推进版本。receipt 重放先于版本检查，返回原结果及历史 revision，之后应重新读取当前版本。版本只约束带 expectedRevision 的 MCP 写入，既有人工表单仍按原 IPC 语义保存。
 
 每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。
 
@@ -82,7 +84,7 @@
 
 ## 四、审计与事务
 
-[操作回执](../src/platform/database/operation-receipts.ts)保存 (operation, request_id)、规范化输入哈希、逻辑目标、首次结果 JSON 和创建时间。job.import/application.add_note/application.schedule_event 在与业务行及成功审计相同的 Domain 事务内写入 receipt。跨进程/重启的相同重试返回首次结果，不同内容或已删除目标返回冲突；目标删除后仍保留 receipt 结果快照，删除并非隐私清除；不自动重建，也不嵌套服务事务。Resume start 保留独立的同运行时 receipt/lease 规则。
+[操作回执](../src/platform/database/operation-receipts.ts)保存 (operation, request_id)、规范化输入哈希、逻辑目标、首次结果 JSON 和创建时间。job.import/application.add_note/application.schedule_event 及所有 profile 写入 在与业务行及成功审计相同的 Domain 事务内写入 receipt。跨进程/重启的相同重试返回首次结果，不同内容或已删除目标返回冲突；目标删除后仍保留 receipt 结果快照，删除并非隐私清除；不自动重建，也不嵌套服务事务。Resume start 保留独立的同运行时 receipt/lease 规则。
 
 [事务管理](../src/platform/database/transactions.ts) 与[数据库触发器](../src/platform/database/migrations/audit-triggers.ts) 为每条变更业务记录自动追加审计。调用方只提交业务参数。一次写入操作拥有一个内部事务：全部变更与成功审计一起提交或全部回滚。多记录操作共享请求和事务 ID。普通业务/审计查询保持只读；显式能力读取会额外记录下述访问审计。
 

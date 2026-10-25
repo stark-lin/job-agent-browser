@@ -171,7 +171,7 @@ test('matching symlinks need no rewrite; differing and dangling links replace on
   assert.equal(f.install().error, 'REPLACE_REQUIRED')
   const result = f.install('codex', true)
   assert.equal(result.error, undefined)
-  assert.deepEqual(result.completed, ['manage-applications', 'tailor-resume'])
+  assert.deepEqual(result.completed, ['manage-applications', 'tailor-resume', 'distill-resume', 'distill-project'])
   assert(fs.lstatSync(join(path, 'capture-job')).isSymbolicLink())
   assert(!fs.lstatSync(join(path, 'manage-applications')).isSymbolicLink())
   assert.equal(fs.readFileSync(join(external, 'SKILL.md'), 'utf8'), 'outside content')
@@ -230,11 +230,11 @@ test('partial failure reports actual completed and pending items and can be retr
   const result = f.install()
   assert.equal(result.error, 'INSTALL_FAILED')
   assert.deepEqual(result.completed, ['capture-job'])
-  assert.deepEqual(result.pending, ['manage-applications', 'tailor-resume'])
+  assert.deepEqual(result.pending, ['manage-applications', 'tailor-resume', 'distill-resume', 'distill-project'])
   assert(!JSON.stringify(result).includes('private OS details'))
   assert(!fs.readdirSync(result.status.path).some(name => name.startsWith('.job-agent-skills-')))
   t.mock.restoreAll()
-  assert.deepEqual(f.install().completed, ['manage-applications', 'tailor-resume'])
+  assert.deepEqual(f.install().completed, ['manage-applications', 'tailor-resume', 'distill-resume', 'distill-project'])
 })
 
 test('unwritable destinations report failure without overwriting existing Skills', t => {

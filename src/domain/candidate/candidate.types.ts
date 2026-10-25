@@ -4,7 +4,7 @@ export interface Contact { name: string; email: string; phone: string; location:
 export type ContactInput = Pick<Contact, 'name'> & Partial<Omit<Contact, 'name'>>
 export interface ProfileDetails extends Contact { introduction: string }
 export type ProfileInput = ContactInput & { introduction?: string }
-export interface Profile extends ProfileDetails { id: string; updatedAt: string }
+export interface Profile extends ProfileDetails { id: string; updatedAt: string; revision: number }
 export interface ItemDetails {
   type: typeof itemTypes[number]; title: string; organization: string; role: string; location: string
   startDate: string | null; endDate: string | null; summary: string; sortOrder: number

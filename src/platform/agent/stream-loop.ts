@@ -9,10 +9,10 @@ export type StreamLoopEvent = { type: 'segment.started'; id: string; kind: 'reas
   | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean }
 
 /** Bounded protocol-only loop. Host listeners own presentation and transcript persistence. */
-export async function runStreamingAgent(model: StreamingAgentModel, tools: AgentTools, initial: AgentMessage[], signal: AbortSignal, emit: (event: StreamLoopEvent) => void): Promise<void> {
+export async function runStreamingAgent(model: StreamingAgentModel, tools: AgentTools, initial: AgentMessage[], signal: AbortSignal, emit: (event: StreamLoopEvent) => void, maxSteps = 8): Promise<void> {
   const messages = structuredClone(initial), seen = new Set<string>(), descriptors = await abortable(tools.list(), signal)
   let serial = 0, contextBytes = 0
-  for (let step = 0; step < 8; step++) {
+  for (let step = 0; step < maxSteps; step++) {
     if (signal.aborted) throw new AgentError('AGENT_CANCELLED')
     let current: { id: string; kind: 'reasoning' | 'assistant_message' } | undefined, response: AgentResponse | undefined, content = ''
     const ready: AgentToolCall[] = []

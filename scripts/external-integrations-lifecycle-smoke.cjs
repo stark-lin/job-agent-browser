@@ -4,7 +4,7 @@ const { join, resolve } = require('node:path')
 
 module.exports = async function lifecycleSmoke({ evaluate, waitFor, capture }) {
   const targets = ['codex', 'claude-code', 'cursor']
-  const names = ['capture-job', 'manage-applications', 'tailor-resume']
+  const names = ['capture-job', 'manage-applications', 'tailor-resume', 'distill-resume', 'distill-project']
   const api = (kind, method, input) => evaluate(`window.${kind}.${method}(${JSON.stringify(input)})`)
   const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`)
   const ready = () => waitFor(() => evaluate('!document.querySelector("[data-mcp-refresh]").disabled'), 'lifecycle action finished')

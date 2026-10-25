@@ -11,7 +11,7 @@ export function createCandidateService(repo: CandidateRepository, tx: UnitOfWork
     ...createItemService(repo, tx, runtime), ...createFactService(repo, tx, runtime), ...createImportService(repo, tx, runtime),
     createProfile(input: unknown) {
       return tx.write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => {
-        const profile = { ...profileDetails(input), id: runtime.id(), updatedAt: runtime.now() }
+        const profile = { ...profileDetails(input), id: runtime.id(), updatedAt: runtime.now(), revision: 1 }
         repo.insertProfile(profile)
         return profile
       })
@@ -22,7 +22,7 @@ export function createCandidateService(repo: CandidateRepository, tx: UnitOfWork
         const existing = repo.getProfile(id)
         const profile = { ...existing, ...details, introduction: details.introduction ?? existing.introduction, updatedAt: runtime.now() }
         repo.saveProfile(profile)
-        return profile
+        return repo.getProfile(id)
       })
     },
     deleteProfile(input: unknown) {

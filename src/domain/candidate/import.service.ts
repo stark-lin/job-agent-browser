@@ -19,7 +19,7 @@ export function createImportService(repo: CandidateRepository, tx: UnitOfWork, r
         const existing = args.profileId ? repo.getProfile(args.profileId) : null
         const details = importContact({ name: existing?.name, email: existing?.email, phone: existing?.phone, location: existing?.location, introduction: existing?.introduction,
           ...patch, links: [...(existing?.links ?? []), ...args.links.map(({ label, url }) => ({ label, url }))] })
-        const profile: Profile = { ...details, id: existing?.id ?? runtime.id(), updatedAt: runtime.now() }
+        const profile: Profile = { ...details, id: existing?.id ?? runtime.id(), updatedAt: runtime.now(), revision: existing?.revision ?? 1 }
         if (existing) repo.saveProfile(profile)
         else repo.insertProfile(profile)
         const itemIds: Record<string, string> = {}, factIds: Record<string, string> = {}
@@ -44,7 +44,7 @@ export function createImportService(repo: CandidateRepository, tx: UnitOfWork, r
           factIds[entry.draftId] = fact.id
           return fact
         })
-        return { profile, items, facts, itemIds, factIds }
+        return { profile: repo.getProfile(profile.id), items, facts, itemIds, factIds }
       })
     }
   }
