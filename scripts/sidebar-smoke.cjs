@@ -4,7 +4,7 @@ const { resolve } = require('node:path')
 const { app } = require('electron')
 
 module.exports = async function sidebarSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut }) {
-  const pages = [['Home', 'home'], ['Add Job', 'find'], ['Tailor Resume', 'resume'], ['Applications', 'applications'],
+  const pages = [['Home', 'home'], ['Add Job', 'find'], ['Tailor Resume', 'resume'], ['Smart Note', 'knowledge'], ['Applications', 'applications'],
     ['Inbox', 'inbox'], ['My Profile', 'profile'], ['Browser', 'browser'], ['Ask AI', 'ai'], ['Settings', 'settings']]
   const select = label => evaluate(`document.querySelector('.ui-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
   const current = label => waitFor(() => evaluate(`document.querySelector('.ui-sidebar [aria-current=page]')?.getAttribute('aria-label') === ${JSON.stringify(label)}`), 'active sidebar item')

@@ -1,3 +1,5 @@
+import { createKnowledgeBridge } from './knowledge-bridge'
+import { KNOWLEDGE_CALL, KNOWLEDGE_CHANGED, KNOWLEDGE_FLUSH, KNOWLEDGE_FLUSHED } from '../knowledge-contract'
 import { createAskAgentBridge } from './ask-agent-bridge'
 import { ASK_AGENT_CALL, ASK_AGENT_EVENT } from '../ask-agent-contract'
 import type { AgentRunEvent } from '../../../domain/chat/chat.types'
@@ -107,3 +109,7 @@ contextBridge.exposeInMainWorld('askAgent', createAskAgentBridge((method, input)
   ipcRenderer.on(ASK_AGENT_EVENT, listener)
   return () => ipcRenderer.removeListener(ASK_AGENT_EVENT, listener)
 }))
+
+const knowledgeFlushHandlers = new Set<()=>Promise<boolean>>()
+ipcRenderer.on(KNOWLEDGE_FLUSH, (_event:Electron.IpcRendererEvent,id:string)=>{void Promise.all([...knowledgeFlushHandlers].map(flush=>flush())).then(results=>ipcRenderer.send(KNOWLEDGE_FLUSHED,id,results.every(Boolean))).catch(()=>ipcRenderer.send(KNOWLEDGE_FLUSHED,id,false))})
+contextBridge.exposeInMainWorld('knowledge', createKnowledgeBridge((method,input)=>ipcRenderer.invoke(KNOWLEDGE_CALL,method,input),callback=>{const listener=()=>callback();ipcRenderer.on(KNOWLEDGE_CHANGED,listener);return()=>ipcRenderer.removeListener(KNOWLEDGE_CHANGED,listener)},callback=>{knowledgeFlushHandlers.add(callback);return()=>knowledgeFlushHandlers.delete(callback)}))

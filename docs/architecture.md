@@ -1,6 +1,6 @@
 # Current Runtime Architecture
 
-Purpose: record verified runtime behavior. Status: **Implemented** React composition, mixed navigation, Settings, Profile editing/PDF import, Job Capture/Application Agents, Ask AI V2 and Resume Agent V1 with HTML/PDF. Interview Prep remains **Scaffolded**; additional product workflows remain **Planned**.
+Purpose: record verified runtime behavior. Status: **Implemented** React composition, mixed navigation, Settings, Profile editing/PDF import, Job Capture/Application Agents, Ask AI V2 and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
 
 Language: English · [简体中文](architecture.zh-CN.md)
 
@@ -18,11 +18,11 @@ React App → Page → Preload → IPC → Main
 
 The [Renderer bootstrap](../src/renderer/main.tsx) mounts the single [App](../src/app/App.tsx) in StrictMode. [Providers](../src/app/providers.tsx) inject controlled browser/data/AI bridges and context; the [navigation store](../src/app/navigation/navigationStore.ts) subscribes once per provider lifecycle and ignores older snapshots and disposed initialization reads. [Router](../src/app/router.tsx) selects React pages from Main's active destination without navigating the trusted document.
 
-[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. [Settings](../src/pages/settings/SettingsPage.tsx) implements local preferences and encrypted-key management. [Inbox](../src/pages/inbox/InboxPage.tsx) owns a full-content webmail surface, configuration guidance and load recovery. [Ask AI](../src/pages/ai/AskAIPage.tsx) implements a persistent multi-session streaming Agent. [My Profile](../src/pages/profile/ProfilePage.tsx) implements manual editing and reviewed PDF import; Add Job and the Applications list are implemented; Tailor Resume is implemented; Interview Prep remains scaffolded.
+[BrowserPage](../src/pages/browser/BrowserPage.tsx) alone renders tabs, address input and browser controls. Home and business pages render no browser chrome or internal URL. [HomeGrid](../src/pages/home/HomeGrid.tsx) enables all nine cards. [Settings](../src/pages/settings/SettingsPage.tsx) implements local preferences and encrypted-key management. [Inbox](../src/pages/inbox/InboxPage.tsx) owns a full-content webmail surface, configuration guidance and load recovery. [Ask AI](../src/pages/ai/AskAIPage.tsx) implements a persistent multi-session streaming Agent. [My Profile](../src/pages/profile/ProfilePage.tsx) implements manual editing and reviewed PDF import; Add Job and the Applications list are implemented; Tailor Resume is implemented; Smart Note is implemented.
 
 ## 2. Routes and mixed history
 
-The [destination contract](../src/shared/navigation.ts) allowlists `app://home`, `app://find`, `app://resume`, `app://interview`, `app://applications`, `app://inbox`, `app://profile`, `app://browser`, `app://ai` and `app://settings`. Internal URLs are navigation identifiers, not registered OS protocols or documents loaded by Chromium. Unknown internal targets are rejected before changing history. Public URLs are owned by [product architecture](product-architecture.md).
+The [destination contract](../src/shared/navigation.ts) allowlists `app://home`, `app://find`, `app://resume`, `app://knowledge`, `app://applications`, `app://inbox`, `app://profile`, `app://browser`, `app://ai` and `app://settings`. Internal URLs are navigation identifiers, not registered OS protocols or documents loaded by Chromium. Unknown internal targets are rejected before changing history. Public URLs are owned by [product architecture](product-architecture.md).
 
 [BrowserManager](../src/platform/browser/browserManager.ts) owns tabs, active destination and versioned snapshots. Each tab starts on Home. Home adds an internal history entry; new tabs and closing the final tab create fresh Home destinations. Selecting Browser adds an empty browser workspace with an empty address field. Selecting another tab never adds history. Closing the active tab selects its right neighbor, or its left neighbor if last.
 
@@ -58,7 +58,7 @@ Follow system responds to native appearance updates; explicit Light/Dark overrid
 
 [App Context](../src/app/context/appContext.ts) exposes the active page's tab/title/destination and nullable Job, Profile and Artifact IDs. The [reference store](../src/app/context/contextStore.ts) starts empty and does not copy entities or extract page content. Profile selects its valid referenced record, otherwise the most recently updated Profile, and updates the shared ID after loading/saving.
 
-**Implemented AI:** [Main-owned service](../src/platform/ai/service.ts) snapshots the selected provider, model and credential at request creation. Only OpenAI-compatible Chat Completions is supported. The [shared transport](../src/platform/ai/transport.ts) uses `/v1` for bare endpoints such as `http://127.0.0.1:1234`; explicit API paths such as `/v1` or `/gateway/v1` are preserved, with trailing slashes removed. Streaming chat and the Resume Agent share this URL resolution. The [compatible adapter](../src/platform/ai/compatible.ts) consumes SSE; redirects are rejected. Remote endpoints require HTTPS; loopback HTTP supports local services. Automatic retries, cross-provider fallback and structured-output capability probing remain unimplemented.
+**Implemented AI:** [Main-owned service](../src/platform/ai/service.ts) snapshots the selected provider, model and credential at request creation. OpenAI-compatible Chat Completions and explicitly enabled knowledge embeddings are supported. The [shared transport](../src/platform/ai/transport.ts) uses `/v1` for bare endpoints such as `http://127.0.0.1:1234`; explicit API paths such as `/v1` or `/gateway/v1` are preserved, with trailing slashes removed. Streaming chat and the Resume Agent share this URL resolution. The [compatible adapter](../src/platform/ai/compatible.ts) consumes SSE; redirects are rejected. Remote endpoints require HTTPS; loopback HTTP supports local services. Automatic retries, cross-provider fallback and structured-output capability probing remain unimplemented.
 
 [Legacy AI IPC](../src/platform/electron/main/ai-ipc.ts) exposes start/cancel and model discovery and returns events to the initiating trusted frame. [Renderer coordination](../src/app/ai/streamClient.ts) subscribes before invocation, buffers early events and removes subscriptions on terminal events or page disposal. The service bounds requests and context/output sizes, applies the saved AI request timeout to chat and cancels requests on renderer navigation/destruction or shutdown. Provider SSE remains in Main; incremental IPC drives the UI.
 
@@ -119,7 +119,7 @@ Remote views share `persist:job-agent-browser`, retaining website storage across
 
 Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
 
-**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) separately owns optional third-party consumption and [first-party sessions](../src/platform/mcp/first-party-client.ts). All four internal Agents and external hosts use the same 34-tool [Node Server](../src/platform/mcp-server/runtime.ts); caller labels affect audit only. Renderer exposes named workflow IPC, never generic tool execution. [MCP architecture](mcp-architecture.md) owns registration, bounds and shutdown; data architecture owns multi-process recovery.
+**Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) separately owns optional third-party consumption and [first-party sessions](../src/platform/mcp/first-party-client.ts). All four internal Agents and external hosts use the same 42-tool [Node Server](../src/platform/mcp-server/runtime.ts); caller labels affect audit only. Renderer exposes named workflow IPC, never generic tool execution. [MCP architecture](mcp-architecture.md) owns registration, bounds and shutdown; data architecture owns multi-process recovery.
 
 ## 5. Internationalization
 
@@ -143,3 +143,7 @@ Tab histories and context references are memory-only. Retained web segments are 
 - [Product architecture](product-architecture.md): product rules and planned delivery order.
 - [Code architecture](code-architecture.md): source ownership and dependency boundaries.
 - [V1 data architecture and API](data-architecture.md): persistence and business interfaces.
+
+## Smart Note knowledge
+
+The [Knowledge service](../src/platform/knowledge/service.ts) composes safe files, cross-process locks, watcher, index and backup. Main owns provider/GitHub credentials and a loopback authenticated query-embedding broker; standalone MCP falls back to keyword retrieval while Main is offline. [IPC](../src/platform/electron/knowledge-contract.ts) is limited to the trusted app renderer.

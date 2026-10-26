@@ -1,3 +1,4 @@
+import { knowledgeAuditMigration } from './knowledge-audit'
 import type { DatabaseSync } from 'node:sqlite'
 import { createHash } from 'node:crypto'
 import { initialSchema } from './schema'
@@ -13,7 +14,7 @@ import { profileIntroductionMigration } from './profile-introduction'
 export interface Migration { version: number; sql: string }
 export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration },
   { version: 3, sql: capabilityAuditMigration }, { version: 4, sql: runtimeLeaseMigration }, { version: 5, sql: operationReceiptMigration }, { version: 6, sql: chatMigration },
-  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }]
+  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }]
 
 // A new incompatible schema generation. Inspect before any journal/schema writes.
 export const DATABASE_GENERATION = 0x4a415632

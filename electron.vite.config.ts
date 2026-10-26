@@ -6,7 +6,7 @@ import { copyFileSync, mkdirSync, cpSync, rmSync } from 'node:fs'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), { name: 'profile-pdf-worker', writeBundle() {
+    plugins: [externalizeDepsPlugin({ exclude: ['chokidar'] }), { name: 'profile-pdf-worker', writeBundle() {
       mkdirSync(resolve(__dirname, 'out/main'), { recursive: true })
       cpSync(resolve(__dirname, 'resources/fonts'), resolve(__dirname, 'out/main/fonts'), { recursive: true })
       rmSync(resolve(__dirname, 'out/main/skills'), { recursive: true, force: true })

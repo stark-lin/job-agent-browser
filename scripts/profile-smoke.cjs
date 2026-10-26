@@ -149,6 +149,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     for (let index = 0; index < 101; index++) await data('addFact', { profileId: profile.id, details: { kind: 'SKILL', content: `Pagination ${index}` } })
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded
     await waitFor(() => evaluate('document.body.innerText.includes("Pagination 100")'), 'all fact pages restored after reload')
+    await waitFor(() => evaluate(`document.querySelector(".profile-page form textarea")?.value === ${JSON.stringify(body.contact.introduction)}`), 'contact draft hydrated after profile reload')
     assert.equal(await evaluate('document.querySelector(".profile-page form textarea").value'), body.contact.introduction)
     await button('Delete', factCard('Pagination 0')); await button('Delete', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 104, 'individual fact deletion')
@@ -198,10 +199,11 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await call('closeTab', otherTabId)
     console.log('Profile smoke passed: manual CRUD, multiple facts, real PDF Worker/SSE, explicit saves and ignored content, partial saves, duplicate upload, pagination/reload, bilingual themes/responsive layout and leave/window guards.')
   } finally {
-    dialog.showOpenDialog = oldOpen; dialog.showMessageBox = oldMessage; dialog.showMessageBoxSync = oldSync
+    dialog.showOpenDialog = oldOpen; dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); dialog.showMessageBoxSync = () => 1
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)
     await settings({ ai: original.ai, language: original.language, theme: original.theme })
     await call('navigate', 'app://home')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
+    dialog.showMessageBox = oldMessage; dialog.showMessageBoxSync = oldSync
   }
 }

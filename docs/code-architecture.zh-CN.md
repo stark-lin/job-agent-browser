@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
+用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -34,7 +34,7 @@ src/
 │   ├── home/
 │   ├── find-jobs/
 │   ├── tailor-resume/
-│   ├── interview-prep/
+│   ├── knowledge/
 │   ├── applications/
 │   ├── inbox/
 │   ├── profile/
@@ -47,7 +47,7 @@ src/
 │   ├── chat/
 │   ├── candidate/
 │   ├── application/
-│   ├── interview/
+│   ├── knowledge/
 │   └── common/
 ├── platform/
 │   ├── electron/
@@ -80,7 +80,7 @@ src/
     └── tools/
 ```
 
-Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Interview Prep 仍为占位。局部模块按需创建，目录/文件本身不代表行为实现。
+Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。
 
 ## 三、依赖与进程组装
 
@@ -160,3 +160,7 @@ Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbo
 - [当前架构](architecture.zh-CN.md)：运行、行为与安全。
 - [V1 数据架构与 API](data-architecture.zh-CN.md)：持久化语义和能力。
 - [README](../README.zh-CN.md)：启动、验证及文档索引。
+
+## 智能笔记知识库
+
+[Knowledge Domain](../src/domain/knowledge/index.ts)负责类型与纯验证，[Platform knowledge](../src/platform/knowledge/service.ts)负责文件/Git/SQLite/网络适配器；[pages/knowledge](../src/pages/knowledge/KnowledgePage.tsx)只调用类型化 bridge。Agent 不导入该服务，所有知识操作均经过 MCP。

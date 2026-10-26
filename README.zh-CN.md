@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-面向求职的本地优先桌面工作空间。状态：React 导航、Browser/Inbox、设置、流式 AI、SQLite/审计、个人资料编辑/PDF 导入、职位采集/申请及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。面试准备仍为**占位**；更多产品流程仍为**规划**。
+面向求职的本地优先桌面工作空间。状态：React 导航、Browser/Inbox、设置、流式 AI、SQLite/审计、个人资料编辑/PDF 导入、职位采集/申请及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](README.md)
 
@@ -64,3 +64,7 @@ npm run test:ask-ai
 | [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 20 表模型，由中英文数据架构共用 |
 | [设计纲要](DESIGN.zh-CN.md) · [English](DESIGN.md) | 视觉方向、交互原则与 UI 设计入口 |
 | [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |
+
+## 智能笔记知识库
+
+智能笔记以唯一本地 Markdown 文件树提供编辑/分栏/预览、恢复快照、可选 GitHub 备份与混合检索。用户和 MCP Agent 共用知识库，embeddings 必须显式启用。见[知识存储](docs/data-architecture.zh-CN.md)与 [MCP 工具](docs/mcp-architecture.zh-CN.md)。

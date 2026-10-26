@@ -188,3 +188,7 @@ The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads
 - [Code architecture](code-architecture.md): source ownership and quality checks.
 - [Product architecture](product-architecture.md): planned product scope.
 - [README](../README.md): validation commands and documentation index.
+
+## Smart Note knowledge
+
+Files are truth: userData/knowledge contains canonical Markdown; no Note table exists. knowledge-index.sqlite is disposable and independent of database.sqlite. [Backup](../src/platform/knowledge/git/backup.ts) snapshots Markdown only; restore first snapshots current files and journals multi-file replacement. Revision checks reject stale writes. Delete retains Git history; Git omits empty directories.

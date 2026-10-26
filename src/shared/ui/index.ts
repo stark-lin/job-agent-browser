@@ -16,3 +16,6 @@ export { DocumentPreview } from './DocumentPreview'
 export { StageProgress } from './StageProgress'
 export { ChatMessage, Collapsible, ActivityRow, SessionEntry, Drawer, ComposerSurface } from './Conversation'
 export { Markdown } from './Markdown'
+
+export { MarkdownEditor } from './MarkdownEditor'
+export { ExplorerRow, ResizableExplorer } from './KnowledgeControls'

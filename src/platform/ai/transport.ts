@@ -16,7 +16,7 @@ export function requestConfig(settings: AISettings, key: (id: string) => string 
   return { ...config, model: choice.modelId, timeoutMs: (settings.timeouts ?? defaultAITimeouts).requestSeconds * 1000 }
 }
 /** Bare server endpoints use /v1; explicit API roots retain their path prefix. */
-export function openAIURL(endpoint: string, resource: 'chat/completions' | 'models'): string {
+export function openAIURL(endpoint: string, resource: 'chat/completions' | 'models' | 'embeddings'): string {
   const url = new URL(endpoint.trim())
   const root = url.pathname.replace(/\/+$/, '') || '/v1'
   url.pathname = `${root}/${resource}`

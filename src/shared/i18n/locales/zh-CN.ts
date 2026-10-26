@@ -2,6 +2,64 @@ import type { en } from './en'
 type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translation<T[K]> }
 
 export const zhCN = {
+  knowledge: {
+  "backupPending": "待创建恢复快照",
+  "explorer": "资源管理器",
+  "newFile": "新建文件",
+  "newFolder": "新建目录",
+  "createReadme": "创建 README",
+  "rename": "重命名 / 移动",
+  "delete": "删除",
+  "actions": "知识库操作",
+  "path": "相对路径",
+  "resize": "调整资源管理器宽度",
+  "search": "搜索笔记",
+  "noResults": "没有匹配的笔记。",
+  "close": "关闭",
+  "loading": "正在读取知识库…",
+  "edit": "编辑",
+  "split": "分栏",
+  "preview": "预览",
+  "history": "历史",
+  "sync": "立即备份 / 同步",
+  "saving": "正在保存…",
+  "pending": "有待保存修改",
+  "saved": "已保存",
+  "empty": "打开 Markdown 文件，或创建第一篇笔记。",
+  "editor": "Markdown 编辑器",
+  "cancel": "取消",
+  "confirm": "确认",
+  "error": "操作未能完成，当前草稿会保留。",
+  "externalConflict": "此文件已被外部修改或删除。可重新加载磁盘版本，或将草稿另存为新文件。",
+  "reload": "重新加载磁盘版本",
+  "saveAs": "草稿另存为…",
+  "deleteHelp": "删除此文件或整个目录？删除前必须成功创建恢复快照。备份历史会保留。",
+  "historyHelp": "快照覆盖整个知识库。Git 不保存空目录。",
+  "restore": "恢复此版本",
+  "restoreHelp": "将全部 Markdown 文件恢复为此版本？恢复前会先备份当前文件。",
+  "more": "加载更多",
+  "local": "本地备份已保存",
+  "synced": "已同步",
+  "conflict": "备份冲突：已保留双方历史，请查看冲突分支。",
+  "failed": "备份失败，远端同步未完成。",
+  "settingsTitle": "知识备份与检索",
+  "settingsHelp": "Markdown 文件保存在本地。GitHub 只备份 Markdown，检索索引可以重建。",
+  "remote": "GitHub 仓库",
+  "branch": "远端分支",
+  "token": "GitHub Token",
+  "tokenHelp": "使用有权访问已有仓库的 Token，凭据会在本地加密。",
+  "tokenConfigured": "已配置 Token，不会返回凭据原文。",
+  "saveToken": "保存 Token",
+  "removeToken": "移除 Token",
+  "semanticEnable": "启用语义索引",
+  "semanticHelp": "启用后，笔记片段与搜索查询会发送给所选 embedding 服务。未启用时关键词搜索仍可使用。",
+  "provider": "Embedding 服务",
+  "chooseProvider": "选择已配置的服务",
+  "model": "Embedding 模型",
+  "saveSettings": "保存知识库设置",
+  "rebuild": "重建检索索引",
+  "rebuilt": "检索索引已重建"
+},
   ask: {
   "sessions": "会话",
   "openSessions": "打开会话列表",
@@ -86,6 +144,8 @@ export const zhCN = {
     "updateProfileItem": "更新资料条目",
     "addProfileFact": "新增资料事实",
     "updateProfileFact": "更新资料事实",
+    "knowledgeRead": "读取知识",
+    "knowledgeWrite": "更新知识",
     "buildArtifact": "生成 HTML/PDF",
     "tool": "执行操作"
   },
@@ -118,18 +178,18 @@ export const zhCN = {
 },
   app: { title: 'Job Agent Browser', loadingWorkspace: '正在加载工作区…' },
   navigation: {
-    pages: { home: '主页', find: '新增工作', resume: '定制简历', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
+    pages: { home: '主页', find: '新增工作', resume: '定制简历', knowledge: '智能笔记', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
     back: '后退', home: '主页', forward: '前进', goHome: '回到主页', goBack: '返回', goForward: '前进',
     pageNavigation: '页面导航', openSettings: '打开设置', workspaceNavigation: '工作区导航',
     sections: { search: '求职', manage: '管理', tools: '工具' }
   },
   home: {
     heading: '你想做什么？', subtitle: '在一个工作区中完成求职所需的一切。', footer: '专注于整个求职过程的工作区。', comingSoon: '{{label}} — 即将推出',
-    cards: { find: '手工新增或采集职位 URL、文本或 PDF', resume: '为特定职位调整简历', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
+    cards: { knowledge: "统一维护求职知识，让 AI 直接检索和修改。", find: '手工新增或采集职位 URL、文本或 PDF', resume: '为特定职位调整简历', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
   },
   features: {
     comingSoon: '即将推出', notImplemented: '此功能尚未实现。',
-    descriptions: { find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
+    descriptions: { knowledge: "统一维护求职知识，让 AI 直接检索和修改。", find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
   },
   imports: {
     mode: '导入模式', single: '普通模式', parallel: '并行模式',

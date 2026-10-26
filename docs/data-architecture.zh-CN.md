@@ -188,3 +188,7 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 - [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。
 - [产品架构](product-architecture.zh-CN.md)：规划的产品范围。
 - [README](../README.zh-CN.md)：验证命令与文档索引。
+
+## 智能笔记知识库
+
+Files are truth：userData/knowledge 保存规范 Markdown，不建 Note 表；knowledge-index.sqlite 是独立于 database.sqlite 的可重建缓存。[备份](../src/platform/knowledge/git/backup.ts)只保存 Markdown；恢复前先快照当前文件，多文件替换使用恢复日志，版本检查拒绝过期写入。删除保留 Git 历史，Git 不保存空目录。

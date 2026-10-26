@@ -159,3 +159,7 @@ Native bounds consume [generated geometry](../src/shared/ui/geometry.ts) through
 - [Current architecture](architecture.md): implemented behavior and limitations.
 - [Code architecture](code-architecture.md): dependency boundaries and page ownership.
 - [Product architecture](product-architecture.md): planned business workflows represented by examples.
+
+## Smart Note knowledge
+
+Central [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx), [ExplorerRow/ResizableExplorer](../src/shared/ui/KnowledgeControls.tsx) and [Markdown](../src/shared/ui/Markdown.tsx) provide CodeMirror controls, accessible tree rows, resizing and safe AST rendering. HTML stays text; remote images do not load. Existing tokens and themes are reused without new geometry tokens.

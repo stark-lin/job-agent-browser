@@ -19,13 +19,13 @@ UI    → typed IPC → Domain
 
 唯一公共组合入口是 [createJobAgentTooling](../src/platform/tools/index.ts)。[Server](../src/platform/mcp-server/server.ts)列出受限描述符，并交由服务端 ToolScope 执行；Registry/Policy 不再是 Agent API。[能力层](../src/platform/tools/capabilities.ts)管理访问/执行审计、受限 JSON/schema 校验和取消，Domain 管理业务校验与状态转换。
 
-[Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含删除、公司写入、SQL、设置、密钥、Provider 配置、浏览器控制、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
+[Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含公司写入、SQL、设置、密钥、Provider 配置、浏览器控制、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
 
 [AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)支持普通及流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
 
 [Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
 
-[Ask Agent](../src/platform/agent/ask.ts)直接接收完整 first-party MCP 发现结果，与外部宿主使用相同的 34 个工具契约：职位导入/读取/更新/归档、资料读取/写入、申请管理、完整 Resume 流程及产物读取/构建。客户端不再通过第二份允许列表缩小范围，服务端策略仍为权限依据。[流式循环](../src/platform/agent/stream-loop.ts)为 Ask AI 提供 64 轮模型调用（其他调用者默认八轮），支持分页证据和顺序提交；共享[简历策略](../src/platform/agent/resume-policy.ts)保留证据和个人介绍规则。第三方工具及委派仍不开放。完整批次校验后顺序执行工具，普通失败成为观察结果，取消或审计失败终止 Run。展示摘要不含原始输入/结果。只有 Main 记录会话事件；记录器不是 Agent 业务 API，不能绕过 MCP 写业务数据。
+[Ask Agent](../src/platform/agent/ask.ts)直接接收完整 first-party MCP 发现结果，与外部宿主使用相同的 42 个工具契约：职位导入/读取/更新/归档、资料读取/写入、申请管理、完整 Resume 流程及产物读取/构建。客户端不再通过第二份允许列表缩小范围，服务端策略仍为权限依据。[流式循环](../src/platform/agent/stream-loop.ts)为 Ask AI 提供 64 轮模型调用（其他调用者默认八轮），支持分页证据和顺序提交；共享[简历策略](../src/platform/agent/resume-policy.ts)保留证据和个人介绍规则。第三方工具及委派仍不开放。完整批次校验后顺序执行工具，普通失败成为观察结果，取消或审计失败终止 Run。展示摘要不含原始输入/结果。只有 Main 记录会话事件；记录器不是 Agent 业务 API，不能绕过 MCP 写业务数据。
 
 ## 三、内部与第三方 Client
 
@@ -57,11 +57,11 @@ UI    → typed IPC → Domain
 
 重新连接会备份并原子重写已核对的 MCP 配置，再验证新的 stdio 连接；策略字段保留，配置写入成功与发现失败分别反馈。确认删除后会备份文件，并仅删除 `job_agent_browser`。两种操作都要求检查时的版本；删除无需可运行的服务，并会取消该目标的待完成连接检查。外部 Agent 进程由宿主管理，用户仍可能需要重新加载或重启以关闭旧连接。
 
-**已实现 Skills 安装：**独立的[类型化 IPC](../src/shared/external-skills.ts)和[可信 Main 处理器](../src/platform/electron/main/external-skills-ipc.ts)提供检查、安装、重新连接、按项删除和打开内置目录。[安装服务](../src/platform/skills/install.ts)将五个固定 Skill 的完整双语文件夹复制到 Codex `~/.agents/skills`、Claude Code `~/.claude/skills` 或 Cursor `~/.cursor/skills`，无需 Agent CLI 或网络。用户级目录遵循官方 [Codex](https://learn.chatgpt.com/docs/build-skills)、[Claude Code](https://code.claude.com/docs/en/skills) 和 [Cursor](https://cursor.com/docs/skills) 文档。[构建](../electron.vite.config.ts)将资源放入 `out/main/skills`，运行时安装不依赖源码仓库。其他 Agent 可通过“打开 Skills 文件夹”手动复制。
+**已实现 Skills 安装：**独立的[类型化 IPC](../src/shared/external-skills.ts)和[可信 Main 处理器](../src/platform/electron/main/external-skills-ipc.ts)提供检查、安装、重新连接、按项删除和打开内置目录。[安装服务](../src/platform/skills/install.ts)将六个固定 Skill 的完整双语文件夹复制到 Codex `~/.agents/skills`、Claude Code `~/.claude/skills` 或 Cursor `~/.cursor/skills`，无需 Agent CLI 或网络。用户级目录遵循官方 [Codex](https://learn.chatgpt.com/docs/build-skills)、[Claude Code](https://code.claude.com/docs/en/skills) 和 [Cursor](https://cursor.com/docs/skills) 文档。[构建](../electron.vite.config.ts)将资源放入 `out/main/skills`，运行时安装不依赖源码仓库。其他 Agent 可通过“打开 Skills 文件夹”手动复制。
 
 检查会读取有大小限制的完整目录树，不创建文件。内容相同不写入，缺失文件夹直接安装；不同文件夹需确认后替换，**不保留备份**，其他 Skills 保留。替换根符号链接仅影响链接本身。临时暂存和版本检查拒绝资源、内容或父目录变化；失败返回已完成/待完成项及重新检查的状态。替换按顺序进行，不是事务。Skills 和 MCP 独立安装，调用工具仍需连接预期 MCP。安装后请重新加载/重启 Agent；文件安装成功不证明 Agent 已发现。尚不支持自定义目录、旧目录迁移、云端安装、自动更新或更改 Agent 启用设置。`CODEX_HOME` 影响 MCP 配置位置，不改变此 Skills 目录。
 
-Skills 重新连接会重新安装五个内置文件夹，即使内容一致。确认删除仅接受五个固定 Skill 名称，支持单项或全部删除；其他文件夹和根符号链接的目标保留。版本检查拒绝过期确认，失败时报告实际已删除和待删除项。删除会移除完整文件夹及本地修改，不保留备份。MCP 配置、已保存的资料和职位相互独立。请重新加载或重启宿主以更新已加载的 Skills。
+Skills 重新连接会重新安装六个内置文件夹，即使内容一致。确认删除仅接受六个固定 Skill 名称，支持单项或全部删除；其他文件夹和根符号链接的目标保留。版本检查拒绝过期确认，失败时报告实际已删除和待删除项。删除会移除完整文件夹及本地修改，不保留备份。MCP 配置、已保存的资料和职位相互独立。请重新加载或重启宿主以更新已加载的 Skills。
 
 手动接入 MCP 时，先构建再为宿主配置绝对路径：
 
@@ -76,7 +76,7 @@ JOB_BROWSER_USER_DATA = "/absolute/path/existing-user-data"
 JOB_BROWSER_MCP_CALLER = "codex"
 ```
 
-内部 Agent、Codex 和其他外部 MCP 宿主是平等 Client，发现相同的 34 个工具：
+内部 Agent、Codex 和其他外部 MCP 宿主是平等 Client，发现相同的 42 个工具：
 
 | 公共能力 | 契约 |
 | --- | --- |
@@ -103,7 +103,7 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 
 双语 [distill-resume](../skills/distill-resume/SKILL.zh-CN.md)从简历提取资料、条目和有来源事实；[distill-project](../skills/distill-project/SKILL.zh-CN.md)从项目/仓库提取实现证据，区分文档、代码、实测和用户贡献。两者均先匹配既有记录，通过相同 MCP 写入，遇到实质冲突再追问；批量导入由多次顺序调用组成，不保证整体原子性。
 
-双语 [capture-job](../skills/capture-job/SKILL.zh-CN.md)、[manage-applications](../skills/manage-applications/SKILL.zh-CN.md)、[tailor-resume](../skills/tailor-resume/SKILL.zh-CN.md)是标准推理指南。[skill:link](../scripts/install-skills.cjs)幂等安装五个仓库链接，拒绝覆盖无关目标。运行时 Prompt 实现相同流程，不把 Skill 文本作为业务规则加载。
+双语 [capture-job](../skills/capture-job/SKILL.zh-CN.md)、[manage-applications](../skills/manage-applications/SKILL.zh-CN.md)、[tailor-resume](../skills/tailor-resume/SKILL.zh-CN.md)是标准推理指南。[skill:link](../scripts/install-skills.cjs)幂等安装六个仓库链接，拒绝覆盖无关目标。运行时 Prompt 实现相同流程，不把 Skill 文本作为业务规则加载。
 
 ## 六、验证与待交付内容
 
@@ -118,3 +118,7 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 - [代码架构](code-architecture.zh-CN.md)：依赖与进程边界。
 - [数据架构](data-architecture.zh-CN.md)：存储、receipt 与审计。
 - [当前架构](architecture.zh-CN.md)：产品运行与限制。
+
+## 智能笔记知识库
+
+[Knowledge 工具](../src/platform/tools/knowledge.ts)新增 knowledge.list/read/search/retrieve/write/mkdir/move/delete，提供受限 schema 与版本检查。删除是此前不公开删除策略的知识库专用例外，必须有用户意图。审计迁移 9 保留历史行并新增 opaque knowledge 目标，不记录路径、查询与正文。[面试准备](../skills/interview-prep/SKILL.zh-CN.md)使用相同工具。

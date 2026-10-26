@@ -226,3 +226,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-markdown-table { max-width: 100%; overflow: auto; margin-bottom: var(--space-2); }
 .ui-markdown table { border-collapse: collapse; width: 100%; }
 .ui-markdown td, .ui-markdown th { padding: var(--space-1); border: var(--border-width) solid var(--line); text-align: left; }
+
+/* Knowledge controls share the central tokens and focus behavior. */
+.ui-explorer { flex-shrink:0; min-width:192px; max-width:480px; overflow:auto; background:var(--panel-solid); }
+.ui-explorer-row { display:flex; align-items:center; min-height:var(--control-sm); cursor:pointer; width:100%; justify-content:flex-start; gap:var(--space-1); text-align:left; white-space:nowrap; }
+.ui-explorer-row[aria-selected="true"] { background:var(--primary-soft); color:var(--primary); }
+.ui-resizer { width:8px; flex-shrink:0; cursor:col-resize; background:var(--bg); touch-action:none; }
+.ui-resizer:focus-visible { outline:var(--focus-width) solid var(--primary); outline-offset:calc(-1 * var(--focus-width)); }
+.ui-markdown-editor { height:100%; min-height:224px; overflow:hidden; }
+
+.ui-explorer-row:hover { background:var(--primary-soft); }
+.ui-explorer-row:focus-visible { outline:var(--focus-width) solid var(--primary); outline-offset:calc(-1 * var(--focus-width)); }

@@ -4,7 +4,7 @@ const { resolve } = require('node:path')
 
 module.exports = async function navigationSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut }) {
   const routes = [
-    ['Add Job', 'find'], ['Tailor Resume', 'resume'],
+    ['Add Job', 'find'], ['Tailor Resume', 'resume'], ['Smart Note', 'knowledge'],
     ['Applications', 'applications'], ['Inbox', 'inbox'], ['My Profile', 'profile'],
     ['Ask AI', 'ai'], ['Settings', 'settings']
   ]
@@ -37,15 +37,15 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     await internal(page)
     if (page === 'ai') await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI conversation surface')
     else await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
-    assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume'].includes(page))
+    assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume', 'knowledge'].includes(page))
     if (page === 'settings') await waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings forms')
-    else if (page !== 'ai') assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
+    else if (!['ai','knowledge'].includes(page)) assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
     if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {
       await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent === 'Open Settings').click()")
       await internal('settings')
     }
-    if (page === 'ai') await evaluate('document.querySelector(".ui-sidebar button[aria-label=Home]").click()')
+    if (['ai','knowledge'].includes(page)) await evaluate('document.querySelector(".ui-sidebar button[aria-label=Home]").click()')
     else {
       await waitFor(() => evaluate('!!document.querySelector(".settings-navigation button, .page-actions button")'), 'Go home button')
       await evaluate('document.querySelector(".settings-navigation button, .page-actions button").click()')

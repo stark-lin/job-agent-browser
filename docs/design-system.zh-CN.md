@@ -159,3 +159,7 @@ npm run quality
 - [当前架构](architecture.zh-CN.md)：已实现行为与限制。
 - [代码架构](code-architecture.zh-CN.md)：依赖边界与页面归属。
 - [产品架构](product-architecture.zh-CN.md)：示例代表的规划业务流程。
+
+## 智能笔记知识库
+
+中央 [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx)、[ExplorerRow/ResizableExplorer](../src/shared/ui/KnowledgeControls.tsx) 与 [Markdown](../src/shared/ui/Markdown.tsx)提供 CodeMirror、可访问树节点、宽度调整和安全 AST 渲染。HTML 保持文本，不加载远程图片。复用现有 Token 和主题，不新增几何 Token。

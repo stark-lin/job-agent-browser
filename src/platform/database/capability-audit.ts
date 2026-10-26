@@ -29,7 +29,7 @@ export function createCapabilityAudit(db: DatabaseSync) {
       const { invocationId, agentId, runId, tool, target } = context
       validateDescriptor(tool)
       if (!uuid.test(invocationId) || !/^[a-z][a-z0-9_.-]{0,63}$/.test(agentId) || (runId !== undefined && !uuid.test(runId)) ||
-        (target && (!['job', 'profile', 'artifact'].includes(target.type) || !uuid.test(target.id)))) throw new ToolError('TOOL_AUDIT_UNAVAILABLE')
+        (target && (!['job', 'profile', 'artifact', 'knowledge'].includes(target.type) || !uuid.test(target.id)))) throw new ToolError('TOOL_AUDIT_UNAVAILABLE')
       write(() => {
         if (runtime && !runtime.live(runtime.id)) throw new ToolError('TOOL_AUDIT_UNAVAILABLE')
         db.prepare(`INSERT INTO capability_audit(invocation_id,phase,timestamp,agent_id,run_id,tool_name,mode,server_id,original_name,

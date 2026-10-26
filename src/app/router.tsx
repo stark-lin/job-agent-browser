@@ -1,3 +1,4 @@
+import { KnowledgePage } from '../pages/knowledge'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import { useNavigation } from './navigation/navigate'
@@ -14,7 +15,7 @@ import { isBrowserDestination, isInboxDestination } from '../shared/navigation'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 
 const featurePages = {
-  find: AddJobPage, resume: TailorResumePage,
+  find: AddJobPage, resume: TailorResumePage, knowledge: KnowledgePage,
   applications: ApplicationsPage, inbox: InboxPage, profile: ProfilePage,
   ai: AskAIPage, settings: SettingsPage
 }
