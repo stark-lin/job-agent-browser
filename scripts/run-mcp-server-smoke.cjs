@@ -8,6 +8,7 @@ const { Client } = require('@modelcontextprotocol/client')
 const { StdioClientTransport } = require('@modelcontextprotocol/client/stdio')
 const { createBackend } = require('../.cache/tests/src/platform/database/backend.js')
 const { extractPdf } = require('../.cache/tests/src/platform/import/pdf.js')
+const { nativeMCPEnvironment } = require('../.cache/tests/src/platform/mcp/native-environment.js')
 const { jobAgentAllowlist } = require('../.cache/tests/src/platform/tools/index.js')
 
 async function until(check, message) {
@@ -24,7 +25,7 @@ async function main() {
   const fact = dispatch('profiles', 'addFact', { profileId: profile.id, profileItemId: item.id, details: { kind: 'ACHIEVEMENT', content: 'Built TypeScript services with automated tests.' } })
   const baseline = backend.resumes.createRun({ jobId: job.id, profileId: profile.id }); backend.generation.start({ id: baseline.id })
   const client = new Client({ name: 'codex-smoke', version: '1' })
-  const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: resolve(__dirname, '..'), env: { JOB_BROWSER_USER_DATA: directory }, stderr: 'pipe', maxBufferSize: 2097152 })
+  const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: resolve(__dirname, '..'), env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'pipe', maxBufferSize: 2097152 })
   let diagnostics = ''
   transport.stderr?.on('data', chunk => { if (diagnostics.length < 4000) diagnostics += chunk })
   const call = async (name, args) => { const result = await client.callTool({ name, arguments: args }, { timeout: 100000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
@@ -84,7 +85,7 @@ async function main() {
     assert.equal(backend.resumes.getRun({ id: unfinished.runId }).run.status, 'INTERRUPTED')
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING')
     const crashed = new Client({ name: 'crash-smoke', version: '1' })
-    const crashTransport = new StdioClientTransport({ command: process.execPath, args: [entry], env: { JOB_BROWSER_USER_DATA: directory }, stderr: 'ignore' })
+    const crashTransport = new StdioClientTransport({ command: process.execPath, args: [entry], env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'ignore' })
     try {
       await crashed.connect(crashTransport)
       const result = await crashed.callTool({ name: 'resume.start', arguments: { jobId: job.id, profileId: profile.id, requestId: randomUUID() } })

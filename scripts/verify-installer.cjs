@@ -16,7 +16,9 @@ function main() {
       mkdirSync(mountpoint)
       run('hdiutil', ['attach', '-nobrowse', '-readonly', '-mountpoint', mountpoint, installer])
       mounted = true
-      cpSync(join(mountpoint, 'JAB.app'), join(destination, 'JAB.app'), { recursive: true })
+      cpSync(join(mountpoint, 'JAB.app'), join(destination, 'JAB.app'), { recursive: true, verbatimSymlinks: true })
+      run('hdiutil', ['detach', '-force', mountpoint])
+      mounted = false
       run(process.execPath, [join(__dirname, 'verify-package.cjs'), join(destination, 'JAB.app')])
     } else if (process.platform === 'win32') {
       run(installer, ['/S', '/D=' + destination])
@@ -28,7 +30,7 @@ function main() {
     }
     console.log('Distributed installer extraction/installation and runtime verified.')
   } finally {
-    if (mounted) run('hdiutil', ['detach', mountpoint])
+    if (mounted) run('hdiutil', ['detach', '-force', mountpoint])
     if (installed) {
       const uninstaller = join(destination, 'Uninstall JAB.exe')
       if (!existsSync(uninstaller)) throw new Error('UNINSTALLER_MISSING')

@@ -32,7 +32,7 @@ async function main() {
     assert.equal(result.error, undefined)
     assert.equal(result.status, 0, 'Packaged runtime failed')
     const report = JSON.parse(readFileSync(join(directory, 'package-verification.json'), 'utf8'))
-    assert(report.ok && report.dimensions === 384 && report.forks === 1)
+    assert(report.ok && report.pdfVerified && report.dimensions === 384 && report.forks === 1)
     assert.equal(report.arch, process.arch, 'Verification must run on the target architecture')
     console.log('Package verified:', JSON.stringify(report))
   } finally { rmSync(directory, { recursive: true, force: true }) }

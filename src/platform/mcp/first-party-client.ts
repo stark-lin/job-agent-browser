@@ -53,7 +53,7 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
           args: [join(bundleDirectory, 'job-agent-mcp.js')], tools: [] }, {
           closed() { closed.abort(new ToolError('TOOL_UNAVAILABLE')); clients.delete(client); if (sessions.get(agent) === pending) sessions.delete(agent) },
           changed() { closed.abort(new ToolError('MCP_INVALID_RESPONSE')); void client.close() }
-        }, { processEnv: { JOB_BROWSER_USER_DATA: directory, JOB_BROWSER_MCP_CALLER: `internal.${agent}`, ELECTRON_RUN_AS_NODE: '1' } })
+        }, { processEnv: { ...(process.versions.electron ? { JOB_BROWSER_ELECTRON: process.execPath } : {}), JOB_BROWSER_USER_DATA: directory, JOB_BROWSER_MCP_CALLER: `internal.${agent}`, ELECTRON_RUN_AS_NODE: '1' } })
         clients.add(client)
         pending = (async () => {
           try {

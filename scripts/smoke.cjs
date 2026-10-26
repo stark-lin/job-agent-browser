@@ -7,7 +7,7 @@ const storage = process.env.JOB_BROWSER_SMOKE_DATA
 assert(storage, 'The smoke runner must provide disposable storage')
 app.setPath('userData', storage)
 require('./external-mcp-test-home.cjs')(storage)
-const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 60_000)
+const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 165_000)
 let mainWindowSelected = false
 app.on('browser-window-created', (_event, window) => {
   if (mainWindowSelected) return

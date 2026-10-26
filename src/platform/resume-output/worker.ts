@@ -3,6 +3,8 @@ import { isAbsolute } from 'node:path'
 import { content } from '../../domain/resume/resume.validation'
 import { exportDocument } from './exporter'
 
+if (process.env.JOB_BROWSER_RENDER_DATA) app.setPath('userData', process.env.JOB_BROWSER_RENDER_DATA)
+
 // This worker owns only rendering. Its parent owns SQLite, output paths and cancellation.
 const deadline = setTimeout(() => app.exit(1), 65000)
 app.on('window-all-closed', () => {})
@@ -17,3 +19,5 @@ process.once('message', (value: unknown) => {
     process.send?.({ html: result.html, pdf: result.pdf.toString('base64'), pages: result.pages }, error => { clearTimeout(deadline); app.exit(error ? 1 : 0) })
   })().catch(() => { clearTimeout(deadline); app.exit(1) })
 })
+
+process.send?.({ ready: true })

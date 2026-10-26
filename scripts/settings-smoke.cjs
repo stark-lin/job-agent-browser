@@ -5,7 +5,7 @@ const { resolve } = require('node:path')
 
 module.exports = async function settingsSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin }) {
   const frames = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-  const formsReady = () => waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings forms ready')
+  const formsReady = () => waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms ready')
   const field = async (selector, value, type = 'input') => {
     await evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(selector)});

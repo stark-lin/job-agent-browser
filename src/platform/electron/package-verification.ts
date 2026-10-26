@@ -1,3 +1,4 @@
+import { verifyResumePackage } from './verify-resume-package'
 import { app, utilityProcess } from 'electron'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
@@ -49,10 +50,11 @@ export async function verifyEmbeddingRuntime(bundleDirectory: string, modelsDire
     const result = await session.call('knowledge.retrieve', { query: '哪家公司工作环境相对灵活？', maxContext: 4000 }, signal)
     check(JSON.stringify(result).includes('company.md'), 'packaged stdio MCP and broker retrieval')
     check(forks === 1, 'one embedding process shared with MCP')
+    await verifyResumePackage(backend, mcp, bundleDirectory)
     await provider.dispose()
     const keyword = await service.search('SQLite')
     check(!keyword.semantic && keyword.items.some(item => item.path === 'database.md'), 'keyword fallback')
-    return { ok: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
+    return { ok: true, pdfVerified: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
   } finally {
     await stop?.()
     await mcp.dispose()

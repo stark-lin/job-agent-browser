@@ -15,7 +15,8 @@ export default defineConfig({
     } }],
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/platform/electron/main/index.ts'),
+        input: { index: resolve(__dirname, 'src/platform/electron/main/bootstrap.ts'),
+          'application-main': resolve(__dirname, 'src/platform/electron/main/index.ts'),
           'job-agent-mcp': resolve(__dirname, 'src/platform/mcp-server/stdio.ts'),
           'resume-output-worker': resolve(__dirname, 'src/platform/resume-output/worker.ts'),
           'embedding-process': resolve(__dirname, 'src/platform/knowledge/rag/embedding-process.ts') },
