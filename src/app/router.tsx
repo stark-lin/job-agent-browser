@@ -5,7 +5,6 @@ import { HomePage } from '../pages/home/HomePage'
 import { BrowserPage } from '../pages/browser'
 import { AddJobPage } from '../pages/find-jobs'
 import { TailorResumePage } from '../pages/tailor-resume'
-import { InterviewPrepPage } from '../pages/interview-prep'
 import { ApplicationsPage } from '../pages/applications'
 import { InboxPage } from '../pages/inbox'
 import { ProfilePage } from '../pages/profile'
@@ -15,7 +14,7 @@ import { isBrowserDestination, isInboxDestination } from '../shared/navigation'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 
 const featurePages = {
-  find: AddJobPage, resume: TailorResumePage, interview: InterviewPrepPage,
+  find: AddJobPage, resume: TailorResumePage,
   applications: ApplicationsPage, inbox: InboxPage, profile: ProfilePage,
   ai: AskAIPage, settings: SettingsPage
 }

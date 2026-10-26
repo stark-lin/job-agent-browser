@@ -120,7 +120,7 @@ export const en = {
   },
   navigation: {
     pages: {
-      home: 'Home', find: 'Add Job', resume: 'Tailor Resume', interview: 'Interview Prep',
+      home: 'Home', find: 'Add Job', resume: 'Tailor Resume', 
       applications: 'Applications', inbox: 'Inbox', profile: 'My Profile',
       browser: 'Browser', ai: 'Ask AI', settings: 'Settings'
     },
@@ -136,7 +136,7 @@ export const en = {
     comingSoon: '{{label}} — Coming soon',
     cards: {
       find: 'Add manually or import from a job URL', resume: 'Adapt your resume to a role',
-      interview: 'Prepare for a specific role', applications: 'Review saved jobs and application status',
+      applications: 'Review saved jobs and application status',
       inbox: 'Hiring emails and application updates', profile: 'Resume, experience and preferences',
       browser: 'Open the web freely', ai: 'Work with your job-search context',
       settings: 'AI, browser and app preferences'
@@ -146,7 +146,7 @@ export const en = {
     comingSoon: 'Coming soon', notImplemented: 'This feature is not implemented yet.',
     descriptions: {
       find: 'Add manually or import from a job URL.', resume: 'Adapt your resume to a role.',
-      interview: 'Prepare for a specific role.', applications: 'Review saved jobs and application status.',
+      applications: 'Review saved jobs and application status.',
       inbox: 'Job-seeking email will open your configured webmail.',
       profile: 'Manage your resume, experience and preferences.',
       ai: 'Work with your job-search context.', settings: 'Configure AI, browser and application preferences.'

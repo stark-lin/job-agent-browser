@@ -118,18 +118,18 @@ export const zhCN = {
 },
   app: { title: 'Job Agent Browser', loadingWorkspace: '正在加载工作区…' },
   navigation: {
-    pages: { home: '主页', find: '新增工作', resume: '定制简历', interview: '面试准备', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
+    pages: { home: '主页', find: '新增工作', resume: '定制简历', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
     back: '后退', home: '主页', forward: '前进', goHome: '回到主页', goBack: '返回', goForward: '前进',
     pageNavigation: '页面导航', openSettings: '打开设置', workspaceNavigation: '工作区导航',
     sections: { search: '求职', manage: '管理', tools: '工具' }
   },
   home: {
     heading: '你想做什么？', subtitle: '在一个工作区中完成求职所需的一切。', footer: '专注于整个求职过程的工作区。', comingSoon: '{{label}} — 即将推出',
-    cards: { find: '手工新增或采集职位 URL、文本或 PDF', resume: '为特定职位调整简历', interview: '为特定职位准备面试', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
+    cards: { find: '手工新增或采集职位 URL、文本或 PDF', resume: '为特定职位调整简历', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
   },
   features: {
     comingSoon: '即将推出', notImplemented: '此功能尚未实现。',
-    descriptions: { find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', interview: '为特定职位准备面试。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
+    descriptions: { find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
   },
   imports: {
     mode: '导入模式', single: '普通模式', parallel: '并行模式',

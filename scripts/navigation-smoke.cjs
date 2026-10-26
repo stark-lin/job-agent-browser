@@ -4,7 +4,7 @@ const { resolve } = require('node:path')
 
 module.exports = async function navigationSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut }) {
   const routes = [
-    ['Add Job', 'find'], ['Tailor Resume', 'resume'], ['Interview Prep', 'interview'],
+    ['Add Job', 'find'], ['Tailor Resume', 'resume'],
     ['Applications', 'applications'], ['Inbox', 'inbox'], ['My Profile', 'profile'],
     ['Ask AI', 'ai'], ['Settings', 'settings']
   ]
