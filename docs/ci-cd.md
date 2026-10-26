@@ -10,7 +10,7 @@ Changes integrate into `dev` first. Feature branches use `codex/` and target `de
 
 [Release](../.github/workflows/release.yml) runs on every push to `main`, including merged PRs, and supports manual dispatch on `main`. It checks out the event SHA throughout, reruns validation, builds all four targets and publishes one GitHub prerelease. A tag push is not required. Direct main pushes also trigger release; branch protection must prevent ordinary direct pushes.
 
-Configure GitHub branch protection for `main` and `dev`: require a PR and `CI required`, require the branch to be up to date, disallow force pushes/deletion, and resolve conversations. The integration owner can push initial/integration commits to `dev`; protection should preserve this approved integration path. Enable merge-queue events only if using the queue. Workflow files alone do not configure repository protection.
+Repository protection requires a PR, up-to-date `CI required`, resolved conversations and administrator enforcement on `main`. Both branches reject force pushes/deletion. `dev` accepts ordinary integration pushes and runs CI afterward, preserving the approved integration path. Enable merge-queue events only if using the queue. Workflow files alone do not configure repository protection.
 
 ## Validation and native packaging
 
@@ -39,7 +39,7 @@ npm run package:verify -- /absolute/path/to/unpacked-app
 
 ## Version, artifacts and publication
 
-[Version metadata](../scripts/release-metadata.cjs) derives `base-main.RUN.SHA7` from package version, workflow run number and commit. The tag is prefixed `v`; Windows uses the numeric `base.RUN` file version. Rerunning the same workflow retains the version; numeric components above 65535 fail explicitly. New manual dispatches are distinct builds.
+[Version metadata](../scripts/release-metadata.cjs) derives `base-main.RUN.gSHA7` from package version, workflow run number and commit. The tag is prefixed `v`; Windows uses the numeric `base.RUN` file version. Rerunning the same workflow retains the version; numeric components above 65535 fail explicitly. New manual dispatches are distinct builds.
 
 The model uses a cache keyed by the complete manifest hash and is reverified on cache hits. Final installers and per-target manifests use short-lived Actions artifacts (7 days, no recompression). Raw model files are never uploaded as artifacts. Each target records the commit, model revision/manifest digest, architecture, signing mode, installer size/hash and successful runtime verification.
 

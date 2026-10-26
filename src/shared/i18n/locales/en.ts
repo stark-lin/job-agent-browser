@@ -50,7 +50,7 @@ export const en = {
   "saveToken": "Save token",
   "removeToken": "Remove token",
   "semanticEnable": "Enable semantic indexing",
-  "semanticUnavailable": "Semantic search is currently unavailable. Keyword search remains available. For development, prepare the bundled model and retry.",
+  "semanticUnavailable": "Semantic search is currently unavailable. Keyword search remains available.",
   "semanticHelp": "Built-in multilingual embedding model. Notes and search queries are processed entirely on this device. Keyword search remains available while the index builds or the model is unavailable.",
   "provider": "Embedding provider",
   "chooseProvider": "Select a configured provider",

@@ -10,7 +10,7 @@
 
 [Release](../.github/workflows/release.yml)在每次 `main` push（包括合并 PR）后运行，并支持在 `main` 手动触发。各阶段固定事件 SHA，重新验证、构建四个平台目标，再统一发布 GitHub 预发布版本。无需推送 tag。直接 push main 也会触发发布，因此需通过分支保护阻止普通直接推送。
 
-配置 GitHub 的 `main` 与 `dev` 分支保护：要求 PR 和 `CI required`、分支保持最新、禁止强推和删除、解决讨论。集成负责人可以向 `dev` 推送初始/集成提交；保护应保留此已批准的集成路径。使用合并队列时再启用对应事件。工作流文件本身不会配置仓库保护。
+仓库保护要求 `main` 通过 PR、保持最新的 `CI required`、解决讨论，并约束管理员。两个分支均禁止强推和删除。`dev` 接受普通集成推送并在推送后运行 CI，保留已批准的集成路径。使用合并队列时再启用对应事件。工作流文件本身不会配置仓库保护。
 
 ## 验证与原生打包
 
@@ -39,7 +39,7 @@ npm run package:verify -- /absolute/path/to/unpacked-app
 
 ## 版本、产物与发布
 
-[版本元数据](../scripts/release-metadata.cjs)根据 package 版本、工作流运行编号和提交生成 `base-main.RUN.SHA7`。Tag 加 `v` 前缀；Windows 使用纯数字 `base.RUN` 文件版本。重跑同一工作流保留版本；数字分量超过 65535 时明确失败。新的手动触发属于独立构建。
+[版本元数据](../scripts/release-metadata.cjs)根据 package 版本、工作流运行编号和提交生成 `base-main.RUN.gSHA7`。Tag 加 `v` 前缀；Windows 使用纯数字 `base.RUN` 文件版本。重跑同一工作流保留版本；数字分量超过 65535 时明确失败。新的手动触发属于独立构建。
 
 模型缓存键包含完整 manifest 哈希，命中后仍重新校验。最终安装包与各平台清单使用短期 Actions artifacts（7 天，不重新压缩）。原始模型不作为 artifact 上传。每个平台记录提交、模型 revision/manifest 摘要、架构、签名模式、安装包大小/哈希及运行验收成功状态。
 

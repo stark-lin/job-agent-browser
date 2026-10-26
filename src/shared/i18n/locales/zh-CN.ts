@@ -52,7 +52,7 @@ export const zhCN = {
   "saveToken": "保存 Token",
   "removeToken": "移除 Token",
   "semanticEnable": "启用语义索引",
-  "semanticUnavailable": "语义搜索暂不可用，仍可使用关键词搜索。开发环境请准备内置模型后重试。",
+  "semanticUnavailable": "语义搜索暂不可用，仍可使用关键词搜索。",
   "semanticHelp": "内置多语言 embedding 模型，笔记与搜索查询完全在本机处理。索引建立中或模型不可用时，仍可使用关键词搜索。",
   "provider": "Embedding 服务",
   "chooseProvider": "选择已配置的服务",

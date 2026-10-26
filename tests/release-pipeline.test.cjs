@@ -32,7 +32,8 @@ test('fixed revision downloads are atomic, fully verified and reused without net
 })
 test('release identity is stable on rerun and Windows numeric version is bounded', () => {
   const value = metadata('0.1.0', '123', 'a'.repeat(40))
-  assert.equal(value.version, '0.1.0-main.123.aaaaaaa')
+  assert.equal(value.version, '0.1.0-main.123.gaaaaaaa')
+  assert.equal(metadata('0.1.0', 123, '0123456' + 'a'.repeat(33)).version, '0.1.0-main.123.g0123456')
   assert.equal(value.buildVersion, '0.1.0.123')
   assert.deepEqual(value, metadata('0.1.0', '123', 'a'.repeat(40)))
   for (const run of ['0', '65536', 'bad']) assert.throws(() => metadata('0.1.0', run, 'a'.repeat(40)))
