@@ -20,17 +20,17 @@ The app opens to a simple grid of feature entry points, without a complex dashbo
 
 | | | |
 | --- | --- | --- |
-| Add Job | Tailor Resume | Interview Prep |
+| Add Job | Tailor Resume | Smart Note |
 | Applications | Inbox | My Profile |
 | Browser | Ask AI | Settings |
 
 The rows represent three groups:
 
-- **Job-seeking actions:** Add Job → Tailor Resume → Interview Prep.
+- **Job-seeking actions:** Add Job → Tailor Resume → Smart Note.
 - **Job-seeking management:** Applications → Inbox → My Profile.
 - **Foundational tools:** Browser → Ask AI → Settings.
 
-A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, Ask AI V2 and Profile editing/PDF import are implemented; Add Job and the Applications list are implemented; Interview Prep remains scaffolded. Add new capabilities within existing entry points whenever possible.
+A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, Ask AI V2 and Profile editing/PDF import are implemented; Add Job and the Applications list are implemented; Smart Note is implemented. Add new capabilities within existing entry points whenever possible.
 
 Initial Add Job supports manual entry or one public-URL AI import, reviewed saving as `NOT_STARTED` and navigation to Applications. Restricted access reports an error; authenticated Browser capture and deduplication remain planned. Runtime details belong to [current architecture](architecture.md).
 
@@ -63,7 +63,7 @@ Internal features and internet pages are addressed through URLs.
 | `app://home` | Home |
 | `app://find` | Add Job |
 | `app://resume` | Tailor Resume |
-| `app://interview` | Interview Prep |
+| `app://knowledge` | Smart Note |
 | `app://applications` | Applications |
 | `app://inbox` | Inbox |
 | `app://profile` | My Profile |
@@ -90,7 +90,7 @@ Resume tailoring combines the captured Job with Profile and Resume, then uses AI
 The same context supports other actions:
 
 ```text
-Job + Profile        → Interview Prep
+Markdown Files       → Smart Note → Agent Context
 Current Page + Job   → Ask AI
 ```
 
@@ -116,7 +116,7 @@ The nine entry points are not nine independent systems. Features compose shared 
 | --- | --- |
 | Add Job | Manual entry + public URL import; authenticated Browser capture remains planned |
 | Tailor Resume | Job Context + Profile + Resume + AI |
-| Interview Prep | Job Context + Profile + AI |
+| Smart Note | Markdown Files + Derived Retrieval + Backup |
 | Ask AI | Current Context + Configured AI |
 | Applications | Job + Application lifecycle + JobEvent |
 | Inbox | User-configured Webmail + dedicated native Inbox view + Session |
@@ -162,7 +162,7 @@ The first phase does not need to implement all nine features in full.
 
 Stage 1 establishes page hosting and navigation controls; Stage 3 completes the unified URL and history behavior. After the first resume-tailoring workflow, progressively fill out:
 
-**Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
+**Add Job → Applications → Smart Note → Inbox → Ask AI → Settings**
 
 This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Resume V1 now implements business orchestration and reference context; mailbox entry configuration must ship alongside Inbox.
 
@@ -172,7 +172,7 @@ The foundation milestone is:
 
 > Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
 
-Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual and URL/text/PDF Job capture, application management within the existing details page, Resume V1 HTML/PDF and reference-only App Context. All four internal Agents use MCP. Interview Prep, external calendar/email actions and full page-context capture remain planned; accessible skeletons do not complete the MVP.
+Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual and URL/text/PDF Job capture, application management within the existing details page, Resume V1 HTML/PDF and reference-only App Context. All four internal Agents use MCP. External calendar/email actions and full page-context capture remain planned; accessible skeletons do not complete the MVP.
 
 ## 11. How to use this baseline
 
@@ -185,3 +185,7 @@ The baseline fixes the product structure and development direction. Detailed pag
 - [Current architecture](architecture.md): implemented behavior and limitations.
 - [Code architecture](code-architecture.md): target organization and dependency boundaries.
 - [README](../README.md): setup and documentation index.
+
+## Smart Note knowledge
+
+Smart Note fully replaces the former placeholder page at app://knowledge. One Knowledge Base supports human/Agent Markdown editing, history and structural retrieval; interview preparation is now an installed [Skill](../skills/interview-prep/SKILL.md). No vaults, CRDT, drag-and-drop or collaborative merge are introduced.

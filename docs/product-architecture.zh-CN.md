@@ -20,17 +20,17 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 
 | | | |
 | --- | --- | --- |
-| Add Job（新增工作） | Tailor Resume（定制简历） | Interview Prep（面试准备） |
+| Add Job（新增工作） | Tailor Resume（定制简历） | Smart Note（智能笔记） |
 | Applications（申请管理） | Inbox（收件箱） | My Profile（个人资料） |
 | Browser（浏览器） | Ask AI（询问 AI） | Settings（设置） |
 
 三行分别对应：
 
-- **求职动作：** Add Job → Tailor Resume → Interview Prep。
+- **求职动作：** Add Job → Tailor Resume → Smart Note。
 - **求职管理：** Applications → Inbox → My Profile。
 - **基础工具：** Browser → Ask AI → Settings。
 
-常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、Ask AI V2和 Profile 编辑/PDF 导入已实现，新增工作和申请记录基础列表已实现，面试准备仍为占位。新增能力优先放进现有入口。
+常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、Ask AI V2和 Profile 编辑/PDF 导入已实现，新增工作和申请记录基础列表已实现，智能笔记已实现。新增能力优先放进现有入口。
 
 新增工作初版支持手工录入或单个公开 URL AI 导入，核对后保存为 `NOT_STARTED` 并进入申请记录。访问受限时报错；登录态 Browser 采集及职位去重仍为规划，运行细节见[当前架构](architecture.zh-CN.md)。
 
@@ -63,7 +63,7 @@ Shell 提供以下全局能力：
 | `app://home` | Home |
 | `app://find` | Add Job |
 | `app://resume` | Tailor Resume |
-| `app://interview` | Interview Prep |
+| `app://knowledge` | Smart Note |
 | `app://applications` | Applications |
 | `app://inbox` | Inbox |
 | `app://profile` | My Profile |
@@ -90,7 +90,7 @@ Shared Context 通过当前页面（URL、标题、内容、选中文字）、�
 同一份上下文继续支持其他动作：
 
 ```text
-Job + Profile        → Interview Prep
+Markdown Files       → Smart Note → Agent Context
 Current Page + Job   → Ask AI
 ```
 
@@ -116,7 +116,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 | --- | --- |
 | Add Job | 手工录入 + 公开 URL 导入；登录态 Browser 采集仍为规划 |
 | Tailor Resume | Job Context + Profile + Resume + AI |
-| Interview Prep | Job Context + Profile + AI |
+| Smart Note | Markdown Files + Derived Retrieval + Backup |
 | Ask AI | Current Context + Configured AI |
 | Applications | Job + 申请生命周期 + JobEvent |
 | Inbox | 用户配置的网页邮箱 + 独立原生 Inbox 视图 + Session |
@@ -162,7 +162,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 阶段 1 建立页面承载能力和导航控件，阶段 3 完成统一 URL 与历史行为。首个定制简历工作流完成后，再逐步完善：
 
-**Add Job → Applications → Interview Prep → Inbox → Ask AI → Settings**
+**Add Job → Applications → Smart Note → Inbox → Ask AI → Settings**
 
 这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；Resume V1 已实现业务编排及引用上下文；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
@@ -172,7 +172,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 > 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
 
-当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手工与 URL/文本/PDF 职位采集、现有详情页内的申请管理、Resume V1 HTML/PDF 及引用型 App Context。四个内部 Agent 均使用 MCP。面试准备、外部日历/邮件动作及完整页面上下文捕获仍为规划，可访问骨架不代表 MVP 完成。
+当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手工与 URL/文本/PDF 职位采集、现有详情页内的申请管理、Resume V1 HTML/PDF 及引用型 App Context。四个内部 Agent 均使用 MCP。外部日历/邮件动作及完整页面上下文捕获仍为规划，可访问骨架不代表 MVP 完成。
 
 ## 十一、基线使用规则
 
@@ -185,3 +185,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 - [当前架构](architecture.zh-CN.md)：已实现行为与限制。
 - [代码架构](code-architecture.zh-CN.md)：目标组织与依赖边界。
 - [README](../README.zh-CN.md)：启动与文档索引。
+
+## 智能笔记知识库
+
+智能笔记通过 app://knowledge 完整替代原占位入口。唯一 Knowledge Base 支持用户/Agent 编辑 Markdown、历史与结构检索；面试准备改为安装的 [Skill](../skills/interview-prep/SKILL.zh-CN.md)。不引入多 Vault、CRDT、拖拽或协作合并。

@@ -2,7 +2,7 @@ import type { Result } from './ipc'
 import type { ExternalMCPTarget } from './external-mcp'
 
 export const EXTERNAL_SKILLS_CALL = 'external-skills:call'
-export const externalSkillNames = ['capture-job', 'manage-applications', 'tailor-resume', 'distill-resume', 'distill-project'] as const
+export const externalSkillNames = ['capture-job', 'manage-applications', 'tailor-resume', 'distill-resume', 'distill-project', 'interview-prep'] as const
 export type ExternalSkillName = typeof externalSkillNames[number]
 export type ExternalSkillState = 'missing' | 'installed' | 'different' | 'unavailable'
 export const externalSkillsErrors = ['INVALID_INPUT', 'FORBIDDEN', 'SKILLS_UNAVAILABLE', 'SKILLS_CHANGED',

@@ -171,3 +171,24 @@ test('uncertain job import marks the new write and never replays it', async t =>
   assert.equal(f.backend.jobs.listJobs({ search: 'PRIVATE_UNCERTAIN_IMPORT' }).total, 1)
   assert(!JSON.stringify(snapshot).includes('PRIVATE_UNCERTAIN_IMPORT'))
 })
+
+test('Ask AI reads and writes shared Markdown through real MCP and records only knowledge summaries',async t=>{
+  const f=await firstPartyFixture(t);let step=0,revision=''
+  const model:StreamingAgentModel={complete:async()=>({content:'',toolCalls:[]}),async *stream(input){
+    const previous=input.messages.at(-1)
+    if(previous?.role==='tool'){
+      const result=JSON.parse(previous.content);assert.equal(result.error??null,null)
+      if(result.revision)revision=result.revision
+      if(step===3)assert(result.items.some((item:{path:string})=>item.path==='interview/notes.md'))
+    }
+    const calls:[string,Record<string,unknown>][]=[['knowledge.mkdir',{path:'interview'}],['knowledge.write',{path:'interview/notes.md',content:'PRIVATE_KNOWLEDGE_BODY pricing',expectedRevision:null}],['knowledge.search',{query:'pricing'}],['knowledge.read',{path:'interview/notes.md'}],['knowledge.write',{path:'interview/notes.md',content:'PRIVATE_KNOWLEDGE_BODY final pricing',expectedRevision:revision}],['knowledge.retrieve',{query:'pricing',maxContext:500}],['knowledge.write',{path:'scratch.md',content:'scratch',expectedRevision:null}],['knowledge.delete',{path:'scratch.md',expectedRevision:revision,recursive:false}]]
+    if(step===calls.length){yield* answer('Saved your note.');return}
+    const [name,args]=calls[step++];yield* batch({id:`knowledge-${step}`,name,arguments:args})
+  }}
+  const tasks=createAskAgentTasks({chats:f.backend.chats,mcp:f.mcp,model:()=>model});t.after(()=>tasks.dispose())
+  const ids=tasks.start(1,start('Save my interview preparation'),()=>{}),snapshot=await wait(tasks,ids.runId)
+  assert.equal(snapshot.run.state,'completed',snapshot.run.error??'');assert(snapshot.run.writeStarted)
+  const {readFileSync}=await import('node:fs');const {join}=await import('node:path');assert.equal(readFileSync(join(f.directory,'knowledge','interview','notes.md'),'utf8'),'PRIVATE_KNOWLEDGE_BODY final pricing')
+  const text=JSON.stringify(snapshot);assert(!text.includes('PRIVATE_KNOWLEDGE_BODY'));assert(snapshot.items.filter(item=>item.content.type==='tool_call').every(item=>item.content.type==='tool_call'&&['knowledgeRead','knowledgeWrite'].includes(item.content.display.key)))
+  assert(!JSON.stringify(f.backend.toolAudit.list()).includes('interview/notes.md'))
+})

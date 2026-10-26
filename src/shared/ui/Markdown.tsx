@@ -1,50 +1,183 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { createElement, useEffect, useState, type ReactNode } from 'react'
 import { Button } from './Button'
-
+interface Node {
+  type: string
+  value?: string
+  depth?: number
+  url?: string
+  alt?: string
+  identifier?: string
+  ordered?: boolean
+  start?: number
+  lang?: string
+  children?: Node[]
+}
 function safeLink(href: string) {
-  try { const url = new URL(href); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null } catch { return null }
-}
-function inline(text: string): ReactNode[] {
-  return text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^\s)]+\))/g).map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`')) return <code key={i}>{part.slice(1, -1)}</code>
-    if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>
-    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part), href = link && safeLink(link[2])
-    return link && href ? <a key={i} href={href} target="_blank" rel="noopener noreferrer">{link[1]}</a> : part
-  })
-}
-function CodeBlock({ text, language, copyLabel, copiedLabel }: { text: string; language: string; copyLabel: string; copiedLabel: string }) {
-  const [copied, setCopied] = useState(false)
-  return <div className="ui-code-block"><div className="ui-code-heading"><span>{language}</span><Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => setCopied(false)) }}>{copied ? copiedLabel : copyLabel}</Button></div><pre tabIndex={0}><code>{text}</code></pre></div>
-}
-/** Conservative Markdown subset. HTML is always text; links accept credential-free HTTP(S) only. */
-export function Markdown({ text, copyLabel, copiedLabel }: { text: string; copyLabel: string; copiedLabel: string }) {
-  const lines = text.split('\n'), blocks: ReactNode[] = []
-  for (let i = 0; i < lines.length;) {
-    const line = lines[i]
-    if (line.startsWith('```')) {
-      const language = line.slice(3).trim(), code: string[] = []; i++
-      while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++])
-      if (i < lines.length) i++
-      blocks.push(<CodeBlock key={blocks.length} text={code.join('\n')} language={language} copyLabel={copyLabel} copiedLabel={copiedLabel} />); continue
-    }
-    if (!line.trim()) { i++; continue }
-    const heading = /^#{1,6}\s+(.+)$/.exec(line)
-    if (heading) { blocks.push(<h3 key={blocks.length}>{inline(heading[1])}</h3>); i++; continue }
-    if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
-      const cells = (value: string) => value.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
-      const header = cells(line), rows: string[][] = []; i += 2
-      while (i < lines.length && lines[i].includes('|') && lines[i].trim()) rows.push(cells(lines[i++]))
-      blocks.push(<div key={blocks.length} className="ui-markdown-table" tabIndex={0}><table><thead><tr>{header.map((c, n) => <th key={n}>{inline(c)}</th>)}</tr></thead><tbody>{rows.map((row, n) => <tr key={n}>{header.map((_, c) => <td key={c}>{inline(row[c] ?? '')}</td>)}</tr>)}</tbody></table></div>); continue
-    }
-    if (/^\s*[-*+]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
-      const ordered = /^\s*\d+\./.test(line), pattern = ordered ? /^\s*\d+\.\s+/ : /^\s*[-*+]\s+/, items: ReactNode[] = []
-      while (i < lines.length && pattern.test(lines[i])) items.push(<li key={items.length}>{inline(lines[i++].replace(pattern, ''))}</li>)
-      blocks.push(ordered ? <ol key={blocks.length}>{items}</ol> : <ul key={blocks.length}>{items}</ul>); continue
-    }
-    if (line.startsWith('> ')) { blocks.push(<blockquote key={blocks.length}>{inline(line.slice(2))}</blockquote>); i++; continue }
-    const paragraph: string[] = [line]; i++
-    while (i < lines.length && lines[i].trim() && !/^(```|#{1,6} |[-*+] |\d+\. |> )/.test(lines[i]) && !(lines[i].includes('|') && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1] ?? ''))) paragraph.push(lines[i++])
-    blocks.push(<p key={blocks.length}>{paragraph.map((value, n) => <Fragment key={n}>{n > 0 && <br />}{inline(value)}</Fragment>)}</p>)
+  try {
+    const url = new URL(href)
+    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null
+  } catch {
+    return null
   }
-  return <div className="ui-markdown">{blocks}</div>
+}
+function CodeBlock({
+  text,
+  language,
+  copyLabel,
+  copiedLabel
+}: {
+  text: string
+  language: string
+  copyLabel: string
+  copiedLabel: string
+}) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="ui-code-block">
+      <div className="ui-code-heading">
+        <span>{language}</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            void navigator.clipboard
+              .writeText(text)
+              .then(() => setCopied(true))
+              .catch(() => setCopied(false))
+          }}
+        >
+          {copied ? copiedLabel : copyLabel}
+        </Button>
+      </div>
+      <pre tabIndex={0}>
+        <code>{text}</code>
+      </pre>
+    </div>
+  )
+}
+/** MDAST rendered as React text/elements. Raw HTML and image URLs are never executed or loaded. */
+export function Markdown({
+  text,
+  copyLabel,
+  copiedLabel,
+  onOpenLink
+}: {
+  text: string
+  copyLabel: string
+  copiedLabel: string
+  onOpenLink?: (path: string) => void
+}) {
+  const [ast, setAst] = useState<Node>({
+    type: 'root',
+    children: [{ type: 'paragraph', children: [{ type: 'text', value: text }] }]
+  })
+  useEffect(() => {
+    let live = true
+    void Promise.all([import('unified'), import('remark-parse'), import('remark-gfm')]).then(
+      ([{ unified }, { default: parse }, { default: gfm }]) => {
+        if (live) setAst(unified().use(parse).use(gfm).parse(text) as Node)
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [text])
+  const definitions = new Map<string, string>()
+  for (const n of ast.children ?? [])
+    if (n.type === 'definition' && n.identifier && n.url) definitions.set(n.identifier, n.url)
+  const render = (n: Node, key: number): ReactNode => {
+    const children = n.children?.map(render)
+    switch (n.type) {
+      case 'text':
+      case 'html':
+        return n.value
+      case 'paragraph':
+        return <p key={key}>{children}</p>
+      case 'heading':
+        return createElement(`h${Math.max(1, Math.min(6, n.depth ?? 1))}`, { key }, children)
+      case 'strong':
+        return <strong key={key}>{children}</strong>
+      case 'emphasis':
+        return <em key={key}>{children}</em>
+      case 'delete':
+        return <del key={key}>{children}</del>
+      case 'inlineCode':
+        return <code key={key}>{n.value}</code>
+      case 'code':
+        return (
+          <CodeBlock
+            key={key}
+            text={n.value ?? ''}
+            language={n.lang ?? ''}
+            copyLabel={copyLabel}
+            copiedLabel={copiedLabel}
+          />
+        )
+      case 'blockquote':
+        return <blockquote key={key}>{children}</blockquote>
+      case 'list':
+        return n.ordered ? (
+          <ol key={key} start={n.start}>
+            {children}
+          </ol>
+        ) : (
+          <ul key={key}>{children}</ul>
+        )
+      case 'listItem':
+        return <li key={key}>{children}</li>
+      case 'thematicBreak':
+        return <hr key={key} />
+      case 'break':
+        return <br key={key} />
+      case 'link':
+      case 'linkReference': {
+        const url = n.url ?? definitions.get(n.identifier ?? '') ?? '',
+          href = safeLink(url)
+        if (href)
+          return (
+            <a key={key} href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          )
+        if (onOpenLink && !/^[a-z][\w+.-]*:|^\/\/|^\//i.test(url))
+          return (
+            <Button key={key} variant="ghost" size="sm" onClick={() => onOpenLink(url)}>
+              {children}
+            </Button>
+          )
+        return <span key={key}>{children}</span>
+      }
+      case 'image':
+      case 'imageReference':
+        return <span key={key}>{n.alt ?? ''}</span>
+      case 'table':
+        return (
+          <div key={key} className="ui-markdown-table" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  {n.children?.[0]?.children?.map((c, i) => (
+                    <th key={i}>{c.children?.map(render)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {n.children?.slice(1).map((r, i) => (
+                  <tr key={i}>
+                    {r.children?.map((c, j) => (
+                      <td key={j}>{c.children?.map(render)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      case 'definition':
+        return null
+      default:
+        return <span key={key}>{children ?? n.value}</span>
+    }
+  }
+  return <div className="ui-markdown">{ast.children?.map(render)}</div>
 }

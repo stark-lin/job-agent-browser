@@ -6,7 +6,7 @@ export interface CapabilityAuditContext {
   agentId: string
   runId?: string
   tool: ToolDescriptor
-  target?: { type: 'job' | 'profile' | 'artifact'; id: string }
+  target?: { type: 'job' | 'profile' | 'artifact' | 'knowledge'; id: string }
 }
 export interface CapabilityAudit {
   start(context: CapabilityAuditContext): void

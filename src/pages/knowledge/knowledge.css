@@ -1,0 +1,99 @@
+.knowledge-page {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.knowledge-explorer-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+.knowledge-explorer-heading strong {
+  font-size: var(--font-xs);
+  color: var(--muted);
+  flex: 1;
+}
+.knowledge-search {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+.knowledge-search > :first-child {
+  min-width: 0;
+}
+.knowledge-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface);
+}
+.knowledge-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-height: var(--toolbar-height);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--line);
+}
+.knowledge-breadcrumb {
+  font-size: var(--font-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.knowledge-toolbar-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+.knowledge-save-status {
+  padding: var(--space-1) var(--space-2);
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+.knowledge-document {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.knowledge-document--split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.knowledge-preview {
+  overflow: auto;
+  padding: var(--space-3);
+  border-left: var(--border-width) solid var(--line);
+}
+.knowledge-empty {
+  display: grid;
+  place-content: center;
+  flex: 1;
+  padding: var(--space-4);
+  color: var(--muted);
+}
+.knowledge-conflict,
+.knowledge-results,
+.knowledge-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+.knowledge-history {
+  max-height: 480px;
+  overflow: auto;
+  display: grid;
+  gap: var(--space-3);
+}
+.knowledge-history pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

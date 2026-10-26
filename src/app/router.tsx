@@ -1,3 +1,4 @@
+import { KnowledgePage } from '../pages/knowledge'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import { useNavigation } from './navigation/navigate'
@@ -5,7 +6,6 @@ import { HomePage } from '../pages/home/HomePage'
 import { BrowserPage } from '../pages/browser'
 import { AddJobPage } from '../pages/find-jobs'
 import { TailorResumePage } from '../pages/tailor-resume'
-import { InterviewPrepPage } from '../pages/interview-prep'
 import { ApplicationsPage } from '../pages/applications'
 import { InboxPage } from '../pages/inbox'
 import { ProfilePage } from '../pages/profile'
@@ -15,7 +15,7 @@ import { isBrowserDestination, isInboxDestination } from '../shared/navigation'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 
 const featurePages = {
-  find: AddJobPage, resume: TailorResumePage, interview: InterviewPrepPage,
+  find: AddJobPage, resume: TailorResumePage, knowledge: KnowledgePage,
   applications: ApplicationsPage, inbox: InboxPage, profile: ProfilePage,
   ai: AskAIPage, settings: SettingsPage
 }

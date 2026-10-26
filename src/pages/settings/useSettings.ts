@@ -9,6 +9,7 @@ export type Notice = 'saved' | 'keySaved' | 'keyDeleted' | 'saveFailed' | 'encry
 export function useSettings() {
   const { data, navigation } = useServices()
   const { active } = useNavigation()
+  const [knowledgeDirty,setKnowledgeDirty] = useState(false)
   const [saved, setSaved] = useState<Preferences | null>(null)
   const [draft, setDraft] = useState<Preferences | null>(null)
   const [selectedProvider, setSelectedProvider] = useState('openai')
@@ -49,7 +50,7 @@ export function useSettings() {
   const aiDirty = Boolean(draft && saved && JSON.stringify(draft.ai) !== JSON.stringify(saved.ai))
   const generalDirty = Boolean(draft && saved && (draft.language !== saved.language || draft.theme !== saved.theme))
   const mailDirty = Boolean(draft && saved && JSON.stringify(draft.mailbox) !== JSON.stringify(saved.mailbox))
-  const dirty = generalDirty || mailDirty || aiDirty || key.length > 0
+  const dirty = knowledgeDirty || generalDirty || mailDirty || aiDirty || key.length > 0
   const tabId = active?.id, targetId = active?.targetId
   useEffect(() => {
     if (!tabId || !targetId) return
@@ -117,6 +118,6 @@ export function useSettings() {
   }
 
   const retry = useCallback(() => setAttempt(value => value + 1), [])
-  return { provider, providerSaved, keyReady, keyLoadFailed, retryKey: () => setKeyAttempt(value => value + 1), selectedProvider, setSelectedProvider, aiDirty, changeAI, editProvider, addProvider, removeProvider, draft, loading, loadFailed, retry, saving, notices, dirty, generalDirty, mailDirty,
+  return { setKnowledgeDirty, provider, providerSaved, keyReady, keyLoadFailed, retryKey: () => setKeyAttempt(value => value + 1), selectedProvider, setSelectedProvider, aiDirty, changeAI, editProvider, addProvider, removeProvider, draft, loading, loadFailed, retry, saving, notices, dirty, generalDirty, mailDirty,
     key, keyStatus, changeLanguage, changeTheme, changeMailbox, changeKey, save, saveKey }
 }

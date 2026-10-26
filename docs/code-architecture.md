@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, mixed navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume Agent V1 with HTML/PDF. Interview Prep remains **Scaffolded**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, mixed navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -34,7 +34,7 @@ src/
 │   ├── home/
 │   ├── find-jobs/
 │   ├── tailor-resume/
-│   ├── interview-prep/
+│   ├── knowledge/
 │   ├── applications/
 │   ├── inbox/
 │   ├── profile/
@@ -47,7 +47,7 @@ src/
 │   ├── chat/
 │   ├── candidate/
 │   ├── application/
-│   ├── interview/
+│   ├── knowledge/
 │   └── common/
 ├── platform/
 │   ├── electron/
@@ -80,7 +80,7 @@ src/
     └── tools/
 ```
 
-Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Interview Prep remains scaffolded. Local modules are created only when used; files/directories alone do not establish behavior.
+Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior.
 
 ## 3. Dependencies and process composition
 
@@ -160,3 +160,7 @@ Update the owning document and both language editions with behavior, interface, 
 - [Current architecture](architecture.md): runtime, behavior and security.
 - [V1 data architecture and API](data-architecture.md): persistence semantics and capabilities.
 - [README](../README.md): setup, validation and documentation index.
+
+## Smart Note knowledge
+
+[Domain knowledge](../src/domain/knowledge/index.ts) owns types and pure validation. [Platform knowledge](../src/platform/knowledge/service.ts) owns filesystem/Git/SQLite/network adapters; [pages/knowledge](../src/pages/knowledge/KnowledgePage.tsx) calls only the typed bridge. Agent code never imports this service: every knowledge operation crosses MCP.

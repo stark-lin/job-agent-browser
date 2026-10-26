@@ -1,3 +1,4 @@
+import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
@@ -57,6 +58,7 @@ export function SettingsPage() {
             <div className="settings-actions">{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" disabled={!settings.mailDirty || Boolean(saving)}>{saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
           </form>
         </SectionCard>
+        <KnowledgeSettings onDirty={settings.setKnowledgeDirty} />
         <ExternalMCPSettings />
         <div className="settings-stack"><StatusMessage>{t($ => $.settings.local)}</StatusMessage><StatusMessage>{t($ => $.settings.localDescription)}</StatusMessage></div>
       </div>}

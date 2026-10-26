@@ -45,3 +45,7 @@ Follow the [maintenance and verification process](docs/design-system.md#6-mainte
 - [Documentation and UI rules](AGENTS.md): ownership and mandatory repository constraints.
 - [Code architecture](docs/code-architecture.md): component dependency boundaries and page responsibilities.
 - [Design-system specification](docs/design-system.md): detailed rules, sources and verification limits.
+
+## Smart Note knowledge
+
+Smart Note uses Explorer beside one Markdown workspace; Split always places Edit left and Preview right. Directory README is its context body, never an auto-generated child listing. Reuse central controls; conflicts preserve the unsaved draft and disk copy.

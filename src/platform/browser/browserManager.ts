@@ -1,6 +1,7 @@
+import { flushKnowledge } from '../electron/main/knowledge-flush'
 import { t, i18n } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
-import { session, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
+import { app, session, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
 import { resolvedTheme, themeBackground } from '../electron/main/theme'
 import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
@@ -35,10 +36,13 @@ export class BrowserManager {
       this.publishState()
     }
     nativeTheme.on('updated', themeChanged)
+    let knowledgeClosing = false, quitRequested = false
+    const beforeQuit = () => { quitRequested = true }
+    app.on('before-quit', beforeQuit)
     window.on('close', event => {
-      if (!this.unsaved) return
+      if (knowledgeClosing || !this.unsaved && !this.isKnowledge()) return
       event.preventDefault()
-      void this.confirmLeave().then(allowed => { if (allowed && !window.isDestroyed()) window.close() })
+      void this.confirmLeave().then(allowed => { if (allowed && !window.isDestroyed()) { knowledgeClosing = true; if (quitRequested) app.quit(); else window.close() } else quitRequested = false })
     })
     window.webContents.on('will-prevent-unload', event => {
       if (!this.unsaved || dialog.showMessageBoxSync(window, this.leaveDialog()) === 1) { this.unsaved = false; event.preventDefault() }
@@ -55,6 +59,7 @@ export class BrowserManager {
     window.webContents.on('did-stop-loading', () => { this.rendererLoading = false; this.updateVisibility() })
     window.on('resize', () => this.layout())
     window.on('closed', () => {
+      app.removeListener('before-quit', beforeQuit)
       i18n.off('languageChanged', languageChanged)
       nativeTheme.off('updated', themeChanged)
       for (const tab of this.tabs.values()) tab.history.dispose()
@@ -66,7 +71,13 @@ export class BrowserManager {
     const tab = this.requireTab(this.activeTabId)
     const destination = this.tabState(tab).destination
     if (presentation.tabId === tab.id && presentation.targetId === this.targetId(tab) && destination.kind === 'internal' &&
-      (destination.page === 'settings' || destination.page === 'profile' || destination.page === 'find')) this.unsaved = unsaved
+      (destination.page === 'settings' || destination.page === 'profile' || destination.page === 'find' || destination.page === 'knowledge')) this.unsaved = unsaved
+  }
+
+  private isKnowledge(): boolean {
+    const tab = this.tabs.get(this.activeTabId)
+    const destination = tab && this.tabState(tab).destination
+    return destination?.kind === 'internal' && destination.page === 'knowledge'
   }
 
   private leaveDialog(): Electron.MessageBoxOptions {
@@ -82,6 +93,11 @@ export class BrowserManager {
     this.confirming = true
     const tab = this.requireTab(this.activeTabId), targetId = this.targetId(tab)
     try {
+      if (this.isKnowledge()) {
+        const saved = await flushKnowledge(this.window)
+        if (!saved || this.window.isDestroyed() || this.activeTabId !== tab.id || targetId !== this.targetId(tab)) return false
+        this.unsaved = false; return true
+      }
       const result = await dialog.showMessageBox(this.window, this.leaveDialog())
       // Theme/other background snapshots must not invalidate an otherwise current confirmation.
       if (result.response !== 1 || this.window.isDestroyed() || this.activeTabId !== tab.id ||
@@ -115,7 +131,7 @@ export class BrowserManager {
   }
 
   async createTab(): Promise<void> {
-    if (this.unsaved && !(await this.confirmLeave())) return
+    if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     const tab: Tab = { id: randomUUID(), version: 0, history: new MixedHistory() }
     tab.history.append({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'home' } })
     this.tabs.set(tab.id, tab)
@@ -126,14 +142,14 @@ export class BrowserManager {
   async activateTab(id: string): Promise<void> {
     const tab = this.requireTab(id)
     if (this.activeTabId === id) return
-    if (this.unsaved && !(await this.confirmLeave())) return
+    if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     this.activeTabId = id
     this.transition(tab)
   }
 
   async closeTab(id: string): Promise<void> {
     const tab = this.requireTab(id), ids = [...this.tabs.keys()], index = ids.indexOf(id)
-    if (this.activeTabId === id && this.unsaved && !(await this.confirmLeave())) return
+    if (this.activeTabId === id && (this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     this.tabs.delete(id)
     tab.history.dispose()
     if (!this.tabs.size) { await this.createTab(); return }
@@ -149,7 +165,7 @@ export class BrowserManager {
       const inboxURL = this.getInboxURL()
       if (inboxURL) { destination = resolveDestination(inboxURL); surface = 'inbox' }
     }
-    if (this.unsaved && !(await this.confirmLeave())) return
+    if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     const tab = this.requireTab(this.activeTabId)
     if (destination.kind === 'internal') {
       tab.history.append({ kind: 'internal', id: randomUUID(), destination })
@@ -166,7 +182,7 @@ export class BrowserManager {
         this.updateVisibility(); this.publishState()
       }, (url) => {
         void (async () => {
-          if (this.unsaved && !(await this.confirmLeave())) return
+          if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
           await this.createTab(); await this.navigate(url, segment.surface)
         })().catch(() => { /* The popup's load error belongs to its own tab. */ })
       }, surface)
@@ -210,7 +226,7 @@ export class BrowserManager {
   private async travel(direction: -1 | 1): Promise<void> {
     const tab = this.requireTab(this.activeTabId)
     if (direction === -1 ? !tab.history.canGoBack : !tab.history.canGoForward) return
-    if (this.unsaved && !(await this.confirmLeave())) return
+    if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     tab.history.travel(direction)
     this.transition(tab)
   }
