@@ -163,3 +163,5 @@ Native bounds consume [generated geometry](../src/shared/ui/geometry.ts) through
 ## Smart Note knowledge
 
 Central [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx), [ExplorerRow/ResizableExplorer](../src/shared/ui/KnowledgeControls.tsx) and [Markdown](../src/shared/ui/Markdown.tsx) provide CodeMirror controls, accessible tree rows, resizing and safe AST rendering. HTML stays text; remote images do not load. Existing tokens and themes are reused without new geometry tokens.
+
+Smart Note uses the shared `notebook` [Glyph](../src/shared/ui/Glyph.tsx), combining a notebook with a sparkle in Home and navigation. The Explorer divider uses `--border-width` (1px) and `--line`, with an invisible `--space-1` (8px) drag target; keyboard resizing and focus treatment remain available.

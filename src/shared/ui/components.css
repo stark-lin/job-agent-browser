@@ -231,7 +231,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-explorer { flex-shrink:0; min-width:192px; max-width:480px; overflow:auto; background:var(--panel-solid); }
 .ui-explorer-row { display:flex; align-items:center; min-height:var(--control-sm); cursor:pointer; width:100%; justify-content:flex-start; gap:var(--space-1); text-align:left; white-space:nowrap; }
 .ui-explorer-row[aria-selected="true"] { background:var(--primary-soft); color:var(--primary); }
-.ui-resizer { width:8px; flex-shrink:0; cursor:col-resize; background:var(--bg); touch-action:none; }
+.ui-resizer { position:relative; width:var(--border-width); flex-shrink:0; cursor:col-resize; background:var(--line); touch-action:none; z-index:1; }
+.ui-resizer::after { content:""; position:absolute; top:0; bottom:0; left:50%; width:var(--space-1); transform:translateX(-50%); }
 .ui-resizer:focus-visible { outline:var(--focus-width) solid var(--primary); outline-offset:calc(-1 * var(--focus-width)); }
 .ui-markdown-editor { height:100%; min-height:224px; overflow:hidden; }
 
