@@ -1,31 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Checkbox, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
-import type { AIProvider } from '../../shared/ai'
+import { Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput } from '../../shared/ui'
 import { defaultKnowledgePreferences } from '../../shared/knowledge-settings'
 export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => void }) {
   const { t } = useTranslation(),
     api = window.knowledge,
     [draft, setDraft] = useState(defaultKnowledgePreferences),
     [saved, setSaved] = useState(defaultKnowledgePreferences),
-    [providers, setProviders] = useState<AIProvider[]>([]),
     [key, setKey] = useState(''),
     [configured, setConfigured] = useState(false),
     [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState('')
+    [notice, setNotice] = useState(''),
+    [indexError, setIndexError] = useState<string | null>(null)
   useEffect(() => {
     let live = true
-    void Promise.all([api.configuration({}), window.data.settings.get({})])
-      .then(([config, prefs]) => {
+    void api.configuration({})
+      .then((config) => {
         if (!live) return
         if (config.ok) {
           setDraft(config.value.preferences)
           setSaved(config.value.preferences)
           setConfigured(config.value.tokenConfigured)
+          setIndexError(config.value.indexError)
           setReady(true)
         } else setNotice(config.error)
-        if (prefs.ok) setProviders(prefs.value.ai.providers)
       })
       .catch(() => setNotice('KNOWLEDGE_UNAVAILABLE'))
     return () => {
@@ -97,6 +96,8 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
                   setConfigured(r.value.configured)
                   setKey('')
                   setNotice('saved')
+                  const config = await api.configuration({})
+                  if (config.ok) setIndexError(config.value.indexError)
                 } else setNotice(r.error)
               })
             }
@@ -125,33 +126,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
           onChange={(e) => setDraft({ ...draft, semanticEnabled: e.target.checked })}
         />
         <StatusMessage>{t(($) => $.knowledge.semanticHelp)}</StatusMessage>
-        <FormField label={t(($) => $.knowledge.provider)}>
-          {(props) => (
-            <Select
-              {...props}
-              value={draft.providerId}
-              disabled={!ready || busy}
-              onChange={(e) => setDraft({ ...draft, providerId: e.target.value })}
-            >
-              <option value="">{t(($) => $.knowledge.chooseProvider)}</option>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name || p.id}
-                </option>
-              ))}
-            </Select>
-          )}
-        </FormField>
-        <FormField label={t(($) => $.knowledge.model)}>
-          {(props) => (
-            <TextInput
-              {...props}
-              value={draft.modelId}
-              disabled={!ready || busy}
-              onChange={(e) => setDraft({ ...draft, modelId: e.target.value })}
-            />
-          )}
-        </FormField>
+        {draft.semanticEnabled && indexError && <StatusMessage tone="error">{t(($) => $.knowledge.semanticUnavailable)}</StatusMessage>}
         <div className="settings-actions">
           <Button
             variant="primary"
@@ -163,6 +138,8 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
                   setDraft(r.value)
                   setSaved(r.value)
                   setNotice('saved')
+                  const config = await api.configuration({})
+                  if (config.ok) setIndexError(config.value.indexError)
                 } else setNotice(r.error)
               })
             }

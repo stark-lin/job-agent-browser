@@ -131,7 +131,7 @@ export class KnowledgeService {
         sync: [],
         rebuild: [],
         view: ['mode', 'explorerWidth'],
-        configure: ['mode', 'explorerWidth', 'remote', 'branch', 'semanticEnabled', 'providerId', 'modelId'],
+        configure: ['mode', 'explorerWidth', 'remote', 'branch', 'semanticEnabled'],
         configuration: [],
         token: ['token']
       }
@@ -209,13 +209,14 @@ export class KnowledgeService {
           this.index.abort.signal.throwIfAborted()
           value = this.deps.configure(v)
           this.deps.embeddings?.cancel?.()
+          if (this.index.error === 'SEMANTIC_UNAVAILABLE') this.index.error = null
           this.scheduleIndex()
           break
         case 'configuration':
           value = {
             preferences: this.deps.preferences(),
             tokenConfigured: this.deps.tokenStatus?.() ?? false,
-            indexError: this.index.error
+            indexError: this.index.error ?? this.deps.embeddings?.error?.() ?? null
           }
           break
         case 'token':
@@ -253,6 +254,7 @@ export class KnowledgeService {
     await this.watcher?.close()
     this.index.abort.abort()
     await this.embeddingWork
+    await this.deps.embeddings?.dispose?.()
     await this.backup.backup('App exit backup').catch(() => {})
     await this.index.close()
     this.listeners.clear()

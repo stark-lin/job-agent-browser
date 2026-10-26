@@ -164,13 +164,13 @@ app.on('browser-window-created', (_event, window) => {
         await click('Preview')
         await new Promise((r) => setTimeout(r, 700))
         // Capture the actual production renderer for visual inspection outside the repository.
-        writeFileSync('/tmp/jab-smart-note.png', (await window.webContents.capturePage()).toPNG())
+        writeFileSync(join(require('node:os').tmpdir(), 'jab-smart-note.png'), (await window.webContents.capturePage()).toPNG())
         await evaluate("window.browser.navigate('app://settings')")
         await wait(
           () => evaluate('document.body.textContent.includes("Knowledge backup and retrieval")'),
           'knowledge settings'
         )
-        assert.equal((await call('configuration')).value.preferences.semanticEnabled, false)
+        assert.equal((await call('configuration')).value.preferences.semanticEnabled, true)
         await evaluate("window.browser.navigate('app://knowledge')")
         await wait(() => evaluate('!!document.querySelector("[data-knowledge-page]")'), 'knowledge before quit')
         await click('Edit')

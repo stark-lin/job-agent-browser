@@ -17,7 +17,8 @@ export default defineConfig({
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/platform/electron/main/index.ts'),
           'job-agent-mcp': resolve(__dirname, 'src/platform/mcp-server/stdio.ts'),
-          'resume-output-worker': resolve(__dirname, 'src/platform/resume-output/worker.ts') },
+          'resume-output-worker': resolve(__dirname, 'src/platform/resume-output/worker.ts'),
+          'embedding-process': resolve(__dirname, 'src/platform/knowledge/rag/embedding-process.ts') },
         output: { format: 'cjs', entryFileNames: '[name].js' }
       }
     }

@@ -49,7 +49,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   await call('navigate', 'app://settings'); await formsReady()
   assert.equal(await evaluate(`document.querySelector('${appearance}').value`), 'light')
 
-  if (process.getuid?.() !== 0) {
+  if (process.platform !== 'win32' && process.getuid?.() !== 0) {
     const directory = process.env.JOB_BROWSER_SMOKE_DATA, permissions = statSync(directory).mode & 0o777
     try {
       chmodSync(directory, 0o500)

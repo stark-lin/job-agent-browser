@@ -154,7 +154,7 @@ test('symlinks retain their destination; dangling links and unavailable files ar
 })
 
 test('read and write permission failures retain original configuration without reporting success', t => {
-  if (process.getuid?.() === 0) return t.skip('Root bypasses permissions')
+  if (process.platform === 'win32' || process.getuid?.() === 0) return t.skip('POSIX permissions required; Windows/root cannot enforce chmod')
   const f = fixture(t), path = externalMCPPath('cursor', f), body = '{"retained":true}'
   save(path, body)
   const status = f.config.inspect('cursor')

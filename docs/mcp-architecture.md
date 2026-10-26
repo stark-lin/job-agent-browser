@@ -122,3 +122,5 @@ Real-provider certification, remote transports, external-calendar/email actions 
 ## Smart Note knowledge
 
 [Knowledge tools](../src/platform/tools/knowledge.ts) add knowledge.list/read/search/retrieve/write/mkdir/move/delete with bounded schemas and revision checks. Delete is the explicit knowledge-only exception to the previous no-delete surface and requires user intent. Audit migration 9 preserves existing rows and adds opaque knowledge targets; paths, queries and bodies remain excluded. [Interview preparation](../skills/interview-prep/SKILL.md) uses the same tools.
+
+The existing authenticated [broker](../src/platform/knowledge/broker.ts) delegates query vectors to Main’s single local provider. Stdio servers never initialize ONNX; they retain lexical fallback when Main is absent. Agent knowledge capabilities still cross MCP. [Package verification](../src/platform/electron/package-verification.ts) exercises a real stdio session against the broker and asserts one model process.

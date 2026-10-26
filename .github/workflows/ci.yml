@@ -1,0 +1,50 @@
+name: CI
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  merge_group:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      package: ${{ steps.scope.outputs.package }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        run: node scripts/ci-scope.cjs
+      - name: Require dev promotion into main
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: test "$HEAD_REF" = dev && test "$HEAD_REPO" = "$GITHUB_REPOSITORY"
+  validate:
+    uses: ./.github/workflows/validate.yml
+  package:
+    needs: [scope, validate]
+    if: needs.scope.outputs.package == 'true'
+    uses: ./.github/workflows/package.yml
+    with:
+      release: false
+  required:
+    name: CI required
+    if: always()
+    needs: [scope, validate, package]
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          SCOPE: ${{ needs.scope.result }}
+          VALIDATE: ${{ needs.validate.result }}
+          PACKAGE: ${{ needs.package.result }}
+        run: test "$SCOPE" = success && test "$VALIDATE" = success && { test "$PACKAGE" = success || test "$PACKAGE" = skipped; }

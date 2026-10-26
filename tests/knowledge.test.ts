@@ -10,9 +10,7 @@ import { chunkMarkdown, approximateTokens } from '../src/platform/knowledge/rag/
 import { knowledgePath } from '../src/domain/knowledge'
 import { defaultKnowledgePreferences } from '../src/shared/knowledge-settings'
 import { KnowledgeService } from '../src/platform/knowledge/service'
-import { createKnowledgeEmbeddings } from '../src/platform/knowledge/rag/embedding'
 import { startKnowledgeBroker } from '../src/platform/knowledge/broker'
-import { createServer } from 'node:http'
 import { createBackend } from '../src/platform/database/backend'
 import { createJobAgentTooling, jobAgentAllowlist } from '../src/platform/tools'
 import { createPreferences } from '../src/platform/storage/preferences'
@@ -284,48 +282,19 @@ test('knowledge preferences preserve old settings and validate remote/semantic d
   assert.throws(() =>
     prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, remote: 'https://secret@github.com/a/b' } })
   )
-  assert.throws(() => prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, semanticEnabled: true } }))
+  assert.equal(prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, semanticEnabled: true } }).knowledge?.semanticEnabled, true)
+  await writeFile(join(directory, 'settings.json'), JSON.stringify({ ...prefs.get({}), knowledge: { ...defaultKnowledgePreferences, semanticEnabled: false, providerId: 'old', modelId: 'old' } }))
+  assert.equal(prefs.get({}).knowledge?.semanticEnabled, false)
+  assert.equal(prefs.get({}).theme, 'dark')
+  assert(!('providerId' in prefs.get({}).knowledge!))
+  assert.throws(() => prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, providerId: 'old' } }))
 })
-test('embedding provider makes no calls while disabled, validates response vectors and broker requires authentication', async (t) => {
+test('embedding broker requires authentication and delegates query purpose', async (t) => {
   const { directory, files } = await fixture(t)
-  let requests = 0
-  const server = createServer((req, res) => {
-    requests++
-    let body = ''
-    req.on('data', (c) => (body += c))
-    req.on('end', () => {
-      const input = JSON.parse(body) as { input: string[] }
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ data: input.input.map((_, i) => ({ index: i, embedding: [1, 0, 0] })) }))
-    })
-  })
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
-  t.after(() => new Promise<void>((r) => server.close(() => r())))
-  const address = server.address()
-  assert(address && typeof address !== 'string')
-  let enabled = false
-  const provider = createKnowledgeEmbeddings(
-    () => ({
-      providers: [
-        {
-          id: 'local',
-          name: 'Local',
-          baseURL: `http://127.0.0.1:${address.port}`,
-          requiresKey: false,
-          models: [],
-          defaultModel: ''
-        }
-      ],
-      default: null
-    }),
-    () => ({ ...defaultKnowledgePreferences, semanticEnabled: enabled, providerId: 'local', modelId: 'embed' }),
-    () => null
-  )
-  assert.equal(provider.identity(), null)
-  await assert.rejects(provider.embed(['private'], new AbortController().signal))
-  assert.equal(requests, 0)
-  enabled = true
-  assert.deepEqual(await provider.embed(['private'], new AbortController().signal), [[1, 0, 0]])
+  const provider = { identity: () => 'fixture', embed: async (_texts: string[], purpose: string) => {
+    assert.equal(purpose, 'query')
+    return [[1, 0, 0]]
+  } }
   const index = new KnowledgeIndex(files, provider)
   const stop = await startKnowledgeBroker(directory, index)
   t.after(async () => {

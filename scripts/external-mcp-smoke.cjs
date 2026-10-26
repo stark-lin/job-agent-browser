@@ -60,7 +60,7 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
     assert.equal(await clipboard.readText(), expected)
   }
   const database = resolve(process.env.JOB_BROWSER_SMOKE_DATA, 'database.sqlite')
-  if (process.getuid?.() !== 0) {
+  if (process.platform !== 'win32' && process.getuid?.() !== 0) {
     const mode = statSync(database).mode & 0o777
     try {
       chmodSync(database, 0o000)

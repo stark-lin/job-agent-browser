@@ -175,7 +175,10 @@ export class KnowledgeIndex {
   }
   async indexEmbeddings() {
     const identity = this.embedding?.identity()
-    if (!identity || this.abort.signal.aborted) return
+    if (!identity || this.abort.signal.aborted) {
+      if (!this.error || this.error === 'SEMANTIC_UNAVAILABLE') this.error = this.embedding?.error?.() ?? null
+      return
+    }
     const db = this.connection(),
       rows = db
         .prepare(
@@ -188,9 +191,11 @@ export class KnowledgeIndex {
         const batch = rows.slice(i, i + 16),
           vectors = await this.embedding!.embed(
             batch.map((r) => `${r.title}\n${JSON.parse(r.heading).join(' > ')}\n${r.content}`),
+            'document',
             this.abort.signal
           )
         if (this.embedding?.identity() !== identity) return
+        if (this.error === 'SEMANTIC_UNAVAILABLE') this.error = null
         for (let n = 0; n < batch.length; n++) {
           const r = batch[n],
             vector = new Float32Array(vectors[n])
@@ -334,9 +339,11 @@ export class KnowledgeIndex {
     const identity = this.embedding?.identity()
     if (!identity) return undefined
     try {
-      const [values] = await this.embedding!.embed([query], this.abort.signal)
+      const [values] = await this.embedding!.embed([query], 'query', this.abort.signal)
+      if (this.error === 'SEMANTIC_UNAVAILABLE') this.error = null
       return this.embedding?.identity() === identity ? { identity, values } : undefined
     } catch {
+      this.error = 'SEMANTIC_UNAVAILABLE'
       return undefined
     }
   }

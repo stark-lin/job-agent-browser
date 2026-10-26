@@ -192,3 +192,5 @@ The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads
 ## Smart Note knowledge
 
 Files are truth: userData/knowledge contains canonical Markdown; no Note table exists. knowledge-index.sqlite is disposable and independent of database.sqlite. [Backup](../src/platform/knowledge/git/backup.ts) snapshots Markdown only; restore first snapshots current files and journals multi-file replacement. Revision checks reject stale writes. Delete retains Git history; Git omits empty directories.
+
+[Embedding identity](../src/platform/knowledge/rag/embedding-protocol.ts) includes model revision, dtype, dimensions, pooling, normalization, token limit and prefix version. The index re-embeds missing, changed or incompatible chunks and excludes other identities during vector retrieval. Raw Markdown remains canonical. [Preference loading](../src/platform/storage/knowledge-preferences.ts) drops legacy providerId/modelId only on disk reads, preserves semanticEnabled (including false), and defaults new installations to true; new writes reject obsolete fields.

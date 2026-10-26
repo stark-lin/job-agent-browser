@@ -164,3 +164,5 @@ Update the owning document and both language editions with behavior, interface, 
 ## Smart Note knowledge
 
 [Domain knowledge](../src/domain/knowledge/index.ts) owns types and pure validation. [Platform knowledge](../src/platform/knowledge/service.ts) owns filesystem/Git/SQLite/network adapters; [pages/knowledge](../src/pages/knowledge/KnowledgePage.tsx) calls only the typed bridge. Agent code never imports this service: every knowledge operation crosses MCP.
+
+[Embedding contracts](../src/platform/knowledge/rag/embedding.ts) and the scheduler remain independent of Electron; [model-path](../src/platform/knowledge/rag/model-path.ts) binds the Electron utility transport. The inference entry owns only model/tokenizer/runtime. [Build configuration](../electron.vite.config.ts) emits embedding-process.js alongside Main/MCP/output worker; packaging externalizes native dependencies. Distribution operations belong to [CI/CD](ci-cd.md).

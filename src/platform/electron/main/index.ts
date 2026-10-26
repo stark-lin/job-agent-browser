@@ -1,5 +1,6 @@
+import { verifyPackageRuntime } from '../package-verification'
 import { KnowledgeService } from '../../knowledge/service'
-import { createKnowledgeEmbeddings } from '../../knowledge/rag/embedding'
+import { createKnowledgeEmbeddings } from '../../knowledge/rag/model-path'
 import { startKnowledgeBroker } from '../../knowledge/broker'
 import { registerKnowledgeIPC } from './knowledge-ipc'
 import { defaultKnowledgePreferences } from '../../../shared/knowledge-settings'
@@ -70,6 +71,7 @@ const getInboxURL = () => preferences.get({}).mailbox.url || null
 if (process.env.JOB_BROWSER_USER_DATA) app.setPath('userData', process.env.JOB_BROWSER_USER_DATA)
 
 app.whenReady().then(async () => {
+  if (process.argv.includes('--verify-package')) { await verifyPackageRuntime(); app.exit(0); return }
   const directory = app.getPath('userData')
   preferences = createPreferences(join(directory, 'settings.json'), value => {
     applyTheme(value.theme)
@@ -89,7 +91,7 @@ app.whenReady().then(async () => {
     configure: value => preferences.savePreferences({ knowledge: value }).knowledge!,
     token: () => secrets.readProviderKey(githubKey), tokenStatus: () => secrets.hasProviderKey({provider: githubKey}).configured,
     saveToken: value => { if(value === null) secrets.deleteProviderKey({provider:githubKey}); else secrets.saveProviderKey({provider:githubKey,apiKey:value}) },
-    embeddings: createKnowledgeEmbeddings(() => preferences.get({}).ai, knowledgePreferences, secrets.readProviderKey) })
+    embeddings: createKnowledgeEmbeddings(() => knowledgePreferences().semanticEnabled) })
   registerKnowledgeIPC(knowledge, join(__dirname, '../renderer/index.html'))
   void knowledge.ready.then(async () => { if (shuttingDown) return; const stop = await startKnowledgeBroker(directory, knowledge!.index); if (shuttingDown) await stop(); else stopKnowledgeBroker = stop }).catch(() => {})
   externalMCP = createExternalMCPInstaller({ home: app.getPath('home'), codexHome: process.env.CODEX_HOME,
@@ -135,6 +137,7 @@ app.whenReady().then(async () => {
   })
 }).catch((error: unknown) => {
   // Do not show raw SQLite errors/paths; initialization failure must never silently reset user data.
+  if (process.argv.includes('--verify-package')) { console.error(error); app.exit(1); return }
   dialog.showErrorBox(t($ => $.errors.storageTitle), error instanceof Error && error.message.startsWith('INCOMPATIBLE_DATABASE_GENERATION') ? t($ => $.errors.databaseGeneration) : t($ => $.errors.storageMessage))
   app.quit()
 })
@@ -143,7 +146,7 @@ app.on('will-quit', event => {
   profileImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (shuttingDown) return
-  if (!ai && !tools && !resumes && !externalMCP) { backend?.close(); backend = undefined; return }
+  if (!knowledge && !ai && !tools && !resumes && !externalMCP) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
   void Promise.allSettled([knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })

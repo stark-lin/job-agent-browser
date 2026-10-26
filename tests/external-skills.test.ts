@@ -238,7 +238,7 @@ test('partial failure reports actual completed and pending items and can be retr
 })
 
 test('unwritable destinations report failure without overwriting existing Skills', t => {
-  if (process.getuid?.() === 0) { t.skip('Root can bypass POSIX file permissions'); return }
+  if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('POSIX permissions required; Windows/root cannot enforce chmod'); return }
   const f = fixture(t), path = f.status().path
   fs.mkdirSync(path, { recursive: true }); fs.chmodSync(path, 0o500)
   try {

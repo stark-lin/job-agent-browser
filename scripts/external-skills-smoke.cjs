@@ -64,7 +64,7 @@ module.exports = async function externalSkillsSmoke({ window, evaluate, waitFor 
   await refresh(); await click('codex'); await evaluate('document.querySelector("[data-skills-confirm]").click()'); await ready()
 
   // Permission failure is shown in the production UI, with no false success.
-  if (process.getuid?.() !== 0) {
+  if (process.platform !== 'win32' && process.getuid?.() !== 0) {
     const path = before.value.clients.find(client => client.target === 'cursor').path
     rmSync(join(path, 'tailor-resume'), { recursive: true })
     chmodSync(path, 0o500)

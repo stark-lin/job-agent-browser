@@ -1,0 +1,47 @@
+name: Validate
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    name: Runtime (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1 libfuse2t64
+      - run: npm ci
+      - run: npx --no-install install-electron
+      - name: Validate source, tests, build and MCP
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a npm run check
+          else
+            npm run check
+          fi
+      - run: npm run test:release
+      - name: Electron and Knowledge runtime
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a node scripts/run-smoke.cjs
+            xvfb-run -a node scripts/run-knowledge-smoke.cjs
+          else
+            node scripts/run-smoke.cjs
+            node scripts/run-knowledge-smoke.cjs
+          fi

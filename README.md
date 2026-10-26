@@ -34,7 +34,7 @@ npm run test:profile
 npm run test:ask-ai
 ```
 
-The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL/text/PDF capture, application Agent actions, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform installers remain unconfigured.
+The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, mixed history, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL/text/PDF capture, application Agent actions, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform packaging is configured in [electron-builder.yml](electron-builder.yml); verification and release prerequisites are tracked in [CI/CD](docs/ci-cd.md).
 
 `test:mcp` checks the existing MCP Client runtime. `test:mcp-server` checks the public Job/Application/Resume surface, runtime parity and a built Node stdio Server with real Electron HTML/PDF output and disposable storage. Both runtime smokes also run in `check`; Server PDF checks require a graphical desktop. See [MCP architecture](docs/mcp-architecture.md).
 
@@ -48,11 +48,30 @@ For documentation changes, check language parity, implementation labels, relativ
 
 To connect local Codex, Claude Code or Cursor, open Settings → Connect external Agents → Add MCP, then use Install Skills separately for the six bundled workflows. Other Agents can copy them with Open Skills folder; `npm run skill:link` remains a repository-only alternative. The [MCP connection instructions](docs/mcp-architecture.md#5-job-agent-browser-mcp) own setup and limitations. Codex generation does not require an application AI Provider.
 
+## Packaging and integration
+
+Ordinary `build` stays offline and does not require model files. Prepare the model once for local semantic search; packaging downloads and verifies it automatically. Fresh installs need `npx --no-install install-electron` before tests.
+
+```sh
+npm run model:prepare
+npm run model:verify
+npm run test:embedding
+npm run test:release
+npm run package:dir
+npm run package:win
+npm run package:mac
+npm run package:linux
+npm run package:verify -- /absolute/path/to/unpacked-app
+```
+
+Integrate changes into `dev` first, then promote `dev` to `main` through a passing PR. Updates to `dev` run CI; updates to `main` automatically validate, package four targets and publish a complete prerelease. Preview installers are unsigned unless strict signing is configured. [CI/CD](docs/ci-cd.md) owns runner, signing, retry and protection details.
+
 ## Documentation index
 
 | Document | Purpose |
 | --- | --- |
 | [Documentation rules](AGENTS.md) · [简体中文](AGENTS.zh-CN.md) | Ownership, languages, length limits, and review requirements |
+| [CI/CD](docs/ci-cd.md) · [简体中文](docs/ci-cd.zh-CN.md) | Branch integration, automated validation, packaging, signing and release operations |
 | [Current architecture](docs/architecture.md) · [简体中文](docs/architecture.zh-CN.md) | Implemented runtime, security boundaries, and limitations |
 | [Product architecture](docs/product-architecture.md) · [简体中文](docs/product-architecture.zh-CN.md) | Planned scope, entry points, and delivery order |
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
@@ -67,4 +86,4 @@ To connect local Codex, Claude Code or Cursor, open Settings → Connect externa
 
 ## Smart Note knowledge
 
-Smart Note uses a single local Markdown tree with Edit/Split/Preview, recovery snapshots, optional GitHub backup and hybrid retrieval. Humans and MCP Agents share it; embeddings require explicit opt-in. See [knowledge storage](docs/data-architecture.md) and [MCP tools](docs/mcp-architecture.md).
+Smart Note uses a single local Markdown tree with Edit/Split/Preview, recovery snapshots, optional GitHub backup and hybrid retrieval. Humans and MCP Agents share it; new installations enable the bundled offline embedding model by default; existing explicit opt-out is preserved. See [knowledge storage](docs/data-architecture.md) and [MCP tools](docs/mcp-architecture.md).

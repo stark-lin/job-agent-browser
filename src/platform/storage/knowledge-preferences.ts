@@ -1,9 +1,11 @@
 import { object } from './validation'
 import { fail } from '../../domain/common/errors'
 import { defaultKnowledgePreferences, type KnowledgePreferences } from '../../shared/knowledge-settings'
-export function knowledgePreferences(input: unknown): KnowledgePreferences {
-  const value = object(input, Object.keys(defaultKnowledgePreferences)),
-    p = { ...defaultKnowledgePreferences, ...value }
+export function knowledgePreferences(input: unknown, migrate = false): KnowledgePreferences {
+  const value = { ...object(input, [...Object.keys(defaultKnowledgePreferences), ...(migrate ? ['providerId', 'modelId'] : [])]) }
+  delete value.providerId
+  delete value.modelId
+  const p = { ...defaultKnowledgePreferences, ...value }
   if (
     !['edit', 'split', 'preview'].includes(p.mode) ||
     !Number.isInteger(p.explorerWidth) ||
@@ -16,12 +18,7 @@ export function knowledgePreferences(input: unknown): KnowledgePreferences {
     !/^[-\w][\w/-]{0,100}$/.test(p.branch) ||
     p.branch.includes('..') ||
     p.branch.includes('//') ||
-    p.branch.endsWith('/') ||
-    typeof p.providerId !== 'string' ||
-    p.providerId.length > 100 ||
-    typeof p.modelId !== 'string' ||
-    p.modelId.length > 200 ||
-    (p.semanticEnabled && (!p.providerId || !p.modelId))
+    p.branch.endsWith('/')
   )
     fail('INVALID_INPUT')
   if (p.remote) {

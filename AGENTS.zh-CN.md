@@ -16,6 +16,7 @@
 | [docs/design-system.md](docs/design-system.md) · [中文](docs/design-system.zh-CN.md) | 共享 UI 规范、组件参考展示库、Design Tokens 与设计验证。 |
 | [docs/data-architecture.md](docs/data-architecture.md) · [中文](docs/data-architecture.zh-CN.md) | 当前及规划的 V1 数据模型、业务数据 API、生成、溯源、审计与存储；拥有共享 [ER 图](docs/diagrams/data-model.md)。 |
 | [docs/mcp-architecture.md](docs/mcp-architecture.md) · [中文](docs/mcp-architecture.zh-CN.md) | 工具注册、Agent Scope、带审计能力绑定、MCP Provider/Client 行为及生命周期。 |
+| [CI/CD](docs/ci-cd.zh-CN.md) · [English](docs/ci-cd.md) | 分支集成、验证、模型来源、打包、签名与发布运维。 |
 
 新增文档前先检查上表；只有独立主题无法合理归入现有文档时才新建，并在 README 索引中添加链接。
 
@@ -52,3 +53,7 @@
 - 所有由 Agent 发起的业务能力调用必须跨越 Job Agent Browser MCP 协议边界，包括流程提交、持久化、取消、失败收尾和产物构建。
 - `ToolScope` 是服务端实现细节，不得作为 Agent 接口。Agent 代码使用 `AgentModel`、`AgentTools` 和纯流程契约；禁止导入 Domain Service/Repository、数据库适配器或工具 Registry，也不得通过重新导出或动态导入绕过。
 - 宿主资料读取和模型推理在业务 MCP 外完成。`job.import` 仅保存结构化数据。人工表单和只读 UI 投影可继续使用 typed IPC 与 Domain 服务。
+
+## Git 集成
+
+创建或复用 `dev` 集成分支。改动先推送到 `dev`，再通过 `CI required` 成功的 PR 将其合入 `main`。功能分支使用 `codex/` 前缀并以 `dev` 为目标。不要直接向 `main` 推送实现提交。`main` 更新负责自动发布，普通集成不得绕过 CI。
