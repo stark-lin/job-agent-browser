@@ -166,4 +166,4 @@ Central [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx), [ExplorerRow/Resi
 
 Smart Note uses the shared `notebook` [Glyph](../src/shared/ui/Glyph.tsx), combining a notebook with a sparkle in Home and navigation. The Explorer divider uses `--border-width` (1px) and `--line`, with an invisible `--space-1` (8px) drag target; keyboard resizing and focus treatment remain available.
 
-Knowledge Settings composes central Checkbox and StatusMessage for the local semantic toggle, offline explanation and unavailable feedback. It has no embedding provider/model controls; generative AI configuration remains in AI settings. Tokens and geometry are unchanged.
+Knowledge Settings composes central Checkbox and StatusMessage for the local semantic toggle, offline explanation and unavailable feedback. It has no embedding provider/model controls; generative AI configuration remains in AI settings. Tokens and geometry are unchanged. The Settings group in the reference gallery includes the toggle and offline explanation.

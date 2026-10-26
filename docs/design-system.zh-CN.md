@@ -166,4 +166,4 @@ npm run quality
 
 智能笔记在主页和导航中使用共享的 `notebook` [Glyph](../src/shared/ui/Glyph.tsx)，以笔记本搭配星芒。资源管理器分割线使用 `--border-width`（1px）和 `--line`，并保留不可见的 `--space-1`（8px）拖拽热区；键盘调整宽度和焦点样式仍然可用。
 
-知识设置使用中央 Checkbox 与 StatusMessage 展示本地语义搜索开关、离线说明及不可用状态，不再提供 embedding 服务/模型控件；生成式 AI 仍在 AI 设置中配置。Token 和几何保持一致。
+知识设置使用中央 Checkbox 与 StatusMessage 展示本地语义搜索开关、离线说明及不可用状态，不再提供 embedding 服务/模型控件；生成式 AI 仍在 AI 设置中配置。Token 和几何保持一致。参考图库的 Settings 组包含开关与离线说明。

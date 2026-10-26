@@ -25,7 +25,10 @@ jobs:
           node-version: 24.22.1
           cache: npm
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1 libfuse2t64
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1 libfuse2t64 apparmor
+      - name: Permit sandbox namespaces for test executables
+        if: runner.os == 'Linux'
+        run: bash scripts/setup-linux-ci.sh
       - run: npm ci
       - run: npx --no-install install-electron
       - name: Validate source, tests, build and MCP
