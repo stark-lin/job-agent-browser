@@ -21,7 +21,9 @@ async function main() {
   if (!platform || !['arm64', 'x64'].includes(process.arch)) throw new Error('UNSUPPORTED_TARGET')
   const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: signed ? 'true' : 'false' }
   delete env.CSC_LINK; delete env.CSC_KEY_PASSWORD; delete env.APPLE_API_KEY
-  const options = [`--${platform}`, process.platform === 'win32' ? 'nsis' : process.platform === 'darwin' ? 'dmg' : 'AppImage',
+  const full = (process.env.JAB_PACKAGE_MODE || 'full') === 'full'
+  if (!['full', 'minimal'].includes(process.env.JAB_PACKAGE_MODE || 'full')) throw new Error('INVALID_PACKAGE_MODE')
+  const options = ['--config', full ? 'electron-builder.full.yml' : 'electron-builder.yml', `--${platform}`, process.platform === 'win32' ? 'nsis' : process.platform === 'darwin' ? 'dmg' : 'AppImage',
     `--${process.arch}`, '--publish', 'never', `--config.extraMetadata.version=${meta.version}`, `--config.buildVersion=${meta.buildVersion}`,
     `--config.mac.bundleVersion=${meta.macBundleVersion}`, `--config.mac.bundleShortVersion=${require('../package.json').version}`]
   const keyPath = join(root, '.cache/notary-key.p8')
@@ -41,7 +43,7 @@ async function main() {
     } else if (process.platform === 'darwin') options.push('--config.mac.identity=null', '--config.mac.notarize=false')
     run(process.execPath, [join(root, 'node_modules/electron-builder/out/cli/cli.js'), ...options], env)
     const stage = process.platform === 'darwin' ? join(root, 'release', process.arch === 'arm64' ? 'mac-arm64' : 'mac', 'JAB.app') : join(root, 'release', process.platform === 'win32' ? 'win-unpacked' : 'linux-unpacked')
-    run(process.execPath, [join(root, 'scripts/verify-package.cjs'), stage])
+    run(process.execPath, [join(root, 'scripts/verify-package.cjs'), stage, ...(full ? [] : ['--minimal'])])
     if (signed && process.platform === 'darwin') {
       run('codesign', ['--verify', '--deep', '--strict', stage])
       run('xcrun', ['stapler', 'validate', stage])
@@ -56,12 +58,12 @@ async function main() {
     for (const name of names) {
       const path = join(root, 'release', name)
       if (signed && process.platform === 'win32') run('powershell', ['-NoProfile', '-Command', 'if ((Get-AuthenticodeSignature -LiteralPath $env:JAB_SIGNED_INSTALLER).Status -ne "Valid") { exit 1 }'], { ...process.env, JAB_SIGNED_INSTALLER: path })
-      run(process.execPath, [join(root, 'scripts/verify-installer.cjs'), path])
+      run(process.execPath, [join(root, 'scripts/verify-installer.cjs'), path, ...(full ? [] : ['--minimal'])])
       assets.push({ name, size: statSync(path).size, sha256: await digest(path) })
       copyFileSync(path, join(output, name))
     }
     writeFileSync(join(output, `${platform}-${process.arch}.json`), JSON.stringify({ ...meta, platform, arch: process.arch,
-      modelRevision: manifest.revision, modelManifest: await digest(join(root, 'resources/embedding-model.json')),
+      modelMode: full ? 'full' : 'minimal', modelRevision: manifest.revision, modelManifest: await digest(join(root, 'resources/embedding-model.json')),
       signing: signed ? 'signed' : 'unsigned', runtimeVerified: true, assets }, null, 2) + '\n')
   } finally { rmSync(keyPath, { force: true }) }
 }

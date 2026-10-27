@@ -194,3 +194,5 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 Files are truth：userData/knowledge 保存规范 Markdown，不建 Note 表；knowledge-index.sqlite 是独立于 database.sqlite 的可重建缓存。[备份](../src/platform/knowledge/git/backup.ts)只保存 Markdown；恢复前先快照当前文件，多文件替换使用恢复日志，版本检查拒绝过期写入。删除保留 Git 历史，Git 不保存空目录。
 
 [Embedding identity](../src/platform/knowledge/rag/embedding-protocol.ts)包含模型 revision、dtype、维度、pooling、归一化、token 上限及前缀版本。索引重建缺失、变更或不兼容的向量，检索排除其他 identity。原始 Markdown 仍是事实源。[偏好加载](../src/platform/storage/knowledge-preferences.ts)仅在读取磁盘时移除旧 providerId/modelId，保留 semanticEnabled（包括 false），新安装默认 true；新写入拒绝旧字段。
+
+[用户模型存储](../src/platform/models/paths.ts) 独立于 userData/knowledge 和两个 SQLite 数据库：macOS 为 `~/Library/Application Support/JAB/managed-models`，Windows 为 `%LOCALAPPDATA%/JAB/Models`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/JAB/models`。`JAB_MODEL_STORE` 接受绝对路径覆盖。Revision 目录、已验证重试 staging、心跳锁/读取租约和 `.installed.json` 是文件系统资源，不是业务记录；每次激活都独立于安装标记检查大小/SHA256。原子保存的 `seed-preferences.json` 记录已初始化 revision，显式删除后禁用自动 Seed 导入。npm 更新/卸载保留这些文件。删除权重保留 chunk、FTS 和派生向量，但不可用的 provider 无法使用这些向量。

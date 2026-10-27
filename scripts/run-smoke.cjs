@@ -7,6 +7,7 @@ delete env.JOB_BROWSER_USER_DATA
 delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_RENDERER_URL
 env.JOB_BROWSER_SMOKE_DATA = mkdtempSync(resolve(tmpdir(), 'job-browser-smoke-'))
+env.JAB_MODEL_STORE = resolve(env.JOB_BROWSER_SMOKE_DATA, 'managed-models')
 const jobs = process.argv.includes('--jobs')
 const suite = jobs ? 'job-runtime-smoke.cjs' : process.argv.includes('--theme') ? 'theme-runtime-smoke.cjs' : 'smoke.cjs'
 let child = spawnSync(require('electron'), [resolve(__dirname, suite)], { env, stdio: 'inherit', timeout: 180_000, killSignal: 'SIGKILL' })

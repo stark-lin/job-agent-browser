@@ -19,3 +19,4 @@ export { Markdown } from './Markdown'
 
 export { MarkdownEditor } from './MarkdownEditor'
 export { ExplorerRow, ResizableExplorer } from './KnowledgeControls'
+export { Progress } from './Progress'

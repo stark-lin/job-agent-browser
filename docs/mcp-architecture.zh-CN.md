@@ -126,3 +126,5 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 现有认证 [broker](../src/platform/knowledge/broker.ts)把查询向量请求交给 Main 唯一的本地 provider。Stdio server 不初始化 ONNX；Main 不存在时保留词法检索。Agent 知识能力仍跨 MCP。[包内验收](../src/platform/electron/package-verification.ts)通过真实 stdio session 调用 broker，并断言只启动一个模型进程。
 
 [原生会话环境转发](../src/platform/mcp/native-environment.ts)仅将选定的显示会话与 Windows 系统字段传入 stdio 启动和生成的外部配置，使 Electron PDF worker 能在 Linux/Windows 初始化；仍不支持用户任意环境覆盖。
+
+[npm 启动适配](../src/platform/npm/distribution.ts) 为持久 npm 安装生成绝对 Node + `jab.cjs mcp --data-dir` 连接；临时 npx 安装不能安装永久外部连接。CLI 要求显式绝对数据目录或 `JOB_BROWSER_USER_DATA`；stdout 只承载协议内容。Electron PDF 输出在需要时初始化官方运行时。模型管理仅通过受信任的人类 IPC 入口提供：MCP 工具不授予安装、删除或下载权限，普通 Agent 写入不会安装模型。

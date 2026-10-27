@@ -1,28 +1,28 @@
-# CI/CD 与桌面分发
+# CI/CD 与应用分发
 
-用途：负责分支集成、CI、模型准备、打包及发布运维。状态：源码中**已配置**，平台执行证据由 Actions 运行提供。签名分发需要操作者提供证书。当前发布目标为 **macOS arm64**，Windows、Linux 和 macOS x64 发布延后。尚未实现应用自动更新。
+目的：负责集成、验证、可选模型供应、桌面/npm 打包、签名和发布。状态：源码中**已配置**；执行证据来自本地检查与 Actions。发行目标**仅 macOS ARM64**。干净用户环境的 Gatekeeper/Keychain 与跨渠道凭据兼容性尚未验证。尚未实现自动更新器。
 
-语言：简体中文 · [English](ci-cd.md)
+语言：[English](ci-cd.md) · 简体中文
 
 ## 集成与触发
 
-改动先集成到 `dev`。功能分支使用 `codex/` 并以 `dev` 为目标；通过 PR 将 `dev` 合入 `main`。[CI](../.github/workflows/ci.yml)在指向这两个分支的 PR、`dev` push、合并队列及手动触发时运行。`CI required` 汇总检查拒绝失败和取消，并拒绝来自本仓库 `dev` 以外分支的 main PR。
+功能分支使用 `codex/` 并集成到 `dev`。通过 `CI required` 通过的 PR 将 `dev` 晋升到 `main`。[CI](../.github/workflows/ci.yml) 拒绝来自其他头分支的 main PR；仓库保护必须要求 PR、最新检查、已解决讨论、管理员约束和禁止强推/删除。工作流不会配置这些设置。
 
-[Release](../.github/workflows/release.yml)在每次 `main` push（包括合并 PR）后运行，并支持在 `main` 手动触发。各阶段固定事件 SHA，重新验证、构建 macOS arm64 目标，再统一发布 GitHub 预发布版本。无需推送 tag。直接 push main 也会触发发布，因此需通过分支保护阻止普通直接推送。
-
-仓库保护要求 `main` 通过 PR、保持最新的 `CI required`、解决讨论，并约束管理员。两个分支均禁止强推和删除。`dev` 接受普通集成推送并在推送后运行 CI，保留已批准的集成路径。使用合并队列时再启用对应事件。工作流文件本身不会配置仓库保护。
+[Release](../.github/workflows/release.yml) 在 main 推送或手动 main 调度时运行，始终检出事件对应 SHA，验证、构建双渠道，先发布 GitHub 预发行版，再发布 npm Preview。发布串行执行，不取消活跃运行。不需要推送 tag。PR 作业取消已被替代的旧运行。
 
 ## 验证与原生打包
 
-[验证](../.github/workflows/validate.yml)固定 Node 24.22.1，执行 `npm ci`、显式安装 Electron、`check`、发布脚本测试及 Electron/Knowledge smoke。验证在 `macos-15` 上使用 arm64 Node 运行，其他平台任务不属于当前门禁。普通验证无需下载模型。模型、原生依赖或构建相关改动额外触发包体验证；[范围检测](../scripts/ci-scope.cjs)控制 PR 成本。
+[验证](../.github/workflows/validate.yml) 固定 Node 24.22.1，在 `macos-15` ARM64 上运行。显式安装 Electron，运行 `check`、发布脚本测试、不含模型的 npm 内容校验和 Electron/Knowledge 冒烟测试。普通验证不下载模型。[范围检测](../scripts/ci-scope.cjs) 为受影响源码、依赖、资源、打包和工作流增加原生/发行验证。
 
-[打包](../.github/workflows/package.yml)在 macOS arm64（`macos-15`）原生运行。准备并校验模型、构建、执行真实离线推理/MCP smoke，再构建并验证 DMG。不接受跨架构运行结果。[安装器验收](../scripts/verify-installer.cjs)挂载 DMG、保留相对符号链接复制应用，再重跑包内运行检查。[.gitattributes](../.gitattributes)固定文本行尾以保持 manifest 摘要一致。Windows、Linux 和 Intel Mac 的构建配置/辅助脚本保留为**脚手架**，不进入当前 CI 或发布。
+[打包](../.github/workflows/package.yml) 包含两个作业：附带已校验离线 Seed/推理的 Full DMG，以及经过干净安装/运行时冒烟测试的不含模型 npm tarball。两者使用相同发布元数据。不接受跨架构运行结果。Windows、Linux 和 macOS x64 仍为**脚手架**，不参与发布。
 
-[Builder 配置](../electron-builder.yml)包含生产依赖和全部编译入口/资源。ONNX/Sharp 原生库 unpack，模型和声明位于 ASAR 外。[包内验收](../scripts/verify-package.cjs)校验每个模型摘要、原生运行时，再从其他 cwd 启动打包二进制，使用临时 userData。验证维度、归一化、双向跨语言检索、SQLite/RRF、真实 stdio MCP session、broker 共用单进程、词法降级及资源释放。无需付费模型。
+[基础 builder](../electron-builder.yml) 构建 Minimal 桌面应用；[Full 配置](../electron-builder.full.yml) 添加 Seed。现有 `package` 命令默认保留 Full；`package:minimal` 显式选择 Minimal。ONNX/Sharp 原生库保持解包。应用推理不会直接读取 Seed 路径。
 
-## 模型来源与本地命令
+[桌面验证](../scripts/verify-package.cjs) 校验声明、原生模块，以及所有 Seed 摘要或模型权重缺失状态（`--minimal`）。从其他 cwd 启动应用并使用临时数据。Full 检查向用户存储导入 Seed、384 维归一化/双向跨语言检索、SQLite/RRF、真实 MCP 会话、共享推理、HTML/PDF 和删除模型后的降级。Minimal 检查无模型关键词/MCP 检索和 HTML/PDF。[安装器验证](../scripts/verify-installer.cjs) 解包/挂载安装器后，重复对应模式的检查。
 
-[Manifest](../resources/embedding-model.json)固定七个文件、精确大小、SHA-256、revision 和推理设置。[准备脚本](../scripts/prepare-embedding-model.cjs)验证缓存，以有界重试/超时下载固定 revision，流式校验并原子替换临时文件。仅验证模式绝不下载。权重不进入 Git。缺失或损坏文件使打包失败；普通开发保留词法降级。
+## 模型供应与本地命令
+
+[Manifest](../resources/embedding-model.json) 固定 revision、文件、精确大小、SHA256、许可和推理设置。[准备脚本](../scripts/prepare-embedding-model.cjs) 与 Main 共享[传输/校验核心](../src/platform/models/core.cjs)：固定 revision、流式字节上限/哈希、有界重试/超时和临时文件重命名。仅校验模式不会下载。Full 打包要求已准备/校验的 Seed；Minimal 和 npm 构建不准备模型。
 
 ```sh
 npm ci
@@ -32,37 +32,44 @@ npm run test:release
 npm run model:prepare
 npm run release:check
 npm run package:dir
+npm run package:minimal
 npm run package:verify -- /absolute/path/to/unpacked-app
+npm run package:verify -- /absolute/path/to/minimal-app --minimal
+npm run release:npm:check
 ```
 
-`build` 保持离线。`package:mac` 和 `release:build` 自动准备模型并明确指定 arm64。`package:win`、`package:linux` 仅保留为本地脚手架命令，不属于支持的发布目标。`test:embedding` 要求先构建并准备模型。模型许可证声明与上游来源随 [model-notice.txt](../resources/model-notice.txt)一同打包。
+`test:embedding` 要求已有构建和准备好的 Seed。[Model Manager](../src/platform/models/manager.ts) 在首次使用时异步导入 Full Seed；用户删除会持久保存拒绝自动导入的选择。模型存储/生命周期规则属于[数据架构](data-architecture.zh-CN.md)。模型与字体声明独立于应用的 AGPL-3.0-only 许可证。
 
-## 版本、产物与发布
+## npm 运行时与可复现产物
 
-[版本元数据](../scripts/release-metadata.cjs)根据 package 版本、工作流运行编号和提交生成 `base-main.RUN.gSHA7`。Tag 加 `v` 前缀。macOS bundle 使用基础短版本及由运行编号生成的三段数字构建版本；完整预发布版本保留在 package 元数据及产物文件名中。重跑同一工作流保留版本；数字分量超过 65535 时明确失败。新的手动触发属于独立构建。
+[准备脚本](../scripts/prepare-npm-package.cjs) 保持源码包 private，使用[包模板](../packages/npm/package.template.json) 生成 `dist/npm/`。复制已构建 Main/Preload/Renderer、MCP/推理/PDF Worker、字体、Skills、模型 manifest/声明和许可证。包括 Electron 在内的运行依赖使用根锁文件中的精确版本；`npm-shrinkwrap.json` 保留已解析的生产依赖闭包、注册表摘要和可选平台依赖。不会复制源码仓库 node_modules 或模型权重。
 
-模型缓存键包含完整 manifest 哈希，命中后仍重新校验。DMG 与 mac-arm64 清单使用短期 Actions artifacts（7 天，不重新压缩）。原始模型不作为 artifact 上传。目标清单记录提交、模型 revision/manifest 摘要、架构、签名模式、安装包大小/哈希及运行验收成功状态。
+[内容校验](../scripts/verify-npm-package.cjs) 拒绝符号链接、模型权重、数据库、密钥、缓存、fixture 和安装器，打包目录，并在 `dist/npm-artifacts/manifest.json` 记录 tarball SHA256/SHA512、大小、版本、提交和验证状态。npm 文件独立于仅用于桌面的 `release/publish/` 文件集。
 
-仅最终发布任务获得 `contents: write`，且要求 arm64 验证和打包任务成功。[发布器](../scripts/publish-release.cjs)要求 mac-arm64 清单和 DMG，拒绝其他平台产物、混合提交及哈希不符，汇总 `build-manifest.json` 和 `SHA256SUMS`，创建或复用草稿，上传并校验全部远程资源后才公开预发布。上传或验证失败时草稿保持私有。已公开资源绝不覆盖；相同重跑仅验证。不会改变最新稳定版。
+[干净安装冒烟](../scripts/npm-runtime-smoke.cjs) 在仓库外安装 tarball，通过官方模块初始化 Electron，检查直接依赖解析版本、version/doctor、真实 GUI/Preload/模型控件、显式 `jab mcp`、无模型检索、HTML/PDF 和卸载/重装持久性。存在准备好的测试模型时，使用真实 revision/校验值与 fixture 传输，通过 GUI 检查离线失败、取消/复用、安装后即时跨语言索引和删除；发行 CI 要求该项通过。仅成功测试会将 manifest 标记为运行时已验证。这些检查证明当前主机可运行；干净用户的系统身份仍是独立发布门槛。
 
-PR 会取消过时运行。发布串行且禁用取消运行；GitHub 仍可能用较新待运行任务替换较旧待运行任务。需要为被跳过的中间提交构建时，可在 `main` 手动触发。缺失或未通过验收的 arm64 DMG 会阻止发布。
+[CLI](../packages/npm/bin/jab.cjs) 提供 GUI、version、doctor 和 MCP；[用户指南](../packages/npm/README.zh-CN.md) 负责使用说明。Electron 首次运行初始化独立于可选模型安装（[官方安装行为](https://www.electronjs.org/docs/latest/tutorial/installation)）。本次发行按明确选择，让 npm/DMG 共享默认 JAB 用户数据目录。不要同时运行两个渠道访问该目录；凭据兼容性尚未验证，解密失败不会重置密钥。
 
-## 签名与 GitHub 配置
+## 版本、发布与重试
 
-预览默认**不签名**。启用严格签名需设置仓库 Actions 变量 `RELEASE_SIGNING=signed`；凭据缺失或无效时打包任务失败。唯一其他合法值为 `unsigned`。PR 打包不接收签名凭据。
+[元数据](../scripts/release-metadata.cjs) 根据根版本、工作流运行编号和提交生成 `base-main.RUN.gSHA7` 与 `v` tag。DMG/npm 使用完全相同的应用版本和 SHA；模型 revision 独立。macOS 使用基础短版本和数字 bundle 构建版本。工作流重跑保留版本；新手动调度生成新版本。数字分量超过 65535 会失败。本地 npm 构建使用 `base-next.0` 并记录 Git SHA。
 
-| 仓库 Actions secret | 用途 |
-| --- | --- |
-| `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD` | Base64 Developer ID 证书及密码 |
-| `APPLE_API_KEY` | App Store Connect API 密钥正文，写入私有临时文件并在结束时清理 |
-| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | 公证 API 标识 |
+短期产物（保留 7 天，不重新压缩）包含 DMG 及其桌面 manifest，以及独立的 npm tarball 和 manifest。模型缓存键包含完整 manifest 哈希，缓存命中也会重新校验。原始模型文件不会作为独立产物上传。
 
-[CI 打包](../scripts/ci-package.cjs)在签名模式下强制代码签名，启用 Apple 公证，验证 codesign/stapling/Gatekeeper。Windows 签名代码仅作为脚手架保留，不会执行。证书/服务开通和首次安装的系统批准仍由操作者处理。`release` Environment 控制发布；要求 main 全自动发布时不要添加人工必需审批。任务 token 需要创建仓库 Release 的权限。Actions 内无需 PAT。
+[GitHub 发布器](../scripts/publish-release.cjs) 保留桌面职责：要求已验证 ARM64 资产，拒绝额外/混合/损坏文件，上传草稿、验证远端摘要再发布预发行版。已存在的相同资产只验证，不覆盖。不修改 Latest stable。
 
-## 失败、重试与验证边界
+[npm 发布器](../scripts/publish-npm.cjs) 在 GitHub 发布后于 `npm-release` 中运行，权限为 `contents: read` 和 `id-token: write`。校验实际 tarball、内部元数据、SHA/版本、目标和运行时门槛，再通过 npm OIDC 以 `next` 标签和 provenance 公开发布 `@stark-lin/jab`。已存在版本仅在 Registry 完整性摘要一致时被接受；注册表/鉴权失败不会盲目触发发布。GitHub/npm 是独立事务：npm 失败会保留 GitHub Release，使用同一已验证产物重试。
 
-在同一工作流重跑失败任务以保留成功产物及版本。损坏缓存由准备脚本修复，或导致校验失败；不得发布省略模型的版本。发布失败保留草稿，可继续补传缺失资源。撤回已公开预览需在 GitHub 删除 Release；已安装应用不会自动回滚。
+## 签名与发布器配置
 
-失败任务保留可用 builder 诊断七天；普通日志标识失败阶段及脱敏能力错误。不发布用户档案或凭据。干净目标机的人工安装/卸载、证书配置、真实 AI Provider 兼容性和自动更新不能仅由源码配置证明。
+预览版默认**不签名**。`RELEASE_SIGNING=signed` 要求 `MAC_CSC_LINK`、`MAC_CSC_KEY_PASSWORD`、`APPLE_API_KEY`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。[CI 打包](../scripts/ci-package.cjs) 启用严格签名/公证、删除临时密钥材料并检查 codesign/stapler/Gatekeeper。PR 不接收签名密钥；Windows 签名仍为脚手架。`JAB_PACKAGE_MODE=full|minimal` 选择 CI 桌面策略；当前 Release 使用 Full。
 
-相关：[运行时](architecture.zh-CN.md)、[存储及索引 identity](data-architecture.zh-CN.md)、[MCP](mcp-architecture.zh-CN.md)、[README 命令](../README.zh-CN.md)。
+操作者需拥有 npm scope `@stark-lin`，必要时完成包首次创建，并为本仓库、`release.yml` 和 `npm-release` environment 配置 GitHub Trusted Publisher。显式允许直接 `npm publish`：新配置可能默认只允许 staged 权限。使用 GitHub-hosted runner 和 npm 11.5.1+（[npm 要求](https://docs.npmjs.com/trusted-publishers/)）；不保存长期 npm Token。GitHub 的 `release` environment 独立授权预发行版创建。账号/证书供应和 environment 审批仍由操作者负责。
+
+## 兼容性门槛与剩余限制
+
+公开推荐 npm 前，在干净 macOS ARM64 账号上测试：首次 GUI/运行时下载、可选模型安装、离线重启、取消/修复、更新/重装、Gatekeeper 提示、safeStorage 重开和 npm/DMG 凭据互通。不能从同用户 CI 推断这些结果。解密失败后不自动迁移、丢弃或覆盖密钥。模型共享不代表凭据可移植。
+
+Windows/Linux/macOS x64 的 GUI、原生模块、PDF、存储和系统权限实测仍为计划；安装成功不代表正式支持。签名证书、真实 Provider 兼容性、云备份排除和自动应用更新仍未验证/计划中。失败构建保留可用诊断 7 天。在同一工作流重跑失败作业以保留成功产物/版本；撤回发行版不会回滚已安装应用。
+
+相关：[运行时](architecture.zh-CN.md)、[持久存储](data-architecture.zh-CN.md)、[MCP](mcp-architecture.zh-CN.md)、[README](../README.zh-CN.md)。

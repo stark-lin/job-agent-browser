@@ -266,3 +266,23 @@ test('preload exposes only the named setup and lifecycle operations', async () =
   await bridge.reconnect(change); await bridge.remove(change)
   assert.deepEqual(calls, [['inspect', {}], ['copy', { target: 'other' }], ['reconnect', change], ['remove', change]])
 })
+
+test('persistent npm connections use explicit Node and CLI paths; ephemeral installs cannot save configs', t => {
+  const f = fixture(t), cli = join(f.home, 'jab.cjs')
+  writeFileSync(cli, '// npm CLI fixture')
+  writeFileSync(join(f.home, 'job-agent-mcp.js'), '// server fixture')
+  writeFileSync(join(f.home, 'resume-output-worker.js'), '// worker fixture')
+  writeFileSync(join(f.home, 'database.sqlite'), '')
+  const npmLaunch: MCPLaunch = { command: process.execPath, args: [cli, 'mcp', '--data-dir', f.home], env: nativeMCPEnvironment() }
+  const options = { home: f.home, directory: f.home, bundleDirectory: f.home, executable: process.execPath, npmLaunch, writeClipboard() {} }
+  const temporary = createExternalMCPInstaller({ ...options, ephemeral: true })
+  const status = temporary.inspect({}).clients[0]
+  assert.throws(() => temporary.install({ target: status.target, revision: status.revision, replace: false }), { code: 'RUNTIME_UNAVAILABLE' })
+  assert(!existsSync(status.path))
+  const service = createExternalMCPInstaller(options)
+  service.install({ target: status.target, revision: status.revision, replace: false })
+  assert.equal(service.inspect({}).clients[0].state, 'configured')
+  const entry = (parseTOML(readFileSync(status.path, 'utf8')).mcp_servers as Record<string, Record<string, unknown>>).job_agent_browser
+  assert.deepEqual(entry.args, npmLaunch.args)
+  assert.equal(entry.command, process.execPath)
+})

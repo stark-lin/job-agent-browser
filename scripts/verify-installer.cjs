@@ -8,6 +8,7 @@ function run(command, args, options = {}) {
 }
 function main() {
   const installer = resolve(process.argv[2])
+  const mode = process.argv.includes('--minimal') ? ['--minimal'] : []
   const directory = mkdtempSync(join(tmpdir(), 'jab-installed-'))
   let mounted = false, installed = false
   const mountpoint = join(directory, 'volume'), destination = join(directory, 'installed')
@@ -19,14 +20,14 @@ function main() {
       cpSync(join(mountpoint, 'JAB.app'), join(destination, 'JAB.app'), { recursive: true, verbatimSymlinks: true })
       run('hdiutil', ['detach', '-force', mountpoint])
       mounted = false
-      run(process.execPath, [join(__dirname, 'verify-package.cjs'), join(destination, 'JAB.app')])
+      run(process.execPath, [join(__dirname, 'verify-package.cjs'), join(destination, 'JAB.app'), ...mode])
     } else if (process.platform === 'win32') {
       run(installer, ['/S', '/D=' + destination])
       installed = true
-      run(process.execPath, [join(__dirname, 'verify-package.cjs'), destination])
+      run(process.execPath, [join(__dirname, 'verify-package.cjs'), destination, ...mode])
     } else {
       run(installer, ['--appimage-extract'], { cwd: directory, stdio: 'ignore' })
-      run(process.execPath, [join(__dirname, 'verify-package.cjs'), join(directory, 'squashfs-root')])
+      run(process.execPath, [join(__dirname, 'verify-package.cjs'), join(directory, 'squashfs-root'), ...mode])
     }
     console.log('Distributed installer extraction/installation and runtime verified.')
   } finally {

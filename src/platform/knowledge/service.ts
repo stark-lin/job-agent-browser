@@ -1,3 +1,4 @@
+import type { ModelManagerAPI } from '../models/manager'
 import { relative } from 'node:path'
 import { KnowledgeFiles } from './filesystem'
 import { KnowledgeBackup } from './git/backup'
@@ -13,6 +14,7 @@ export interface KnowledgeDependencies {
   token?(): string | null
   tokenStatus?(): boolean
   saveToken?(value: string | null): void
+  models?: ModelManagerAPI
   embeddings?: EmbeddingProvider
   watch?: boolean
 }
@@ -28,6 +30,7 @@ export class KnowledgeService {
   private reconcileTimer?: ReturnType<typeof setInterval>
   private embeddingWork: Promise<void> = Promise.resolve()
   private stopped = false
+  private stopModelProgress?: () => void
   constructor(
     readonly directory: string,
     readonly deps: KnowledgeDependencies
@@ -35,6 +38,7 @@ export class KnowledgeService {
     this.files = new KnowledgeFiles(directory)
     this.backup = new KnowledgeBackup(this.files, deps.preferences, deps.token)
     this.index = new KnowledgeIndex(this.files, deps.embeddings)
+    this.stopModelProgress = deps.models?.onProgress(() => { for (const listener of this.listeners) listener() })
     this.ready = this.initialize()
     this.ready.catch(() => {})
   }
@@ -80,12 +84,19 @@ export class KnowledgeService {
       void this.backup.backup().catch(() => {})
     }, 30000)
   }
+  refreshEmbeddings() {
+    if (this.index.error === 'SEMANTIC_UNAVAILABLE') this.index.error = null
+    void this.ready.then(() => this.scheduleIndex())
+    for (const listener of this.listeners) listener()
+  }
   private scheduleIndex() {
     if (this.stopped) return
     void this.index
       .reconcile()
       .then(() => {
-        this.embeddingWork = this.embeddingWork.then(() => this.index.indexEmbeddings()).catch(() => {})
+        this.embeddingWork = this.embeddingWork.then(() => this.index.indexEmbeddings()).catch(() => {}).finally(() => {
+          if (!this.stopped) for (const listener of this.listeners) listener()
+        })
       })
       .catch(() => {})
   }
@@ -116,6 +127,7 @@ export class KnowledgeService {
       const v = input as unknown as Record<string, unknown>
       if (!v || typeof v !== 'object' || Array.isArray(v)) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
       const keys: Record<keyof KnowledgeMethods, string[]> = {
+        modelStatus: [], modelInstall: ['source'], modelCancel: [], modelVerify: [], modelRemove: [],
         tree: [],
         read: ['path'],
         write: ['path', 'content', 'expectedRevision'],
@@ -149,6 +161,23 @@ export class KnowledgeService {
       }
       let value: unknown
       switch (method) {
+        case 'modelStatus':
+        case 'modelInstall':
+        case 'modelCancel':
+        case 'modelVerify':
+        case 'modelRemove': {
+          const manager = this.deps.models
+          if (!manager) throw new KnowledgeError('KNOWLEDGE_UNAVAILABLE')
+          if (method === 'modelStatus') value = manager.status()
+          if (method === 'modelInstall') {
+            if (v.source !== 'download' && v.source !== 'seed') throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
+            await manager.install(v.source); value = null
+          }
+          if (method === 'modelCancel') { await manager.cancel(); value = null }
+          if (method === 'modelVerify') value = await manager.verify()
+          if (method === 'modelRemove') { await manager.remove(); value = null }
+          break
+        }
         case 'tree':
           value = await this.files.tree()
           break
@@ -235,7 +264,9 @@ export class KnowledgeService {
       return {
         ok: false,
         error:
-          e instanceof KnowledgeError
+          e instanceof Error && ['MODEL_BUSY', 'MODEL_CANCELLED', 'MODEL_OPERATION_FAILED'].includes(e.message)
+            ? e.message
+            : e instanceof KnowledgeError
             ? e.code
             : (e as { code?: string })?.code === 'ENCRYPTION_UNAVAILABLE'
               ? 'ENCRYPTION_UNAVAILABLE'
@@ -245,6 +276,7 @@ export class KnowledgeService {
   }
   async close() {
     this.stopped = true
+    this.stopModelProgress?.()
     this.backup.abort.abort()
     this.deps.embeddings?.cancel?.()
     clearTimeout(this.refreshTimer)

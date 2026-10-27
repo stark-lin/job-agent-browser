@@ -1,0 +1,9 @@
+extends: ./electron-builder.yml
+extraResources:
+  - from: resources/embedding-model.json
+    to: embedding-model.json
+  - from: resources/model-notice.txt
+    to: model-notice.txt
+  - from: .cache/models/multilingual-e5-small
+    to: models/multilingual-e5-small
+    filter: ['**/*', '!**/*.tmp']

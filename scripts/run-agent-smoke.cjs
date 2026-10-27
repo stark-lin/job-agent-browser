@@ -3,7 +3,7 @@ const { mkdtempSync, rmSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const { resolve, join } = require('node:path')
 const directory = mkdtempSync(join(tmpdir(), 'resume-v1-smoke-'))
-const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory }
+const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory, JAB_MODEL_STORE: join(directory, 'managed-models') }
 delete env.JOB_BROWSER_USER_DATA
 delete env.ELECTRON_RUN_AS_NODE; delete env.ELECTRON_RENDERER_URL
 const suites = process.argv.includes('--output') ? ['resume-output-smoke.cjs'] : process.argv.includes('--profile') ? ['profile-runtime-smoke.cjs'] : ['resume-runtime-smoke.cjs', 'resume-restart-smoke.cjs', 'resume-output-smoke.cjs']

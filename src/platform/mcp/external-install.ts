@@ -8,9 +8,10 @@ import { createExternalMCPConfig, externalMCPError, ExternalMCPFailure, external
 export function createExternalMCPInstaller(options: {
   home: string; codexHome?: string; directory: string; bundleDirectory: string; executable: string
   writeClipboard(text: string): void | Promise<void>
+  npmLaunch?: MCPLaunch; ephemeral?: boolean
   clientFactory?: (launch: MCPLaunch) => MCPClient
 }) {
-  const launch: MCPLaunch = { command: options.executable, args: [join(options.bundleDirectory, 'job-agent-mcp.js')], env: {
+  const launch: MCPLaunch = options.npmLaunch ?? { command: options.executable, args: [join(options.bundleDirectory, 'job-agent-mcp.js')], env: {
     ...nativeMCPEnvironment(), ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: options.directory, JOB_BROWSER_ELECTRON: options.executable
   } }
   const config = createExternalMCPConfig(options, launch)
@@ -18,8 +19,9 @@ export function createExternalMCPInstaller(options: {
   const clients = new Set<MCPClient>()
   function runtimeReady() {
     try {
+      if (options.ephemeral) throw new Error('EPHEMERAL_NPM_INSTALL')
       accessSync(launch.command, constants.X_OK)
-      for (const path of [...launch.args, join(options.bundleDirectory, 'resume-output-worker.js'), join(options.directory, 'database.sqlite')]) {
+      for (const path of [options.npmLaunch ? launch.args[0] : join(options.bundleDirectory, 'job-agent-mcp.js'), join(options.bundleDirectory, 'resume-output-worker.js'), join(options.directory, 'database.sqlite')]) {
         if (!statSync(path).isFile()) throw new Error()
       }
     } catch { throw new ExternalMCPFailure('RUNTIME_UNAVAILABLE') }

@@ -1,3 +1,5 @@
+import { LocalModelManager } from '../models/manager'
+import { manifest } from '../knowledge/rag/embedding-protocol'
 import { verifyResumePackage } from './verify-resume-package'
 import { app, utilityProcess } from 'electron'
 import { join } from 'node:path'
@@ -14,9 +16,13 @@ function check(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error('Package verification failed: ' + message)
 }
 export async function verifyEmbeddingRuntime(bundleDirectory: string, modelsDirectory: string, directory: string) {
+  let provider: LocalEmbeddingProvider | undefined
+  const manager = new LocalModelManager({ root: join(directory, 'managed-models'), seed: join(modelsDirectory, manifest.id), stop: () => provider?.stop(), activated() {} })
+  await manager.ready
+  check(manager.available(), 'verified seed imported into user store')
   const backend = createBackend(join(directory, 'database.sqlite'))
   let forks = 0
-  const provider = new LocalEmbeddingProvider({ enabled: () => true, available: () => true, modelsDirectory,
+  provider = new LocalEmbeddingProvider({ acquireLease: compromised => manager.acquireLease(compromised), enabled: () => true, available: () => manager.available(), modelsDirectory: manager.store.directory,
     fork: () => {
       forks++
       const child = utilityProcess.fork(join(bundleDirectory, 'embedding-process.js'), [], { stdio: 'pipe' })
@@ -51,7 +57,8 @@ export async function verifyEmbeddingRuntime(bundleDirectory: string, modelsDire
     check(JSON.stringify(result).includes('company.md'), 'packaged stdio MCP and broker retrieval')
     check(forks === 1, 'one embedding process shared with MCP')
     await verifyResumePackage(backend, mcp, bundleDirectory)
-    await provider.dispose()
+    await manager.remove()
+    check(manager.status().state === 'missing', 'model removal')
     const keyword = await service.search('SQLite')
     check(!keyword.semantic && keyword.items.some(item => item.path === 'database.md'), 'keyword fallback')
     return { ok: true, pdfVerified: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
@@ -60,11 +67,33 @@ export async function verifyEmbeddingRuntime(bundleDirectory: string, modelsDire
     await mcp.dispose()
     await service.close()
     await provider.dispose()
+    await manager.close()
     backend.close()
   }
 }
+export async function verifyMinimalRuntime(bundleDirectory: string, directory: string) {
+  const backend = createBackend(join(directory, 'database.sqlite'))
+  const manager = new LocalModelManager({ root: join(directory, 'managed-models'), stop() {}, activated() {} })
+  await manager.ready
+  check(manager.status().state === 'missing', 'optional model missing')
+  const service = new KnowledgeService(directory, { preferences: () => defaultKnowledgePreferences })
+  const mcp = createFirstPartyRuntime(directory, bundleDirectory)
+  try {
+    await service.ready
+    await service.files.write('minimal.md', '# SQLite\nKeyword retrieval works without an embedding model.', null)
+    const result = await service.search('SQLite')
+    check(!result.semantic && result.items.some(item => item.path === 'minimal.md'), 'minimal keyword retrieval')
+    const session = await mcp.session('ask-ai', AbortSignal.timeout(120000))
+    const context = await session.call('knowledge.retrieve', { query: 'SQLite', maxContext: 4000 }, AbortSignal.timeout(120000))
+    check(JSON.stringify(context).includes('minimal.md'), 'minimal MCP retrieval')
+    await verifyResumePackage(backend, mcp, bundleDirectory)
+    return { ok: true, pdfVerified: true, dimensions: 0, forks: 0, semanticAvailable: false, platform: process.platform, arch: process.arch, electron: process.versions.electron }
+  } finally { await mcp.dispose(); await service.close(); await manager.close(); backend.close() }
+}
 export async function verifyPackageRuntime() {
-  const result = await verifyEmbeddingRuntime(join(app.getAppPath(), 'out/main'), join(process.resourcesPath, 'models'), app.getPath('userData'))
+  const bundle = join(app.getAppPath(), 'out/main'), directory = app.getPath('userData')
+  const result = process.argv.includes('--verify-minimal') ? await verifyMinimalRuntime(bundle, directory) :
+    await verifyEmbeddingRuntime(bundle, join(process.resourcesPath, 'models'), directory)
   await writeFile(join(app.getPath('userData'), 'package-verification.json'), JSON.stringify(result))
-  console.log('Packaged offline embedding, MCP and keyword fallback verified.')
+  console.log('Application runtime, MCP, PDF and keyword fallback verified.')
 }
