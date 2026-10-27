@@ -8,7 +8,7 @@ Language: English · [简体中文](ci-cd.zh-CN.md)
 
 Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` through a PR with `CI required` passing. [CI](../.github/workflows/ci.yml) rejects main PRs from other heads; repository protection must enforce PRs, current checks, resolved conversations, administrator enforcement and no force pushes/deletion. Workflows do not configure these settings.
 
-[Release](../.github/workflows/release.yml) runs on main pushes or manual main dispatch, checks out the exact event SHA, validates, builds both channels and publishes a GitHub prerelease followed by npm Preview. Releases are serialized without canceling active runs. No tag push is required. PR jobs cancel superseded work.
+[Release](../.github/workflows/release.yml) runs on main pushes or manual main dispatch, checks out the exact event SHA, validates, builds both channels and publishes a GitHub prerelease followed by npm with the `latest` tag. Releases are serialized without canceling active runs. No tag push is required. PR jobs cancel superseded work.
 
 ## Validation and native packaging
 
@@ -42,9 +42,9 @@ npm run release:npm:check
 
 ## npm runtime and reproducible artifacts
 
-[Preparation](../scripts/prepare-npm-package.cjs) keeps the source package private and creates `dist/npm/` using the [package template](../packages/npm/package.template.json). It copies built Main/Preload/Renderer, MCP/inference/PDF workers, fonts, Skills, model manifest/notice and license. Runtime dependencies, including Electron, use exact versions from the root lock; `npm-shrinkwrap.json` retains the resolved production dependency closure, registry digests and optional-platform dependencies. It never copies checkout node_modules or model weights.
+[Preparation](../scripts/prepare-npm-package.cjs) keeps the source package private and creates `dist/npm/` using the [package template](../packages/npm/package.template.json). It copies the consumer READMEs from `packages/npm/` (never the root README), preserves their published license/source links, and sets repository/homepage/CLI metadata from the template. It also copies built Main/Preload/Renderer, MCP/inference/PDF workers, fonts, Skills, model manifest/notice and license. Runtime dependencies, including Electron, use exact versions from the root lock; `npm-shrinkwrap.json` retains the resolved production dependency closure, registry digests and optional-platform dependencies. It never copies checkout node_modules or model weights.
 
-[Content validation](../scripts/verify-npm-package.cjs) rejects symlinks, model weights, databases, secrets, caches, fixtures and installers, packs the directory, and records tarball SHA256/SHA512, size, version, commit and verification status in `dist/npm-artifacts/manifest.json`. npm files remain separate from the desktop-only `release/publish/` set.
+[Content validation](../scripts/verify-npm-package.cjs) rejects symlinks, model weights, databases, secrets, caches, fixtures and installers, checks package metadata and consumer README/license contents (including the packed bytes), packs the directory, and records tarball SHA256/SHA512, size, version, commit and verification status in `dist/npm-artifacts/manifest.json`. npm files remain separate from the desktop-only `release/publish/` set.
 
 [Clean-install smoke](../scripts/npm-runtime-smoke.cjs) installs the tarball outside the checkout, initializes Electron through its official module, verifies resolved direct versions, version/doctor, real GUI/Preload/model controls, explicit `jab mcp`, missing-model retrieval, HTML/PDF and uninstall/reinstall persistence. With prepared test weights, real revision bytes/checksums and fixture transport exercise GUI offline failure, cancellation/reuse, immediate cross-language indexing and removal; release CI requires this semantic gate. Only a successful smoke marks the manifest runtime-verified. These checks establish current-host operation; clean-user OS identity remains a separate release gate.
 
@@ -58,7 +58,24 @@ Short-lived artifacts (7 days, no recompression) contain one DMG plus its deskto
 
 [GitHub publisher](../scripts/publish-release.cjs) retains its desktop responsibility: require verified ARM64 assets, reject extra/mixed/corrupt files, upload to a draft, verify remote digests and publish the prerelease. Existing identical assets are verified, never overwritten. Latest stable is unchanged.
 
-[npm publisher](../scripts/publish-npm.cjs) runs after GitHub publication in `npm-release`, with `contents: read` and `id-token: write`. It verifies the exact tarball, embedded metadata, SHA/version, target and runtime gates, then uses npm OIDC to publish `@stark-lin/jab` publicly with tag `next` and provenance. An existing version is accepted only when Registry integrity matches; registry/auth failures do not trigger blind publication. GitHub/npm are independent transactions: an npm failure retains the GitHub release and is retried using the same verified artifact.
+[npm publisher](../scripts/publish-npm.cjs) runs after GitHub publication in `npm-release`, with `contents: read` and `id-token: write`. It verifies the exact tarball, embedded metadata, SHA/version, target and runtime gates, then uses npm OIDC to publish `@stark-lin/jab` publicly with tag `latest` and provenance; every newly published main version becomes the default installation. An existing version is accepted only when Registry integrity matches and returns without publishing or changing any dist-tag, even if `latest` is absent or points to a newer version. Different bytes are rejected; registry/auth failures do not trigger blind publication. No separate stable/preview npm channels are maintained. GitHub/npm are independent transactions: an npm failure retains the GitHub release and is retried using the same verified artifact.
+
+After `npm publish` succeeds, registry processing may still return E404. The publisher polls only the exact version’s integrity every 10 seconds within a five-minute propagation window; each lookup disables npm fetch retries, uses a 10-second fetch timeout and has a 15-second process timeout. A final lookup may finish after the window. Matching integrity is required for success. Different digests, missing/malformed integrity, authentication and other lookup failures fail immediately. Propagation timeout reports that publication succeeded but visibility remains pending; rerun the same workflow/artifact to verify it. Polling never republishes or changes dist-tags.
+
+### One-time latest migration
+
+Inspect the registry with the commands below. Replace `<existing-version>` with an actual published version whose SHA and `dist.integrity` match the retained, runtime-verified npm artifact manifest from the successful packaging job. Confirm the corresponding validation/package jobs passed; never infer a version from the source base version or repackage it. If `latest` already points to the verified candidate, no tag change is needed. Recheck tags immediately before any manual change and do not replace a newer verified `latest` with an older candidate.
+
+```sh
+npm dist-tag ls @stark-lin/jab
+npm view "@stark-lin/jab@<existing-version>" version jab dist.integrity --json
+npm dist-tag add "@stark-lin/jab@<existing-version>" latest
+npm dist-tag ls @stark-lin/jab
+npm install -g @stark-lin/jab
+jab --version
+```
+
+Only the `dist-tag add` command changes registry state; an authorized operator runs it once after verification. Development/tests never publish or edit real tags. The old `next` tag may remain untouched; future publications use only `latest`. Migration changes a pointer to existing bytes and does not republish a version.
 
 ## Signing and publisher configuration
 

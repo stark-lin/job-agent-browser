@@ -3,6 +3,7 @@ const { readFileSync, readdirSync, lstatSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 const { createHash } = require('node:crypto')
 const { spawnSync } = require('node:child_process')
+const { setTimeout: delay } = require('node:timers/promises')
 const { metadata } = require('./release-metadata.cjs')
 function verifyArtifact(directory, expected) {
   const report = JSON.parse(readFileSync(join(directory, 'manifest.json')))
@@ -29,7 +30,7 @@ function verifyArtifact(directory, expected) {
   return { report, path, integrity }
 }
 function registryVersion(name, version, runner = spawnSync) {
-  const result = runner('npm', ['view', `${name}@${version}`, 'dist.integrity', '--json', '--registry=https://registry.npmjs.org/'], { encoding: 'utf8' })
+  const result = runner('npm', ['view', `${name}@${version}`, 'dist.integrity', '--json', '--registry=https://registry.npmjs.org/', '--fetch-retries=0', '--fetch-timeout=10000'], { encoding: 'utf8', timeout: 15000 })
   if (result.status === 0) {
     const value = JSON.parse(result.stdout)
     if (typeof value !== 'string' || !value.startsWith('sha512-')) throw new Error('NPM_REGISTRY_INTEGRITY_MISSING')
@@ -40,6 +41,34 @@ function registryVersion(name, version, runner = spawnSync) {
   if (error?.code === 'E404') return null
   throw new Error('NPM_REGISTRY_LOOKUP_FAILED')
 }
+async function verifyPublishedArtifact(artifact, runner, { wait = delay, now = Date.now } = {}) {
+  const { name, version } = artifact.report
+  const deadline = now() + 300000
+  for (;;) {
+    const integrity = registryVersion(name, version, runner)
+    if (integrity !== null) {
+      assert.equal(integrity, artifact.integrity, 'Published npm digest mismatch')
+      return
+    }
+    const remaining = deadline - now()
+    if (remaining <= 0) throw new Error(`NPM_REGISTRY_PROPAGATION_TIMEOUT: ${name}@${version} was published but is not visible yet; rerun the workflow with the same verified artifact`)
+    console.log(`Waiting for npm registry processing: ${name}@${version} is not visible yet.`)
+    await wait(Math.min(10000, remaining))
+  }
+}
+async function publishArtifact(artifact, runner = spawnSync, timing) {
+  const { name, version } = artifact.report
+  const existing = registryVersion(name, version, runner)
+  if (existing) {
+    assert.equal(existing, artifact.integrity, 'Existing npm version has different bytes; it cannot be overwritten')
+    // Never retag a retry: latest may already point to a newer release.
+    console.log('Existing npm version matches the verified artifact.'); return
+  }
+  const result = runner('npm', ['publish', artifact.path, '--access', 'public', '--tag', 'latest', '--provenance', '--registry=https://registry.npmjs.org/'], { stdio: 'inherit' })
+  if (result.status !== 0) throw new Error('NPM_PUBLISH_FAILED_GITHUB_RELEASE_RETAINED')
+  await verifyPublishedArtifact(artifact, runner, timing)
+  console.log(`Published ${name}@${version} with tag latest.`)
+}
 async function main() {
   if (process.env.GITHUB_REF !== 'refs/heads/main') throw new Error('NPM_RELEASE_REQUIRES_MAIN')
   const npmVersion = spawnSync('npm', ['--version'], { encoding: 'utf8' })
@@ -47,16 +76,7 @@ async function main() {
   if (npmVersion.status !== 0 || !parts || parts.length !== 3 || parts.some(n => !Number.isInteger(n)) ||
     parts[0] < 11 || parts[0] === 11 && (parts[1] < 5 || parts[1] === 5 && parts[2] < 1)) throw new Error('NPM_11_5_1_REQUIRED')
   const expected = metadata(require('../package.json').version, process.env.GITHUB_RUN_NUMBER, process.env.GITHUB_SHA)
-  const artifact = verifyArtifact(resolve(__dirname, '../release/npm'), expected)
-  const existing = registryVersion(artifact.report.name, expected.version)
-  if (existing) {
-    assert.equal(existing, artifact.integrity, 'Existing npm version has different bytes; it cannot be overwritten')
-    console.log('Existing npm version matches the verified artifact.'); return
-  }
-  const result = spawnSync('npm', ['publish', artifact.path, '--access', 'public', '--tag', 'next', '--provenance', '--registry=https://registry.npmjs.org/'], { stdio: 'inherit' })
-  if (result.status !== 0) throw new Error('NPM_PUBLISH_FAILED_GITHUB_RELEASE_RETAINED')
-  assert.equal(registryVersion(artifact.report.name, expected.version), artifact.integrity, 'Published npm digest mismatch')
-  console.log(`Published ${artifact.report.name}@${expected.version} with tag next.`)
+  await publishArtifact(verifyArtifact(resolve(__dirname, '../release/npm'), expected))
 }
-module.exports = { verifyArtifact, registryVersion }
+module.exports = { verifyArtifact, registryVersion, publishArtifact }
 if (require.main === module) void main().catch(error => { console.error(error.message); process.exitCode = 1 })

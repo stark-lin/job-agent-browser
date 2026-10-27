@@ -8,7 +8,7 @@
 
 功能分支使用 `codex/` 并集成到 `dev`。通过 `CI required` 通过的 PR 将 `dev` 晋升到 `main`。[CI](../.github/workflows/ci.yml) 拒绝来自其他头分支的 main PR；仓库保护必须要求 PR、最新检查、已解决讨论、管理员约束和禁止强推/删除。工作流不会配置这些设置。
 
-[Release](../.github/workflows/release.yml) 在 main 推送或手动 main 调度时运行，始终检出事件对应 SHA，验证、构建双渠道，先发布 GitHub 预发行版，再发布 npm Preview。发布串行执行，不取消活跃运行。不需要推送 tag。PR 作业取消已被替代的旧运行。
+[Release](../.github/workflows/release.yml) 在 main 推送或手动 main 调度时运行，始终检出事件对应 SHA，验证、构建双渠道，先发布 GitHub 预发行版，再通过 `latest` 标签发布 npm。发布串行执行，不取消活跃运行。不需要推送 tag。PR 作业取消已被替代的旧运行。
 
 ## 验证与原生打包
 
@@ -42,9 +42,9 @@ npm run release:npm:check
 
 ## npm 运行时与可复现产物
 
-[准备脚本](../scripts/prepare-npm-package.cjs) 保持源码包 private，使用[包模板](../packages/npm/package.template.json) 生成 `dist/npm/`。复制已构建 Main/Preload/Renderer、MCP/推理/PDF Worker、字体、Skills、模型 manifest/声明和许可证。包括 Electron 在内的运行依赖使用根锁文件中的精确版本；`npm-shrinkwrap.json` 保留已解析的生产依赖闭包、注册表摘要和可选平台依赖。不会复制源码仓库 node_modules 或模型权重。
+[准备脚本](../scripts/prepare-npm-package.cjs) 保持源码包 private，使用[包模板](../packages/npm/package.template.json) 生成 `dist/npm/`。从 `packages/npm/` 复制用户 README（绝不使用根 README），保留面向发布页的许可证/源码链接，并从模板设置 repository/homepage/CLI 元数据。还会复制已构建 Main/Preload/Renderer、MCP/推理/PDF Worker、字体、Skills、模型 manifest/声明和许可证。包括 Electron 在内的运行依赖使用根锁文件中的精确版本；`npm-shrinkwrap.json` 保留已解析的生产依赖闭包、注册表摘要和可选平台依赖。不会复制源码仓库 node_modules 或模型权重。
 
-[内容校验](../scripts/verify-npm-package.cjs) 拒绝符号链接、模型权重、数据库、密钥、缓存、fixture 和安装器，打包目录，并在 `dist/npm-artifacts/manifest.json` 记录 tarball SHA256/SHA512、大小、版本、提交和验证状态。npm 文件独立于仅用于桌面的 `release/publish/` 文件集。
+[内容校验](../scripts/verify-npm-package.cjs) 拒绝符号链接、模型权重、数据库、密钥、缓存、fixture 和安装器，校验包元数据及用户 README/许可证内容（包括 tarball 内的实际字节），打包目录，并在 `dist/npm-artifacts/manifest.json` 记录 tarball SHA256/SHA512、大小、版本、提交和验证状态。npm 文件独立于仅用于桌面的 `release/publish/` 文件集。
 
 [干净安装冒烟](../scripts/npm-runtime-smoke.cjs) 在仓库外安装 tarball，通过官方模块初始化 Electron，检查直接依赖解析版本、version/doctor、真实 GUI/Preload/模型控件、显式 `jab mcp`、无模型检索、HTML/PDF 和卸载/重装持久性。存在准备好的测试模型时，使用真实 revision/校验值与 fixture 传输，通过 GUI 检查离线失败、取消/复用、安装后即时跨语言索引和删除；发行 CI 要求该项通过。仅成功测试会将 manifest 标记为运行时已验证。这些检查证明当前主机可运行；干净用户的系统身份仍是独立发布门槛。
 
@@ -58,7 +58,24 @@ npm run release:npm:check
 
 [GitHub 发布器](../scripts/publish-release.cjs) 保留桌面职责：要求已验证 ARM64 资产，拒绝额外/混合/损坏文件，上传草稿、验证远端摘要再发布预发行版。已存在的相同资产只验证，不覆盖。不修改 Latest stable。
 
-[npm 发布器](../scripts/publish-npm.cjs) 在 GitHub 发布后于 `npm-release` 中运行，权限为 `contents: read` 和 `id-token: write`。校验实际 tarball、内部元数据、SHA/版本、目标和运行时门槛，再通过 npm OIDC 以 `next` 标签和 provenance 公开发布 `@stark-lin/jab`。已存在版本仅在 Registry 完整性摘要一致时被接受；注册表/鉴权失败不会盲目触发发布。GitHub/npm 是独立事务：npm 失败会保留 GitHub Release，使用同一已验证产物重试。
+[npm 发布器](../scripts/publish-npm.cjs) 在 GitHub 发布后于 `npm-release` 中运行，权限为 `contents: read` 和 `id-token: write`。校验实际 tarball、内部元数据、SHA/版本、目标和运行时门槛，再通过 npm OIDC 以 `latest` 标签和 provenance 公开发布 `@stark-lin/jab`；每个新发布的 main 版本都会成为默认安装版本。已存在版本仅在 Registry 完整性摘要一致时被接受，然后直接返回，不发布也不修改任何 dist-tag，即使 `latest` 缺失或已指向更新版本。内容不同会被拒绝；注册表/鉴权失败不会盲目触发发布。不维护独立的 stable/preview npm 双渠道。GitHub/npm 是独立事务：npm 失败会保留 GitHub Release，使用同一已验证产物重试。
+
+`npm publish` 成功后，注册表处理期间仍可能返回 E404。发布器在五分钟传播窗口内每隔 10 秒只轮询该精确版本的完整性摘要；每次查询禁用 npm fetch 重试，设置 10 秒 fetch 超时和 15 秒进程超时。最后一次查询可能在窗口结束后完成。必须摘要一致才能成功。摘要不符、摘要缺失/格式错误、鉴权及其他查询失败均立即报错。传播超时会说明发布已成功、可见性仍待确认；使用同一工作流/产物重跑以验证。轮询期间不重新发布，也不修改 dist-tags。
+
+### 一次性迁移 latest
+
+使用以下命令检查注册表。将 `<existing-version>` 替换为实际已发布的版本，其 SHA 与 `dist.integrity` 必须匹配成功打包作业留存的、通过运行时验证的 npm 产物 manifest。确认对应验证/打包作业通过；不得根据源码基础版本推测版本号或重新打包。如果 `latest` 已指向验证通过的候选版本，则无需修改标签。手动修改前再次检查标签，不要用较旧候选版本替换更新且验证通过的 `latest`。
+
+```sh
+npm dist-tag ls @stark-lin/jab
+npm view "@stark-lin/jab@<existing-version>" version jab dist.integrity --json
+npm dist-tag add "@stark-lin/jab@<existing-version>" latest
+npm dist-tag ls @stark-lin/jab
+npm install -g @stark-lin/jab
+jab --version
+```
+
+仅 `dist-tag add` 命令修改注册表状态；由获授权的操作者在验证后执行一次。开发/测试期间绝不真实发布或修改标签。旧 `next` 标签可保持原样；后续发布只使用 `latest`。迁移只将指针指向已有内容，不重新发布版本。
 
 ## 签名与发布器配置
 
