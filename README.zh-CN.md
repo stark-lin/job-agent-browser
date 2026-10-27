@@ -9,13 +9,28 @@
 需要 Node.js 24.10 或更新版本及 npm，以 [package.json](package.json) 为准。
 
 ```sh
+npm install -g @stark-lin/jab
+jab
+jab --version
+jab doctor
+```
+
+Home 九个卡片均可访问。Browser 打开可输入 URL、域名或搜索词的空白工作区，Settings 支持语言及浅色/暗夜/跟随系统外观持久化、多个 AI Provider、加密 API 密钥和邮箱配置；Ask AI 通过限定的 first-party MCP 工具提供持久化多会话流式 Agent 对话；My Profile 管理包含多个事实的履历条目及经核对的 PDF 导入；新增工作支持手工录入与 URL/文本/PDF Agent 采集，保存为未开始申请后进入申请记录；申请记录通过 Agent 管理状态、备注、本地日程及归档/详情变更；其他功能在流程尚不可用时显示待实现内容。只有 Browser 显示标签栏和地址控件；所有功能共用带悬停提示和分区短横线的左侧图标导航；已配置的 Inbox 显示网页邮箱，不显示应用顶部条。侧栏主页入口替代邮箱退出按钮。Home/新标签隐藏浏览器栏及内部 URL；Back/Forward 在每个标签内遍历内部页面与网站。导航规则、快捷键、运行细节及源码依据见[当前架构](docs/architecture.zh-CN.md)。
+
+配置 AI 服务、密钥及全局默认模型后，即可采集职位 URL/文本/PDF、管理申请或导入 PDF 简历；在设置中为该模型开启并行导入并保存后，可在两个导入入口分别选择并行模式。分组、重试及精简输出的运行说明见[当前架构](docs/architecture.zh-CN.md)。
+
+完整用法、`npx` 临时执行、更新、MCP 和本地数据说明见 [npm 用户指南](packages/npm/README.zh-CN.md)。目前仅 macOS ARM64 经过完整发行验证。
+
+## 开发
+
+从源码开发需先克隆仓库，再执行：
+
+```sh
 npm install
 JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 ```
 
-首次开发启动时，`predev` 辅助程序下载 Electron 二进制文件。Home 九个卡片均可访问。Browser 打开可输入 URL、域名或搜索词的空白工作区，Settings 支持语言及浅色/暗夜/跟随系统外观持久化、多个 AI Provider、加密 API 密钥和邮箱配置；Ask AI 通过限定的 first-party MCP 工具提供持久化多会话流式 Agent 对话；My Profile 管理包含多个事实的履历条目及经核对的 PDF 导入；新增工作支持手工录入与 URL/文本/PDF Agent 采集，保存为未开始申请后进入申请记录；申请记录通过 Agent 管理状态、备注、本地日程及归档/详情变更；其他功能在流程尚不可用时显示待实现内容。只有 Browser 显示标签栏和地址控件；所有功能共用带悬停提示和分区短横线的左侧图标导航；已配置的 Inbox 显示网页邮箱，不显示应用顶部条。侧栏主页入口替代邮箱退出按钮。Home/新标签隐藏浏览器栏及内部 URL；Back/Forward 在每个标签内遍历内部页面与网站。导航规则、快捷键、运行细节及源码依据见[当前架构](docs/architecture.zh-CN.md)。
-
-配置 AI 服务、密钥及全局默认模型后，即可采集职位 URL/文本/PDF、管理申请或导入 PDF 简历；在设置中为该模型开启并行导入并保存后，可在两个导入入口分别选择并行模式。分组、重试及精简输出的运行说明见[当前架构](docs/architecture.zh-CN.md)。
+首次开发启动时，`predev` 辅助程序下载 Electron 二进制文件。
 
 ## 验证与构建
 
@@ -46,7 +61,7 @@ npm run test:ask-ai
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 
-接入本机 Codex、Claude Code 或 Cursor 时，打开设置 → 连接外部 Agent → 添加 MCP，再单独点击“安装 Skills”安装五个内置工作流。其他 Agent 可通过“打开 Skills 文件夹”复制；`npm run skill:link` 保留为仅用于仓库的替代方式。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理接入及限制。Codex 生成无需应用 AI Provider。
+接入本机 Codex、Claude Code 或 Cursor 时，打开设置 → 连接外部 Agent → 添加 MCP，再单独点击“安装 Skills”安装六个内置工作流。其他 Agent 可通过“打开 Skills 文件夹”复制；`npm run skill:link` 保留为仅用于仓库的替代方式。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理接入及限制。Codex 生成无需应用 AI Provider。
 
 ## 打包与集成
 
@@ -65,9 +80,9 @@ npm run package:verify -- /absolute/path/to/unpacked-app
 npm run release:npm:check
 ```
 
-npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精确运行依赖和 shrinkwrap。[npm 预览版指南](packages/npm/README.zh-CN.md) 说明正式发布后使用的 `@stark-lin/jab@next` 命令。macOS ARM64 是唯一经过验证的发行目标；干净用户环境的 Keychain/Gatekeeper 和跨渠道凭据兼容性尚未验证。npm 默认与 DMG 使用相同的 JAB 数据目录；模型独立于两种应用安装持久保存。
+npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精确运行依赖和 shrinkwrap。[npm 用户指南](packages/npm/README.zh-CN.md) 说明已发布包的安装与更新。macOS ARM64 是唯一经过验证的发行目标；干净用户环境的 Keychain/Gatekeeper 和跨渠道凭据兼容性尚未验证。npm 默认与 DMG 使用相同的 JAB 数据目录；模型独立于两种应用安装持久保存。
 
-先将变更集成到 `dev`，再通过检查通过的 PR 晋升到 `main`。Main 为相同 SHA/版本构建 Full DMG 和 npm tarball。先发布 GitHub，再通过 OIDC 以 `next` 标签发布 npm，两者可独立重试。npm scope 所有权和 Trusted Publisher 配置由操作者准备。[CI/CD](docs/ci-cd.zh-CN.md) 负责签名、发布门槛和兼容性限制。
+先将变更集成到 `dev`，再通过检查通过的 PR 晋升到 `main`。Main 为相同 SHA/版本构建 Full DMG 和 npm tarball。先发布 GitHub，再通过 OIDC 以 `latest` 标签发布 npm；已存在版本的重试只校验 integrity，不修改标签。npm scope 所有权和 Trusted Publisher 配置由操作者准备。[CI/CD](docs/ci-cd.zh-CN.md) 负责签名、发布门槛和兼容性限制。
 
 ## 文档索引
 
@@ -83,7 +98,7 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 | [职位采集 Skill](skills/capture-job/SKILL.zh-CN.md) · [English](skills/capture-job/SKILL.md) | 宿主理解资料后通过 MCP 保存结构化结果 |
 | [申请管理 Skill](skills/manage-applications/SKILL.zh-CN.md) · [English](skills/manage-applications/SKILL.md) | 状态、备注、本地事件、详情及归档流程 |
 | [Resume Skill](skills/tailor-resume/SKILL.zh-CN.md) · [English](skills/tailor-resume/SKILL.md) | Codex 使用共享 Resume 工具的推理流程；接入配置归属 MCP 架构 |
-| [npm 预览版指南](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | 已发布包的命令与用户数据行为 |
+| [npm 用户指南](packages/npm/README.zh-CN.md) · [English](packages/npm/README.md) | 已发布包的命令与用户数据行为 |
 | [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 20 表模型，由中英文数据架构共用 |
 | [设计纲要](DESIGN.zh-CN.md) · [English](DESIGN.md) | 视觉方向、交互原则与 UI 设计入口 |
 | [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |

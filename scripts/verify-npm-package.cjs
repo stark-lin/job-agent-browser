@@ -5,7 +5,19 @@ const { spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
 const root = resolve(__dirname, '..')
 const digest = data => createHash('sha256').update(data).digest('hex')
+function verifyMetadataAndDocs(directory) {
+  const pkg = JSON.parse(readFileSync(join(directory, 'package.json')))
+  const template = require('../packages/npm/package.template.json')
+  for (const field of ['name', 'description', 'license', 'repository', 'homepage', 'bin', 'engines', 'publishConfig']) {
+    assert.deepEqual(pkg[field], template[field], 'Unexpected npm metadata: ' + field)
+  }
+  for (const name of ['README.md', 'README.zh-CN.md']) {
+    assert.equal(readFileSync(join(directory, name), 'utf8'), readFileSync(join(root, 'packages/npm', name), 'utf8'), 'Must use npm consumer README: ' + name)
+  }
+  assert.deepEqual(readFileSync(join(directory, 'LICENSE')), readFileSync(join(root, 'LICENSE')))
+}
 function verify(directory = join(root, 'dist/npm')) {
+  verifyMetadataAndDocs(directory)
   const pkg = JSON.parse(readFileSync(join(directory, 'package.json')))
   assert.equal(pkg.name, '@stark-lin/jab'); assert.equal(pkg.license, 'AGPL-3.0-only')
   assert.equal(pkg.private, undefined); assert.equal(pkg.scripts, undefined)
@@ -29,7 +41,13 @@ function verify(directory = join(root, 'dist/npm')) {
   assert.equal(pack.status, 0, pack.stderr)
   const result = JSON.parse(pack.stdout)[0], tarball = join(destination, result.filename)
   const packed = new Set(result.files.map(f => f.path))
-  assert(packed.has('npm-shrinkwrap.json') && packed.has('LICENSE'))
+  assert(packed.has('npm-shrinkwrap.json'))
+  for (const name of ['README.md', 'README.zh-CN.md', 'LICENSE']) {
+    assert(packed.has(name), 'Missing packed document: ' + name)
+    const unpack = spawnSync('tar', ['-xOf', tarball, 'package/' + name], { encoding: 'utf8', maxBuffer: 1048576 })
+    assert.equal(unpack.status, 0, unpack.stderr)
+    assert.equal(unpack.stdout, readFileSync(join(directory, name), 'utf8'), 'Packed document differs: ' + name)
+  }
   assert.equal(packed.size, result.files.length)
   writeFileSync(join(destination, 'manifest.json'), JSON.stringify({ name: pkg.name, version: pkg.version, sha: pkg.jab.gitSha,
     tarball: result.filename, size: readFileSync(tarball).length, sha256: digest(readFileSync(tarball)), integrity: result.integrity,
@@ -37,5 +55,5 @@ function verify(directory = join(root, 'dist/npm')) {
   console.log(`Verified model-free npm tarball: ${tarball}`)
   return tarball
 }
-module.exports = { verify }
+module.exports = { verify, verifyMetadataAndDocs }
 if (require.main === module) verify()

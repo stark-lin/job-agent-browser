@@ -7,6 +7,7 @@
   "bin": { "jab": "bin/jab.cjs" },
   "engines": { "node": ">=24.10.0" },
   "repository": { "type": "git", "url": "git+https://github.com/stark-lin/job-agent-browser.git" },
+  "homepage": "https://github.com/stark-lin/job-agent-browser#readme",
   "files": ["bin/", "out/", "resources/", "README.md", "README.zh-CN.md", "LICENSE", "npm-shrinkwrap.json"],
-  "publishConfig": { "access": "public", "tag": "next" }
+  "publishConfig": { "access": "public", "tag": "latest" }
 }

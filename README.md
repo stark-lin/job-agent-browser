@@ -9,13 +9,28 @@ Language: English · [简体中文](README.zh-CN.md)
 Requires Node.js 24.10 or newer and npm, as declared in [package.json](package.json).
 
 ```sh
+npm install -g @stark-lin/jab
+jab
+jab --version
+jab doctor
+```
+
+All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI provides persistent multi-session streaming Agent conversations over scoped first-party MCP tools; My Profile manages entries with multiple facts and reviewed PDF imports; Add Job supports manual entry and URL/text/PDF Agent capture, opening Applications after saving as Not started; Applications manages statuses, notes, local events and archive/detail changes through its Agent; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left icon sidebar with hover labels and section dividers; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
+
+Configure an AI provider, credentials and a global default model to capture a job URL/text/PDF, manage an application or import a PDF resume. Save the model’s parallel-import opt-in in Settings to make Parallel selectable at either import entry. Grouping, retries and compact output are explained in [current architecture](docs/architecture.md).
+
+See the [npm user guide](packages/npm/README.md) for full usage, temporary `npx` execution, updating, MCP and local data. Only macOS ARM64 has complete release validation.
+
+## Development
+
+Clone the repository, then run from source:
+
+```sh
 npm install
 JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 ```
 
-The `predev` helper downloads the Electron binary on first development launch. All nine Home cards are accessible. Browser opens an empty workspace for URLs, domains or searches; Settings supports saved language and Light/Dark/Follow system appearance, multiple AI providers, encrypted API keys and mailbox configuration; Ask AI provides persistent multi-session streaming Agent conversations over scoped first-party MCP tools; My Profile manages entries with multiple facts and reviewed PDF imports; Add Job supports manual entry and URL/text/PDF Agent capture, opening Applications after saving as Not started; Applications manages statuses, notes, local events and archive/detail changes through its Agent; other feature pages show coming-soon content when their workflows are unavailable. Only Browser shows tabs and address controls; all features share a left icon sidebar with hover labels and section dividers; configured Inbox displays webmail without an application top bar. The sidebar Home entry replaces the mailbox Exit button. Home/new tabs hide browser chrome and internal URLs; Back/Forward traverse internal pages and websites within each tab. See [current architecture](docs/architecture.md) for navigation rules, shortcuts, runtime details and source references.
-
-Configure an AI provider, credentials and a global default model to capture a job URL/text/PDF, manage an application or import a PDF resume. Save the model’s parallel-import opt-in in Settings to make Parallel selectable at either import entry. Grouping, retries and compact output are explained in [current architecture](docs/architecture.md).
+The `predev` helper downloads the Electron binary on first development launch.
 
 ## Validation and build
 
@@ -65,9 +80,9 @@ npm run package:verify -- /absolute/path/to/unpacked-app
 npm run release:npm:check
 ```
 
-The npm build produces a model-free tarball under `dist/npm-artifacts/` with exact runtime dependencies and a shrinkwrap. [npm Preview guide](packages/npm/README.md) documents the intended `@stark-lin/jab@next` commands once published. macOS ARM64 is the only validated release target; clean-user Keychain/Gatekeeper and cross-channel credential compatibility remain unverified. npm defaults to the same JAB data directory as DMG; models persist independently of either installation.
+The npm build produces a model-free tarball under `dist/npm-artifacts/` with exact runtime dependencies and a shrinkwrap. [npm user guide](packages/npm/README.md) documents installation and updating of the published package. macOS ARM64 is the only validated release target; clean-user Keychain/Gatekeeper and cross-channel credential compatibility remain unverified. npm defaults to the same JAB data directory as DMG; models persist independently of either installation.
 
-Integrate changes into `dev`, then promote it to `main` through a passing PR. Main builds a Full DMG and npm tarball for the same SHA/version. GitHub publishes first; npm uses OIDC and `next`, with independent retry checks. npm scope ownership and Trusted Publisher setup are operator prerequisites. [CI/CD](docs/ci-cd.md) owns signing, release gates and compatibility limits.
+Integrate changes into `dev`, then promote it to `main` through a passing PR. Main builds a Full DMG and npm tarball for the same SHA/version. GitHub publishes first; npm uses OIDC and `latest`; retries of existing versions only check integrity and never change tags. npm scope ownership and Trusted Publisher setup are operator prerequisites. [CI/CD](docs/ci-cd.md) owns signing, release gates and compatibility limits.
 
 ## Documentation index
 
@@ -83,7 +98,7 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 | [Capture Job Skill](skills/capture-job/SKILL.md) · [简体中文](skills/capture-job/SKILL.zh-CN.md) | Host source understanding followed by structured MCP persistence |
 | [Manage Applications Skill](skills/manage-applications/SKILL.md) · [简体中文](skills/manage-applications/SKILL.zh-CN.md) | State, notes, local events, details and archive workflow |
 | [Resume Skill](skills/tailor-resume/SKILL.md) · [简体中文](skills/tailor-resume/SKILL.zh-CN.md) | Codex reasoning workflow over shared Resume tools; setup belongs to MCP architecture |
-| [npm Preview guide](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | Published-package commands and user-data behavior |
+| [npm user guide](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | Published-package commands and user-data behavior |
 | [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 20-table model; shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
 | [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |

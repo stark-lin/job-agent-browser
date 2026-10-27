@@ -40,6 +40,19 @@ function registryVersion(name, version, runner = spawnSync) {
   if (error?.code === 'E404') return null
   throw new Error('NPM_REGISTRY_LOOKUP_FAILED')
 }
+function publishArtifact(artifact, runner = spawnSync) {
+  const { name, version } = artifact.report
+  const existing = registryVersion(name, version, runner)
+  if (existing) {
+    assert.equal(existing, artifact.integrity, 'Existing npm version has different bytes; it cannot be overwritten')
+    // Never retag a retry: latest may already point to a newer release.
+    console.log('Existing npm version matches the verified artifact.'); return
+  }
+  const result = runner('npm', ['publish', artifact.path, '--access', 'public', '--tag', 'latest', '--provenance', '--registry=https://registry.npmjs.org/'], { stdio: 'inherit' })
+  if (result.status !== 0) throw new Error('NPM_PUBLISH_FAILED_GITHUB_RELEASE_RETAINED')
+  assert.equal(registryVersion(name, version, runner), artifact.integrity, 'Published npm digest mismatch')
+  console.log(`Published ${name}@${version} with tag latest.`)
+}
 async function main() {
   if (process.env.GITHUB_REF !== 'refs/heads/main') throw new Error('NPM_RELEASE_REQUIRES_MAIN')
   const npmVersion = spawnSync('npm', ['--version'], { encoding: 'utf8' })
@@ -47,16 +60,7 @@ async function main() {
   if (npmVersion.status !== 0 || !parts || parts.length !== 3 || parts.some(n => !Number.isInteger(n)) ||
     parts[0] < 11 || parts[0] === 11 && (parts[1] < 5 || parts[1] === 5 && parts[2] < 1)) throw new Error('NPM_11_5_1_REQUIRED')
   const expected = metadata(require('../package.json').version, process.env.GITHUB_RUN_NUMBER, process.env.GITHUB_SHA)
-  const artifact = verifyArtifact(resolve(__dirname, '../release/npm'), expected)
-  const existing = registryVersion(artifact.report.name, expected.version)
-  if (existing) {
-    assert.equal(existing, artifact.integrity, 'Existing npm version has different bytes; it cannot be overwritten')
-    console.log('Existing npm version matches the verified artifact.'); return
-  }
-  const result = spawnSync('npm', ['publish', artifact.path, '--access', 'public', '--tag', 'next', '--provenance', '--registry=https://registry.npmjs.org/'], { stdio: 'inherit' })
-  if (result.status !== 0) throw new Error('NPM_PUBLISH_FAILED_GITHUB_RELEASE_RETAINED')
-  assert.equal(registryVersion(artifact.report.name, expected.version), artifact.integrity, 'Published npm digest mismatch')
-  console.log(`Published ${artifact.report.name}@${expected.version} with tag next.`)
+  publishArtifact(verifyArtifact(resolve(__dirname, '../release/npm'), expected))
 }
-module.exports = { verifyArtifact, registryVersion }
+module.exports = { verifyArtifact, registryVersion, publishArtifact }
 if (require.main === module) void main().catch(error => { console.error(error.message); process.exitCode = 1 })

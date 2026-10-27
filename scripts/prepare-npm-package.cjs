@@ -45,7 +45,7 @@ function prepare() {
   for (const name of ['out', 'packages/npm/bin']) fs.cpSync(join(root, name), join(output, name === 'out' ? name : 'bin'), { recursive: true })
   fs.mkdirSync(join(output, 'resources'))
   for (const name of ['embedding-model.json', 'model-notice.txt']) fs.copyFileSync(join(root, 'resources', name), join(output, 'resources', name))
-  for (const name of ['README.md', 'README.zh-CN.md']) fs.writeFileSync(join(output, name), fs.readFileSync(join(root, 'packages/npm', name), 'utf8').replaceAll('](../../LICENSE)', '](LICENSE)'))
+  for (const name of ['README.md', 'README.zh-CN.md']) fs.copyFileSync(join(root, 'packages/npm', name), join(output, name))
   fs.copyFileSync(join(root, 'LICENSE'), join(output, 'LICENSE'))
   fs.writeFileSync(join(output, 'package.json'), JSON.stringify(pkg, null, 2) + '\n')
   fs.writeFileSync(join(output, 'npm-shrinkwrap.json'), JSON.stringify(distributionLock(pkg, original), null, 2) + '\n')

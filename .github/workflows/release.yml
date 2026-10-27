@@ -66,5 +66,5 @@ jobs:
         with:
           name: npm-mac-arm64
           path: release/npm
-      - name: Publish verified npm preview using OIDC
+      - name: Publish verified npm latest using OIDC
         run: node scripts/publish-npm.cjs
