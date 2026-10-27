@@ -1,3 +1,4 @@
+import { LocalModelSettings } from './LocalModelSettings'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput } from '../../shared/ui'
@@ -27,8 +28,17 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
         } else setNotice(config.error)
       })
       .catch(() => setNotice('KNOWLEDGE_UNAVAILABLE'))
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const unsubscribe = api.onChanged(() => {
+      timer ??= setTimeout(() => {
+        timer = undefined
+        void api.configuration({}).then(config => { if (live && config.ok) setIndexError(config.value.indexError) }).catch(() => {})
+      }, 150)
+    })
     return () => {
       live = false
+      clearTimeout(timer)
+      unsubscribe()
     }
   }, [api])
   useEffect(() => {
@@ -126,6 +136,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
           onChange={(e) => setDraft({ ...draft, semanticEnabled: e.target.checked })}
         />
         <StatusMessage>{t(($) => $.knowledge.semanticHelp)}</StatusMessage>
+        <LocalModelSettings />
         {draft.semanticEnabled && indexError && <StatusMessage tone="error">{t(($) => $.knowledge.semanticUnavailable)}</StatusMessage>}
         <div className="settings-actions">
           <Button

@@ -50,19 +50,24 @@ npm run test:ask-ai
 
 ## 打包与集成
 
-普通 `build` 保持离线且不要求模型存在。本地语义搜索先准备一次模型；打包时会自动下载并校验。全新安装在测试前需要运行 `npx --no-install install-electron`。
+普通 `build` 离线执行且不需要模型。应用在持久用户存储中管理可选 embedding 权重。Full 桌面打包准备离线 Seed；Minimal 桌面和 npm 包不附带权重。应用许可证：[AGPL-3.0-only](LICENSE)。
 
 ```sh
 npm run model:prepare
 npm run model:verify
 npm run test:embedding
+npm run test:models
 npm run test:release
 npm run package:dir
 npm run package:mac
+npm run package:minimal
 npm run package:verify -- /absolute/path/to/unpacked-app
+npm run release:npm:check
 ```
 
-改动先集成到 `dev`，再通过检查成功的 PR 将 `dev` 合入 `main`。`dev` 更新运行 CI；`main` 更新自动验证、构建 macOS arm64 并发布对应预发布版本。预览安装包默认不签名，严格签名须先配置。[CI/CD](docs/ci-cd.zh-CN.md)负责 runner、签名、重试及分支保护说明。
+npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精确运行依赖和 shrinkwrap。[npm 预览版指南](packages/npm/README.zh-CN.md) 说明正式发布后使用的 `@stark-lin/jab@next` 命令。macOS ARM64 是唯一经过验证的发行目标；干净用户环境的 Keychain/Gatekeeper 和跨渠道凭据兼容性尚未验证。npm 默认与 DMG 使用相同的 JAB 数据目录；模型独立于两种应用安装持久保存。
+
+先将变更集成到 `dev`，再通过检查通过的 PR 晋升到 `main`。Main 为相同 SHA/版本构建 Full DMG 和 npm tarball。先发布 GitHub，再通过 OIDC 以 `next` 标签发布 npm，两者可独立重试。npm scope 所有权和 Trusted Publisher 配置由操作者准备。[CI/CD](docs/ci-cd.zh-CN.md) 负责签名、发布门槛和兼容性限制。
 
 ## 文档索引
 
@@ -78,10 +83,11 @@ npm run package:verify -- /absolute/path/to/unpacked-app
 | [职位采集 Skill](skills/capture-job/SKILL.zh-CN.md) · [English](skills/capture-job/SKILL.md) | 宿主理解资料后通过 MCP 保存结构化结果 |
 | [申请管理 Skill](skills/manage-applications/SKILL.zh-CN.md) · [English](skills/manage-applications/SKILL.md) | 状态、备注、本地事件、详情及归档流程 |
 | [Resume Skill](skills/tailor-resume/SKILL.zh-CN.md) · [English](skills/tailor-resume/SKILL.md) | Codex 使用共享 Resume 工具的推理流程；接入配置归属 MCP 架构 |
+| [npm 预览版指南](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | 已发布包的命令与用户数据行为 |
 | [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 20 表模型，由中英文数据架构共用 |
 | [设计纲要](DESIGN.zh-CN.md) · [English](DESIGN.md) | 视觉方向、交互原则与 UI 设计入口 |
 | [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |
 
 ## 智能笔记知识库
 
-智能笔记以唯一本地 Markdown 文件树提供编辑/分栏/预览、恢复快照、可选 GitHub 备份与混合检索。用户和 MCP Agent 共用知识库，新安装默认启用内置离线 embedding 模型，已有明确关闭选择会保留。见[知识存储](docs/data-architecture.zh-CN.md)与 [MCP 工具](docs/mcp-architecture.zh-CN.md)。
+Smart Note 使用单一本地 Markdown 文件树，提供编辑/分栏/预览、快照、可选 GitHub 备份和混合检索。语义索引默认启用，模型安装仍为可选；设置提供下载、修复、校验、取消和确认删除。模型缺失时保留关键词检索。见[知识库存储](docs/data-architecture.zh-CN.md)和 [MCP 工具](docs/mcp-architecture.zh-CN.md)。

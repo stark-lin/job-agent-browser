@@ -1,14 +1,12 @@
 import { app, utilityProcess } from 'electron'
-import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { manifest } from './embedding-protocol'
 import { LocalEmbeddingProvider } from './local-embedding'
+import type { LocalModelManager } from '../../models/manager'
 
-export function createKnowledgeEmbeddings(enabled: () => boolean) {
-  const modelsDirectory = app.isPackaged ? join(process.resourcesPath, 'models') : join(app.getAppPath(), '.cache', 'models')
+export function createKnowledgeEmbeddings(enabled: () => boolean, manager: LocalModelManager) {
   return new LocalEmbeddingProvider({
-    enabled, modelsDirectory,
-    available: () => manifest.files.every(file => existsSync(join(modelsDirectory, manifest.id, file.path))),
+    acquireLease: compromised => manager.acquireLease(compromised),
+    enabled, modelsDirectory: manager.store.directory, available: () => manager.available(),
     fork: () => utilityProcess.fork(join(app.getAppPath(), 'out/main/embedding-process.js'), [], { serviceName: 'JAB Local Embedding', stdio: 'pipe' })
   })
 }

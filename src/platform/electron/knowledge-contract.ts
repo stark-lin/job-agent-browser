@@ -1,3 +1,4 @@
+import type { ModelStatus } from '../../shared/models'
 import type { Result } from '../../shared/ipc'
 import type { KnowledgePreferences } from '../../shared/knowledge-settings'
 import type {
@@ -9,6 +10,11 @@ import type {
   BackupStatus
 } from '../../domain/knowledge'
 export interface KnowledgeMethods {
+  modelStatus: { input: Record<string, never>; output: ModelStatus }
+  modelInstall: { input: { source: 'download' | 'seed' }; output: null }
+  modelCancel: { input: Record<string, never>; output: null }
+  modelVerify: { input: Record<string, never>; output: ModelStatus }
+  modelRemove: { input: Record<string, never>; output: null }
   tree: { input: Record<string, never>; output: KnowledgeNode }
   read: { input: { path: string }; output: KnowledgeFile }
   write: { input: { path: string; content: string; expectedRevision: string | null }; output: KnowledgeFile }
@@ -32,6 +38,7 @@ export interface KnowledgeMethods {
   token: { input: { token: string | null }; output: { configured: boolean } }
 }
 export const knowledgeMethods = [
+  'modelStatus', 'modelInstall', 'modelCancel', 'modelVerify', 'modelRemove',
   'tree',
   'read',
   'write',

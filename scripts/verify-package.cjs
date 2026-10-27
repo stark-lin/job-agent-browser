@@ -15,7 +15,9 @@ async function main() {
   assert(existsSync(join(resources, 'app.asar')), 'Missing ASAR')
   assert.deepEqual(JSON.parse(readFileSync(join(resources, 'embedding-model.json'), 'utf8')), manifest)
   assert(existsSync(join(resources, 'model-notice.txt')), 'Missing model notice')
-  await prepare({ directory: join(resources, 'models', manifest.id), verify: true })
+  const minimal = process.argv.includes('--minimal')
+  if (minimal) assert(!existsSync(join(resources, 'models')), 'Minimal must not contain model weights')
+  else await prepare({ directory: join(resources, 'models', manifest.id), verify: true })
   function find(directory, name) {
     if (!existsSync(directory)) return false
     return readdirSync(directory).some(entry => {
@@ -25,14 +27,14 @@ async function main() {
   }
   assert(find(join(resources, 'app.asar.unpacked/node_modules/onnxruntime-node'), 'onnxruntime_binding.node'), 'Missing unpacked ONNX runtime')
   const directory = mkdtempSync(join(tmpdir(), 'jab-package-check-'))
-  const env = { ...process.env, JOB_BROWSER_USER_DATA: directory }
+  const env = { ...process.env, JOB_BROWSER_USER_DATA: directory, JAB_MODEL_STORE: join(directory, 'managed-models') }
   delete env.ELECTRON_RUN_AS_NODE; delete env.ELECTRON_RENDERER_URL
   try {
-    const result = spawnSync(executable, ['--verify-package'], { env, stdio: 'inherit', cwd: tmpdir(), timeout: 180000 })
+    const result = spawnSync(executable, ['--verify-package', ...(minimal ? ['--verify-minimal'] : [])], { env, stdio: 'inherit', cwd: tmpdir(), timeout: 180000 })
     assert.equal(result.error, undefined)
     assert.equal(result.status, 0, 'Packaged runtime failed')
     const report = JSON.parse(readFileSync(join(directory, 'package-verification.json'), 'utf8'))
-    assert(report.ok && report.pdfVerified && report.dimensions === 384 && report.forks === 1)
+    assert(report.ok && report.pdfVerified && report.dimensions === (minimal ? 0 : 384) && report.forks === (minimal ? 0 : 1))
     assert.equal(report.arch, process.arch, 'Verification must run on the target architecture')
     console.log('Package verified:', JSON.stringify(report))
   } finally { rmSync(directory, { recursive: true, force: true }) }

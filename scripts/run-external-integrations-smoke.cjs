@@ -4,7 +4,7 @@ const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs')
 if (!process.argv.includes('--runtime')) {
   const { spawnSync } = require('node:child_process')
   const directory = mkdtempSync(join(require('node:os').tmpdir(), 'job-browser-integrations-'))
-  const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory }
+  const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory, JAB_MODEL_STORE: join(directory, 'managed-models') }
   delete env.JOB_BROWSER_USER_DATA
   delete env.ELECTRON_RUN_AS_NODE
   delete env.ELECTRON_RENDERER_URL

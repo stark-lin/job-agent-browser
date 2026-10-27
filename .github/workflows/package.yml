@@ -61,3 +61,31 @@ jobs:
             release/builder-effective-config.yaml
           if-no-files-found: ignore
           retention-days: 7
+  npm:
+    name: npm runtime (mac-arm64)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.22.1
+          architecture: arm64
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/models
+          key: embedding-${{ hashFiles('resources/embedding-model.json') }}
+      - run: npm run model:prepare && npm run model:verify
+      - run: npm run package:npm && npm run package:npm:verify && npm run test:npm
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: npm-mac-arm64
+          path: dist/npm-artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

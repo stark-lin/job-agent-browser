@@ -3,7 +3,7 @@ const { mkdtempSync, rmSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const { resolve } = require('node:path')
 const directory = mkdtempSync(resolve(tmpdir(), 'ask-ai-smoke-'))
-const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory }
+const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory, JAB_MODEL_STORE: resolve(directory, 'managed-models') }
 delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_RENDERER_URL
 delete env.JOB_BROWSER_USER_DATA

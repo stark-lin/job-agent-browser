@@ -238,3 +238,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .ui-explorer-row:hover { background:var(--primary-soft); }
 .ui-explorer-row:focus-visible { outline:var(--focus-width) solid var(--primary); outline-offset:calc(-1 * var(--focus-width)); }
+
+.ui-progress {
+  width: 100%;
+  height: var(--space-2);
+  accent-color: var(--primary);
+}

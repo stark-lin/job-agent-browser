@@ -50,19 +50,24 @@ To connect local Codex, Claude Code or Cursor, open Settings → Connect externa
 
 ## Packaging and integration
 
-Ordinary `build` stays offline and does not require model files. Prepare the model once for local semantic search; packaging downloads and verifies it automatically. Fresh installs need `npx --no-install install-electron` before tests.
+Ordinary `build` stays offline and requires no model. The application manages optional embedding weights in a persistent user store. Full desktop packaging prepares an offline Seed; Minimal desktop and npm packages omit weights. Application license: [AGPL-3.0-only](LICENSE).
 
 ```sh
 npm run model:prepare
 npm run model:verify
 npm run test:embedding
+npm run test:models
 npm run test:release
 npm run package:dir
 npm run package:mac
+npm run package:minimal
 npm run package:verify -- /absolute/path/to/unpacked-app
+npm run release:npm:check
 ```
 
-Integrate changes into `dev` first, then promote `dev` to `main` through a passing PR. Updates to `dev` run CI; updates to `main` automatically validate, package macOS arm64 and publish its prerelease. Preview installers are unsigned unless strict signing is configured. [CI/CD](docs/ci-cd.md) owns runner, signing, retry and protection details.
+The npm build produces a model-free tarball under `dist/npm-artifacts/` with exact runtime dependencies and a shrinkwrap. [npm Preview guide](packages/npm/README.md) documents the intended `@stark-lin/jab@next` commands once published. macOS ARM64 is the only validated release target; clean-user Keychain/Gatekeeper and cross-channel credential compatibility remain unverified. npm defaults to the same JAB data directory as DMG; models persist independently of either installation.
+
+Integrate changes into `dev`, then promote it to `main` through a passing PR. Main builds a Full DMG and npm tarball for the same SHA/version. GitHub publishes first; npm uses OIDC and `next`, with independent retry checks. npm scope ownership and Trusted Publisher setup are operator prerequisites. [CI/CD](docs/ci-cd.md) owns signing, release gates and compatibility limits.
 
 ## Documentation index
 
@@ -78,10 +83,11 @@ Integrate changes into `dev` first, then promote `dev` to `main` through a passi
 | [Capture Job Skill](skills/capture-job/SKILL.md) · [简体中文](skills/capture-job/SKILL.zh-CN.md) | Host source understanding followed by structured MCP persistence |
 | [Manage Applications Skill](skills/manage-applications/SKILL.md) · [简体中文](skills/manage-applications/SKILL.zh-CN.md) | State, notes, local events, details and archive workflow |
 | [Resume Skill](skills/tailor-resume/SKILL.md) · [简体中文](skills/tailor-resume/SKILL.zh-CN.md) | Codex reasoning workflow over shared Resume tools; setup belongs to MCP architecture |
+| [npm Preview guide](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | Published-package commands and user-data behavior |
 | [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 20-table model; shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
 | [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |
 
 ## Smart Note knowledge
 
-Smart Note uses a single local Markdown tree with Edit/Split/Preview, recovery snapshots, optional GitHub backup and hybrid retrieval. Humans and MCP Agents share it; new installations enable the bundled offline embedding model by default; existing explicit opt-out is preserved. See [knowledge storage](docs/data-architecture.md) and [MCP tools](docs/mcp-architecture.md).
+Smart Note uses one local Markdown tree with Edit/Split/Preview, snapshots, optional GitHub backup and hybrid retrieval. Semantic indexing is enabled by default, while model installation remains optional; Settings provides Download, Repair, Verify, Cancel and confirmed Remove. Missing models retain keyword retrieval. See [knowledge storage](docs/data-architecture.md) and [MCP tools](docs/mcp-architecture.md).

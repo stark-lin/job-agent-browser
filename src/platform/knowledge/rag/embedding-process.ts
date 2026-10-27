@@ -11,7 +11,7 @@ globalThis.fetch = async () => { throw new Error('EMBEDDING_NETWORK_DISABLED') }
 let extractor: Awaited<ReturnType<typeof load>> | undefined
 const load = async (directory: string) => {
   env.localModelPath = directory
-  const result = await pipeline('feature-extraction', manifest.id, { dtype: 'int8', device: 'cpu', local_files_only: true,
+  const result = await pipeline('feature-extraction', directory, { dtype: 'int8', device: 'cpu', local_files_only: true,
     session_options: { intraOpNumThreads: 2, interOpNumThreads: 1 } })
   if (result.tokenizer.model_max_length !== manifest.maxLength) throw new Error('MODEL_TOKEN_LIMIT_MISMATCH')
   return result

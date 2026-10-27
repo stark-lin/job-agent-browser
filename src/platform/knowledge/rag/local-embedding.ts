@@ -18,8 +18,13 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   private queue: Request[] = []
   private active?: Request
   private disposed = false
+  private acquiring?: Promise<void>
+  private lease?: () => Promise<void>
+  private closing: Promise<void> = Promise.resolve()
+  private generation = 0
   constructor(private readonly options: {
     enabled(): boolean; available(): boolean; modelsDirectory: string
+    acquireLease?(compromised: () => void): Promise<() => Promise<void>>
     fork(): EmbeddingProcess; timeoutMs?: number
   }) {}
   error() { return this.options.enabled() && !this.options.available() ? 'SEMANTIC_UNAVAILABLE' : null }
@@ -51,7 +56,22 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
       this.pump()
     })
   }
-  private stopChild() { const child = this.child; this.child = undefined; child?.kill() }
+  private releaseLease() {
+    const release = this.lease; this.lease = undefined
+    if (release) { this.closing = this.closing.then(release); this.closing.catch(() => {}) }
+  }
+  private stopChild() {
+    const child = this.child; this.child = undefined
+    if (!child) { this.releaseLease(); return }
+    const release = this.lease; this.lease = undefined
+    const stopped = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('EMBEDDING_STOP_TIMEOUT')), 5000)
+      child.on('exit', () => { clearTimeout(timer); resolve() })
+      child.kill()
+    }).then(() => release?.())
+    this.closing = Promise.all([this.closing, stopped]).then(() => {})
+    this.closing.catch(() => {})
+  }
   private finish(error?: Error, vectors?: number[][]) {
     const request = this.active
     this.active = undefined
@@ -65,6 +85,15 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   private pump() {
     if (this.active || this.disposed || !this.queue.length) return
     if (!this.identity()) { this.cancel(); return }
+    if (!this.child && this.options.acquireLease && !this.lease) {
+      if (this.acquiring) return
+      const generation = this.generation
+      this.acquiring = this.options.acquireLease(() => this.cancel()).then(async release => {
+        if (generation !== this.generation || this.disposed || !this.queue.length) await release()
+        else this.lease = release
+      }).catch(() => { this.cancel() }).finally(() => { this.acquiring = undefined; this.pump() })
+      return
+    }
     const request = this.queue.shift()!
     this.active = request
     try {
@@ -74,6 +103,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
         child.on('exit', () => {
           if (this.child !== child) return
           this.child = undefined
+          this.releaseLease()
           this.finish(new Error('EMBEDDING_PROCESS_EXITED'))
         })
         child.on('message', (value: unknown) => {
@@ -89,11 +119,13 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     } catch { this.stopChild(); this.finish(new Error('EMBEDDING_FAILED')) }
   }
   cancel() {
+    this.generation++
     const pending = [...(this.active ? [this.active] : []), ...this.queue]
     this.active = undefined
     this.queue = []
     this.stopChild()
     for (const request of pending) { request.cleanup(); request.reject(new Error('EMBEDDING_CANCELLED')) }
   }
-  async dispose() { this.disposed = true; this.cancel() }
+  async stop() { this.cancel(); await this.acquiring; await this.closing }
+  async dispose() { this.disposed = true; await this.stop() }
 }

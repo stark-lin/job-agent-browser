@@ -148,6 +148,8 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 [Knowledge 服务](../src/platform/knowledge/service.ts)组合安全文件、跨进程锁、监听、索引与备份。Main 持有 GitHub 备份凭据，并提供本机认证查询 embedding 接口；Main 离线时独立 MCP 降级为关键词检索。[IPC](../src/platform/electron/knowledge-contract.ts)仅向可信应用 Renderer 开放。
 
-[本地 embeddings](../src/platform/knowledge/rag/local-embedding.ts)按需调度一个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，查询优先、队列有界，并拒绝取消、超时和崩溃请求。Worker 禁止远程模型加载及 fetch，使用 mean pooling 和归一化，并核对固定的 512-token 上限。UI 启动不等待索引。开发时未准备文件仍保留词法搜索。Main 退出时取消并释放推理；模型路径基于应用根目录或包内 resources，与 cwd 无关。[打包](ci-cd.zh-CN.md)负责分发及真实包内验收。
+[本地 embedding](../src/platform/knowledge/rag/local-embedding.ts) 按需调度单个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，优先处理查询、限制队列并拒绝取消/超时/崩溃请求。Worker 禁止远程加载和 fetch，只读取用户模型存储中完整校验过的 revision。Main 的 [Model Manager](../src/platform/models/manager.ts) 管理下载/Seed 导入、重试/取消、校验、原子提交和删除；[路径](../src/platform/models/paths.ts) 独立于安装位置和 cwd。GUI 启动不等待模型校验或导入；模型不可用时保留关键词搜索。激活后立即调度缺失向量，删除权重前停止本实例推理。跨进程读取租约阻止替换或删除其他实例正在使用的模型。[打包](ci-cd.zh-CN.md) 负责发行检查。
 
 [Bootstrap](../src/platform/electron/main/bootstrap.ts)在加载 Main 前分派打包后的子进程角色；应用入口为 application-main.js。PDF worker 先宣布就绪再接收输入，使用由父进程清理的临时 userData。[包内验收](../src/platform/electron/verify-resume-package.ts)还通过完整 MCP 简历流程生成 HTML/PDF，并使用包内 PDF worker 提取文本。
+
+[npm 适配器](../packages/npm/bin/jab.cjs) 启动相同的 Electron bootstrap，提供版本/doctor/stdio MCP 命令。npm 默认使用 JAB 应用数据目录，也可显式传入绝对路径覆盖。DMG/npm 凭据需在干净 Mac 上验证兼容性；解密失败会保留密文并报错。模型与应用安装的生命周期独立；自动应用更新尚未实现。

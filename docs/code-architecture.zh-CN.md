@@ -168,3 +168,5 @@ Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbo
 [Embedding 合同](../src/platform/knowledge/rag/embedding.ts)与调度器独立于 Electron；[model-path](../src/platform/knowledge/rag/model-path.ts)绑定 Electron utility transport。推理入口仅持有模型/tokenizer/runtime。[构建配置](../electron.vite.config.ts)在 Main/MCP/output worker 旁生成 embedding-process.js；打包保留外置原生依赖。分发运维归属 [CI/CD](ci-cd.zh-CN.md)。
 
 [Bootstrap](../src/platform/electron/main/bootstrap.ts)在加载 Main 前分派打包后的子进程角色；应用入口为 application-main.js。PDF worker 先宣布就绪再接收输入，使用由父进程清理的临时 userData。[包内验收](../src/platform/electron/verify-resume-package.ts)还通过完整 MCP 简历流程生成 HTML/PDF，并使用包内 PDF worker 提取文本。
+
+**已实现：**[Platform Models](../src/platform/models/manager.ts) 负责资源安装/存储和推理租约；[Platform npm](../src/platform/npm/distribution.ts) 负责分发渠道特定的 MCP 启动适配。CLI/构建源码位于 [packages/npm](../packages/npm/README.zh-CN.md) 和 [scripts](../scripts/prepare-npm-package.cjs)。它们复用现有 Main、业务数据库、MCP 服务和输出 Worker；Agent 边界不变。
