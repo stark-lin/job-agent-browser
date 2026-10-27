@@ -30,19 +30,21 @@ test('fixed revision downloads are atomic, fully verified and reused without net
   assert.deepEqual(await readdir(directory), ['model.onnx'])
   for (const path of ['../escape', '/absolute', 'x/../escape', 'x\\escape']) assert.throws(() => validateManifest({ ...model, files: [{ ...model.files[0], path }] }))
 })
-test('release identity is stable on rerun and Windows numeric version is bounded', () => {
+test('release identity is stable on rerun and macOS bundle versions stay numeric', () => {
   const value = metadata('0.1.0', '123', 'a'.repeat(40))
   assert.equal(value.version, '0.1.0-main.123.gaaaaaaa')
   assert.equal(metadata('0.1.0', 123, '0123456' + 'a'.repeat(33)).version, '0.1.0-main.123.g0123456')
+  assert.equal(value.macBundleVersion, '1.1.23')
+  assert.equal(metadata('0.1.0', 65535, 'a'.repeat(40)).macBundleVersion, '7.55.35')
   assert.equal(value.buildVersion, '0.1.0.123')
   assert.deepEqual(value, metadata('0.1.0', '123', 'a'.repeat(40)))
   for (const run of ['0', '65536', 'bad']) assert.throws(() => metadata('0.1.0', run, 'a'.repeat(40)))
 })
-test('publication requires all four verified targets and rejects corrupt or mixed-commit installers', async t => {
+test('publication requires verified macOS arm64 and rejects corrupt, mixed-commit or extra platform assets', async t => {
   const directory = await fixture(t), meta = metadata('0.1.0', 3, 'b'.repeat(40))
   const model = require('../resources/embedding-model.json')
   const manifestHash = await digest(join(__dirname, '../resources/embedding-model.json'))
-  const targets = [['linux', 'x64', 'AppImage'], ['mac', 'arm64', 'dmg'], ['mac', 'x64', 'dmg'], ['win', 'x64', 'exe']]
+  const targets = [['mac', 'arm64', 'dmg']]
   for (const [platform, arch, ext] of targets) {
     const name = `JAB-${meta.version}-${platform}-${arch}.${ext}`
     await writeFile(join(directory, name), 'installer')
@@ -50,8 +52,8 @@ test('publication requires all four verified targets and rejects corrupt or mixe
       modelRevision: model.revision, modelManifest: manifestHash, runtimeVerified: true, signing: 'unsigned',
       assets: [{ name, size: 9, sha256: sha('installer') }] }))
   }
-  assert.equal((await verifyAssets(directory, meta)).files.length, 4)
-  const target = join(directory, 'win-x64.json'), original = await readFile(target, 'utf8')
+  assert.equal((await verifyAssets(directory, meta)).files.length, 1)
+  const target = join(directory, 'mac-arm64.json'), original = await readFile(target, 'utf8')
   await writeFile(target, original.replace(meta.sha, 'c'.repeat(40)))
   await assert.rejects(verifyAssets(directory, meta), /MANIFEST/)
   await writeFile(target, original)
@@ -59,6 +61,9 @@ test('publication requires all four verified targets and rejects corrupt or mixe
   await writeFile(join(directory, asset.name), 'corrupted')
   await assert.rejects(verifyAssets(directory, meta), /CHECKSUM/)
   await writeFile(join(directory, asset.name), 'installer')
+  await writeFile(join(directory, 'win-x64.json'), '{}')
+  await assert.rejects(verifyAssets(directory, meta), /UNEXPECTED_RELEASE_ASSET/)
+  await rm(join(directory, 'win-x64.json'))
   await rm(target)
   await assert.rejects(verifyAssets(directory, meta), /ENOENT/)
 })

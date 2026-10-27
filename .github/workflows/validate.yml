@@ -5,12 +5,8 @@ permissions:
   contents: read
 jobs:
   runtime:
-    name: Runtime (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, windows-2022, macos-15, macos-15-intel]
-    runs-on: ${{ matrix.os }}
+    name: Runtime (macos-arm64)
+    runs-on: macos-15
     timeout-minutes: 25
     defaults:
       run:
@@ -23,28 +19,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24.22.1
+          architecture: arm64
           cache: npm
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1 libfuse2t64 apparmor openbox dbus-x11
-      - name: Permit sandbox namespaces for test executables
-        if: runner.os == 'Linux'
-        run: bash scripts/setup-linux-ci.sh
       - run: npm ci
       - run: npx --no-install install-electron
       - name: Validate source, tests, build and MCP
-        run: |
-          if [[ "$RUNNER_OS" == Linux ]]; then
-            bash scripts/run-linux-ci.sh npm run check
-          else
-            npm run check
-          fi
+        run: npm run check
       - run: npm run test:release
       - name: Electron and Knowledge runtime
-        run: |
-          if [[ "$RUNNER_OS" == Linux ]]; then
-            bash scripts/run-linux-ci.sh node scripts/run-smoke.cjs
-            bash scripts/run-linux-ci.sh node scripts/run-knowledge-smoke.cjs
-          else
-            node scripts/run-smoke.cjs
-            node scripts/run-knowledge-smoke.cjs
-          fi
+        run: node scripts/run-smoke.cjs && node scripts/run-knowledge-smoke.cjs

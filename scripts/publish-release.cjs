@@ -3,7 +3,7 @@ const { join, resolve } = require('node:path')
 const { createHash } = require('node:crypto')
 const { metadata } = require('./release-metadata.cjs')
 const { digest } = require('./prepare-embedding-model.cjs')
-const targets = ['linux-x64', 'mac-arm64', 'mac-x64', 'win-x64']
+const targets = ['mac-arm64']
 async function verifyAssets(directory, meta) {
   const seen = new Set(), files = [], builds = []
   for (const target of targets) {

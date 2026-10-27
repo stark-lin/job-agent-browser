@@ -10,6 +10,7 @@ function run(command, args, env = process.env) {
   if (result.error || result.status !== 0) throw new Error(`Command failed: ${command} (${result.status})`)
 }
 async function main() {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('RELEASE_TARGET_MAC_ARM64_REQUIRED')
   const meta = metadata(require('../package.json').version, process.env.GITHUB_RUN_NUMBER, process.env.GITHUB_SHA)
   const release = process.env.JAB_RELEASE_BUILD === 'true'
   if (release && process.env.GITHUB_REF !== 'refs/heads/main') throw new Error('RELEASE_REQUIRES_MAIN')
@@ -21,7 +22,8 @@ async function main() {
   const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: signed ? 'true' : 'false' }
   delete env.CSC_LINK; delete env.CSC_KEY_PASSWORD; delete env.APPLE_API_KEY
   const options = [`--${platform}`, process.platform === 'win32' ? 'nsis' : process.platform === 'darwin' ? 'dmg' : 'AppImage',
-    `--${process.arch}`, '--publish', 'never', `--config.extraMetadata.version=${meta.version}`, `--config.buildVersion=${meta.buildVersion}`]
+    `--${process.arch}`, '--publish', 'never', `--config.extraMetadata.version=${meta.version}`, `--config.buildVersion=${meta.buildVersion}`,
+    `--config.mac.bundleVersion=${meta.macBundleVersion}`, `--config.mac.bundleShortVersion=${require('../package.json').version}`]
   const keyPath = join(root, '.cache/notary-key.p8')
   try {
     if (signed) {

@@ -40,7 +40,7 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 
 `test:integrations` builds and verifies external Agent MCP/Skills setup, reconnection, confirmed selective/all removal, stale revisions, trusted IPC and bilingual responsive themes using disposable configuration directories. It requires a graphical desktop.
 
-`test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. Live-provider compatibility and Windows/Linux PDF rendering remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
+`test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. [CI](docs/ci-cd.md) exercises PDF rendering on the macOS arm64 release target; live-provider compatibility and clean-machine behavior beyond CI remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
 
 `test:ask-ai` checks transcript storage, streaming adapters/loop, real MCP read/write and event resync, then exercises concurrent chats, Stop, drafts, Markdown, bilingual themes, responsive layout and forced-process recovery in Electron. It uses local fixtures and disposable userData; live-provider reasoning/tool compatibility remains unverified. V6 upgrades matching-generation databases additively.
 
@@ -58,13 +58,11 @@ npm run model:verify
 npm run test:embedding
 npm run test:release
 npm run package:dir
-npm run package:win
 npm run package:mac
-npm run package:linux
 npm run package:verify -- /absolute/path/to/unpacked-app
 ```
 
-Integrate changes into `dev` first, then promote `dev` to `main` through a passing PR. Updates to `dev` run CI; updates to `main` automatically validate, package four targets and publish a complete prerelease. Preview installers are unsigned unless strict signing is configured. [CI/CD](docs/ci-cd.md) owns runner, signing, retry and protection details.
+Integrate changes into `dev` first, then promote `dev` to `main` through a passing PR. Updates to `dev` run CI; updates to `main` automatically validate, package macOS arm64 and publish its prerelease. Preview installers are unsigned unless strict signing is configured. [CI/CD](docs/ci-cd.md) owns runner, signing, retry and protection details.
 
 ## Documentation index
 

@@ -40,7 +40,7 @@ npm run test:ask-ai
 
 `test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
 
-`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。真实 Provider 兼容性及 Windows/Linux PDF 渲染仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
+`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
 
 `test:ask-ai` 验证会话存储、流式适配/循环、真实 MCP 读写及事件重同步，再通过 Electron 验证并发会话、停止、草稿、Markdown、双语主题、响应式布局及强制结束进程后的恢复。测试使用本地样本与临时 userData；真实 Provider 的思考摘要/工具兼容性仍未认证。V6 对匹配代际的数据库进行增量升级。
 
@@ -58,13 +58,11 @@ npm run model:verify
 npm run test:embedding
 npm run test:release
 npm run package:dir
-npm run package:win
 npm run package:mac
-npm run package:linux
 npm run package:verify -- /absolute/path/to/unpacked-app
 ```
 
-改动先集成到 `dev`，再通过检查成功的 PR 将 `dev` 合入 `main`。`dev` 更新运行 CI；`main` 更新自动验证、构建四个平台目标并发布完整预发布版本。预览安装包默认不签名，严格签名须先配置。[CI/CD](docs/ci-cd.zh-CN.md)负责 runner、签名、重试及分支保护说明。
+改动先集成到 `dev`，再通过检查成功的 PR 将 `dev` 合入 `main`。`dev` 更新运行 CI；`main` 更新自动验证、构建 macOS arm64 并发布对应预发布版本。预览安装包默认不签名，严格签名须先配置。[CI/CD](docs/ci-cd.zh-CN.md)负责 runner、签名、重试及分支保护说明。
 
 ## 文档索引
 
