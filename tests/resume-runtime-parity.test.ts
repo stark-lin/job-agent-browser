@@ -20,7 +20,7 @@ test('internal and external MCP sessions expose identical contracts and produce 
   const client = createMCPClient({ id: 'codex', enabled: true, transport: 'stdio', command: process.execPath,
     args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} },
     { processEnv: { JOB_BROWSER_USER_DATA: f.directory, JOB_BROWSER_MCP_CALLER: 'codex', ELECTRON_RUN_AS_NODE: '1' } })
-  t.after(() => client.close())
+  f.cleanup(() => client.close())
   await client.connect()
   const external = new MCPAgentTools(client, await client.listTools(), signal)
   assert.deepEqual(await internal.list(), await external.list())

@@ -60,7 +60,7 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
     await waitFor(() => evaluate('innerHeight === 420'), 'short sidebar viewport')
     assert.equal(await evaluate('document.querySelector(".ui-sidebar-footer").getBoundingClientRect().bottom <= innerHeight'), true)
     await select('Settings'); await current('Settings')
-    await waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings reachable in compact sidebar')
+    await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings reachable in compact sidebar')
     await select('Home')
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
   console.log('Sidebar smoke passed: all destinations, active state, keyboard activation, fixed icon-rail geometry, accessible names and short-window reachability.')

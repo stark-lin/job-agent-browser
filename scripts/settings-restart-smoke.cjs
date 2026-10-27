@@ -17,7 +17,7 @@ app.once('browser-window-created', (_event, window) => {
         const browser = await window.browser.getState();
         await window.browser.navigate('app://settings');
         await new Promise(resolve => {
-          const check = () => document.querySelectorAll('.settings-page form:not([data-audit-filters])').length === 4 && document.documentElement.lang === 'zh-CN' ? resolve() : setTimeout(check, 10);
+          const check = () => !!document.querySelector('[data-settings-general]') && !!document.querySelector('[data-ai-config]') && !!document.querySelector('[data-settings-mailbox-form]') && document.documentElement.lang === 'zh-CN' ? resolve() : setTimeout(check, 10);
           check();
         });
         return {preferences,key,browser,theme:document.documentElement.dataset.theme,colorScheme:getComputedStyle(document.documentElement).colorScheme,language:document.documentElement.lang,title:document.querySelector('h1').textContent,

@@ -96,7 +96,7 @@ function walk(file) {
   visiting.delete(file); visited.add(file)
 }
 for (const file of graph.keys()) walk(file)
-for (const file of sourceFiles.filter(file => file.startsWith(root + '/src/platform/agent/'))) {
+for (const file of sourceFiles.filter(file => path.relative(root, file).replaceAll('\\', '/').startsWith('src/platform/agent/'))) {
   const seen = new Set()
   function agentBoundary(current) {
     if (seen.has(current)) return
@@ -109,7 +109,7 @@ for (const file of sourceFiles.filter(file => file.startsWith(root + '/src/platf
   agentBoundary(file)
 }
 
-const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !file.includes('/diagrams/'))
+const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !path.relative(root, file).replaceAll('\\', '/').includes('/diagrams/'))
   .concat(['README', 'AGENTS', 'DESIGN'].flatMap((name) => [root + `/${name}.md`, root + `/${name}.zh-CN.md`]))
   .concat(files(root + '/skills').filter(file => file.endsWith('.md')))
 for (const file of editions) {

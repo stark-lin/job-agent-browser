@@ -15,8 +15,12 @@ import { openDatabase } from '../src/platform/database/sqlite'
 
 function tempDatabase(t: import('node:test').TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'job-storage-test-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
-  return join(dir, 'database.sqlite')
+  const cleanups: (() => void | Promise<void>)[] = []
+  t.after(async () => {
+    for (const cleanup of cleanups.reverse()) await cleanup()
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  })
+  return { path: join(dir, 'database.sqlite'), resources: { after: (fn: () => void | Promise<void>) => { cleanups.push(fn) } } }
 }
 
 test('migrations create all tables once and enforce configured SQLite settings', (t) => {
@@ -36,7 +40,7 @@ test('failed migration rolls back both schema changes and migration version', (t
 })
 
 test('future versions and checksum mismatches fail startup without resetting stored data', (t) => {
-  const path = tempDatabase(t), db = openDatabase(path)
+  const { path } = tempDatabase(t), db = openDatabase(path)
   db.connection.prepare('INSERT INTO schema_migrations VALUES (?, ?)').run(migrations.length + 1, 'future')
   db.close()
   assert.throws(() => openDatabase(path), /UNSUPPORTED_DATABASE_VERSION/)
@@ -48,14 +52,14 @@ test('future versions and checksum mismatches fail startup without resetting sto
 })
 
 test('data survives reopen and interrupted generation is recovered with SYSTEM audit', async (t) => {
-  const path = tempDatabase(t), first = fixture(t, path)
+  const { path, resources } = tempDatabase(t), first = fixture(resources, path)
   const job = value(await first.api.jobs.saveJob({ details: { title: 'Persisted', companyNameRaw: 'Company' } }))
   const profile = value(await first.api.profiles.createProfile({ name: 'Person', introduction: 'Original introduction.\nSecond sentence.' }))
   value(await first.api.profiles.addFact({ profileId: profile.id, details: { kind: 'SKILL', content: 'TypeScript' } }))
   const run = value(await first.api.resumes.createRun({ jobId: job.id, profileId: profile.id }))
   first.backend.generation.start({ id: run.id })
   first.backend.close()
-  const second = fixture(t, path)
+  const second = fixture(resources, path)
   assert.equal(value(await second.api.profiles.getProfile({ id: profile.id })).introduction, profile.introduction)
   assert.equal(value(await second.api.resumes.getRun({ id: run.id })).run.inputSnapshot.profile.introduction, profile.introduction)
   assert.equal(value(await second.api.jobs.getJob({ id: job.id })).title, 'Persisted')
@@ -107,7 +111,7 @@ test('nested and asynchronous transaction callbacks cannot partially commit', as
 })
 
 test('matching-generation version-1 upgrade preserves business rows, audit sequences and existing migration checksums', t => {
-  const path = tempDatabase(t), connection = new DatabaseSync(path)
+  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path)
   // Exercise incremental initialization within the new schema generation.
   const transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 1)); transactions.protectAudit()
@@ -117,7 +121,7 @@ test('matching-generation version-1 upgrade preserves business rows, audit seque
   const checksum = connection.prepare('SELECT checksum FROM schema_migrations WHERE version=1').get()?.checksum
   connection.close()
   const next = openDatabase(path)
-  t.after(next.close)
+  resources.after(next.close)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(job.id)?.title, 'Persisted private role')
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), before)
   assert.equal(next.connection.prepare('SELECT checksum FROM schema_migrations WHERE version=1').get()?.checksum, checksum)
@@ -131,7 +135,7 @@ test('matching-generation version-1 upgrade preserves business rows, audit seque
 })
 
 test('matching-generation version-2 upgrade adds capability audit without changing historical rows or migration checksums', t => {
-  const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
+  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 2)); transactions.protectAudit()
   const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
   jobs.saveJob({ details: { title: 'Retained role', companyNameRaw: 'Retained company' } })
@@ -140,7 +144,7 @@ test('matching-generation version-2 upgrade adds capability audit without changi
   const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
   const next = openDatabase(path)
-  t.after(next.close)
+  resources.after(next.close)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=2 ORDER BY version').all(), versions)
   assert.equal(next.connection.prepare('SELECT count(*) count FROM capability_audit').get()?.count, 0)
@@ -148,7 +152,7 @@ test('matching-generation version-2 upgrade adds capability audit without changi
 })
 
 test('legacy generation is rejected before journal/schema writes and bytes remain unchanged', t => {
-  const path = tempDatabase(t), old = new DatabaseSync(path)
+  const { path } = tempDatabase(t), old = new DatabaseSync(path)
   old.exec("CREATE TABLE facts(id TEXT, verification_status TEXT); INSERT INTO facts VALUES ('old', 'CONFIRMED')")
   old.close()
   const bytes = readFileSync(path)
@@ -157,7 +161,7 @@ test('legacy generation is rejected before journal/schema writes and bytes remai
 })
 
 test('matching-generation version-4 upgrade adds durable receipts and preserves business data, audits and migration checksums', t => {
-  const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
+  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 4)); transactions.protectAudit()
   const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
   const saved = jobs.saveJob({ details: { title: 'Existing v4 job', companyNameRaw: 'Company' } })
@@ -165,7 +169,7 @@ test('matching-generation version-4 upgrade adds durable receipts and preserves 
   const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
   const next = openDatabase(path)
-  t.after(next.close)
+  resources.after(next.close)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=4 ORDER BY version').all(), versions)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v4 job')
@@ -173,13 +177,13 @@ test('matching-generation version-4 upgrade adds durable receipts and preserves 
 })
 
 test('matching-generation version-5 upgrade adds chat storage without changing prior checksums, jobs or audits', t => {
-  const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
+  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 5)); transactions.protectAudit()
   const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
   const saved = jobs.saveJob({ details: { title: 'Existing v5 job', companyNameRaw: 'Company' } })
   const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
-  const next = openDatabase(path); t.after(next.close)
+  const next = openDatabase(path); resources.after(next.close)
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=5 ORDER BY version').all(), versions)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v5 job')
@@ -188,13 +192,13 @@ test('matching-generation version-5 upgrade adds chat storage without changing p
 
 
 test('version-6 upgrade adds introduction and revision defaults without changing old profile values, audits or checksums', t => {
-  const path = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
+  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
   migrate(connection, migrations.slice(0, 6)); transactions.protectAudit()
   const store = new Store(connection, transactions), profile = { id: randomUUID(), name: 'Existing person', email: '', phone: '', location: '', links: [], updatedAt: new Date().toISOString() }
   transactions.forActor('USER').write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => store.insert('profile', profile))
   const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
-  const next = openDatabase(path); t.after(next.close)
+  const next = openDatabase(path); resources.after(next.close)
   assert.deepEqual(new Store(next.connection, next.transactions).get('profile', profile.id), { ...profile, introduction: '', revision: 1 })
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)

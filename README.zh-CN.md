@@ -34,13 +34,13 @@ npm run test:profile
 npm run test:ask-ai
 ```
 
-构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、混合历史、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及两种并行导入及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台安装包仍未配置。
+构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、混合历史、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及两种并行导入及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台打包已配置于 [electron-builder.yml](electron-builder.yml)，验收及发布前置条件见 [CI/CD](docs/ci-cd.zh-CN.md)。
 
 `test:mcp` 验证现有 MCP Client 运行时。`test:mcp-server` 验证 Job/Application/Resume 公共能力、运行时一致性及构建后的 Node stdio Server，使用临时存储和真实 Electron HTML/PDF 输出。两种运行时 smoke 均纳入 `check`；Server PDF 验证需要图形桌面。见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
 
 `test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
 
-`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。真实 Provider 兼容性及 Windows/Linux PDF 渲染仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
+`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
 
 `test:ask-ai` 验证会话存储、流式适配/循环、真实 MCP 读写及事件重同步，再通过 Electron 验证并发会话、停止、草稿、Markdown、双语主题、响应式布局及强制结束进程后的恢复。测试使用本地样本与临时 userData；真实 Provider 的思考摘要/工具兼容性仍未认证。V6 对匹配代际的数据库进行增量升级。
 
@@ -48,11 +48,28 @@ npm run test:ask-ai
 
 接入本机 Codex、Claude Code 或 Cursor 时，打开设置 → 连接外部 Agent → 添加 MCP，再单独点击“安装 Skills”安装五个内置工作流。其他 Agent 可通过“打开 Skills 文件夹”复制；`npm run skill:link` 保留为仅用于仓库的替代方式。[MCP 接入说明](docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)管理接入及限制。Codex 生成无需应用 AI Provider。
 
+## 打包与集成
+
+普通 `build` 保持离线且不要求模型存在。本地语义搜索先准备一次模型；打包时会自动下载并校验。全新安装在测试前需要运行 `npx --no-install install-electron`。
+
+```sh
+npm run model:prepare
+npm run model:verify
+npm run test:embedding
+npm run test:release
+npm run package:dir
+npm run package:mac
+npm run package:verify -- /absolute/path/to/unpacked-app
+```
+
+改动先集成到 `dev`，再通过检查成功的 PR 将 `dev` 合入 `main`。`dev` 更新运行 CI；`main` 更新自动验证、构建 macOS arm64 并发布对应预发布版本。预览安装包默认不签名，严格签名须先配置。[CI/CD](docs/ci-cd.zh-CN.md)负责 runner、签名、重试及分支保护说明。
+
 ## 文档索引
 
 | 文档 | 用途 |
 | --- | --- |
 | [文档规范](AGENTS.zh-CN.md) · [English](AGENTS.md) | 内容归属、语言、篇幅限制与审查要求 |
+| [CI/CD](docs/ci-cd.zh-CN.md) · [English](docs/ci-cd.md) | 分支集成、自动验证、打包、签名与发布运维 |
 | [当前架构](docs/architecture.zh-CN.md) · [English](docs/architecture.md) | 已实现的运行架构、安全边界与限制 |
 | [产品架构](docs/product-architecture.zh-CN.md) · [English](docs/product-architecture.md) | 规划范围、入口与交付顺序 |
 | [代码架构](docs/code-architecture.zh-CN.md) · [English](docs/code-architecture.md) | 目标组织、依赖边界与迁移约束 |
@@ -67,4 +84,4 @@ npm run test:ask-ai
 
 ## 智能笔记知识库
 
-智能笔记以唯一本地 Markdown 文件树提供编辑/分栏/预览、恢复快照、可选 GitHub 备份与混合检索。用户和 MCP Agent 共用知识库，embeddings 必须显式启用。见[知识存储](docs/data-architecture.zh-CN.md)与 [MCP 工具](docs/mcp-architecture.zh-CN.md)。
+智能笔记以唯一本地 Markdown 文件树提供编辑/分栏/预览、恢复快照、可选 GitHub 备份与混合检索。用户和 MCP Agent 共用知识库，新安装默认启用内置离线 embedding 模型，已有明确关闭选择会保留。见[知识存储](docs/data-architecture.zh-CN.md)与 [MCP 工具](docs/mcp-architecture.zh-CN.md)。

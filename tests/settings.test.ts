@@ -87,7 +87,7 @@ test('corrupt and future configuration fails without resetting or replacing user
 })
 
 test('an unwritable preference directory preserves the previous file and emits no success', t => {
-  if (process.getuid?.() === 0) { t.skip('Root bypasses directory permissions'); return }
+  if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('POSIX directory permissions required; Windows/root cannot enforce chmod'); return }
   const directory = temporary(t), path = join(directory, 'settings.json'), notifications: string[] = []
   const service = createPreferences(path, value => notifications.push(value.language))
   service.savePreferences({ language: 'en' })

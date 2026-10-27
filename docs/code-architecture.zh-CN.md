@@ -164,3 +164,7 @@ Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbo
 ## 智能笔记知识库
 
 [Knowledge Domain](../src/domain/knowledge/index.ts)负责类型与纯验证，[Platform knowledge](../src/platform/knowledge/service.ts)负责文件/Git/SQLite/网络适配器；[pages/knowledge](../src/pages/knowledge/KnowledgePage.tsx)只调用类型化 bridge。Agent 不导入该服务，所有知识操作均经过 MCP。
+
+[Embedding 合同](../src/platform/knowledge/rag/embedding.ts)与调度器独立于 Electron；[model-path](../src/platform/knowledge/rag/model-path.ts)绑定 Electron utility transport。推理入口仅持有模型/tokenizer/runtime。[构建配置](../electron.vite.config.ts)在 Main/MCP/output worker 旁生成 embedding-process.js；打包保留外置原生依赖。分发运维归属 [CI/CD](ci-cd.zh-CN.md)。
+
+[Bootstrap](../src/platform/electron/main/bootstrap.ts)在加载 Main 前分派打包后的子进程角色；应用入口为 application-main.js。PDF worker 先宣布就绪再接收输入，使用由父进程清理的临时 userData。[包内验收](../src/platform/electron/verify-resume-package.ts)还通过完整 MCP 简历流程生成 HTML/PDF，并使用包内 PDF worker 提取文本。

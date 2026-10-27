@@ -10,7 +10,7 @@ import '../src/platform/mcp-server/runtime'
 /** Real stdio runtime and shared SQLite. Only the costly renderer is deterministic here. */
 export async function firstPartyFixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'first-party-'))
-  const cleanups: (() => void)[] = []
+  const cleanups: (() => void | Promise<void>)[] = []
   const f = await seed({ after: (cleanup: () => void) => { cleanups.push(cleanup) } }, join(directory, 'database.sqlite'))
   const runtimePath = resolve(__dirname, '../src/platform/mcp-server/runtime.js')
   const compilerPath = resolve(__dirname, '../src/platform/resume-output/compiler.js')
@@ -42,8 +42,8 @@ process.once('SIGTERM', () => { void close() });
 void runtime.server.connect(new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 2097152 }));
 `)
   const mcp = createFirstPartyRuntime(directory, directory)
-  t.after(async () => { await mcp.dispose(); for (const cleanup of cleanups) cleanup(); rmSync(directory, { recursive: true, force: true }) })
-  return { ...f, directory, mcp, outputDirectory: join(directory, 'artifacts'),
+  t.after(async () => { await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
+  return { ...f, directory, mcp, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
     flag(name: string, on = true) { if (on) writeFileSync(join(directory, name), '1'); else rmSync(join(directory, name), { force: true }) },
     has: (name: string) => existsSync(join(directory, name)),
     outputs: () => existsSync(join(directory, 'output-count')) ? Number(readFileSync(join(directory, 'output-count'), 'utf8')) : 0 }

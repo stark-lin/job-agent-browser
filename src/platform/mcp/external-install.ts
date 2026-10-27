@@ -1,3 +1,4 @@
+import { nativeMCPEnvironment } from './native-environment'
 import { accessSync, constants, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { externalMCPTargets, type ExternalMCPTarget, type ExternalMCPReconnectResult } from '../../shared/external-mcp'
@@ -10,7 +11,7 @@ export function createExternalMCPInstaller(options: {
   clientFactory?: (launch: MCPLaunch) => MCPClient
 }) {
   const launch: MCPLaunch = { command: options.executable, args: [join(options.bundleDirectory, 'job-agent-mcp.js')], env: {
-    ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: options.directory, JOB_BROWSER_ELECTRON: options.executable
+    ...nativeMCPEnvironment(), ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: options.directory, JOB_BROWSER_ELECTRON: options.executable
   } }
   const config = createExternalMCPConfig(options, launch)
   const pending = new Map<number, { target: ExternalMCPTarget; controller: AbortController }>()

@@ -1,3 +1,4 @@
+import { nativeMCPEnvironment } from '../src/platform/mcp/native-environment'
 import test, { type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -154,7 +155,7 @@ test('symlinks retain their destination; dangling links and unavailable files ar
 })
 
 test('read and write permission failures retain original configuration without reporting success', t => {
-  if (process.getuid?.() === 0) return t.skip('Root bypasses permissions')
+  if (process.platform === 'win32' || process.getuid?.() === 0) return t.skip('POSIX permissions required; Windows/root cannot enforce chmod')
   const f = fixture(t), path = externalMCPPath('cursor', f), body = '{"retained":true}'
   save(path, body)
   const status = f.config.inspect('cursor')
@@ -178,7 +179,7 @@ test('installer validates requests, copies generated text only and sanitizes run
   }
   assert.equal(await service.copy({ target: 'other' }), null)
   assert.deepEqual(copied, [externalMCPText('other', { command: process.execPath, args: [join(f.home, 'job-agent-mcp.js')], env: {
-    ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: f.home, JOB_BROWSER_ELECTRON: process.execPath
+    ...nativeMCPEnvironment(), ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: f.home, JOB_BROWSER_ELECTRON: process.execPath
   } })])
   const status = service.inspect({}).clients[0]
   assert.throws(() => service.install({ target: status.target, revision: status.revision, replace: false }), { code: 'RUNTIME_UNAVAILABLE' })

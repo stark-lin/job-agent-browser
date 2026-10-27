@@ -122,3 +122,7 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 ## 智能笔记知识库
 
 [Knowledge 工具](../src/platform/tools/knowledge.ts)新增 knowledge.list/read/search/retrieve/write/mkdir/move/delete，提供受限 schema 与版本检查。删除是此前不公开删除策略的知识库专用例外，必须有用户意图。审计迁移 9 保留历史行并新增 opaque knowledge 目标，不记录路径、查询与正文。[面试准备](../skills/interview-prep/SKILL.zh-CN.md)使用相同工具。
+
+现有认证 [broker](../src/platform/knowledge/broker.ts)把查询向量请求交给 Main 唯一的本地 provider。Stdio server 不初始化 ONNX；Main 不存在时保留词法检索。Agent 知识能力仍跨 MCP。[包内验收](../src/platform/electron/package-verification.ts)通过真实 stdio session 调用 broker，并断言只启动一个模型进程。
+
+[原生会话环境转发](../src/platform/mcp/native-environment.ts)仅将选定的显示会话与 Windows 系统字段传入 stdio 启动和生成的外部配置，使 Electron PDF worker 能在 Linux/Windows 初始化；仍不支持用户任意环境覆盖。

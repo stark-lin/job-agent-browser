@@ -1,0 +1,68 @@
+# CI/CD and desktop distribution
+
+Purpose: own branch integration, CI, model preparation, packaging and release operations. Status: **Configured** in source; platform execution evidence is provided by Actions runs. Signed distribution requires operator-supplied certificates. The current release target is **macOS arm64 only**. Windows, Linux and macOS x64 publication are deferred. No application auto-updater is implemented.
+
+Language: English · [简体中文](ci-cd.zh-CN.md)
+
+## Integration and triggers
+
+Changes integrate into `dev` first. Feature branches use `codex/` and target `dev`; promote `dev` to `main` through a PR. [CI](../.github/workflows/ci.yml) runs on PRs targeting either branch, pushes to `dev`, merge queues and manual dispatch. Its `CI required` aggregate rejects failures/cancellations and rejects main PRs from any head other than this repository's `dev`.
+
+[Release](../.github/workflows/release.yml) runs on every push to `main`, including merged PRs, and supports manual dispatch on `main`. It checks out the event SHA throughout, reruns validation, builds the macOS arm64 target and publishes one GitHub prerelease. A tag push is not required. Direct main pushes also trigger release; branch protection must prevent ordinary direct pushes.
+
+Repository protection requires a PR, up-to-date `CI required`, resolved conversations and administrator enforcement on `main`. Both branches reject force pushes/deletion. `dev` accepts ordinary integration pushes and runs CI afterward, preserving the approved integration path. Enable merge-queue events only if using the queue. Workflow files alone do not configure repository protection.
+
+## Validation and native packaging
+
+[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and uses `npm ci`, explicit Electron installation, `check`, release-script tests, and Electron/Knowledge smokes. Validation runs on `macos-15` with arm64 Node. Other platform jobs are not part of the current gate. Normal validation requires no downloaded model. Model/native/build changes additionally invoke package validation; [scope detection](../scripts/ci-scope.cjs) controls that PR cost.
+
+[Packaging](../.github/workflows/package.yml) runs natively on macOS arm64 (`macos-15`). It prepares/verifies the model, builds, runs real offline inference/MCP smoke and builds/verifies a DMG. No cross-architecture runtime result is accepted. [Installer verification](../scripts/verify-installer.cjs) mounts the DMG, copies the app while preserving relative symlinks, then repeats package runtime checks. [.gitattributes](../.gitattributes) fixes text line endings for stable manifest digests. Windows, Linux and Intel Mac build configuration/helpers remain **Scaffolded**, outside current CI and publication.
+
+[Builder configuration](../electron-builder.yml) includes production dependencies and all compiled entries/resources. ONNX/Sharp native libraries are unpacked; the model and its notice live outside ASAR. [Package verification](../scripts/verify-package.cjs) checks every model digest, native runtime presence and then launches the packaged binary from a different cwd with disposable userData. It verifies dimensions, normalization, two-way cross-language retrieval, SQLite/RRF, a real stdio MCP session, single-process broker sharing, lexical fallback and disposal. It never uses a paid model.
+
+## Model supply and local commands
+
+[Manifest](../resources/embedding-model.json) pins seven files, exact sizes, SHA-256, revision and inference settings. [Preparation](../scripts/prepare-embedding-model.cjs) verifies caches, downloads fixed-revision files with bounded retries/timeouts, validates streamed bytes and atomically renames temporary files. Verify-only never downloads. Model weights do not enter Git. Missing/corrupt files fail packaging; ordinary development retains lexical fallback.
+
+```sh
+npm ci
+npx --no-install install-electron
+npm run check
+npm run test:release
+npm run model:prepare
+npm run release:check
+npm run package:dir
+npm run package:verify -- /absolute/path/to/unpacked-app
+```
+
+`build` remains offline. `package:mac` and `release:build` prepare models and explicitly target arm64. `package:win` and `package:linux` are scaffolded local commands, not supported release targets. `test:embedding` requires a prior build and prepared model. Model-license declarations and upstream provenance are bundled in [model-notice.txt](../resources/model-notice.txt).
+
+## Version, artifacts and publication
+
+[Version metadata](../scripts/release-metadata.cjs) derives `base-main.RUN.gSHA7` from package version, workflow run number and commit. The tag is prefixed `v`. The macOS bundle uses the base short version and a numeric three-component build version derived from the run number; the full prerelease version stays in package metadata and asset names. Rerunning the same workflow retains the version; numeric components above 65535 fail explicitly. New manual dispatches are distinct builds.
+
+The model uses a cache keyed by the complete manifest hash and is reverified on cache hits. The DMG and its mac-arm64 manifest use short-lived Actions artifacts (7 days, no recompression). Raw model files are never uploaded as artifacts. The target records the commit, model revision/manifest digest, architecture, signing mode, installer size/hash and successful runtime verification.
+
+Only the final publish job receives `contents: write`, after the arm64 validation and package jobs succeed. [Publisher](../scripts/publish-release.cjs) requires the mac-arm64 manifest and DMG, rejects other platform assets, mixed commits and hash mismatches, assembles `build-manifest.json` and `SHA256SUMS`, creates/reuses a draft, uploads all assets, verifies remote sizes/hashes, then makes the prerelease public. Drafts remain private on upload/verification failure. Published assets are never overwritten; an identical rerun only verifies them. Latest stable is not changed.
+
+PR jobs cancel superseded work. Release concurrency is serialized with cancellation disabled; GitHub may replace an older pending run with a newer pending run. Run manual dispatch on `main` when a skipped intermediate commit needs a build. A missing or unverified arm64 DMG prevents publication.
+
+## Signing and GitHub configuration
+
+Previews default to **unsigned**. To enable strict signing, set the repository Actions variable `RELEASE_SIGNING=signed`; missing/invalid credentials fail the package job. `unsigned` is the only other accepted value. PR packaging receives no signing secrets.
+
+| Repository Actions secret | Use |
+| --- | --- |
+| `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD` | Base64 Developer ID certificate and password |
+| `APPLE_API_KEY` | App Store Connect API key contents, written to a private temporary file and removed afterward |
+| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | Notarization API identifiers |
+
+[CI packaging](../scripts/ci-package.cjs) enforces code signing in signed mode, enables Apple notarization, validates codesign/stapling/Gatekeeper. Windows signing code remains scaffolded and is not invoked. Certificate/service provisioning and first-install OS approval remain operator tasks. The `release` Environment controls publication; do not add a manual required reviewer if fully automatic main releases are desired. Its token needs permission to create repository releases. No PAT is required inside Actions.
+
+## Failures, retries and verification limits
+
+Rerun failed jobs in the same workflow to retain successful artifacts and version. Corrupt caches are repaired by preparation or fail verification; no release omits the model. A failed publication leaves a draft and can resume uploading missing assets. To withdraw a published preview, remove that release through GitHub; installed applications do not roll back automatically.
+
+Failure jobs retain available builder diagnostics for seven days; normal logs include failing stage and sanitized capability errors. User profiles and credentials are not published. Manual installation/uninstallation on clean target machines, certificate provisioning, live AI-provider compatibility and automatic updates are not established by source configuration alone.
+
+Related: [runtime](architecture.md), [storage and index identity](data-architecture.md), [MCP](mcp-architecture.md), [README commands](../README.md).

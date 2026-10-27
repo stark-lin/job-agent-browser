@@ -38,7 +38,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     if (page === 'ai') await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI conversation surface')
     else await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume', 'knowledge'].includes(page))
-    if (page === 'settings') await waitFor(() => evaluate('document.querySelectorAll(".settings-page form:not([data-audit-filters])").length === 4'), 'Settings forms')
+    if (page === 'settings') await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms')
     else if (!['ai','knowledge'].includes(page)) assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
     if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {
@@ -111,9 +111,15 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   await waitState((state) => !active(state).canGoForward, 'same-URL native branch prunes internal future')
   // A website's own history traversal preserves its app-level future.
   await call('navigate', 'app://resume'); await call('back')
-  await aContents.executeJavaScript('history.back()')
+  const traverseWebsite = direction => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { aContents.removeListener('did-navigate-in-page', done); reject(new Error('Website history event timed out')) }, 5000)
+    const done = () => { clearTimeout(timer); resolve() }
+    aContents.once('did-navigate-in-page', done)
+    void aContents.executeJavaScript(`history.${direction}()`).catch(error => { clearTimeout(timer); aContents.removeListener('did-navigate-in-page', done); reject(error) })
+  })
+  await traverseWebsite('back')
   await waitFor(() => aContents.navigationHistory.getActiveIndex() === aContents.navigationHistory.length() - 2, 'website back')
-  await aContents.executeJavaScript('history.forward()')
+  await traverseWebsite('forward')
   await waitFor(() => aContents.navigationHistory.getActiveIndex() === aContents.navigationHistory.length() - 1, 'website forward')
   await call('forward'); await internal('resume')
   await call('back')

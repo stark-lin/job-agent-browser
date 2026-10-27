@@ -1,3 +1,4 @@
+import { nativeMCPEnvironment } from './native-environment'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { ToolError, toolFail } from '../../shared/tools/errors'
@@ -20,7 +21,7 @@ export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, opt
   const client = new Client({ name: 'job-agent-browser', version: '0.1.0' }, { listMaxPages: 16,
     inputRequired: { autoFulfill: false }, listChanged: { tools: { autoRefresh: false, debounceMs: 0, onChanged: () => hooks.changed() } } })
   const transport = new StdioClientTransport({ command: config.command, args: [...config.args], cwd: config.cwd,
-    env: { ...(process.versions.electron && config.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {}), ...options.processEnv },
+    env: { ...nativeMCPEnvironment(), ...(process.versions.electron && config.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {}), ...options.processEnv },
     stderr: 'ignore', maxBufferSize: 2097152 })
   client.onerror = () => {} // Errors are classified at request/connection boundaries, never printed raw.
   client.onclose = () => { connected = false; lifecycle.abort(); hooks.closed() }

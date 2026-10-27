@@ -37,7 +37,7 @@ export function createPreferences(path: string, onSaved: (value: Preferences) =>
       if (stored === undefined) return structuredClone(defaultPreferences)
       const value = object(stored, ['version', 'theme', 'language', 'mailbox', 'ai', 'knowledge'])
       if (value.version !== 1 || !('theme' in value) || !('language' in value) || !('mailbox' in value)) return fail('STORAGE_UNAVAILABLE')
-      return merge({ theme: value.theme, language: value.language, mailbox: value.mailbox, ...('ai' in value ? { ai: value.ai } : {}), ...('knowledge' in value ? { knowledge: value.knowledge } : {}) }, defaultPreferences)
+      return merge({ theme: value.theme, language: value.language, mailbox: value.mailbox, ...('ai' in value ? { ai: value.ai } : {}), ...('knowledge' in value ? { knowledge: knowledgePreferences(value.knowledge, true) } : {}) }, defaultPreferences)
     } catch { return fail('STORAGE_UNAVAILABLE') }
   }
   return {

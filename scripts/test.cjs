@@ -24,4 +24,4 @@ const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => nam
   (!serverOnly || /^(business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
   (!mcpOnly || /^(tools|mcp|capability-audit)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))
 if (tests.length === 0) throw new Error('No tests discovered')
-run(['--test', '--test-concurrency=1', ...tests])
+run(['--test', '--test-timeout=60000', '--test-concurrency=1', ...tests])

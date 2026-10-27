@@ -165,3 +165,5 @@ npm run quality
 中央 [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx)、[ExplorerRow/ResizableExplorer](../src/shared/ui/KnowledgeControls.tsx) 与 [Markdown](../src/shared/ui/Markdown.tsx)提供 CodeMirror、可访问树节点、宽度调整和安全 AST 渲染。HTML 保持文本，不加载远程图片。复用现有 Token 和主题，不新增几何 Token。
 
 智能笔记在主页和导航中使用共享的 `notebook` [Glyph](../src/shared/ui/Glyph.tsx)，以笔记本搭配星芒。资源管理器分割线使用 `--border-width`（1px）和 `--line`，并保留不可见的 `--space-1`（8px）拖拽热区；键盘调整宽度和焦点样式仍然可用。
+
+知识设置使用中央 Checkbox 与 StatusMessage 展示本地语义搜索开关、离线说明及不可用状态，不再提供 embedding 服务/模型控件；生成式 AI 仍在 AI 设置中配置。Token 和几何保持一致。参考图库的 Settings 组包含开关与离线说明。

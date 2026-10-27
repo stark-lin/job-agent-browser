@@ -58,7 +58,7 @@ React App → Page → Preload → IPC → Main
 
 [App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体或提取网页内容。Profile 优先加载有效的引用记录，否则选择最近更新的 Profile，并在加载/保存后同步共享 ID。
 
-**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。支持 OpenAI 兼容的 Chat Completions 和显式启用的知识库 embeddings。[共享传输](../src/platform/ai/transport.ts)为 `http://127.0.0.1:1234` 这类普通 endpoint 自动使用 `/v1`；显式填写的 `/v1`、`/gateway/v1` 等 API 路径会保留，并移除尾部斜杠。流式对话和 Resume Agent 共用这一地址解析。[兼容适配器](../src/platform/ai/compatible.ts)消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。自动重试、跨 Provider 回退和结构化输出能力探测尚未实现。
+**已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。支持 OpenAI 兼容的 Chat Completions；知识库 embeddings 使用下文独立的内置本地运行时。[共享传输](../src/platform/ai/transport.ts)为 `http://127.0.0.1:1234` 这类普通 endpoint 自动使用 `/v1`；显式填写的 `/v1`、`/gateway/v1` 等 API 路径会保留，并移除尾部斜杠。流式对话和 Resume Agent 共用这一地址解析。[兼容适配器](../src/platform/ai/compatible.ts)消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。自动重试、跨 Provider 回退和结构化输出能力探测尚未实现。
 
 [旧 AI IPC](../src/platform/electron/main/ai-ipc.ts)暴露启动/取消及模型发现，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，对话使用已保存的 AI 请求超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
@@ -133,7 +133,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 [个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、精简草稿、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、固定图标栏尺寸、提示名称及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
-标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获及安装包仍未实现。
+标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获仍未实现；打包及其验收状态归属 [CI/CD](ci-cd.zh-CN.md)。
 
 [职位导入测试](../tests/job-import.test.ts)覆盖 HTML 清洗、访问限制、超时/取消、字段白名单、手工值保留及初始状态；[新增工作 smoke](../scripts/job-smoke.cjs)通过本地 HTML/SSE 服务验证真实桥接、保存跳转、申请记录及双语主题布局。[并行导入测试](../tests/import-parallel.test.ts)、[排队测试](../tests/ai-queue.test.ts)和[生产 smoke](../scripts/import-parallel-smoke.cjs)验证分组隔离、有界调度、重试/取消、模型许可及双语布局。真实第三方招聘站点和账号兼容性未验证。
 
@@ -146,4 +146,8 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 智能笔记知识库
 
-[Knowledge 服务](../src/platform/knowledge/service.ts)组合安全文件、跨进程锁、监听、索引与备份。Main 持有服务/GitHub 凭据，并提供本机认证查询 embedding 接口；Main 离线时独立 MCP 降级为关键词检索。[IPC](../src/platform/electron/knowledge-contract.ts)仅向可信应用 Renderer 开放。
+[Knowledge 服务](../src/platform/knowledge/service.ts)组合安全文件、跨进程锁、监听、索引与备份。Main 持有 GitHub 备份凭据，并提供本机认证查询 embedding 接口；Main 离线时独立 MCP 降级为关键词检索。[IPC](../src/platform/electron/knowledge-contract.ts)仅向可信应用 Renderer 开放。
+
+[本地 embeddings](../src/platform/knowledge/rag/local-embedding.ts)按需调度一个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，查询优先、队列有界，并拒绝取消、超时和崩溃请求。Worker 禁止远程模型加载及 fetch，使用 mean pooling 和归一化，并核对固定的 512-token 上限。UI 启动不等待索引。开发时未准备文件仍保留词法搜索。Main 退出时取消并释放推理；模型路径基于应用根目录或包内 resources，与 cwd 无关。[打包](ci-cd.zh-CN.md)负责分发及真实包内验收。
+
+[Bootstrap](../src/platform/electron/main/bootstrap.ts)在加载 Main 前分派打包后的子进程角色；应用入口为 application-main.js。PDF worker 先宣布就绪再接收输入，使用由父进程清理的临时 userData。[包内验收](../src/platform/electron/verify-resume-package.ts)还通过完整 MCP 简历流程生成 HTML/PDF，并使用包内 PDF worker 提取文本。

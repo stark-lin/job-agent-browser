@@ -10,19 +10,21 @@ import { chunkMarkdown, approximateTokens } from '../src/platform/knowledge/rag/
 import { knowledgePath } from '../src/domain/knowledge'
 import { defaultKnowledgePreferences } from '../src/shared/knowledge-settings'
 import { KnowledgeService } from '../src/platform/knowledge/service'
-import { createKnowledgeEmbeddings } from '../src/platform/knowledge/rag/embedding'
 import { startKnowledgeBroker } from '../src/platform/knowledge/broker'
-import { createServer } from 'node:http'
 import { createBackend } from '../src/platform/database/backend'
 import { createJobAgentTooling, jobAgentAllowlist } from '../src/platform/tools'
 import { createPreferences } from '../src/platform/storage/preferences'
 import { hash } from '../src/platform/knowledge/paths'
 async function fixture(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), 'jab-knowledge-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
+  const disposers: (() => unknown | Promise<unknown>)[] = []
+  t.after(async () => {
+    try { for (const dispose of disposers.reverse()) await dispose() }
+    finally { await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
+  })
   const files = new KnowledgeFiles(directory)
   await files.initialize()
-  return { directory, files }
+  return { directory, files, dispose: (fn: () => unknown | Promise<unknown>) => disposers.push(fn) }
 }
 const flatten = (node: Awaited<ReturnType<KnowledgeFiles['tree']>>): string[] => [
   node.path,
@@ -109,9 +111,9 @@ test('AST chunking handles repeated headings, Unicode, code, tables, no heading 
   assert.notEqual(updated[1].contentHash, chunks[1].contentHash)
 })
 test('independent index retrieves Chinese short queries with citations, expands README and removes renamed/deleted sources', async (t) => {
-  const { files } = await fixture(t),
+  const { files, dispose } = await fixture(t),
     index = new KnowledgeIndex(files)
-  t.after(() => index.close())
+  dispose(() => index.close())
   await files.mkdir('interview')
   await files.mkdir('interview/ctrip')
   await files.write('interview/README.md', '面试准备总览', null)
@@ -225,10 +227,10 @@ test('interrupted restore recovery accepts old/target versions but fences unexpe
   assert.equal((await files.read('safe.md')).content, 'new')
 })
 test('watcher observes external atomic changes, updates search and releases resources', async (t) => {
-  const { directory, files } = await fixture(t),
+  const { directory, files, dispose } = await fixture(t),
     service = new KnowledgeService(directory, { preferences: () => defaultKnowledgePreferences, watch: true })
   await service.ready
-  t.after(() => service.close())
+  dispose(() => service.close())
   let changes = 0
   service.onChanged(() => changes++)
   await new Promise((r) => setTimeout(r, 100))
@@ -239,11 +241,11 @@ test('watcher observes external atomic changes, updates search and releases reso
   assert((await service.search('更新')).items.some((h) => h.path === 'outside.md'))
 })
 test('MCP knowledge contracts share files, carry revisions and keep paths/content out of capability audit', async (t) => {
-  const { directory, files } = await fixture(t),
+  const { directory, files, dispose } = await fixture(t),
     backend = createBackend(join(directory, 'database.sqlite')),
     service = new KnowledgeService(directory, { preferences: () => defaultKnowledgePreferences }),
     tools = createJobAgentTooling(backend, async () => ({}), service)
-  t.after(async () => {
+  dispose(async () => {
     tools.dispose()
     await backend.capabilities.dispose()
     await service.close()
@@ -253,7 +255,7 @@ test('MCP knowledge contracts share files, carry revisions and keep paths/conten
     { allow: jobAgentAllowlist, maxRisk: 'WRITE' },
     { agentId: 'test.knowledge', signal: new AbortController().signal }
   )
-  t.after(() => scope.dispose())
+  dispose(() => scope.dispose())
   const output = await scope.execute('knowledge.write', {
     path: 'PRIVATE_PATH.md',
     content: 'PRIVATE_BODY',
@@ -284,51 +286,22 @@ test('knowledge preferences preserve old settings and validate remote/semantic d
   assert.throws(() =>
     prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, remote: 'https://secret@github.com/a/b' } })
   )
-  assert.throws(() => prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, semanticEnabled: true } }))
+  assert.equal(prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, semanticEnabled: true } }).knowledge?.semanticEnabled, true)
+  await writeFile(join(directory, 'settings.json'), JSON.stringify({ ...prefs.get({}), knowledge: { ...defaultKnowledgePreferences, semanticEnabled: false, providerId: 'old', modelId: 'old' } }))
+  assert.equal(prefs.get({}).knowledge?.semanticEnabled, false)
+  assert.equal(prefs.get({}).theme, 'dark')
+  assert(!('providerId' in prefs.get({}).knowledge!))
+  assert.throws(() => prefs.savePreferences({ knowledge: { ...defaultKnowledgePreferences, providerId: 'old' } }))
 })
-test('embedding provider makes no calls while disabled, validates response vectors and broker requires authentication', async (t) => {
-  const { directory, files } = await fixture(t)
-  let requests = 0
-  const server = createServer((req, res) => {
-    requests++
-    let body = ''
-    req.on('data', (c) => (body += c))
-    req.on('end', () => {
-      const input = JSON.parse(body) as { input: string[] }
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ data: input.input.map((_, i) => ({ index: i, embedding: [1, 0, 0] })) }))
-    })
-  })
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
-  t.after(() => new Promise<void>((r) => server.close(() => r())))
-  const address = server.address()
-  assert(address && typeof address !== 'string')
-  let enabled = false
-  const provider = createKnowledgeEmbeddings(
-    () => ({
-      providers: [
-        {
-          id: 'local',
-          name: 'Local',
-          baseURL: `http://127.0.0.1:${address.port}`,
-          requiresKey: false,
-          models: [],
-          defaultModel: ''
-        }
-      ],
-      default: null
-    }),
-    () => ({ ...defaultKnowledgePreferences, semanticEnabled: enabled, providerId: 'local', modelId: 'embed' }),
-    () => null
-  )
-  assert.equal(provider.identity(), null)
-  await assert.rejects(provider.embed(['private'], new AbortController().signal))
-  assert.equal(requests, 0)
-  enabled = true
-  assert.deepEqual(await provider.embed(['private'], new AbortController().signal), [[1, 0, 0]])
+test('embedding broker requires authentication and delegates query purpose', async (t) => {
+  const { directory, files, dispose } = await fixture(t)
+  const provider = { identity: () => 'fixture', embed: async (_texts: string[], purpose: string) => {
+    assert.equal(purpose, 'query')
+    return [[1, 0, 0]]
+  } }
   const index = new KnowledgeIndex(files, provider)
   const stop = await startKnowledgeBroker(directory, index)
-  t.after(async () => {
+  dispose(async () => {
     await stop()
     await index.close()
   })
@@ -347,11 +320,11 @@ test('embedding provider makes no calls while disabled, validates response vecto
 })
 
 test('corrupted derived cache can be rebuilt without resetting Markdown or business data', async (t) => {
-  const { files, directory } = await fixture(t)
+  const { files, directory, dispose } = await fixture(t)
   await files.write('truth.md', 'canonical', null)
   await writeFile(join(directory, 'knowledge-index.sqlite'), 'broken database')
   const index = new KnowledgeIndex(files)
-  t.after(() => index.close())
+  dispose(() => index.close())
   await assert.rejects(index.reconcile())
   await index.rebuild()
   assert.equal((await files.read('truth.md')).content, 'canonical')

@@ -1,0 +1,36 @@
+appId: io.github.stark-lin.jab
+productName: JAB
+copyright: Copyright © 2026 JAB contributors
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: .cache/models/multilingual-e5-small
+    to: models/multilingual-e5-small
+    filter: ['**/*', '!**/*.tmp']
+  - from: resources/embedding-model.json
+    to: embedding-model.json
+  - from: resources/model-notice.txt
+    to: model-notice.txt
+asar: true
+asarUnpack:
+  - node_modules/onnxruntime-node/**/*
+  - node_modules/sharp/**/*
+  - node_modules/@img/**/*
+artifactName: JAB-${version}-${os}-${arch}.${ext}
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target: dmg
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+linux:
+  target: AppImage
+  category: Office
