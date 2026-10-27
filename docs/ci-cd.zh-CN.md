@@ -14,7 +14,7 @@
 
 ## 验证与原生打包
 
-[验证](../.github/workflows/validate.yml)固定 Node 24.22.1，执行 `npm ci`、显式安装 Electron、`check`、发布脚本测试及 Electron/Knowledge smoke。Linux 使用 Xvfb、原生系统库及临时 runner 上[按执行文件限定的 AppArmor 许可](../scripts/setup-linux-ci.sh)，允许沙箱用户命名空间。Chromium 沙箱保持启用。Ubuntu 24+ 安装可能需要管理员为选定的 AppImage 执行路径配置 AppArmor profile。普通验证无需下载模型。模型、原生依赖或构建相关改动额外触发包体验证；[范围检测](../scripts/ci-scope.cjs)控制 PR 成本。
+[验证](../.github/workflows/validate.yml)固定 Node 24.22.1，执行 `npm ci`、显式安装 Electron、`check`、发布脚本测试及 Electron/Knowledge smoke。Linux 使用 Xvfb、Openbox 与 D-Bus 会话提供原生焦点/键盘行为，并配置原生系统库及临时 runner 上[按执行文件限定的 AppArmor 许可](../scripts/setup-linux-ci.sh)，允许沙箱用户命名空间。Chromium 沙箱保持启用。Ubuntu 24+ 安装可能需要管理员为选定的 AppImage 执行路径配置 AppArmor profile。普通验证无需下载模型。模型、原生依赖或构建相关改动额外触发包体验证；[范围检测](../scripts/ci-scope.cjs)控制 PR 成本。
 
 [打包](../.github/workflows/package.yml)分别在 Windows x64（`windows-2022`）、macOS arm64（`macos-15`）、macOS x64（`macos-15-intel`）、Linux x64（`ubuntu-24.04`）原生运行。准备并校验模型、构建、执行真实离线推理/MCP smoke，再构建并验证 NSIS、DMG 或 AppImage。不接受跨架构运行结果。[安装器验收](../scripts/verify-installer.cjs)额外挂载并复制 DMG、静默安装/卸载 NSIS，或解压 AppImage，并重跑包内运行检查。[.gitattributes](../.gitattributes)固定文本行尾，确保跨平台 manifest 摘要一致。
 
