@@ -392,7 +392,11 @@
             <section class="settings-panel" aria-labelledby="knowledge-semantic-example-title">
               <h3 id="knowledge-semantic-example-title">Semantic search</h3>
               <label class="check-row"><input type="checkbox" checked /><span>Enable semantic indexing</span></label>
-              <p>Built-in multilingual embedding model. Notes and search queries are processed entirely on this device.</p>
+              <p>Optional multilingual-e5-small · 384 dimensions · about 140 MB. Notes and search queries are processed entirely on this device.</p>
+              <p>Not installed. Smart Note and keyword search remain available.</p>
+              <div class="settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
+              <progress class="ui-progress" aria-label="Example model download progress" value="40" max="100"></progress>
+              <p class="muted">Static progress reference: installation offers Cancel; corruption offers Repair Model. Removal retains notes, backups and derived indexes.</p>
               <p class="muted">Keyword search remains available while the index builds or semantic search is unavailable.</p>
             </section>
             <section class="settings-panel" aria-labelledby="external-agent-example-title">

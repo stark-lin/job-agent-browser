@@ -112,6 +112,7 @@ for (const file of sourceFiles.filter(file => path.relative(root, file).replaceA
 const editions = files(root + '/docs').filter((file) => file.endsWith('.md') && !path.relative(root, file).replaceAll('\\', '/').includes('/diagrams/'))
   .concat(['README', 'AGENTS', 'DESIGN'].flatMap((name) => [root + `/${name}.md`, root + `/${name}.zh-CN.md`]))
   .concat(files(root + '/skills').filter(file => file.endsWith('.md')))
+  .concat(files(root + '/packages').filter(file => file.endsWith('.md')))
 for (const file of editions) {
   const body = fs.readFileSync(file, 'utf8'), chinese = file.endsWith('.zh-CN.md')
   const other = chinese ? file.replace('.zh-CN.md', '.md') : file.replace('.md', '.zh-CN.md')

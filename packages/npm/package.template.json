@@ -1,0 +1,12 @@
+{
+  "name": "@stark-lin/jab",
+  "productName": "JAB",
+  "description": "Job Agent Browser: desktop GUI, Smart Note and local MCP tools.",
+  "license": "AGPL-3.0-only",
+  "main": "out/main/index.js",
+  "bin": { "jab": "bin/jab.cjs" },
+  "engines": { "node": ">=24.10.0" },
+  "repository": { "type": "git", "url": "git+https://github.com/stark-lin/job-agent-browser.git" },
+  "files": ["bin/", "out/", "resources/", "README.md", "README.zh-CN.md", "LICENSE", "npm-shrinkwrap.json"],
+  "publishConfig": { "access": "public", "tag": "next" }
+}

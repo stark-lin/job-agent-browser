@@ -1,28 +1,28 @@
-# CI/CD and desktop distribution
+# CI/CD and application distribution
 
-Purpose: own branch integration, CI, model preparation, packaging and release operations. Status: **Configured** in source; platform execution evidence is provided by Actions runs. Signed distribution requires operator-supplied certificates. The current release target is **macOS arm64 only**. Windows, Linux and macOS x64 publication are deferred. No application auto-updater is implemented.
+Purpose: own integration, validation, optional model supply, desktop/npm packaging, signing and publication. Status: **Configured** in source; execution evidence comes from local checks and Actions. The release target is **macOS ARM64 only**. Clean-user Gatekeeper/Keychain and cross-channel credentials remain unverified. No auto-updater is implemented.
 
 Language: English · [简体中文](ci-cd.zh-CN.md)
 
 ## Integration and triggers
 
-Changes integrate into `dev` first. Feature branches use `codex/` and target `dev`; promote `dev` to `main` through a PR. [CI](../.github/workflows/ci.yml) runs on PRs targeting either branch, pushes to `dev`, merge queues and manual dispatch. Its `CI required` aggregate rejects failures/cancellations and rejects main PRs from any head other than this repository's `dev`.
+Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` through a PR with `CI required` passing. [CI](../.github/workflows/ci.yml) rejects main PRs from other heads; repository protection must enforce PRs, current checks, resolved conversations, administrator enforcement and no force pushes/deletion. Workflows do not configure these settings.
 
-[Release](../.github/workflows/release.yml) runs on every push to `main`, including merged PRs, and supports manual dispatch on `main`. It checks out the event SHA throughout, reruns validation, builds the macOS arm64 target and publishes one GitHub prerelease. A tag push is not required. Direct main pushes also trigger release; branch protection must prevent ordinary direct pushes.
-
-Repository protection requires a PR, up-to-date `CI required`, resolved conversations and administrator enforcement on `main`. Both branches reject force pushes/deletion. `dev` accepts ordinary integration pushes and runs CI afterward, preserving the approved integration path. Enable merge-queue events only if using the queue. Workflow files alone do not configure repository protection.
+[Release](../.github/workflows/release.yml) runs on main pushes or manual main dispatch, checks out the exact event SHA, validates, builds both channels and publishes a GitHub prerelease followed by npm Preview. Releases are serialized without canceling active runs. No tag push is required. PR jobs cancel superseded work.
 
 ## Validation and native packaging
 
-[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and uses `npm ci`, explicit Electron installation, `check`, release-script tests, and Electron/Knowledge smokes. Validation runs on `macos-15` with arm64 Node. Other platform jobs are not part of the current gate. Normal validation requires no downloaded model. Model/native/build changes additionally invoke package validation; [scope detection](../scripts/ci-scope.cjs) controls that PR cost.
+[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and Electron/Knowledge smokes. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
 
-[Packaging](../.github/workflows/package.yml) runs natively on macOS arm64 (`macos-15`). It prepares/verifies the model, builds, runs real offline inference/MCP smoke and builds/verifies a DMG. No cross-architecture runtime result is accepted. [Installer verification](../scripts/verify-installer.cjs) mounts the DMG, copies the app while preserving relative symlinks, then repeats package runtime checks. [.gitattributes](../.gitattributes) fixes text line endings for stable manifest digests. Windows, Linux and Intel Mac build configuration/helpers remain **Scaffolded**, outside current CI and publication.
+[Packaging](../.github/workflows/package.yml) has two jobs: Full DMG with verified offline Seed/inference, and a model-free npm tarball with a clean installation/runtime smoke. Both use the same release metadata. No cross-architecture result is accepted. Windows, Linux and macOS x64 remain **Scaffolded**, outside publication.
 
-[Builder configuration](../electron-builder.yml) includes production dependencies and all compiled entries/resources. ONNX/Sharp native libraries are unpacked; the model and its notice live outside ASAR. [Package verification](../scripts/verify-package.cjs) checks every model digest, native runtime presence and then launches the packaged binary from a different cwd with disposable userData. It verifies dimensions, normalization, two-way cross-language retrieval, SQLite/RRF, a real stdio MCP session, single-process broker sharing, lexical fallback and disposal. It never uses a paid model.
+The [base builder](../electron-builder.yml) produces Minimal desktop apps; [Full configuration](../electron-builder.full.yml) adds a Seed. Existing `package` commands retain Full by default; `package:minimal` opts into Minimal. ONNX/Sharp native libraries stay unpacked. App inference never reads Seed paths directly.
+
+[Desktop verification](../scripts/verify-package.cjs) verifies notices, native modules and either all Seed digests or the absence of model weights (`--minimal`). It launches the app from another cwd with disposable data. Full checks import Seed into the user store, execute normalized 384-dimensional/two-way cross-language retrieval, SQLite/RRF, a real MCP session, shared inference, HTML/PDF and model-removal fallback. Minimal checks missing-model keyword/MCP retrieval and HTML/PDF. [Installer verification](../scripts/verify-installer.cjs) extracts/mounts installers, then repeats the selected mode's checks.
 
 ## Model supply and local commands
 
-[Manifest](../resources/embedding-model.json) pins seven files, exact sizes, SHA-256, revision and inference settings. [Preparation](../scripts/prepare-embedding-model.cjs) verifies caches, downloads fixed-revision files with bounded retries/timeouts, validates streamed bytes and atomically renames temporary files. Verify-only never downloads. Model weights do not enter Git. Missing/corrupt files fail packaging; ordinary development retains lexical fallback.
+[Manifest](../resources/embedding-model.json) pins revision, files, exact sizes, SHA256, license and inference settings. [Preparation](../scripts/prepare-embedding-model.cjs) and Main share the [transfer/verifier core](../src/platform/models/core.cjs): fixed revision, streamed byte limits/hashes, bounded retries/timeouts and temporary-file rename. Verify-only never downloads. Full packaging requires prepared/verified Seed; Minimal and npm builds do not prepare models.
 
 ```sh
 npm ci
@@ -32,37 +32,44 @@ npm run test:release
 npm run model:prepare
 npm run release:check
 npm run package:dir
+npm run package:minimal
 npm run package:verify -- /absolute/path/to/unpacked-app
+npm run package:verify -- /absolute/path/to/minimal-app --minimal
+npm run release:npm:check
 ```
 
-`build` remains offline. `package:mac` and `release:build` prepare models and explicitly target arm64. `package:win` and `package:linux` are scaffolded local commands, not supported release targets. `test:embedding` requires a prior build and prepared model. Model-license declarations and upstream provenance are bundled in [model-notice.txt](../resources/model-notice.txt).
+`test:embedding` requires a build and prepared Seed. [Model Manager](../src/platform/models/manager.ts) imports Full Seed asynchronously on first use; user removal persists an opt-out. Model store/lifetime rules belong to [data architecture](data-architecture.md). Model and font notices remain separate from the application's AGPL-3.0-only license.
 
-## Version, artifacts and publication
+## npm runtime and reproducible artifacts
 
-[Version metadata](../scripts/release-metadata.cjs) derives `base-main.RUN.gSHA7` from package version, workflow run number and commit. The tag is prefixed `v`. The macOS bundle uses the base short version and a numeric three-component build version derived from the run number; the full prerelease version stays in package metadata and asset names. Rerunning the same workflow retains the version; numeric components above 65535 fail explicitly. New manual dispatches are distinct builds.
+[Preparation](../scripts/prepare-npm-package.cjs) keeps the source package private and creates `dist/npm/` using the [package template](../packages/npm/package.template.json). It copies built Main/Preload/Renderer, MCP/inference/PDF workers, fonts, Skills, model manifest/notice and license. Runtime dependencies, including Electron, use exact versions from the root lock; `npm-shrinkwrap.json` retains the resolved production dependency closure, registry digests and optional-platform dependencies. It never copies checkout node_modules or model weights.
 
-The model uses a cache keyed by the complete manifest hash and is reverified on cache hits. The DMG and its mac-arm64 manifest use short-lived Actions artifacts (7 days, no recompression). Raw model files are never uploaded as artifacts. The target records the commit, model revision/manifest digest, architecture, signing mode, installer size/hash and successful runtime verification.
+[Content validation](../scripts/verify-npm-package.cjs) rejects symlinks, model weights, databases, secrets, caches, fixtures and installers, packs the directory, and records tarball SHA256/SHA512, size, version, commit and verification status in `dist/npm-artifacts/manifest.json`. npm files remain separate from the desktop-only `release/publish/` set.
 
-Only the final publish job receives `contents: write`, after the arm64 validation and package jobs succeed. [Publisher](../scripts/publish-release.cjs) requires the mac-arm64 manifest and DMG, rejects other platform assets, mixed commits and hash mismatches, assembles `build-manifest.json` and `SHA256SUMS`, creates/reuses a draft, uploads all assets, verifies remote sizes/hashes, then makes the prerelease public. Drafts remain private on upload/verification failure. Published assets are never overwritten; an identical rerun only verifies them. Latest stable is not changed.
+[Clean-install smoke](../scripts/npm-runtime-smoke.cjs) installs the tarball outside the checkout, initializes Electron through its official module, verifies resolved direct versions, version/doctor, real GUI/Preload/model controls, explicit `jab mcp`, missing-model retrieval, HTML/PDF and uninstall/reinstall persistence. With prepared test weights, real revision bytes/checksums and fixture transport exercise GUI offline failure, cancellation/reuse, immediate cross-language indexing and removal; release CI requires this semantic gate. Only a successful smoke marks the manifest runtime-verified. These checks establish current-host operation; clean-user OS identity remains a separate release gate.
 
-PR jobs cancel superseded work. Release concurrency is serialized with cancellation disabled; GitHub may replace an older pending run with a newer pending run. Run manual dispatch on `main` when a skipped intermediate commit needs a build. A missing or unverified arm64 DMG prevents publication.
+[CLI](../packages/npm/bin/jab.cjs) exposes GUI, version, doctor and MCP; [consumer guide](../packages/npm/README.md) owns usage. Electron first-run initialization is separate from optional model installation ([official installation behavior](https://www.electronjs.org/docs/latest/tutorial/installation)). npm/DMG share the default JAB user-data directory, as explicitly selected for this release. Do not run both against it concurrently; credential compatibility is unverified and decrypt failures do not reset secrets.
 
-## Signing and GitHub configuration
+## Versions, publication and retry
 
-Previews default to **unsigned**. To enable strict signing, set the repository Actions variable `RELEASE_SIGNING=signed`; missing/invalid credentials fail the package job. `unsigned` is the only other accepted value. PR packaging receives no signing secrets.
+[Metadata](../scripts/release-metadata.cjs) derives `base-main.RUN.gSHA7` and `v` tag from the root version, workflow run and commit. DMG/npm use that exact application version and SHA; model revision is independent. macOS uses the base short version and numeric bundle build version. Rerunning a workflow keeps its version; a new manual dispatch creates another version. Numeric components above 65535 fail. Local npm builds use `base-next.0` and record their Git SHA.
 
-| Repository Actions secret | Use |
-| --- | --- |
-| `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD` | Base64 Developer ID certificate and password |
-| `APPLE_API_KEY` | App Store Connect API key contents, written to a private temporary file and removed afterward |
-| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | Notarization API identifiers |
+Short-lived artifacts (7 days, no recompression) contain one DMG plus its desktop manifest, and separately one npm tarball plus its manifest. Model cache keys include the full manifest hash and cache hits are reverified. Raw model files are not uploaded as standalone artifacts.
 
-[CI packaging](../scripts/ci-package.cjs) enforces code signing in signed mode, enables Apple notarization, validates codesign/stapling/Gatekeeper. Windows signing code remains scaffolded and is not invoked. Certificate/service provisioning and first-install OS approval remain operator tasks. The `release` Environment controls publication; do not add a manual required reviewer if fully automatic main releases are desired. Its token needs permission to create repository releases. No PAT is required inside Actions.
+[GitHub publisher](../scripts/publish-release.cjs) retains its desktop responsibility: require verified ARM64 assets, reject extra/mixed/corrupt files, upload to a draft, verify remote digests and publish the prerelease. Existing identical assets are verified, never overwritten. Latest stable is unchanged.
 
-## Failures, retries and verification limits
+[npm publisher](../scripts/publish-npm.cjs) runs after GitHub publication in `npm-release`, with `contents: read` and `id-token: write`. It verifies the exact tarball, embedded metadata, SHA/version, target and runtime gates, then uses npm OIDC to publish `@stark-lin/jab` publicly with tag `next` and provenance. An existing version is accepted only when Registry integrity matches; registry/auth failures do not trigger blind publication. GitHub/npm are independent transactions: an npm failure retains the GitHub release and is retried using the same verified artifact.
 
-Rerun failed jobs in the same workflow to retain successful artifacts and version. Corrupt caches are repaired by preparation or fail verification; no release omits the model. A failed publication leaves a draft and can resume uploading missing assets. To withdraw a published preview, remove that release through GitHub; installed applications do not roll back automatically.
+## Signing and publisher configuration
 
-Failure jobs retain available builder diagnostics for seven days; normal logs include failing stage and sanitized capability errors. User profiles and credentials are not published. Manual installation/uninstallation on clean target machines, certificate provisioning, live AI-provider compatibility and automatic updates are not established by source configuration alone.
+Previews are **unsigned** by default. `RELEASE_SIGNING=signed` requires `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`, `APPLE_API_KEY`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`. [CI packaging](../scripts/ci-package.cjs) enables strict signing/notarization, removes temporary key material, and checks codesign/stapler/Gatekeeper. PRs receive no signing secrets; Windows signing remains scaffolded. `JAB_PACKAGE_MODE=full|minimal` selects CI desktop strategy; current Releases use Full.
 
-Related: [runtime](architecture.md), [storage and index identity](data-architecture.md), [MCP](mcp-architecture.md), [README commands](../README.md).
+The operator must own npm scope `@stark-lin`, bootstrap the package if needed, and configure its GitHub Trusted Publisher for this repository, `release.yml` and `npm-release` environment. Explicitly allow direct `npm publish`: new configurations may default to staged-only permission. Use GitHub-hosted runners and npm 11.5.1+ ([npm requirements](https://docs.npmjs.com/trusted-publishers/)); no long-lived npm token is stored. GitHub's `release` environment separately permits prerelease creation. Provisioning accounts/certificates and environment approvals remains an operator task.
+
+## Compatibility gates and remaining limits
+
+Before publicly recommending npm, test a clean macOS ARM64 account: initial GUI/runtime download, optional model installation, offline restart, cancellation/repair, update/reinstall, Gatekeeper prompts, safeStorage reopen and npm/DMG credential interoperability. These checks cannot be inferred from same-user CI. Do not auto-migrate, discard or overwrite secrets after a decrypt failure. Model sharing does not imply credential portability.
+
+Manual Windows/Linux/macOS x64 GUI, native modules, PDF, storage and OS-permission checks remain planned; installation success alone does not establish support. Signed certificates, live provider compatibility, cloud-backup exclusion and automatic application updates remain unverified/planned. Failed builds retain available diagnostics for seven days. Rerun failed jobs in the same workflow to preserve successful artifacts/version; withdrawing a release does not roll back installed applications.
+
+Related: [runtime](architecture.md), [persistent storage](data-architecture.md), [MCP](mcp-architecture.md), [README](../README.md).

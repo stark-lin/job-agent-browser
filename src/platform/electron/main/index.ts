@@ -1,5 +1,8 @@
+import { npmMCPLaunch } from '../../npm/distribution'
 import { verifyPackageRuntime } from '../package-verification'
 import { KnowledgeService } from '../../knowledge/service'
+import { LocalModelManager } from '../../models/manager'
+import { userModelStore } from '../../models/paths'
 import { createKnowledgeEmbeddings } from '../../knowledge/rag/model-path'
 import { startKnowledgeBroker } from '../../knowledge/broker'
 import { registerKnowledgeIPC } from './knowledge-ipc'
@@ -64,10 +67,15 @@ let firstParty: FirstPartyRuntime | undefined
 let askAgent: AskAgentTasks | undefined
 let externalMCP: ExternalMCPInstaller | undefined
 let knowledge: KnowledgeService | undefined
+let localModels: LocalModelManager | undefined
 let stopKnowledgeBroker: (()=>Promise<void>) | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
+if (process.env.JAB_DISTRIBUTION === 'npm') {
+  app.setName('JAB')
+  app.setPath('userData', join(app.getPath('appData'), 'JAB'))
+}
 if (process.env.JOB_BROWSER_USER_DATA) app.setPath('userData', process.env.JOB_BROWSER_USER_DATA)
 
 app.whenReady().then(async () => {
@@ -87,15 +95,20 @@ app.whenReady().then(async () => {
   backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
   const knowledgePreferences = () => preferences.get({}).knowledge ?? defaultKnowledgePreferences
   const githubKey = 'knowledge-github-backup'
+  let embeddings: ReturnType<typeof createKnowledgeEmbeddings> | undefined
+  localModels = new LocalModelManager({ root: userModelStore(),
+    seed: app.isPackaged ? join(process.resourcesPath, 'models/multilingual-e5-small') : join(app.getAppPath(), '.cache/models/multilingual-e5-small'),
+    stop: () => embeddings?.stop(), activated: () => knowledge?.refreshEmbeddings() })
+  embeddings = createKnowledgeEmbeddings(() => knowledgePreferences().semanticEnabled, localModels)
   knowledge = new KnowledgeService(directory, { preferences: knowledgePreferences, watch: true,
     configure: value => preferences.savePreferences({ knowledge: value }).knowledge!,
     token: () => secrets.readProviderKey(githubKey), tokenStatus: () => secrets.hasProviderKey({provider: githubKey}).configured,
     saveToken: value => { if(value === null) secrets.deleteProviderKey({provider:githubKey}); else secrets.saveProviderKey({provider:githubKey,apiKey:value}) },
-    embeddings: createKnowledgeEmbeddings(() => knowledgePreferences().semanticEnabled) })
+    models: localModels, embeddings })
   registerKnowledgeIPC(knowledge, join(__dirname, '../renderer/index.html'))
   void knowledge.ready.then(async () => { if (shuttingDown) return; const stop = await startKnowledgeBroker(directory, knowledge!.index); if (shuttingDown) await stop(); else stopKnowledgeBroker = stop }).catch(() => {})
   externalMCP = createExternalMCPInstaller({ home: app.getPath('home'), codexHome: process.env.CODEX_HOME,
-    directory, bundleDirectory: __dirname, executable: process.execPath, writeClipboard: text => clipboard.writeText(text) })
+    ...npmMCPLaunch(directory), directory, bundleDirectory: __dirname, executable: process.execPath, writeClipboard: text => clipboard.writeText(text) })
   registerExternalMCPIPC(externalMCP, join(__dirname, '../renderer/index.html'))
   registerExternalSkillsIPC(createExternalSkillsInstaller({ home: app.getPath('home'), bundleDirectory: join(__dirname, 'skills'),
     openPath: path => shell.openPath(path) }), join(__dirname, '../renderer/index.html'))
@@ -148,7 +161,7 @@ app.on('will-quit', event => {
   if (shuttingDown) return
   if (!knowledge && !ai && !tools && !resumes && !externalMCP) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([localModels?.close(), knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {
