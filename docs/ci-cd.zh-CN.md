@@ -60,6 +60,8 @@ npm run release:npm:check
 
 [npm 发布器](../scripts/publish-npm.cjs) 在 GitHub 发布后于 `npm-release` 中运行，权限为 `contents: read` 和 `id-token: write`。校验实际 tarball、内部元数据、SHA/版本、目标和运行时门槛，再通过 npm OIDC 以 `latest` 标签和 provenance 公开发布 `@stark-lin/jab`；每个新发布的 main 版本都会成为默认安装版本。已存在版本仅在 Registry 完整性摘要一致时被接受，然后直接返回，不发布也不修改任何 dist-tag，即使 `latest` 缺失或已指向更新版本。内容不同会被拒绝；注册表/鉴权失败不会盲目触发发布。不维护独立的 stable/preview npm 双渠道。GitHub/npm 是独立事务：npm 失败会保留 GitHub Release，使用同一已验证产物重试。
 
+`npm publish` 成功后，注册表处理期间仍可能返回 E404。发布器在五分钟传播窗口内每隔 10 秒只轮询该精确版本的完整性摘要；每次查询禁用 npm fetch 重试，设置 10 秒 fetch 超时和 15 秒进程超时。最后一次查询可能在窗口结束后完成。必须摘要一致才能成功。摘要不符、摘要缺失/格式错误、鉴权及其他查询失败均立即报错。传播超时会说明发布已成功、可见性仍待确认；使用同一工作流/产物重跑以验证。轮询期间不重新发布，也不修改 dist-tags。
+
 ### 一次性迁移 latest
 
 使用以下命令检查注册表。将 `<existing-version>` 替换为实际已发布的版本，其 SHA 与 `dist.integrity` 必须匹配成功打包作业留存的、通过运行时验证的 npm 产物 manifest。确认对应验证/打包作业通过；不得根据源码基础版本推测版本号或重新打包。如果 `latest` 已指向验证通过的候选版本，则无需修改标签。手动修改前再次检查标签，不要用较旧候选版本替换更新且验证通过的 `latest`。
