@@ -79,7 +79,7 @@ async function main() {
       if (hash.digest('hex') !== file.sha256) throw new Error('RELEASE_REMOTE_CHECKSUM_MISMATCH')
     }
   }
-  if (release.draft) await api('/releases/' + release.id, 'PATCH', { draft: false, prerelease: true, make_latest: 'false' })
+  if (release.draft) release = await api('/releases/' + release.id, 'PATCH', { draft: false, prerelease: true, make_latest: 'false' })
   console.log('Published complete prerelease:', release.html_url)
 }
 module.exports = { verifyAssets }
