@@ -1,9 +1,10 @@
 import { Icon } from './Icon'
 import type { ReactNode } from 'react'
 
-export type GlyphName = 'home' | 'plus' | 'search' | 'document' | 'notebook' | 'presentation' | 'list' | 'mail' | 'person' | 'globe' | 'sparkles' | 'settings'
+export type GlyphName = 'brain' | 'home' | 'plus' | 'search' | 'document' | 'notebook' | 'presentation' | 'list' | 'mail' | 'person' | 'globe' | 'sparkles' | 'settings'
 
 const glyphs = {
+  brain: <><path d="M12 5a3 3 0 0 0-5-2 4 4 0 0 0-4 5 4 4 0 0 0 0 7 4 4 0 0 0 4 5 3 3 0 0 0 5-2V5zm0 0a3 3 0 0 1 5-2 4 4 0 0 1 4 5 4 4 0 0 1 0 7 4 4 0 0 1-4 5 3 3 0 0 1-5-2"/><path d="M7 7a3 3 0 0 1 0 6m10-6a3 3 0 0 0 0 6M7 17h1m8 0h1"/></>,
   plus: <path d="M12 5v14M5 12h14" />,
   home: <><path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3z" /></>,
   search: <><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></>,

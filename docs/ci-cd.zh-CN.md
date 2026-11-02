@@ -46,7 +46,7 @@ npm run release:npm:check
 
 [内容校验](../scripts/verify-npm-package.cjs) 拒绝符号链接、模型权重、数据库、密钥、缓存、fixture 和安装器，校验包元数据及用户 README/许可证内容（包括 tarball 内的实际字节），打包目录，并在 `dist/npm-artifacts/manifest.json` 记录 tarball SHA256/SHA512、大小、版本、提交和验证状态。npm 文件独立于仅用于桌面的 `release/publish/` 文件集。
 
-[干净安装冒烟](../scripts/npm-runtime-smoke.cjs) 在仓库外安装 tarball，通过官方模块初始化 Electron，检查直接依赖解析版本、version/doctor、真实 GUI/Preload/模型控件、显式 `jab mcp`、无模型检索、HTML/PDF 和卸载/重装持久性。存在准备好的测试模型时，使用真实 revision/校验值与 fixture 传输，通过 GUI 检查离线失败、取消/复用、安装后即时跨语言索引和删除；发行 CI 要求该项通过。仅成功测试会将 manifest 标记为运行时已验证。这些检查证明当前主机可运行；干净用户的系统身份仍是独立发布门槛。
+[干净安装冒烟](../scripts/npm-runtime-smoke.cjs) 在仓库外安装 tarball，通过官方模块初始化 Electron，检查直接依赖解析版本、version/doctor、真实 GUI/Preload/模型控件、Main 初始化存储后的显式 `jab mcp`、拒绝未完成工作区启动、外部连接无 Memory 工具、无模型检索、HTML/PDF 和卸载/重装持久性。存在准备好的测试模型时，使用真实 revision/校验值与 fixture 传输，通过 GUI 检查离线失败、取消/复用、安装后即时跨语言索引和删除；发行 CI 要求该项通过。仅成功测试会将 manifest 标记为运行时已验证。这些检查证明当前主机可运行；干净用户的系统身份仍是独立发布门槛。
 
 [CLI](../packages/npm/bin/jab.cjs) 提供 GUI、version、doctor 和 MCP；[用户指南](../packages/npm/README.zh-CN.md) 负责使用说明。Electron 首次运行初始化独立于可选模型安装（[官方安装行为](https://www.electronjs.org/docs/latest/tutorial/installation)）。本次发行按明确选择，让 npm/DMG 共享默认 JAB 用户数据目录。不要同时运行两个渠道访问该目录；凭据兼容性尚未验证，解密失败不会重置密钥。
 

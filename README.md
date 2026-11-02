@@ -105,4 +105,4 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 
 ## Smart Note knowledge
 
-Smart Note uses one local Markdown tree with Edit/Split/Preview, snapshots, optional GitHub backup and hybrid retrieval. Semantic indexing is enabled by default, while model installation remains optional; Settings provides Download, Repair, Verify, Cancel and confirmed Remove. Missing models retain keyword retrieval. See [knowledge storage](docs/data-architecture.md) and [MCP tools](docs/mcp-architecture.md).
+Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and explicit Ask AI memory requests. Models are optional; missing weights retain keyword retrieval. See [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).

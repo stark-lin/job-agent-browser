@@ -18,10 +18,10 @@ const agentOnly = process.argv.includes('--agent')
 const serverOnly = process.argv.includes('--mcp-server')
 const mcpOnly = process.argv.includes('--mcp')
 const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => name.endsWith('.test.js') &&
-  (!knowledgeOnly || /^knowledge(?:-remote)?\.test\.js$/.test(name)) &&
-  (!askOnly || /^(chat|agent-stream|ask-agent|ask-store)\.test\.js$/.test(name)) &&
+  (!knowledgeOnly || /^(knowledge(?:-remote)?|memory(?:-workspace|-mcp|-agent)?)\.test\.js$/.test(name)) &&
+  (!askOnly || /^(memory-mcp|memory-agent|chat|agent-stream|ask-agent|ask-store)\.test\.js$/.test(name)) &&
   (!agentOnly || /^(chat|agent-stream|ask-agent|ask-store|business-tools|profile-writes|application-agent|capture-agent|job-import|import-parallel|agent|resume-document|resume-agent|resume-output|resume-tools|resume-runtime-parity|runtime-leases|profile-import|profile-session|storage)\.test\.js$/.test(name)) &&
-  (!serverOnly || /^(business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
+  (!serverOnly || /^(memory-mcp|business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
   (!mcpOnly || /^(tools|mcp|capability-audit)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))
 if (tests.length === 0) throw new Error('No tests discovered')
 run(['--test', '--test-timeout=60000', '--test-concurrency=1', ...tests])

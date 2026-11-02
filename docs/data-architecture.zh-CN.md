@@ -145,22 +145,9 @@ Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner�
 | `audit` | 只读且不含业务内容的审计查看 |
 | `settings`, `secrets` | 校验后的文件偏好及密钥状态/保存/删除；不返回密钥 |
 
-API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。Agent 生成阶段使用独立于人工/UI IPC API 的 MCP。IPC 变更不自动重试或保证幂等，不确定时先刷新状态；MCP 创建 receipt 是第四节明确说明的例外。使用以下固定错误码，不依赖数据库消息。
+API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或生成阶段写入。Agent 生成阶段使用独立于人工/UI IPC API 的 MCP。IPC 变更不自动重试或保证幂等，不确定时先刷新状态；MCP 创建 receipt 是第四节明确说明的例外。下方源合同拥有固定错误定义。
 
-| 错误码 | 含义 |
-| --- | --- |
-| `INVALID_INPUT` | 未知字段、无效结构/值或超过输入/查询限制 |
-| `NOT_FOUND` | 所请求的当前实体不存在 |
-| `CONFLICT` | 关系、不可变数据、溯源或 SQL 完整性冲突 |
-| `INVALID_STATE` | 不允许的生命周期转换、生成阶段或操作 |
-| `STORAGE_BUSY` | 数据库锁争用超过等待上限 |
-| `STORAGE_UNAVAILABLE` | 存储操作无法完成；不暴露原始错误详情 |
-| `AUDIT_UNAVAILABLE` | 必需的业务/调用审计无法提交；操作报告失败 |
-| `NOT_IMPLEMENTED` | 非生产后端未提供存储适配器 |
-| `ENCRYPTION_UNAVAILABLE` | 操作系统加密不可用；拒绝保存密钥 |
-| `FORBIDDEN` | IPC 调用方不是可信的顶层 Renderer 文档或请求所有者 |
-| `AI_NOT_CONFIGURED`, `AI_AUTH_FAILED`, `AI_RATE_LIMITED` | 缺少 Provider/模型/密钥、身份验证被拒或限流 |
-| `AI_PROVIDER_FAILED`, `AI_PROTOCOL_ERROR`, `AI_CONNECT_FAILED`, `AI_TIMEOUT`, `AI_CANCELLED` | 服务商、流格式、网络、超时或取消结果 |
+[固定错误码](../src/domain/common/errors.ts)覆盖非法输入、缺失或冲突状态、存储或审计不可用、拒绝调用方、加密及 AI 失败。IPC 只传递错误码，不传递原始数据库消息。
 
 [PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)暴露 `window.profileImport.selectPdf/start/retry/cancel/discard/onEvent`，不提供路径读取。两种导入的 `start` 均接受可选 `mode`（默认 `single`）；事件包含携带分组状态及 `queueMs`/`elapsedMs` 的 `progress.groups`，`failed.retryable` 表示可用缓存重试失败组。PDF 的 `retry({sessionId})` 保留会话并返回新 `taskId`。文件/网络操作与同步业务事务分离。
 
@@ -189,10 +176,16 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 - [产品架构](product-architecture.zh-CN.md)：规划的产品范围。
 - [README](../README.zh-CN.md)：验证命令与文档索引。
 
-## 智能笔记知识库
+## 智能笔记存储与 Memory v1
 
-Files are truth：userData/knowledge 保存规范 Markdown，不建 Note 表；knowledge-index.sqlite 是独立于 database.sqlite 的可重建缓存。[备份](../src/platform/knowledge/git/backup.ts)只保存 Markdown；恢复前先快照当前文件，多文件替换使用恢复日志，版本检查拒绝过期写入。删除保留 Git 历史，Git 不保存空目录。
+**已实现：**规范 Markdown 位于 `userData/smart-note/knowledge/` 和 `memory/`，共享唯一 `.git`，不建立 Note/Memory 业务表。Job、Profile、Fact 仍是业务事实的权威来源。独立的 `knowledge-index.sqlite` 与 `memory-index.sqlite` 缓存隔离 FTS、向量、排名和上下文扩展；[embedding identity](../src/platform/knowledge/rag/embedding-protocol.ts)决定向量兼容性。
 
-[Embedding identity](../src/platform/knowledge/rag/embedding-protocol.ts)包含模型 revision、dtype、维度、pooling、归一化、token 上限及前缀版本。索引重建缺失、变更或不兼容的向量，检索排除其他 identity。原始 Markdown 仍是事实源。[偏好加载](../src/platform/storage/knowledge-preferences.ts)仅在读取磁盘时移除旧 providerId/modelId，保留 semanticEnabled（包括 false），新安装默认 true；新写入拒绝旧字段。
+[迁移](../src/platform/knowledge/workspace-storage.ts)先完成旧恢复日志，锁定旧库与工作区，将所有普通文件（包括未跟踪数据和 `.git`）计算哈希后复制到同文件系统 staging，再创建目录迁移提交。内容与历史验证后原子发布，保留 `knowledge-archive-v1`，将旧入口替换成旧版路径检查会拒绝的文件。符号链接、不安全名称或不可验证状态会停止迁移；日志使中断阶段可重入，不会初始化为空库。
 
-[用户模型存储](../src/platform/models/paths.ts) 独立于 userData/knowledge 和两个 SQLite 数据库：macOS 为 `~/Library/Application Support/JAB/managed-models`，Windows 为 `%LOCALAPPDATA%/JAB/Models`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/JAB/models`。`JAB_MODEL_STORE` 接受绝对路径覆盖。Revision 目录、已验证重试 staging、心跳锁/读取租约和 `.installed.json` 是文件系统资源，不是业务记录；每次激活都独立于安装标记检查大小/SHA256。原子保存的 `seed-preferences.json` 记录已初始化 revision，显式删除后禁用自动 Seed 导入。npm 更新/卸载保留这些文件。删除权重保留 chunk、FTS 和派生向量，但不可用的 provider 无法使用这些向量。
+`smart-note-runtime/` 位于 Git 之外，保存迁移/恢复日志、存储代次 1、原 HEAD、迁移提交、明确的旧提交 ID 和规范化 Remote 同意记录。旧提交整体映射至 Knowledge，包括旧有 `knowledge/`、`memory/` 子目录，不单凭路径前缀判断布局。独立 MCP 要求 Main 先完成初始化与恢复。
+
+[备份](../src/platform/knowledge/git/backup.ts)在同一把锁下快照两个空间的 Markdown，沿用当前本地分支并同步到配置的远程分支。历史先按空间过滤再分页，返回相对路径；恢复只检查目标树 Revision，先快照两个空间，再只记录目标变更的恢复日志。内部同步使用工作区日志，UI 不提供工作区恢复。根目录不能重命名或删除；`expectedRevision:null` 仅创建，更新必须携带当前 SHA-256。Git 不保存空目录，保留已删除笔记历史。
+
+[工作区](../src/platform/knowledge/workspace.ts)通过可信 IPC 为当前规范化 Remote 保存同步同意。升级、首次使用 Remote 和更换 Remote 均须说明记忆及其 Git 历史会上传。未同意时只本地备份，传输门禁也覆盖冲突上传。未知远程布局不能覆盖本地文件。审计迁移 10 保留旧行并增加 opaque Memory 目标；权限归属 [MCP 架构](mcp-architecture.zh-CN.md)。
+
+[用户模型存储](../src/platform/models/paths.ts)独立于智能笔记、两个派生索引及 `database.sqlite`：macOS 为 `~/Library/Application Support/JAB/managed-models`，Windows 为 `%LOCALAPPDATA%/JAB/Models`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/JAB/models`。`JAB_MODEL_STORE` 接受绝对路径覆盖。已验证 revision、重试 staging、心跳锁/租约及 `.installed.json` 属于文件系统资源；激活重新检查大小/SHA256。原子 `seed-preferences.json` 记录初始化 revision，移除后禁用自动 Seed 导入。npm 更新/卸载保留这些文件；权重不可用时保留 chunk/FTS/向量，但检索降级为词法搜索。[偏好加载](../src/platform/storage/knowledge-preferences.ts)仅在读取磁盘时移除旧 providerId/modelId，保留 semanticEnabled，默认 true。

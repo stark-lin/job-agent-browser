@@ -48,7 +48,7 @@ jab --version
 jab doctor
 ```
 
-MCP 必须通过 `--data-dir` 或 `JOB_BROWSER_USER_DATA` 显式指定**绝对**数据目录；使用与桌面应用相同的目录才能访问其数据。全局安装后，设置 → 连接外部 Agent → 添加 MCP 会配置绝对 Node 和 CLI 路径；Skills 需单独安装。临时 `npx` 安装不能安装永久 MCP 连接。简历 PDF 输出使用 Electron，首次使用可能初始化运行时。见 [MCP 接入指南](https://github.com/stark-lin/job-agent-browser/blob/main/docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)。
+MCP 必须通过 `--data-dir` 或 `JOB_BROWSER_USER_DATA` 显式指定**绝对**数据目录；使用与桌面应用相同的目录才能访问其数据。先启动 JAB 初始化或迁移智能笔记，未完成的恢复必须由桌面应用处理。外部 MCP 开放 Knowledge，Memory 仅供已认证的 Ask AI 会话使用。全局安装后，设置 → 连接外部 Agent → 添加 MCP 会配置绝对 Node 和 CLI 路径；Skills 需单独安装。临时 `npx` 安装不能安装永久 MCP 连接。简历 PDF 输出使用 Electron，首次使用可能初始化运行时。见 [MCP 接入指南](https://github.com/stark-lin/job-agent-browser/blob/main/docs/mcp-architecture.zh-CN.md#五job-agent-browser-mcp)。
 
 ## 更新
 

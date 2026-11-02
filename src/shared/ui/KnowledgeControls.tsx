@@ -1,7 +1,9 @@
 import { useRef, type ReactNode, type KeyboardEventHandler, type MouseEventHandler } from 'react'
 import { Button } from './Button'
+import { Glyph } from './Glyph'
 export function ExplorerRow({
   name,
+  specialRoot = false,
   depth,
   selected,
   expanded,
@@ -12,6 +14,7 @@ export function ExplorerRow({
   onKeyDown
 }: {
   name: string
+  specialRoot?: boolean
   depth: number
   selected: boolean
   expanded?: boolean
@@ -23,7 +26,7 @@ export function ExplorerRow({
 }) {
   return (
     <div
-      className="ui-explorer-row"
+      className={`ui-explorer-row${specialRoot ? ' ui-explorer-row--special' : ''}`}
       role="treeitem"
       tabIndex={0}
       aria-level={depth + 1}
@@ -32,7 +35,7 @@ export function ExplorerRow({
       style={{ paddingLeft: `calc(var(--space-1) * ${depth + 1})` }}
       onClick={onClick}
       onContextMenu={onContextMenu}
-      onKeyDown={onKeyDown}
+      onKeyDown={e => { onKeyDown(e); if (!e.defaultPrevented && e.key === 'Enter' && e.target === e.currentTarget) { e.preventDefault(); onClick() } }}
     >
       {directory ? (
         <Button
@@ -50,6 +53,7 @@ export function ExplorerRow({
       ) : (
         <span aria-hidden="true">·</span>
       )}
+      {specialRoot && <Glyph name="brain" />}
       <span>{name}</span>
     </div>
   )

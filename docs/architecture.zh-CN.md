@@ -146,7 +146,11 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 智能笔记知识库
 
-[Knowledge 服务](../src/platform/knowledge/service.ts)组合安全文件、跨进程锁、监听、索引与备份。Main 持有 GitHub 备份凭据，并提供本机认证查询 embedding 接口；Main 离线时独立 MCP 降级为关键词检索。[IPC](../src/platform/electron/knowledge-contract.ts)仅向可信应用 Renderer 开放。
+**已实现 Memory v1：**[SmartNoteWorkspace](../src/platform/knowledge/workspace.ts)拥有两个固定根 Markdown 服务视图、一个 Git 仓库/锁、Watcher、自动备份和共享资源。[存储架构](data-architecture.zh-CN.md#智能笔记存储与-memory-v1)负责迁移/恢复及同步同意语义。独立 MCP 不能迁移或恢复未完成的工作区，会提示先启动 JAB。
+
+[工作区队列](../src/platform/knowledge/workspace-embedding.ts)串行调度唯一共享 Provider，限制排队并优先查询。重建单个索引仅等待自身任务，不取消或释放共享模型；全局配置/移除/退出协调两个视图。[Broker](../src/platform/knowledge/broker.ts)仅依赖共享查询向量生成能力，不依赖任一空间索引。独立 MCP 不加载模型，Main 或模型不可用时保留词法检索。
+
+[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md#智能笔记知识库)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及手动记忆策略。自动记忆、Pi 和 Context Budget 仍为**规划**。
 
 [本地 embedding](../src/platform/knowledge/rag/local-embedding.ts) 按需调度单个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，优先处理查询、限制队列并拒绝取消/超时/崩溃请求。Worker 禁止远程加载和 fetch，只读取用户模型存储中完整校验过的 revision。Main 的 [Model Manager](../src/platform/models/manager.ts) 管理下载/Seed 导入、重试/取消、校验、原子提交和删除；[路径](../src/platform/models/paths.ts) 独立于安装位置和 cwd。GUI 启动不等待模型校验或导入；模型不可用时保留关键词搜索。激活后立即调度缺失向量，删除权重前停止本实例推理。跨进程读取租约阻止替换或删除其他实例正在使用的模型。[打包](ci-cd.zh-CN.md) 负责发行检查。
 

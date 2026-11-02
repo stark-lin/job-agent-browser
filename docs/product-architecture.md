@@ -188,4 +188,4 @@ The baseline fixes the product structure and development direction. Detailed pag
 
 ## Smart Note knowledge
 
-Smart Note fully replaces the former placeholder page at app://knowledge. One Knowledge Base supports human/Agent Markdown editing, history and structural retrieval; interview preparation is now an installed [Skill](../skills/interview-prep/SKILL.md). No vaults, CRDT, drag-and-drop or collaborative merge are introduced.
+**Implemented:** Smart Note at app://knowledge uses one Explorer/editor for Knowledge and a pinned Memory folder, per-space search/history/restore, and workspace-wide sync with explicit Memory/history disclosure. Ask AI supports Manual memory only after clear user requests; Job/Profile/Fact remain authoritative. [Current runtime](architecture.md#smart-note-knowledge) records implementation and [interview preparation](../skills/interview-prep/SKILL.md) remains an installed Skill. **Planned:** Pi integration, automatic memory and Context Budget; no additional Memory page, second Git repository, CRDT, drag-and-drop or collaborative merge is introduced.

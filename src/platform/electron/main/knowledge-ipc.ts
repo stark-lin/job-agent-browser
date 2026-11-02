@@ -2,8 +2,8 @@ import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { trustedDataSender } from './data-ipc'
 import { KNOWLEDGE_CALL, KNOWLEDGE_CHANGED, knowledgeMethods, type KnowledgeMethods } from '../knowledge-contract'
-import type { KnowledgeService } from '../../knowledge/service'
-export function registerKnowledgeIPC(service: KnowledgeService, rendererPath: string) {
+import type { SmartNoteWorkspace } from '../../knowledge/workspace'
+export function registerKnowledgeIPC(service: SmartNoteWorkspace, rendererPath: string) {
   const expected = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(rendererPath).href
   const trusted = (event: IpcMainInvokeEvent) =>
     trustedDataSender(

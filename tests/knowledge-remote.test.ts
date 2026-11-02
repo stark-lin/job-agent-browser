@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import http from 'isomorphic-git/http/node'
+import { SmartNoteWorkspace } from '../src/platform/knowledge/workspace'
 import { KnowledgeFiles } from '../src/platform/knowledge/filesystem'
 import { KnowledgeBackup } from '../src/platform/knowledge/git/backup'
 import { defaultKnowledgePreferences } from '../src/shared/knowledge-settings'
@@ -16,8 +17,11 @@ async function remote(t: test.TestContext) {
   execFileSync('git', ['init', '--bare', '--initial-branch=main', repo], { stdio: 'ignore' })
   execFileSync('git', ['-C', repo, 'config', 'http.receivepack', 'true'])
   let fail = false,
-    denyConflict = false
+    denyConflict = false,
+    consent = true,
+    requests = 0
   const server = createServer(async (req, res) => {
+    requests++
     if (fail) {
       res.writeHead(503).end()
       return
@@ -92,13 +96,14 @@ async function remote(t: test.TestContext) {
     files,
     () => ({ ...defaultKnowledgePreferences, remote: 'https://github.com/fixture/backup.git' }),
     () => 'PRIVATE_TOKEN',
-    transport
+    transport,
+    () => consent
   )
   return {
     root,
     repo,
     files,
-    backup,
+    backup, transport, consent: () => consent, revoke: () => { consent = false }, requests: () => requests,
     fail: () => {
       fail = true
     },
@@ -169,4 +174,62 @@ test('network failure preserves Markdown and local recovery history', async (t) 
   assert.equal((await f.backup.sync()).state, 'failed')
   assert.equal((await f.files.read('safe.md')).content, 'safe')
   assert((await f.backup.history()).length > 0)
+})
+
+test('remote consent blocks every network request and conflict upload while retaining local snapshots', async t => {
+  const f = await remote(t)
+  assert.equal((await f.backup.sync()).state, 'synced')
+  const clone = join(f.root, 'consent-edit'); f.git('clone', f.repo, clone)
+  await f.files.write('local.md', 'local private memory equivalent', null)
+  await writeFile(join(clone, 'remote.md'), 'remote divergent content')
+  f.git('-C', clone, 'add', '.'); f.git('-C', clone, 'commit', '-m', 'Diverge'); f.git('-C', clone, 'push', 'origin', 'main')
+  const count = f.requests(); f.revoke()
+  const status = await f.backup.sync()
+  assert.equal(status.state, 'local'); assert.equal(status.error, 'SYNC_CONSENT_REQUIRED'); assert.equal(f.requests(), count)
+  assert.equal(f.git('--git-dir', f.repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/backup/'), '')
+  assert((await f.backup.history()).some(v => v.files.includes('local.md')))
+})
+test('workspace fast-forward sync updates both spaces and rejects remote trees with an unknown layout', async t => {
+  const f = await remote(t)
+  const w = new SmartNoteWorkspace(f.files.directory, { preferences: () => defaultKnowledgePreferences }); await w.ready
+  t.after(() => w.close())
+  const backup = new KnowledgeBackup(w.files, () => ({ ...defaultKnowledgePreferences, remote: 'https://github.com/fixture/backup.git' }), () => 'PRIVATE_TOKEN', f.transport, f.consent)
+  assert.equal((await backup.sync()).state, 'synced')
+  const clone = join(f.root, 'workspace-edit'); f.git('clone', f.repo, clone)
+  await writeFile(join(clone, 'knowledge/README.md'), '# Knowledge remote')
+  await writeFile(join(clone, 'memory/README.md'), '# Memory remote')
+  f.git('-C', clone, 'add', '.'); f.git('-C', clone, 'commit', '-m', 'Both spaces'); f.git('-C', clone, 'push', 'origin', 'main')
+  assert.equal((await backup.sync()).state, 'synced')
+  assert.equal((await w.files.read('README.md')).content, '# Knowledge remote')
+  assert.equal((await w.spaces.memory.files.read('README.md')).content, '# Memory remote')
+  await writeFile(join(clone, 'memory/foreign.bin'), 'unmanaged remote bytes')
+  f.git('-C', clone, 'add', '.'); f.git('-C', clone, 'commit', '-m', 'Foreign bytes'); f.git('-C', clone, 'push', 'origin', 'main')
+  assert.equal((await backup.sync()).state, 'failed')
+  assert.equal((await w.spaces.memory.files.read('README.md')).content, '# Memory remote')
+  await writeFile(join(clone, 'unknown.md'), 'must not be applied')
+  await writeFile(join(clone, 'memory/README.md'), '# Untrusted layout')
+  f.git('-C', clone, 'add', '.'); f.git('-C', clone, 'commit', '-m', 'Unknown layout'); f.git('-C', clone, 'push', 'origin', 'main')
+  assert.equal((await backup.sync()).state, 'failed')
+  assert.equal((await w.spaces.memory.files.read('README.md')).content, '# Memory remote')
+})
+
+test('migration preserves a legacy local branch and sync publishes the complete workspace to the configured remote branch', async t => {
+  const f = await remote(t)
+  const original = await f.backup.backup('Legacy branch snapshot')
+  f.git('-C', f.files.root, 'branch', '-m', 'main', 'legacy-notes')
+  const w = new SmartNoteWorkspace(f.files.directory, { preferences: () => defaultKnowledgePreferences }); await w.ready
+  t.after(() => w.close())
+  await w.spaces.memory.files.write('preference.md', 'private remembered preference', null)
+  const backup = new KnowledgeBackup(w.files, () => ({ ...defaultKnowledgePreferences, remote: 'https://github.com/fixture/backup.git' }), () => 'PRIVATE_TOKEN', f.transport, f.consent)
+  assert.equal((await backup.sync()).state, 'synced')
+  assert.equal(f.git('-C', w.storage.root, 'branch', '--show-current'), 'legacy-notes')
+  assert.equal(f.git('--git-dir', f.repo, 'show', 'main:memory/preference.md'), 'private remembered preference')
+  assert(f.git('--git-dir', f.repo, 'show', 'main:knowledge/README.md').includes('Knowledge'))
+  assert.equal(w.storage.layout.originalHead, original)
+  const clone = join(f.root, 'legacy-branch-edit'); f.git('clone', f.repo, clone)
+  await writeFile(join(clone, 'memory/preference.md'), 'remote remembered preference')
+  f.git('-C', clone, 'add', '.'); f.git('-C', clone, 'commit', '-m', 'Remote preference'); f.git('-C', clone, 'push', 'origin', 'main')
+  assert.equal((await backup.sync()).state, 'synced')
+  assert.equal((await w.spaces.memory.files.read('preference.md')).content, 'remote remembered preference')
+  assert.equal(f.git('-C', w.storage.root, 'branch', '--show-current'), 'legacy-notes')
 })

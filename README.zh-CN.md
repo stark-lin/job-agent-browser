@@ -105,4 +105,4 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 
 ## 智能笔记知识库
 
-Smart Note 使用单一本地 Markdown 文件树，提供编辑/分栏/预览、快照、可选 GitHub 备份和混合检索。语义索引默认启用，模型安装仍为可选；设置提供下载、修复、校验、取消和确认删除。模型缺失时保留关键词检索。见[知识库存储](docs/data-architecture.zh-CN.md)和 [MCP 工具](docs/mcp-architecture.zh-CN.md)。
+Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及明确请求后的 Ask AI 记忆。模型安装可选，缺失权重时保留关键词检索。见[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。

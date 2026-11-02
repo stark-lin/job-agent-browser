@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Button,
@@ -12,17 +12,20 @@ import {
   ResizableExplorer,
   StatusMessage
 } from '../../shared/ui'
+import type { SpaceId } from '../../shared/smart-note'
 import type { KnowledgeNode, BackupVersion, KnowledgeHit } from '../../domain/knowledge'
 import { defaultKnowledgePreferences, type KnowledgePreferences } from '../../shared/knowledge-settings'
+import { RemoteSyncDialog } from '../../app/knowledge/RemoteSyncDialog'
 import { useKnowledge } from './useKnowledge'
 import { KnowledgeTree } from './KnowledgeTree'
 import './knowledge.css'
-type Action = { kind: 'file' | 'folder' | 'rename' | 'delete' | 'menu' | 'saveAs'; node: KnowledgeNode }
+type Action = { kind: 'file' | 'folder' | 'rename' | 'delete' | 'menu' | 'saveAs'; node: KnowledgeNode; space: SpaceId }
 export function KnowledgePage() {
   const { t } = useTranslation(),
     k = useKnowledge(),
     api = window.knowledge,
-    [selected, setSelected] = useState(''),
+    selected = k.selection.path,
+    space = k.selection.space,
     [preferences, setPreferences] = useState<KnowledgePreferences>(defaultKnowledgePreferences),
     [action, setAction] = useState<Action | null>(null),
     [name, setName] = useState(''),
@@ -33,7 +36,10 @@ export function KnowledgePage() {
     [sync, setSync] = useState(''),
     [syncDetail, setSyncDetail] = useState(''),
     [backupDirty, setBackupDirty] = useState(false),
-    [restore, setRestore] = useState<BackupVersion | null>(null)
+    [restore, setRestore] = useState<BackupVersion | null>(null),
+    [consent, setConsent] = useState<string | null>(null)
+  const searchGeneration = useRef(0)
+  useEffect(() => { searchGeneration.current++; setHits(null); setQuery(''); setHistory(null); setRestore(null) }, [space])
   useEffect(() => {
     void api.configuration({}).then((r) => {
       if (r.ok) setPreferences(r.value.preferences)
@@ -68,13 +74,13 @@ export function KnowledgePage() {
   const find = (path: string, node = k.tree): KnowledgeNode | undefined =>
     !node ? undefined : node.path === path ? node : node.children?.map((n) => find(path, n)).find(Boolean)
   const target = find(selected) ?? k.tree
-  const begin = (kind: Action['kind'], node = target) => {
+  const begin = (kind: Action['kind'], node = target, actionSpace = space) => {
     if (!node) return
     if (kind === 'rename' || kind === 'delete') {
       setBusy(true)
       void (async () => {
         if (!(await k.flush())) return
-        const tree = await api.tree({})
+        const tree = await api.tree({ space: actionSpace })
         if (!tree.ok) {
           k.setError(tree.error)
           return
@@ -85,14 +91,14 @@ export function KnowledgePage() {
           return
         }
         k.setError('')
-        setAction({ kind, node: current })
+        setAction({ kind, node: current, space: actionSpace })
         setName(kind === 'rename' ? current.path : '')
       })()
         .catch(() => k.setError('KNOWLEDGE_UNAVAILABLE'))
         .finally(() => setBusy(false))
       return
     }
-    setAction({ kind, node })
+    setAction({ kind, node, space: actionSpace })
     setName(
       kind === 'file' || kind === 'folder'
           ? (node.type === 'directory' ? node.path : node.path.split('/').slice(0, -1).join('/')) + '/'
@@ -106,20 +112,22 @@ export function KnowledgePage() {
     setBusy(true)
     try {
       if (action.kind !== 'saveAs' && !(await k.flush())) return
-      const path = name.replace(/^\//, '')
+      const path = name.replace(/^\//, ''), actionSpace = action.space
       const result =
         action.kind === 'file'
-          ? await api.write({ path, content: '', expectedRevision: null })
+          ? await api.write({ space: actionSpace, path, content: '', expectedRevision: null })
           : action.kind === 'folder'
-            ? await api.mkdir({ path })
+            ? await api.mkdir({ space: actionSpace, path })
             : action.kind === 'rename'
               ? await api.move({
+                  space: actionSpace,
                   source: action.node.path,
                   target: path,
                   expectedRevision: action.node.revision
                 })
               : action.kind === 'delete'
                 ? await api.delete({
+                    space: actionSpace,
                     path: action.node.path,
                     expectedRevision: action.node.revision,
                     recursive: action.node.type === 'directory'
@@ -128,7 +136,6 @@ export function KnowledgePage() {
       if (action.kind === 'saveAs') {
         if (await k.saveAs(path)) {
           setAction(null)
-          setSelected(path)
         }
         return
       }
@@ -138,29 +145,24 @@ export function KnowledgePage() {
         return
       }
       setAction(null)
-      if (action.kind === 'file' || action.kind === 'rename') setSelected(path)
       await k.refresh()
-      if (action.kind === 'file') await k.open(path)
+      if (action.kind === 'file') await k.open(path, actionSpace)
       if (
         action.kind === 'rename' &&
         k.file &&
-        (k.file.path === action.node.path || k.file.path.startsWith(action.node.path + '/'))
+        (k.file.space === actionSpace && (k.file.path === action.node.path || k.file.path.startsWith(action.node.path + '/')))
       )
-        await k.open(path + k.file.path.slice(action.node.path.length))
+        await k.open(path + k.file.path.slice(action.node.path.length), actionSpace)
     } catch {
       k.setError('KNOWLEDGE_UNAVAILABLE')
     } finally {
       setBusy(false)
     }
   }
-  const select = (node: KnowledgeNode) => {
-    setSelected(node.path)
-    if (node.type === 'file') void k.open(node.path)
-    else if (node.readme) void k.open(node.readme)
-  }
   const historyPage = async (more = false) => {
     if (!(await k.flush())) return
-    const result = await api.history({ offset: more ? (history?.length ?? 0) : 0, limit: 25 })
+    const result = await api.history({ space, offset: more ? (history?.length ?? 0) : 0, limit: 25 })
+    if (space !== k.scope.current) return
     if (result.ok) setHistory((old) => (more ? [...(old ?? []), ...result.value] : result.value))
     else k.setError(result.error)
   }
@@ -168,6 +170,9 @@ export function KnowledgePage() {
     if (!(await k.flush())) return
     setBusy(true)
     try {
+      const approval = await api.syncConsent({})
+      if (!approval.ok) { k.setError(approval.error); return }
+      if (approval.value.required) { setConsent(approval.value.remote); return }
       const result = await api.sync({})
       if (result.ok) {
         setSync(result.value.state)
@@ -184,7 +189,7 @@ export function KnowledgePage() {
     try {
       const url = new URL(href, 'https://knowledge.local/' + k.file.path)
       if (url.origin !== 'https://knowledge.local') return
-      void k.open(decodeURIComponent(url.pathname.slice(1)))
+      void k.open(decodeURIComponent(url.pathname.slice(1)), k.file.space)
     } catch {
       k.setError('KNOWLEDGE_INVALID_PATH')
     }
@@ -217,7 +222,9 @@ export function KnowledgePage() {
           className="knowledge-search"
           onSubmit={(e) => {
             e.preventDefault()
-            void api.search({ query }).then((r) => {
+            const generation = ++searchGeneration.current
+            void api.search({ query, space }).then((r) => {
+              if (generation !== searchGeneration.current || space !== k.scope.current) return
               if (r.ok) setHits(r.value.items)
               else k.setError(r.error)
             })
@@ -235,32 +242,33 @@ export function KnowledgePage() {
         </form>
         {hits && (
           <div className="knowledge-results">
-            <Button variant="ghost" size="sm" onClick={() => setHits(null)}>
+            <Button variant="ghost" size="sm" onClick={() => { searchGeneration.current++; setHits(null) }}>
               {t(($) => $.knowledge.close)}
             </Button>
             {hits.map((hit) => (
-              <Button key={hit.id} variant="ghost" onClick={() => void k.open(hit.path)}>
+              <Button key={hit.id} variant="ghost" onClick={() => void k.open(hit.path, space)}>
                 {hit.path}:{hit.startLine}
               </Button>
             ))}
             {!hits.length && <StatusMessage>{t(($) => $.knowledge.noResults)}</StatusMessage>}
           </div>
         )}
-        {k.tree ? (
+        {(['memory', 'knowledge'] as const).map(treeSpace => k.trees[treeSpace] ? (
           <KnowledgeTree
-            tree={k.tree}
-            selected={selected}
-            onSelect={select}
-            onAction={(kind, node) => begin(kind, node)}
+            key={treeSpace}
+            tree={k.trees[treeSpace]!}
+            memory={treeSpace === 'memory'}
+            label={t($ => $.knowledge[treeSpace === 'memory' ? 'memory' : 'knowledgeSpace'])}
+            selected={space === treeSpace ? selected : '\u0000'}
+            onSelect={node => k.select(node, treeSpace)}
+            onAction={(kind, node) => begin(kind, node, treeSpace)}
           />
-        ) : (
-          <StatusMessage>{t(($) => $.knowledge.loading)}</StatusMessage>
-        )}
+        ) : <StatusMessage key={treeSpace}>{t(($) => $.knowledge.loading)}</StatusMessage>)}
       </ResizableExplorer>
       <section className="knowledge-workspace">
         <header className="knowledge-toolbar">
           <div className="knowledge-breadcrumb">
-            {k.file?.path.split('/').join(' › ') ?? t(($) => $.navigation.pages.knowledge)}
+            {k.file ? `${t($ => $.knowledge[k.file?.space === 'memory' ? 'memory' : 'knowledgeSpace'])} › ${k.file.path.split('/').join(' › ')}` : t(($) => $.navigation.pages.knowledge)}
           </div>
           <div className="knowledge-toolbar-actions">
             {(['edit', 'split', 'preview'] as const).map((mode) => (
@@ -294,7 +302,7 @@ export function KnowledgePage() {
           {backupDirty
             ? ` · ${t(($) => $.knowledge.backupPending)}`
             : sync && ` · ${t(($) => $.knowledge[sync as 'local' | 'synced' | 'conflict' | 'failed'])}`}
-          {syncDetail && ` · ${syncDetail}`}
+          {syncDetail && ` · ${syncDetail === 'SYNC_CONSENT_REQUIRED' ? t($ => $.knowledge.syncConsentRequired) : syncDetail}`}
         </div>
         {k.error && (
           <StatusMessage tone="error">
@@ -312,7 +320,7 @@ export function KnowledgePage() {
           <div className={`knowledge-document knowledge-document--${preferences.mode}`}>
             {preferences.mode !== 'preview' && (
               <MarkdownEditor
-                key={k.file.path}
+                key={`${k.file.space}:${k.file.path}`}
                 label={t(($) => $.knowledge.editor)}
                 value={k.content}
                 onChange={k.change}
@@ -368,7 +376,7 @@ export function KnowledgePage() {
                 <Button
                   key={kind}
                   disabled={!action.node.path && (kind === 'rename' || kind === 'delete')}
-                  onClick={() => begin(kind, action.node)}
+                  onClick={() => begin(kind, action.node, action.space)}
                 >
                   {t(($) => $.knowledge[kind === 'file' ? 'newFile' : kind === 'folder' ? 'newFolder' : kind])}
                 </Button>
@@ -411,7 +419,7 @@ export function KnowledgePage() {
       <Dialog
         open={history !== null}
         title={t(($) => $.knowledge.history)}
-        description={t(($) => $.knowledge.historyHelp)}
+        description={`${t($ => $.knowledge[space === 'memory' ? 'memory' : 'knowledgeSpace'])} · ${t(($) => $.knowledge.historyHelp)}`}
         onClose={() => setHistory(null)}
         content={
           <div className="knowledge-history">
@@ -434,7 +442,7 @@ export function KnowledgePage() {
       <Dialog
         open={Boolean(restore)}
         title={t(($) => $.knowledge.restore)}
-        description={t(($) => $.knowledge.restoreHelp)}
+        description={`${t($ => $.knowledge[space === 'memory' ? 'memory' : 'knowledgeSpace'])} · ${t(($) => $.knowledge.restoreHelp)}`}
         onClose={() => setRestore(null)}
       >
         <Button onClick={() => setRestore(null)}>{t(($) => $.knowledge.cancel)}</Button>
@@ -447,9 +455,9 @@ export function KnowledgePage() {
               .flush()
               .then(async (okay) => {
                 if (!okay) return
-                const tree = await api.tree({})
+                const tree = await api.tree({ space })
                 if (!tree.ok) return
-                const result = await api.restore({ commit: restore.commit, expectedRevision: tree.value.revision })
+                const result = await api.restore({ space, commit: restore.commit, expectedRevision: tree.value.revision })
                 if (result.ok) {
                   setRestore(null)
                   setHistory(null)
@@ -463,6 +471,14 @@ export function KnowledgePage() {
           {t(($) => $.knowledge.confirm)}
         </Button>
       </Dialog>
+      <RemoteSyncDialog remote={consent} busy={busy} onCancel={() => setConsent(null)} onConfirm={() => {
+        if (!consent) return
+        setBusy(true)
+        void api.approveSync({ remote: consent }).then(async result => {
+          if (!result.ok) { k.setError(result.error); return }
+          setConsent(null); await synchronize()
+        }).finally(() => setBusy(false))
+      }} />
     </main>
   )
 }

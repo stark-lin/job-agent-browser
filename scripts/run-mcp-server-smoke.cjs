@@ -17,6 +17,10 @@ async function until(check, message) {
 }
 async function main() {
   const directory = mkdtempSync(join(tmpdir(), 'resume-mcp-smoke-')), entry = resolve(__dirname, '../out/main/job-agent-mcp.js')
+  const { SmartNoteWorkspace } = require('../.cache/tests/src/platform/knowledge/workspace.js')
+  const { defaultKnowledgePreferences } = require('../.cache/tests/src/shared/knowledge-settings.js')
+  const workspace = new SmartNoteWorkspace(directory, { preferences: () => defaultKnowledgePreferences })
+  await workspace.ready
   const backend = createBackend(join(directory, 'database.sqlite'))
   const dispatch = (group, method, input) => { const result = backend.dispatch(group, method, input); assert(result.ok, result.error); return result.value }
   const job = dispatch('jobs', 'saveJob', { details: { title: 'TypeScript Engineer', companyNameRaw: 'Offline Fixture', description: 'Build reliable TypeScript services and test them.' } })
@@ -100,6 +104,6 @@ async function main() {
     const missing = spawnSync(process.execPath, [entry], { env, encoding: 'utf8', timeout: 10000 })
     assert.equal(missing.status, 1); assert.equal(missing.stdout, ''); assert(missing.stderr.includes('MCP_DATA_REQUIRED'))
     console.log('Outbound MCP smoke passed: built Node stdio entry, shared SQLite across processes, immutable snapshot, full external workflow, real Electron HTML/PDF worker, PDF text/page validation, cancellation/rebuild, EOF/crash recovery and zero application model calls.')
-  } finally { await client.close().catch(() => {}); backend.close(); rmSync(directory, { recursive: true, force: true }) }
+  } finally { await client.close().catch(() => {}); backend.close(); await workspace.close(); rmSync(directory, { recursive: true, force: true }) }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1 })
