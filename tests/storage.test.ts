@@ -203,3 +203,22 @@ test('version-6 upgrade adds introduction and revision defaults without changing
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
   assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
 })
+
+test('version-9 Memory audit migration preserves every existing capability row, sequence and checksum', t => {
+  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path)
+  const transactions = new Transactions(connection)
+  migrate(connection, migrations.slice(0, 9)); transactions.protectAudit()
+  const audit = transactions.capabilities
+  const context = { invocationId: randomUUID(), agentId: 'legacy', tool: { name: 'knowledge.read', description: 'Read note', inputSchema: { type: 'object' }, source: { type: 'native' as const }, tags: ['knowledge'], mode: 'read' as const, risk: 'READ' as const }, target: { type: 'knowledge' as const, id: randomUUID() } }
+  audit.sink.start(context); audit.sink.finish(context, 1, null)
+  const rows = connection.prepare('SELECT * FROM capability_audit ORDER BY sequence').all()
+  const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
+  connection.close()
+  const next = openDatabase(path); resources.after(next.close)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM capability_audit ORDER BY sequence').all(), rows)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=9 ORDER BY version').all(), versions)
+  const memory = next.transactions.capabilities, updated = { ...context, invocationId: randomUUID(), tool: { ...context.tool, name: 'memory.read' }, target: { type: 'memory' as const, id: randomUUID() } }
+  memory.sink.start(updated); memory.sink.finish(updated, 1, null)
+  assert.equal(next.connection.prepare('SELECT max(sequence) seq FROM capability_audit').get()?.seq, 4)
+  assert.throws(() => next.connection.exec('DELETE FROM capability_audit'))
+})

@@ -1,7 +1,9 @@
+import { RemoteSyncDialog } from '../../app/knowledge/RemoteSyncDialog'
+import type { SpaceId } from '../../shared/smart-note'
 import { LocalModelSettings } from './LocalModelSettings'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput } from '../../shared/ui'
+import { Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput, Select } from '../../shared/ui'
 import { defaultKnowledgePreferences } from '../../shared/knowledge-settings'
 export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => void }) {
   const { t } = useTranslation(),
@@ -13,6 +15,8 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
     [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(''),
+    [consent, setConsent] = useState<string | null>(null),
+    [indexSpace, setIndexSpace] = useState<SpaceId>('knowledge'),
     [indexError, setIndexError] = useState<string | null>(null)
   useEffect(() => {
     let live = true
@@ -55,6 +59,13 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
     } finally {
       setBusy(false)
     }
+  }
+  const synchronize = async () => {
+    const status = await api.syncConsent({})
+    if (!status.ok) { setNotice(status.error); return }
+    if (status.value.required) { setConsent(status.value.remote); return }
+    const result = await api.sync({})
+    setNotice(result.ok ? result.value.error ?? result.value.state : result.error)
   }
   return (
     <SectionCard title={t(($) => $.knowledge.settingsTitle)} description={t(($) => $.knowledge.settingsHelp)}>
@@ -138,6 +149,12 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
         <StatusMessage>{t(($) => $.knowledge.semanticHelp)}</StatusMessage>
         <LocalModelSettings />
         {draft.semanticEnabled && indexError && <StatusMessage tone="error">{t(($) => $.knowledge.semanticUnavailable)}</StatusMessage>}
+        <FormField label={t($ => $.knowledge.indexSpace)}>
+          {props => <Select {...props} value={indexSpace} onChange={e => setIndexSpace(e.target.value as SpaceId)} disabled={!ready || busy}>
+            <option value="knowledge">{t($ => $.knowledge.knowledgeSpace)}</option>
+            <option value="memory">{t($ => $.knowledge.memory)}</option>
+          </Select>}
+        </FormField>
         <div className="settings-actions">
           <Button
             variant="primary"
@@ -161,8 +178,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
             disabled={!ready || busy}
             onClick={() =>
               void run(async () => {
-                const r = await api.sync({})
-                setNotice(r.ok ? r.value.state : r.error)
+                await synchronize()
               })
             }
           >
@@ -172,7 +188,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
             disabled={!ready || busy}
             onClick={() =>
               void run(async () => {
-                const r = await api.rebuild({})
+                const r = await api.rebuild({ space: indexSpace })
                 setNotice(r.ok ? 'rebuilt' : r.error)
               })
             }
@@ -184,9 +200,17 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
           <StatusMessage tone={['saved', 'synced', 'local', 'rebuilt'].includes(notice) ? 'success' : 'error'}>
             {['saved', 'synced', 'local', 'rebuilt', 'conflict', 'failed'].includes(notice)
               ? t(($) => $.knowledge[notice as 'saved' | 'synced' | 'local' | 'rebuilt' | 'conflict' | 'failed'])
-              : t(($) => $.knowledge.error) + ` (${notice})`}
+              : notice === 'SYNC_CONSENT_REQUIRED' ? t($ => $.knowledge.syncConsentRequired) : t(($) => $.knowledge.error) + ` (${notice})`}
           </StatusMessage>
         )}
+        <RemoteSyncDialog remote={consent} busy={busy} onCancel={() => setConsent(null)} onConfirm={() => {
+          if (!consent) return
+          void run(async () => {
+            const result = await api.approveSync({ remote: consent })
+            if (!result.ok) { setNotice(result.error); return }
+            setConsent(null); await synchronize()
+          })
+        }} />
       </div>
     </SectionCard>
   )

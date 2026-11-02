@@ -3,8 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { atomicWrite } from './paths'
-import type { KnowledgeIndex } from './rag'
-export async function startKnowledgeBroker(directory: string, index: KnowledgeIndex) {
+export async function startKnowledgeBroker(directory: string, vectors: { queryVector(query: string): Promise<{ identity: string; values: number[] } | undefined> }) {
   const token = randomBytes(32).toString('hex'),
     path = join(directory, 'knowledge-runtime', 'broker.json')
   let active = 0
@@ -44,7 +43,7 @@ export async function startKnowledgeBroker(directory: string, index: KnowledgeIn
         res.writeHead(400).end()
         return
       }
-      const vector = await index.queryVector(input.query)
+      const vector = await vectors.queryVector(input.query)
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(vector ?? null))
     } catch {
       res.writeHead(503).end()

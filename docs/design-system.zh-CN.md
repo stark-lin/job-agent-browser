@@ -167,3 +167,5 @@ npm run quality
 智能笔记在主页和导航中使用共享的 `notebook` [Glyph](../src/shared/ui/Glyph.tsx)，以笔记本搭配星芒。资源管理器分割线使用 `--border-width`（1px）和 `--line`，并保留不可见的 `--space-1`（8px）拖拽热区；键盘调整宽度和焦点样式仍然可用。
 
 知识库设置组合中央 Checkbox、DetailsList、Progress、Button、Dialog 和 StatusMessage，提供可选本地语义检索。安装状态、模型维度/存储、下载/修复/校验、进度/取消和删除独立于已保存的语义偏好。删除确认说明笔记/备份/索引保留且禁用自动 Seed 导入，默认聚焦取消。生成式 AI 配置保持独立。Token/几何不变；设置图库包含模型操作和共享进度示例。
+
+Memory v1 复用当前页面和编辑器：中央 `brain` 图标标识固定置顶且默认折叠的特殊根节点。[ExplorerRow](../src/shared/ui/KnowledgeControls.tsx)拥有选中/焦点/展开与键盘激活，页面 CSS 只负责布局。根节点禁用重命名/删除，内部目录在所属空间使用普通操作。选择前先 Flush，失败时保留原选择与草稿；同名 README 的编辑器/保存状态独立。搜索/历史跟随所选空间，恢复说明目标空间，同步说明整个仓库。首次或更换 Remote 的确认说明记忆及 Git 历史上传，默认聚焦取消，取消不影响本地使用。图库展示折叠根节点与说明，既有 Token、几何与主题不变。[Memory UI smoke](../scripts/memory-ui-smoke.cjs)检查延迟保存/搜索、Flush 失败、根节点保护及取消同步；完整辅助技术覆盖仍未验证。

@@ -3,6 +3,8 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { TestContext } from 'node:test'
 import { seed } from './helpers'
+import { SmartNoteWorkspace } from '../src/platform/knowledge/workspace'
+import { defaultKnowledgePreferences } from '../src/shared/knowledge-settings'
 import { createFirstPartyRuntime } from '../src/platform/mcp/first-party-client'
 // Include the real standalone runtime in the compiled test graph used by the child entry.
 import '../src/platform/mcp-server/runtime'
@@ -12,6 +14,10 @@ export async function firstPartyFixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'first-party-'))
   const cleanups: (() => void | Promise<void>)[] = []
   const f = await seed({ after: (cleanup: () => void) => { cleanups.push(cleanup) } }, join(directory, 'database.sqlite'))
+  const workspace = new SmartNoteWorkspace(directory, { preferences: () => defaultKnowledgePreferences })
+  await workspace.ready
+  cleanups.push(() => workspace.close())
+  const authorityPath = resolve(__dirname, '../src/platform/mcp/memory-authority.js')
   const runtimePath = resolve(__dirname, '../src/platform/mcp-server/runtime.js')
   const compilerPath = resolve(__dirname, '../src/platform/resume-output/compiler.js')
   writeFileSync(join(directory, 'job-agent-mcp.js'), `
@@ -30,7 +36,11 @@ const renderer = async document => {
   while (existsSync(marker('hang-output')) && !existsSync(marker('release-output'))) await new Promise(resolve => setTimeout(resolve, 10));
   return { html: compileHTML(document, { id: 'default-v1', fontVersion: 'noto-sc-v1', fontBase64: 'AAAA' }), pdf: Buffer.from('fixture PDF'), pages: 1 };
 };
-const runtime = createServerRuntime(directory, __dirname, renderer, process.env.JOB_BROWSER_MCP_CALLER);
+const { redeemMemoryLaunch } = require(${JSON.stringify(authorityPath)});
+void (async () => {
+const authorized = await redeemMemoryLaunch(process.env.JOB_BROWSER_MEMORY_LAUNCH, directory);
+const runtime = createServerRuntime(directory, __dirname, renderer, process.env.JOB_BROWSER_MCP_CALLER, authorized);
+await runtime.ready;
 const sink = runtime.backend.toolAudit.sink;
 const start = sink.start.bind(sink), finish = sink.finish.bind(sink);
 sink.start = context => { if (existsSync(marker('fail-audit-start'))) throw new Error('fixture'); return start(context) };
@@ -38,12 +48,14 @@ sink.finish = (...args) => { if (existsSync(marker('fail-audit-finish'))) throw 
 let closing;
 const close = () => closing ??= runtime.dispose();
 runtime.server.onclose = () => { void close() };
+authorized?.signal.addEventListener('abort', () => { void close() }, { once: true });
 process.once('SIGTERM', () => { void close() });
-void runtime.server.connect(new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 2097152 }));
+await runtime.server.connect(new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 2097152 }));
+})().catch(() => { process.exitCode = 1 });
 `)
   const mcp = createFirstPartyRuntime(directory, directory)
   t.after(async () => { await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
-  return { ...f, directory, mcp, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
+  return { ...f, directory, mcp, workspace, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
     flag(name: string, on = true) { if (on) writeFileSync(join(directory, name), '1'); else rmSync(join(directory, name), { force: true }) },
     has: (name: string) => existsSync(join(directory, name)),
     outputs: () => existsSync(join(directory, 'output-count')) ? Number(readFileSync(join(directory, 'output-count'), 'utf8')) : 0 }

@@ -15,9 +15,9 @@ export const jobAgentAllowlist = ['knowledge.list','knowledge.read','knowledge.s
   'resume.publish', 'resume.fail', 'resume.cancel', 'artifact.get', 'artifact.build'] as const
 
 /** The sole public registry composition. ToolScope stays inside the Server boundary. */
-export function createJobAgentTooling(backend: ReturnType<typeof composeBackend>, build: (id: string, signal: AbortSignal) => Promise<unknown>, knowledge?: KnowledgeService) {
+export function createJobAgentTooling(backend: ReturnType<typeof composeBackend>, build: (id: string, signal: AbortSignal) => Promise<unknown>, knowledge?: KnowledgeService, memory?: KnowledgeService) {
   const registry = createToolRegistry()
-  const tools = [...createKnowledgeTools(backend.capabilities, knowledge), ...backend.toolCapabilities.read, backend.toolCapabilities.write.setArchived,
+  const tools = [...(memory ? createKnowledgeTools(backend.capabilities, memory, 'memory') : []), ...createKnowledgeTools(backend.capabilities, knowledge), ...backend.toolCapabilities.read, backend.toolCapabilities.write.setArchived,
     ...createJobTools(backend), ...createProfileTools(backend), ...createApplicationTools(backend), ...createResumeTools(backend, build)]
   for (const tool of tools) registry.register(tool)
   return { registry, tools, dispose() { registry.dispose() } }

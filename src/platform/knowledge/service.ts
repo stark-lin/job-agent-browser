@@ -8,7 +8,12 @@ import { KnowledgeError } from '../../domain/knowledge'
 import type { KnowledgePreferences } from '../../shared/knowledge-settings'
 import type { KnowledgeMethods } from '../electron/knowledge-contract'
 import type { Result } from '../../shared/ipc'
+import type { SpaceId } from '../../shared/smart-note'
+import type { WorkspaceStorage } from './workspace-storage'
 export interface KnowledgeDependencies {
+  storage?: WorkspaceStorage
+  space?: SpaceId
+  consent?(remote: string): boolean
   preferences(): KnowledgePreferences
   configure?(value: unknown): KnowledgePreferences
   token?(): string | null
@@ -35,8 +40,8 @@ export class KnowledgeService {
     readonly directory: string,
     readonly deps: KnowledgeDependencies
   ) {
-    this.files = new KnowledgeFiles(directory)
-    this.backup = new KnowledgeBackup(this.files, deps.preferences, deps.token)
+    this.files = new KnowledgeFiles(directory, deps.space ?? 'knowledge', deps.storage)
+    this.backup = new KnowledgeBackup(this.files, deps.preferences, deps.token, undefined, deps.consent)
     this.index = new KnowledgeIndex(this.files, deps.embeddings)
     this.stopModelProgress = deps.models?.onProgress(() => { for (const listener of this.listeners) listener() })
     this.ready = this.initialize()
@@ -44,8 +49,10 @@ export class KnowledgeService {
   }
   private async initialize() {
     await this.files.initialize()
-    await this.backup.recover()
-    await this.backup.backup('Initial backup').catch(() => {})
+    if (!this.deps.storage) {
+      await this.backup.recover()
+      await this.backup.backup('Initial backup').catch(() => {})
+    }
     if (this.deps.watch) {
       const { watch } = await import('chokidar')
       if (this.stopped) return
@@ -72,17 +79,17 @@ export class KnowledgeService {
       this.listeners.delete(callback)
     }
   }
-  private changed() {
+  changed() {
     if (this.stopped) return
     clearTimeout(this.refreshTimer)
     this.refreshTimer = setTimeout(() => {
       for (const listener of this.listeners) listener()
       this.scheduleIndex()
     }, 150)
-    clearTimeout(this.backupTimer)
-    this.backupTimer = setTimeout(() => {
-      void this.backup.backup().catch(() => {})
-    }, 30000)
+    if (!this.deps.storage) {
+      clearTimeout(this.backupTimer)
+      this.backupTimer = setTimeout(() => { void this.backup.backup().catch(() => {}) }, 30000)
+    }
   }
   refreshEmbeddings() {
     if (this.index.error === 'SEMANTIC_UNAVAILABLE') this.index.error = null
@@ -127,6 +134,7 @@ export class KnowledgeService {
       const v = input as unknown as Record<string, unknown>
       if (!v || typeof v !== 'object' || Array.isArray(v)) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
       const keys: Record<keyof KnowledgeMethods, string[]> = {
+        syncConsent: [], approveSync: ['remote'],
         modelStatus: [], modelInstall: ['source'], modelCancel: [], modelVerify: [], modelRemove: [],
         tree: [],
         read: ['path'],
@@ -224,7 +232,7 @@ export class KnowledgeService {
           value = await this.backup.sync()
           break
         case 'rebuild':
-          this.deps.embeddings?.cancel?.()
+          if (!this.deps.storage) this.deps.embeddings?.cancel?.()
           await this.embeddingWork
           value = await this.index.rebuild()
           this.scheduleIndex()
@@ -278,7 +286,7 @@ export class KnowledgeService {
     this.stopped = true
     this.stopModelProgress?.()
     this.backup.abort.abort()
-    this.deps.embeddings?.cancel?.()
+    if (!this.deps.storage) this.deps.embeddings?.cancel?.()
     clearTimeout(this.refreshTimer)
     clearTimeout(this.backupTimer)
     clearInterval(this.reconcileTimer)
@@ -286,8 +294,10 @@ export class KnowledgeService {
     await this.watcher?.close()
     this.index.abort.abort()
     await this.embeddingWork
-    await this.deps.embeddings?.dispose?.()
-    await this.backup.backup('App exit backup').catch(() => {})
+    if (!this.deps.storage) {
+      await this.deps.embeddings?.dispose?.()
+      await this.backup.backup('App exit backup').catch(() => {})
+    }
     await this.index.close()
     this.listeners.clear()
   }

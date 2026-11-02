@@ -163,7 +163,7 @@ Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbo
 
 ## 智能笔记知识库
 
-[Knowledge Domain](../src/domain/knowledge/index.ts)负责类型与纯验证，[Platform knowledge](../src/platform/knowledge/service.ts)负责文件/Git/SQLite/网络适配器；[pages/knowledge](../src/pages/knowledge/KnowledgePage.tsx)只调用类型化 bridge。Agent 不导入该服务，所有知识操作均经过 MCP。
+[Knowledge Domain](../src/domain/knowledge/index.ts)负责纯文件合同和验证；[共享标识](../src/shared/smart-note.ts)定义不含存储细节的 SpaceId 与 NoteSelection。[SmartNoteWorkspace](../src/platform/knowledge/workspace.ts)拥有共享存储/Git/模型生命周期，参数化 [KnowledgeService](../src/platform/knowledge/service.ts)及文件/索引适配器保持固定空间视图。[迁移](../src/platform/knowledge/workspace-storage.ts)由 Main 拥有。[pages/knowledge](../src/pages/knowledge/KnowledgePage.tsx)组合中央 Explorer/编辑器组件，只调用类型化 IPC。Agent 使用 AgentTools，不导入 Store、Workspace、Domain Service 或 ToolScope，全部业务持久化经过 MCP。只有 [MCP 组合根](../src/platform/mcp-server/runtime.ts)注册已认证的 Memory 能力；[启动授权](../src/platform/mcp/memory-authority.ts)位于 Agent 之外。
 
 [Embedding 合同](../src/platform/knowledge/rag/embedding.ts)与调度器独立于 Electron；[model-path](../src/platform/knowledge/rag/model-path.ts)绑定 Electron utility transport。推理入口仅持有模型/tokenizer/runtime。[构建配置](../electron.vite.config.ts)在 Main/MCP/output worker 旁生成 embedding-process.js；打包保留外置原生依赖。分发运维归属 [CI/CD](ci-cd.zh-CN.md)。
 

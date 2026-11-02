@@ -48,7 +48,7 @@ jab --version
 jab doctor
 ```
 
-MCP requires an explicit **absolute** data directory through `--data-dir` or `JOB_BROWSER_USER_DATA`; use the same directory as the desktop app to access its data. With a global installation, Settings → Connect external Agents → Add MCP configures absolute Node and CLI paths; install Skills separately. Temporary `npx` installations cannot install permanent MCP connections. Resume PDF output uses Electron and may initialize its runtime on first use. See the [MCP connection guide](https://github.com/stark-lin/job-agent-browser/blob/main/docs/mcp-architecture.md#5-job-agent-browser-mcp).
+MCP requires an explicit **absolute** data directory through `--data-dir` or `JOB_BROWSER_USER_DATA`; use the same directory as the desktop app to access its data. Start JAB first to initialize or migrate Smart Note; unfinished recovery requires the desktop app. External MCP exposes Knowledge, while Memory is reserved for authenticated Ask AI sessions. With a global installation, Settings → Connect external Agents → Add MCP configures absolute Node and CLI paths; install Skills separately. Temporary `npx` installations cannot install permanent MCP connections. Resume PDF output uses Electron and may initialize its runtime on first use. See the [MCP connection guide](https://github.com/stark-lin/job-agent-browser/blob/main/docs/mcp-architecture.md#5-job-agent-browser-mcp).
 
 ## Updating
 

@@ -50,7 +50,7 @@ export class KnowledgeIndex {
     private embedding?: EmbeddingProvider
   ) {}
   private connection() {
-    const physical = join(this.files.directory, 'knowledge-index.sqlite')
+    const physical = join(this.files.directory, `${this.files.space}-index.sqlite`)
     for (const suffix of ['', '-wal', '-shm'])
       if (existsSync(physical + suffix) && lstatSync(physical + suffix).isSymbolicLink())
         throw new Error('INDEX_UNSAFE_PATH')
@@ -60,7 +60,7 @@ export class KnowledgeIndex {
       this.db = undefined
     }
     if (!this.db) {
-      const db = new DatabaseSync(join(this.files.directory, 'knowledge-index.sqlite'))
+      const db = new DatabaseSync(join(this.files.directory, `${this.files.space}-index.sqlite`))
       try {
         db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;')
         const version = Number(db.prepare('PRAGMA user_version').get()?.user_version ?? 0)
@@ -88,7 +88,7 @@ export class KnowledgeIndex {
     if (this.abort.signal.aborted) return
     await this.files.initialize()
     const db = this.connection()
-    const release = await lockfile.lock(join(this.files.directory, 'knowledge-index.sqlite'), {
+    const release = await lockfile.lock(join(this.files.directory, `${this.files.space}-index.sqlite`), {
       stale: 30000,
       update: 5000,
       retries: { retries: 20, minTimeout: 50, maxTimeout: 200 }
@@ -349,7 +349,7 @@ export class KnowledgeIndex {
   }
   async rebuild() {
     await this.queue
-    const path = join(this.files.directory, 'knowledge-index.sqlite')
+    const path = join(this.files.directory, `${this.files.space}-index.sqlite`)
     const release = await lockfile.lock(path, {
       realpath: false,
       stale: 30000,

@@ -46,7 +46,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
       task.done = new Promise(resolve => setImmediate(() => {
         void (async () => {
           recorder.started()
-          const tools = await deps.mcp.session('ask-ai', controller.signal)
+          const tools = await deps.mcp.session('ask-ai', controller.signal, result.sessionId)
           const signal = AbortSignal.any([controller.signal, tools.signal])
           const user = snapshot.items[0]
           const history = deps.chats.history(result.sessionId, user.sequence, 262144 - Buffer.byteLength(args.message.trim()) - 2048)

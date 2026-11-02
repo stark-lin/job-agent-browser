@@ -10,18 +10,28 @@ import {
   type KnowledgeFile
 } from '../../domain/knowledge'
 import { atomicWrite, ensureKnowledge, safePath, hash } from './paths'
+import type { SpaceId } from '../../shared/smart-note'
+import type { WorkspaceStorage } from './workspace-storage'
 export class KnowledgeFiles {
   readonly root: string
-  constructor(readonly directory: string) {
-    this.root = join(directory, 'knowledge')
+  constructor(readonly directory: string, readonly space: SpaceId | 'workspace' = 'knowledge', readonly storage?: WorkspaceStorage) {
+    this.root = storage ? (space === 'workspace' ? storage.root : join(storage.root, space)) : join(directory, 'knowledge')
   }
   async initialize() {
-    await ensureKnowledge(this.directory)
+    if (this.storage) { await this.storage.ready; await this.physical( '', true) }
+    else await ensureKnowledge(this.directory)
+  }
+  private async physical(input: string, allowRoot = false) {
+    if (this.storage) {
+      await this.storage.ready
+      await safePath(this.storage.root, this.space === 'workspace' ? '' : this.space, this.space === 'workspace')
+    }
+    return safePath(this.root, input, allowRoot)
   }
   async locked<T>(operation: () => Promise<T>, recovery = false): Promise<T> {
     await this.initialize()
     const release = await lockfile
-      .lock(this.root, {
+      .lock(this.storage?.lock ?? this.root, {
         realpath: false,
         stale: 30000,
         update: 5000,
@@ -33,7 +43,7 @@ export class KnowledgeFiles {
     try {
       if (!recovery) {
         try {
-          await stat(join(this.directory, 'knowledge-runtime', 'restore.json'))
+          await stat(join(this.storage?.runtime ?? join(this.directory, 'knowledge-runtime'), 'restore.json'))
           throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
@@ -46,7 +56,7 @@ export class KnowledgeFiles {
   }
   async read(input: string): Promise<KnowledgeFile> {
     const path = markdownPath(input),
-      physical = await safePath(this.root, path)
+      physical = await this.physical( path)
     try {
       const info = await lstat(physical)
       if (!info.isFile()) throw new KnowledgeError('KNOWLEDGE_UNSUPPORTED_FILE')
@@ -70,7 +80,7 @@ export class KnowledgeFiles {
     let count = 0
     const walk = async (path: string, depth: number): Promise<KnowledgeNode> => {
       if (++count > 10000 || depth > 32) throw new KnowledgeError('KNOWLEDGE_TOO_LARGE')
-      const physical = await safePath(this.root, path, true),
+      const physical = await this.physical( path, true),
         info = await lstat(physical)
       if (info.isFile()) {
         const f = await this.read(path)
@@ -105,7 +115,7 @@ export class KnowledgeFiles {
     revision(expected)
     let actual: string | null = null
     try {
-      const info = await lstat(await safePath(this.root, path))
+      const info = await lstat(await this.physical( path))
       actual = info.isDirectory() ? (await this.node(path)).revision : (await this.read(path)).revision
     } catch (e) {
       if (
@@ -130,19 +140,19 @@ export class KnowledgeFiles {
     return this.locked(async () => {
       signal?.throwIfAborted()
       await this.check(path, expectedRevision)
-      const target = await safePath(this.root, path)
+      const target = await this.physical( path)
       // Parents must exist; creating a note must not implicitly create a hierarchy.
       if (!(await lstat(dirname(target))).isDirectory()) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
       await this.check(path, expectedRevision)
       signal?.throwIfAborted()
-      await atomicWrite(await safePath(this.root, path), content)
+      await atomicWrite(await this.physical( path), content)
       return { path, content, revision: hash(content) }
     })
   }
   async mkdir(path: string, signal?: AbortSignal) {
     return this.locked(async () => {
       signal?.throwIfAborted()
-      const target = await safePath(this.root, path)
+      const target = await this.physical( path)
       try {
         await mkdir(target)
       } catch (e) {
@@ -155,8 +165,8 @@ export class KnowledgeFiles {
   async move(source: string, target: string, expectedRevision: string, signal?: AbortSignal) {
     return this.locked(async () => {
       signal?.throwIfAborted()
-      const from = await safePath(this.root, source),
-        to = await safePath(this.root, target)
+      const from = await this.physical( source),
+        to = await this.physical( target)
       if (target === source || target.startsWith(source + '/')) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
       await this.check(source, expectedRevision)
       if ((await lstat(from)).isFile()) markdownPath(target)
@@ -173,7 +183,7 @@ export class KnowledgeFiles {
     })
   }
   async assertManaged(path: string) {
-    const physical = await safePath(this.root, path),
+    const physical = await this.physical( path),
       info = await lstat(physical)
     if (info.isFile()) {
       markdownPath(path)
@@ -185,7 +195,7 @@ export class KnowledgeFiles {
   async delete(path: string, expectedRevision: string, recursive: boolean, signal?: AbortSignal) {
     return this.locked(async () => {
       signal?.throwIfAborted()
-      const target = await safePath(this.root, path)
+      const target = await this.physical( path)
       await this.check(path, expectedRevision)
       await this.assertManaged(path)
       if ((await lstat(target)).isDirectory() && !recursive) throw new KnowledgeError('KNOWLEDGE_CONFLICT')

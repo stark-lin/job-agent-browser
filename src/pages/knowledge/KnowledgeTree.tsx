@@ -4,15 +4,19 @@ import type { KnowledgeNode } from '../../domain/knowledge'
 export function KnowledgeTree({
   tree,
   selected,
+  memory = false,
+  label,
   onSelect,
   onAction
 }: {
   tree: KnowledgeNode
+  memory?: boolean
+  label: string
   selected: string
-  onSelect: (node: KnowledgeNode) => void
+  onSelect: (node: KnowledgeNode) => Promise<boolean>
   onAction: (kind: 'rename' | 'delete' | 'menu', node: KnowledgeNode) => void
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['']))
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(memory ? [] : ['']))
   const render = (node: KnowledgeNode, depth: number) => {
     const isOpen = expanded.has(node.path)
     const expand = (open: boolean) =>
@@ -25,15 +29,15 @@ export function KnowledgeTree({
     return (
       <div key={node.path}>
         <ExplorerRow
-          name={node.name}
+          name={node.path ? node.name : label}
+          specialRoot={memory && !node.path}
           depth={depth}
           selected={selected === node.path}
           directory={node.type === 'directory'}
           expanded={isOpen}
-          onToggle={() => expand(!isOpen)}
+          onToggle={() => { void onSelect(node).then(okay => { if (okay) expand(!isOpen) }) }}
           onClick={() => {
-            if (node.type === 'directory') expand(true)
-            onSelect(node)
+            void onSelect(node).then(okay => { if (okay && node.type === 'directory') expand(memory && !node.path ? !isOpen : true) })
           }}
           onContextMenu={(e) => {
             e.preventDefault()
@@ -62,7 +66,7 @@ export function KnowledgeTree({
             }
             if (e.key === ' ' && node.type === 'directory') {
               e.preventDefault()
-              expand(!isOpen)
+              void onSelect(node).then(okay => { if (okay) expand(!isOpen) })
             }
           }}
         />
@@ -71,7 +75,7 @@ export function KnowledgeTree({
     )
   }
   return (
-    <div role="tree" aria-label="Knowledge">
+    <div role="tree" aria-label={label}>
       {render(tree, 0)}
     </div>
   )

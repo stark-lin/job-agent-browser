@@ -230,6 +230,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Knowledge controls share the central tokens and focus behavior. */
 .ui-explorer { flex-shrink:0; min-width:192px; max-width:480px; overflow:auto; background:var(--panel-solid); }
 .ui-explorer-row { display:flex; align-items:center; min-height:var(--control-sm); cursor:pointer; width:100%; justify-content:flex-start; gap:var(--space-1); text-align:left; white-space:nowrap; }
+.ui-explorer-row--special { font-weight:var(--weight-semibold); }
 .ui-explorer-row[aria-selected="true"] { background:var(--primary-soft); color:var(--primary); }
 .ui-resizer { position:relative; width:var(--border-width); flex-shrink:0; cursor:col-resize; background:var(--line); touch-action:none; z-index:1; }
 .ui-resizer::after { content:""; position:absolute; top:0; bottom:0; left:50%; width:var(--space-1); transform:translateX(-50%); }

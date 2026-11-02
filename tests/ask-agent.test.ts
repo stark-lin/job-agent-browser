@@ -21,7 +21,7 @@ test('Ask AI streams read/write tools over real first-party MCP, stores only sum
     batch({ id: 'status', name: 'application.set_status', arguments: { jobId: f.job.id, status: 'APPLIED' } }), answer('Done')]
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
     assert.deepEqual(input.tools, await (await f.mcp.session('ask-ai', new AbortController().signal)).list())
-    assert.deepEqual(input.tools.map(tool => tool.name).sort(), [...jobAgentAllowlist].sort())
+    assert.deepEqual(input.tools.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'memory.list', 'memory.recall', 'memory.read', 'memory.write', 'memory.mkdir'].sort())
     yield* batches.shift()!
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
@@ -188,7 +188,7 @@ test('Ask AI reads and writes shared Markdown through real MCP and records only 
   const tasks=createAskAgentTasks({chats:f.backend.chats,mcp:f.mcp,model:()=>model});t.after(()=>tasks.dispose())
   const ids=tasks.start(1,start('Save my interview preparation'),()=>{}),snapshot=await wait(tasks,ids.runId)
   assert.equal(snapshot.run.state,'completed',snapshot.run.error??'');assert(snapshot.run.writeStarted)
-  const {readFileSync}=await import('node:fs');const {join}=await import('node:path');assert.equal(readFileSync(join(f.directory,'knowledge','interview','notes.md'),'utf8'),'PRIVATE_KNOWLEDGE_BODY final pricing')
+  const {readFileSync}=await import('node:fs');const {join}=await import('node:path');assert.equal(readFileSync(join(f.directory,'smart-note','knowledge','interview','notes.md'),'utf8'),'PRIVATE_KNOWLEDGE_BODY final pricing')
   const text=JSON.stringify(snapshot);assert(!text.includes('PRIVATE_KNOWLEDGE_BODY'));assert(snapshot.items.filter(item=>item.content.type==='tool_call').every(item=>item.content.type==='tool_call'&&['knowledgeRead','knowledgeWrite'].includes(item.content.display.key)))
   assert(!JSON.stringify(f.backend.toolAudit.list()).includes('interview/notes.md'))
 })

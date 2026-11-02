@@ -1,3 +1,5 @@
+import { createMemoryAuthority } from './memory-authority'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { abortable, type AgentTools, type AgentToolDescriptor } from '../../shared/agent'
 import { ToolError, toolErrorCodes, toolFail } from '../../shared/tools/errors'
@@ -38,39 +40,43 @@ export class MCPAgentTools implements AgentTools {
 
 /** One stable server session per workflow; a lost session is never used for run takeover. */
 export function createFirstPartyRuntime(directory: string, bundleDirectory: string) {
-  const sessions = new Map<FirstPartyAgent, Promise<MCPAgentTools>>()
+  const authority = createMemoryAuthority(directory)
+  const sessions = new Map<string, Promise<MCPAgentTools>>()
   const clients = new Set<MCPClient>(), lifecycle = new AbortController()
   let disposed = false
   return {
-    async session(agent: FirstPartyAgent, signal: AbortSignal): Promise<MCPAgentTools> {
+    async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default'): Promise<MCPAgentTools> {
       if (disposed) toolFail('TOOL_UNAVAILABLE')
       signal.throwIfAborted()
-      let pending = sessions.get(agent)
+      const sessionKey = agent === 'ask-ai' ? `${agent}:${sessionId}` : agent
+      let pending = sessions.get(sessionKey)
       if (!pending) {
-        const closed = new AbortController()
-        let client: MCPClient
-        client = createMCPClient({ id: `internal-${agent}`, enabled: true, transport: 'stdio', command: process.execPath,
-          args: [join(bundleDirectory, 'job-agent-mcp.js')], tools: [] }, {
-          closed() { closed.abort(new ToolError('TOOL_UNAVAILABLE')); clients.delete(client); if (sessions.get(agent) === pending) sessions.delete(agent) },
-          changed() { closed.abort(new ToolError('MCP_INVALID_RESPONSE')); void client.close() }
-        }, { processEnv: { ...(process.versions.electron ? { JOB_BROWSER_ELECTRON: process.execPath } : {}), JOB_BROWSER_USER_DATA: directory, JOB_BROWSER_MCP_CALLER: `internal.${agent}`, ELECTRON_RUN_AS_NODE: '1' } })
-        clients.add(client)
         pending = (async () => {
+          const closed = new AbortController()
+          const launch = agent === 'ask-ai' ? await authority.issue(`${sessionId}:${randomUUID()}`) : undefined
+          if (disposed) toolFail('TOOL_UNAVAILABLE')
+          let client: MCPClient
+          client = createMCPClient({ id: `internal-${agent}`, enabled: true, transport: 'stdio', command: process.execPath,
+            args: [join(bundleDirectory, 'job-agent-mcp.js')], tools: [] }, {
+            closed() { closed.abort(new ToolError('TOOL_UNAVAILABLE')); clients.delete(client); if (sessions.get(sessionKey) === pending) sessions.delete(sessionKey) },
+            changed() { closed.abort(new ToolError('MCP_INVALID_RESPONSE')); void client.close() }
+          }, { processEnv: { ...(process.versions.electron ? { JOB_BROWSER_ELECTRON: process.execPath } : {}), JOB_BROWSER_USER_DATA: directory, JOB_BROWSER_MCP_CALLER: `internal.${agent}`, ...(launch ? { JOB_BROWSER_MEMORY_LAUNCH: launch } : {}), ELECTRON_RUN_AS_NODE: '1' } })
+          clients.add(client)
           try {
             await client.connect(lifecycle.signal)
             const descriptors = await client.listTools(lifecycle.signal)
             if (new Set(descriptors.map(tool => tool.name)).size !== descriptors.length) toolFail('MCP_INVALID_RESPONSE')
             return new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal]))
-          } catch (error) { await client.close(); if (sessions.get(agent) === pending) sessions.delete(agent); throw error }
+          } catch (error) { await client.close(); if (sessions.get(sessionKey) === pending) sessions.delete(sessionKey); throw error }
         })()
-        sessions.set(agent, pending)
+        sessions.set(sessionKey, pending)
       }
       return abortable(pending, signal)
     },
     async dispose() {
       disposed = true; lifecycle.abort()
       await Promise.allSettled([...clients].map(client => client.close()))
-      await Promise.allSettled(sessions.values()); sessions.clear()
+      await Promise.allSettled(sessions.values()); sessions.clear(); await authority.close()
     }
   }
 }
