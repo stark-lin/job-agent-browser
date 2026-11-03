@@ -99,6 +99,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
       await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'editor closed')
       await button('Add fact', section('Manual experience')); await field('Fact', content, 'document.querySelector("dialog[open]")')
       await field('Tags (comma separated)', 'SQL, ', 'document.querySelector("dialog[open]")')
+      assert.equal(await evaluate('document.querySelector("dialog[open]").innerText.includes("Source excerpt and page")'), false)
       assert.equal(await evaluate(`(() => { const label = [...document.querySelectorAll('dialog[open] .ui-field-label')].find(label => label.textContent === 'Tags (comma separated)'); return document.getElementById(label.htmlFor).value })()`), 'SQL, ')
       await field('Tags (comma separated)', 'SQL, TypeScript', 'document.querySelector("dialog[open]")')
       await button('Save', 'document.querySelector("dialog[open]")')
@@ -131,7 +132,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal(imported.startDate, null); assert.equal(imported.metadata.startDateText, '2021')
     facts = (await data('listFacts', { profileId: profile.id })).value.items
     assert.equal(facts.filter(fact => fact.profileItemId === imported.id).length, 2)
-    assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => fact.evidence === ''))
+    assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => !('evidence' in fact)))
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]") && document.body.innerText.includes("Upload PDF and parse")'), 'import draft discarded')
     // A second upload deliberately permits the same material to be added again.

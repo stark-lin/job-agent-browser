@@ -1,5 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { DatabaseSync } from 'node:sqlite'
+import { migrate, migrations } from '../src/platform/database/migrations'
+import { createRuntimeLease } from '../src/platform/database/runtime-leases'
+import { chatRepository } from '../src/platform/database/repositories/chats'
 import { randomUUID } from 'node:crypto'
 import { openDatabase } from '../src/platform/database/sqlite'
 import { composeBackend } from '../src/platform/database/backend'
@@ -48,4 +52,37 @@ test('recovery interrupts only abandoned owners, preserves checkpoint text and m
   assert.equal(snapshot.run.state, 'interrupted')
   assert.deepEqual(snapshot.items.map(i => i.state), ['completed', 'interrupted', 'uncertain'])
   assert.equal(snapshot.items[1].content.type !== 'tool_call' && snapshot.items[1].content.text, 'checkpoint')
+})
+
+test('V13 preserves all legacy Memory phases and history, clears lifecycle flags and never restores their barrier', t => {
+  const db = new DatabaseSync(':memory:')
+  migrate(db, migrations.slice(0, 12))
+  const lease = createRuntimeLease(db, 'internal'), repo = chatRepository(db, lease)
+  t.after(() => { lease.close(); db.close() })
+  const phases = ['pending', 'extracting', 'consolidating', 'committing', 'committed', 'no_change', 'failed']
+  const runs = phases.map((phase, index) => {
+    const ids = repo.start(start()), snapshot = repo.snapshot(ids.runId), user = snapshot.items[0]
+    snapshot.items.push(repo.append(ids.runId, { type: 'assistant_message', text: 'Preserved answer' }, 'completed'))
+    snapshot.run.state = 'completed'; snapshot.run.finishedAt = new Date().toISOString(); repo.finish(snapshot)
+    const value = JSON.stringify({ phase, writes: [{ path: 'legacy.md', content: 'Never replay', expectedRevision: null }], nextWrite: 0 })
+    db.prepare('INSERT INTO chat_memory_progress VALUES(?,?,?,?)').run(user.id, ids.sessionId, user.sequence, value)
+    db.prepare('UPDATE chat_runs SET runtime_status=?,event_sequence=7 WHERE id=?').run(index % 2 ? 'memory.failed' : 'memory.updating', ids.runId)
+    return ids
+  })
+  const interrupted = repo.start(start())
+  const rows = db.prepare('SELECT * FROM chat_memory_progress ORDER BY message_id').all()
+  const versions = db.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
+  migrate(db)
+  assert.deepEqual(db.prepare('SELECT * FROM chat_memory_progress ORDER BY message_id').all(), rows)
+  assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=12 ORDER BY version').all(), versions)
+  for (const ids of runs) {
+    const run = repo.getRun(ids.runId)
+    assert.equal(run.state, 'completed'); assert.equal(run.runtimeStatus, 'idle'); assert.equal(run.eventSequence, 8)
+    assert.equal(repo.snapshot(ids.runId).items.at(-1)?.state, 'completed')
+    assert(repo.start(start(ids.sessionId)).runId)
+  }
+  db.prepare('UPDATE runtime_instances SET expires_at=0 WHERE id=?').run(lease.id)
+  repo.recover()
+  assert.equal(repo.getRun(interrupted.runId).state, 'interrupted')
+  assert.equal(repo.getRun(interrupted.runId).runtimeStatus, 'idle')
 })

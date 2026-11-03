@@ -1,7 +1,8 @@
 import type { AgentRunEvent, ChatItem, ChatSnapshot } from '../../domain/chat/chat.types'
 import type { ChatRecorder } from '../database/repositories/chats'
-import type { StreamLoopEvent } from '../agent/stream-loop'
+import type { AgentRuntimeEvent } from '../../shared/agent'
 import { isAskWrite, presentTool } from '../agent/tool-presentation'
+import { redactTranscript } from './transcript-redaction'
 
 /** Only trusted runtime events reach storage. Renderer cannot fabricate timeline output. */
 export function createAskRecorder(repo: ChatRecorder, snapshot: ChatSnapshot, send: (event: AgentRunEvent) => void, onFailure: (error: unknown) => void) {
@@ -22,11 +23,19 @@ export function createAskRecorder(repo: ChatRecorder, snapshot: ChatSnapshot, se
   return {
     snapshot,
     started() { emit({ type: 'run.started', run: structuredClone(snapshot.run) } as AgentRunEvent); flush() },
-    receive(event: StreamLoopEvent) {
+    receive(event: AgentRuntimeEvent) {
+      if (event.type === 'model.request.prepared') { repo.saveModelRequest(snapshot.run.id, event.request); return }
+      if (event.type === 'model.request.activation') { repo.saveActivationDiagnostic(snapshot.run.id, event.activation); return }
+      if (event.type === 'model.completed') {
+        repo.saveProviderResponse(snapshot.run.id, { ...event.response,
+          toolCalls: event.response.toolCalls.map(call => ({ ...call, arguments: redactTranscript(call.arguments) })) }, snapshot.items.at(-1)?.sequence ?? 0)
+        return
+      }
       if (event.type === 'segment.started' || event.type === 'tool.started') {
         const tool = event.type === 'tool.started'
         if (tool && isAskWrite(event.call.name)) { snapshot.run.writeStarted = true; flush() }
-        const item = repo.append(snapshot.run.id, tool ? { type: 'tool_call', toolName: event.call.name, display: presentTool(event.call.name) } : { type: event.kind, text: '' }, tool ? 'running' : 'streaming')
+        const item = repo.append(snapshot.run.id, tool ? { type: 'tool_call', toolName: event.call.name, callId: event.call.id,
+          arguments: redactTranscript(event.call.arguments), display: presentTool(event.call.name) } : { type: event.kind, text: '', ...(event.reasoning ? { reasoning: event.reasoning } : {}) }, tool ? 'running' : 'streaming')
         mapping.set(event.id, item); snapshot.items.push(item); itemEvent('item.started', item)
         return
       }
@@ -40,10 +49,10 @@ export function createAskRecorder(repo: ChatRecorder, snapshot: ChatSnapshot, se
         if (Date.now() - checkpointAt >= 1000) flush()
       } else {
         item.state = 'completed'
-        if (event.type === 'tool.completed') item.content = { type: 'tool_call', toolName: event.name, display: presentTool(event.name, event.result), durationMs: event.durationMs }
+        if (event.type === 'tool.completed' && item.content.type === 'tool_call') item.content = { ...item.content, display: presentTool(event.name, event.result), result: redactTranscript(event.result), guard: event.guard, durationMs: event.durationMs }
         if (event.type === 'tool.failed') {
           item.state = event.uncertain && isAskWrite(event.name) ? 'uncertain' : 'failed'
-          item.content = { type: 'tool_call', toolName: event.name, display: presentTool(event.name), error: event.error, durationMs: event.durationMs }
+          if (item.content.type === 'tool_call') item.content = { ...item.content, display: presentTool(event.name), error: event.error, guard: event.guard, durationMs: event.durationMs }
         }
         itemEvent(item.state === 'completed' ? 'item.completed' : 'item.failed', item)
       }

@@ -4,11 +4,13 @@ import type { ChatChoice, ChatItem, ChatRun, ChatSession, ChatSnapshot, ChatStar
 import { fail } from '../../../domain/common/errors'
 import { storageError } from '../errors'
 import type { RuntimeLease } from '../runtime-leases'
+import { askContextRepository } from './ask-context'
+import { chatModelRequestsRepository } from './chat-model-requests'
 
 type Row = Record<string, SQLOutputValue>
 const session = (r: Row): ChatSession => ({ id: String(r.id), title: String(r.title), providerId: String(r.provider_id), modelId: String(r.model_id), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
 const run = (r: Row): ChatRun => ({ id: String(r.id), sessionId: String(r.session_id), providerId: String(r.provider_id), modelId: String(r.model_id),
-  state: r.state as ChatRun['state'], error: r.error === null ? null : String(r.error), eventSequence: Number(r.event_sequence), writeStarted: Boolean(r.write_started), createdAt: String(r.created_at), finishedAt: r.finished_at === null ? null : String(r.finished_at) })
+  state: r.state as ChatRun['state'], admission: r.admission as ChatRun['admission'], runtimeStatus: r.runtime_status as ChatRun['runtimeStatus'], error: r.error === null ? null : String(r.error), eventSequence: Number(r.event_sequence), writeStarted: Boolean(r.write_started), createdAt: String(r.created_at), finishedAt: r.finished_at === null ? null : String(r.finished_at) })
 const item = (r: Row): ChatItem => ({ id: String(r.id), sessionId: String(r.session_id), runId: String(r.run_id), sequence: Number(r.sequence), state: r.state as ChatItem['state'], content: JSON.parse(String(r.content_json)), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
 const hash = (input: ChatStart) => createHash('sha256').update(JSON.stringify([input.sessionId ?? '', input.message.trim(), input.choice.providerId, input.choice.modelId])).digest('hex')
 
@@ -38,7 +40,14 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
     return { sessionId: String(row.session_id), runId: String(row.id) }
   }
   return {
-    transaction, getSession, getRun, lookup,
+    transaction, getSession, getRun, lookup, ...askContextRepository(db, transaction),
+    ...chatModelRequestsRepository(db, transaction, assertRunning, read),
+    admit(id: string) { transaction(() => { assertRunning(id); db.prepare("UPDATE chat_runs SET admission='admitted' WHERE id=?").run(id) }) },
+    runtimeStatus(id: string, status: NonNullable<ChatRun['runtimeStatus']>, sequence: number) {
+      transaction(() => { lease.ensure(); const row = db.prepare('SELECT owner_runtime_id,state FROM chat_runs WHERE id=?').get(id)
+        if (!row || row.state === 'running' && row.owner_runtime_id !== lease.id) fail('CONFLICT')
+        db.prepare('UPDATE chat_runs SET runtime_status=?,event_sequence=? WHERE id=?').run(status, sequence, id) })
+    },
     listSessions(limit: number, offset: number) {
       return read(() => ({ items: db.prepare('SELECT * FROM chat_sessions ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?').all(limit, offset).map(session), total: Number(db.prepare('SELECT COUNT(*) n FROM chat_sessions').get()!.n) }))
     },
@@ -57,15 +66,15 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
       return read(() => ({ items: db.prepare('SELECT * FROM chat_runs WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?').all(sessionId, limit, offset).map(run),
         total: Number(db.prepare('SELECT COUNT(*) n FROM chat_runs WHERE session_id=?').get(sessionId)!.n) }))
     },
-    start(input: ChatStart) {
+    start(input: ChatStart, queued = false) {
       return transaction(() => {
         lease.ensure()
         const previous = lookup(input); if (previous) return previous
         const now = new Date().toISOString(), sessionId = input.sessionId || randomUUID(), runId = randomUUID()
-        if (input.sessionId) idle(sessionId)
+        if (input.sessionId) { if (queued) getSession(sessionId); else idle(sessionId) }
         else db.prepare('INSERT INTO chat_sessions VALUES(?,?,?,?,?,?)').run(sessionId, [...input.message.trim()].slice(0, 48).join(''), input.choice.providerId, input.choice.modelId, now, now)
-        db.prepare('INSERT INTO chat_runs(id,session_id,provider_id,model_id,state,request_id,request_hash,owner_runtime_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)')
-          .run(runId, sessionId, input.choice.providerId, input.choice.modelId, 'running', input.requestId, hash(input), lease.id, now)
+        db.prepare('INSERT INTO chat_runs(id,session_id,provider_id,model_id,state,request_id,request_hash,owner_runtime_id,created_at,admission) VALUES(?,?,?,?,?,?,?,?,?,?)')
+          .run(runId, sessionId, input.choice.providerId, input.choice.modelId, 'running', input.requestId, hash(input), lease.id, now, queued ? 'pending' : 'admitted')
         const sequence = Number(db.prepare('SELECT COALESCE(MAX(sequence),0)+1 n FROM chat_items WHERE session_id=?').get(sessionId)!.n)
         db.prepare('INSERT INTO chat_items VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), sessionId, runId, sequence, 'completed', JSON.stringify({ type: 'user_message', text: input.message.trim() }), now, now)
         db.prepare('UPDATE chat_sessions SET provider_id=?,model_id=?,updated_at=? WHERE id=?').run(input.choice.providerId, input.choice.modelId, now, sessionId)
@@ -94,22 +103,9 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
       transaction(() => {
         assertRunning(snapshot.run.id)
         for (const value of snapshot.items) db.prepare('UPDATE chat_items SET state=?,content_json=?,updated_at=? WHERE id=? AND run_id=?').run(value.state, JSON.stringify(value.content), value.updatedAt, value.id, snapshot.run.id)
-        db.prepare('UPDATE chat_runs SET state=?,error=?,event_sequence=?,write_started=?,finished_at=? WHERE id=?').run(snapshot.run.state, snapshot.run.error, snapshot.run.eventSequence, Number(snapshot.run.writeStarted), snapshot.run.finishedAt, snapshot.run.id)
+        db.prepare('UPDATE chat_runs SET state=?,error=?,event_sequence=?,write_started=?,finished_at=?,runtime_status=? WHERE id=?').run(snapshot.run.state, snapshot.run.error, snapshot.run.eventSequence, Number(snapshot.run.writeStarted), snapshot.run.finishedAt, snapshot.run.runtimeStatus ?? 'idle', snapshot.run.id)
         db.prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?').run(snapshot.run.finishedAt!, snapshot.run.sessionId)
       })
-    },
-    history(sessionId: string, beforeSequence: number, budget = 262144) {
-      const rows = db.prepare(`SELECT i.* FROM chat_items i JOIN chat_runs r ON r.id=i.run_id WHERE i.session_id=? AND i.sequence<? AND i.state='completed'
-        AND r.state='completed' AND json_extract(i.content_json,'$.type') IN ('user_message','assistant_message') ORDER BY i.sequence DESC LIMIT 40`).all(sessionId, beforeSequence).map(item).reverse()
-      const messages: { role: 'user' | 'assistant'; content: string }[] = []
-      let bytes = 0
-      for (const value of rows.reverse()) {
-        if (value.content.type === 'tool_call') continue
-        bytes += Buffer.byteLength(value.content.text); if (bytes > budget) break
-        messages.unshift({ role: value.content.type === 'user_message' ? 'user' : 'assistant', content: value.content.text })
-      }
-      while (messages.length && messages[0].role !== 'user') messages.shift()
-      return messages
     },
     recover() {
       transaction(() => {
@@ -117,7 +113,9 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
         for (const row of rows) if (!lease.live(String(row.owner_runtime_id))) {
           const now = new Date().toISOString()
           db.prepare("UPDATE chat_items SET state=CASE WHEN json_extract(content_json,'$.type')='tool_call' THEN 'uncertain' ELSE 'interrupted' END,updated_at=? WHERE run_id=? AND state IN ('streaming','running')").run(now, row.id)
-          db.prepare("UPDATE chat_runs SET state='interrupted',error='AGENT_INTERRUPTED',finished_at=? WHERE id=?").run(now, row.id)
+          db.prepare(`UPDATE chat_runs SET state=CASE WHEN state='running' THEN 'interrupted' ELSE state END,
+            error=CASE WHEN state='running' THEN 'AGENT_INTERRUPTED' ELSE error END,
+            finished_at=CASE WHEN state='running' THEN ? ELSE finished_at END,event_sequence=event_sequence+1,runtime_status='idle' WHERE id=?`).run(now, row.id)
           db.prepare('UPDATE chat_sessions SET updated_at=? WHERE id=(SELECT session_id FROM chat_runs WHERE id=?)').run(now, row.id)
         }
       })

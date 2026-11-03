@@ -18,7 +18,7 @@ const input = (): ApplyImport => ({ sessionId: randomUUID(), batchId: randomUUID
 
 test('one imported experience owns multiple saved facts with separate IDs and a shared transaction', async t => {
   const f = fixture(t), args = input()
-  args.facts = ['Built services', 'Improved latency'].map(content => ({ draftId: randomUUID(), itemDraftId: args.items[0].draftId, profileItemId: null, details: { kind: 'ACHIEVEMENT', content, evidence: 'Page 1\nSource' } }))
+  args.facts = ['Built services', 'Improved latency'].map(content => ({ draftId: randomUUID(), itemDraftId: args.items[0].draftId, profileItemId: null, details: { kind: 'ACHIEVEMENT', content } }))
   const saved = value(await f.api.profiles.applyImport(args))
   assert.equal(saved.items.length, 1); assert.equal(saved.facts.length, 2)
   assert.notEqual(saved.facts[0].id, saved.facts[1].id)
@@ -70,6 +70,9 @@ test('AI draft keeps grouped facts and date precision without source excerpts or
   assert.throws(() => parseImportDraft('not JSON'), /IMPORT_INVALID_OUTPUT/)
   const old = structuredClone(raw) as unknown as { items: { facts: Record<string, unknown>[] }[] }
   old.items[0].facts[0].source = { page: 1, quote: 'Repeated fact text' }
+  assert.throws(() => parseImportDraft(JSON.stringify(old)), /IMPORT_INVALID_OUTPUT/)
+  delete old.items[0].facts[0].source
+  old.items[0].facts[0].evidence = 'Page 1: source excerpt'
   assert.throws(() => parseImportDraft(JSON.stringify(old)), /IMPORT_INVALID_OUTPUT/)
   const prompt = importPrompt(sourcePages)
   assert(!prompt.includes('"source"')); assert(!prompt.includes('"quote"')); assert(!prompt.includes('"page"'))

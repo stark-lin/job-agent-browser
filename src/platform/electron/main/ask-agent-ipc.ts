@@ -5,7 +5,7 @@ import { askError, type AskAgentTasks } from '../ask-agent-tasks'
 import { trustedDataSender } from './data-ipc'
 export function registerAskAgentIPC(service: AskAgentTasks, rendererPath: string) {
   const expectedURL = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(rendererPath).href
-  ipcMain.handle(ASK_AGENT_CALL, (event, method: unknown, input: unknown) => {
+  ipcMain.handle(ASK_AGENT_CALL, async (event, method: unknown, input: unknown) => {
     const sender = event.sender, frame = event.senderFrame
     if (!trustedDataSender({ windowOwned: Boolean(BrowserWindow.fromWebContents(sender)), mainFrame: frame === sender.mainFrame, url: frame?.url ?? '' }, expectedURL)) return { ok: false, error: 'FORBIDDEN' }
     if (typeof method !== 'string' || !askAgentMethods.includes(method as typeof askAgentMethods[number])) return { ok: false, error: 'INVALID_INPUT' }

@@ -1,7 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { compatibleAgentModel } from '../src/platform/ai/agent-model'
-import { runStreamingAgent, type StreamLoopEvent } from '../src/platform/agent/stream-loop'
+import type { AgentRuntimeEvent } from '../src/shared/agent'
+import { runPiAsk } from '../src/platform/agent/pi/runtime'
+import { ContextBudget } from '../src/platform/agent/context/budget'
+import { ContextManager } from '../src/platform/agent/context/manager'
 import type { AgentModelEvent, StreamingAgentModel, AgentTools } from '../src/shared/agent'
 import { ToolError } from '../src/shared/tools/errors'
 const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
@@ -11,16 +14,16 @@ const frame = (delta: unknown, finish_reason: string | null = null) => `data: ${
 const stream = (text: string, size = 1) => new Response(new ReadableStream({ start(controller) { const bytes = new TextEncoder().encode(text); for (let n = 0; n < bytes.length; n += size) controller.enqueue(bytes.slice(n, n + size)); controller.close() } }), { headers: { 'content-type': 'text/event-stream' } })
 const collect = async (iterable: AsyncIterable<AgentModelEvent>) => { const events = []; for await (const event of iterable) events.push(event); return events }
 
-test('stream adapter assembles byte-fragmented Unicode, public summaries and tool batches before executable events', async () => {
+test('stream adapter assembles byte-fragmented Unicode, provider reasoning and tool batches before executable events', async () => {
   const audits: unknown[] = []
-  const text = frame({ reasoning_summary: 'Checking 中文', reasoning_content: 'PRIVATE COT' }) + frame({ content: 'Hello ' })
+  const text = frame({ reasoning_summary: 'Checking 中文', reasoning_content: 'Full reasoning 中文' }) + frame({ content: 'Hello ' })
     + frame({ tool_calls: [{ index: 0, id: 'ca', type: 'function', function: { name: 'tool_', arguments: '{"li' } }] })
     + frame({ tool_calls: [{ index: 0, id: 'll', function: { name: '0', arguments: 'mit":2}' } }] }, 'tool_calls') + 'data: [DONE]\n\n'
   const model = compatibleAgentModel(config, { audit: (_id, error) => audits.push(error), transport: async () => stream(text) })
   const events = await collect(model.stream({ messages: [], tools: [descriptor], signal: signal() }))
-  assert.deepEqual(events.map(e => e.type), ['reasoning.delta', 'content.delta', 'tool_call.ready', 'completed'])
-  assert.equal(JSON.stringify(events).includes('PRIVATE COT'), false)
-  const ready = events[2]; assert(ready.type === 'tool_call.ready'); assert.deepEqual(ready.call, { id: 'call', name: 'job.list', arguments: { limit: 2 } })
+  assert.deepEqual(events.map(e => e.type), ['reasoning.delta', 'reasoning.delta', 'content.delta', 'tool_call.ready', 'completed'])
+  assert.equal(JSON.stringify(events).includes('Full reasoning 中文'), true)
+  const ready = events[3]; assert(ready.type === 'tool_call.ready'); assert.deepEqual(ready.call, { id: 'call', name: 'job.list', arguments: { limit: 2 } })
   assert.deepEqual(audits, [null])
 })
 test('malformed batches, truncation, duplicate IDs, unknown names and audit failures never expose executable calls', async () => {
@@ -41,18 +44,54 @@ test('malformed batches, truncation, duplicate IDs, unknown names and audit fail
 })
 function fixtureModel(batches: AgentModelEvent[][]): StreamingAgentModel { return { complete: async () => ({ content: '', toolCalls: [] }), async *stream() { yield* batches.shift()! } } }
 const final = (text: string): AgentModelEvent[] => [{ type: 'content.delta', text }, { type: 'completed', response: { content: text, toolCalls: [] } }]
-test('stream loop preserves interleaving, complete call batches, recoverable errors and fatal audit boundaries', async () => {
-  const call = { id: 'a', name: 'job.list', arguments: {} }, events: StreamLoopEvent[] = [], observations: unknown[] = []
+test('Pi preserves interleaving, complete call batches, recoverable errors, fatal audit boundaries and the 64-request limit', async () => {
+  const call = { id: 'a', name: 'job.list', arguments: {} }, events: AgentRuntimeEvent[] = [], observations: unknown[] = []
+  const activation = { id: 'activate', name: 'tool.activate', arguments: { names: ['job.list'] } }
+  const activate: AgentModelEvent[] = [{ type: 'tool_call.ready', call: activation }, { type: 'completed', response: { content: '', toolCalls: [activation] } }]
   const tools: AgentTools = { list: async () => [descriptor], call: async () => { throw new ToolError('TOOL_FORBIDDEN') } }
   const first: AgentModelEvent[] = [{ type: 'reasoning.delta', text: 'Summary' }, { type: 'content.delta', text: 'Reading' }, { type: 'reasoning.delta', text: 'More' }, { type: 'tool_call.ready', call }, { type: 'completed', response: { content: 'Reading', toolCalls: [call] } }]
-  const model = fixtureModel([first, final('Recovered')]), original = model.stream
+  const run = (model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void) => {
+    const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+    const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save(value) { return value } })
+    return runPiAsk({ model, tools, system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
+  }
+  const model = fixtureModel([activate, first, final('Recovered')]), original = model.stream
   model.stream = input => { observations.push(input.messages); return original(input) }
-  await runStreamingAgent(model, tools, [], signal(), e => events.push(e))
+  await run(model, tools, e => events.push(e))
   assert.deepEqual(events.filter(e => e.type === 'segment.started').map(e => e.kind), ['reasoning', 'assistant_message', 'reasoning', 'assistant_message'])
   assert(events.some(e => e.type === 'tool.failed')); assert(JSON.stringify(observations).includes('TOOL_FORBIDDEN'))
-  await assert.rejects(runStreamingAgent(fixtureModel([first]), { ...tools, call: async () => { throw new ToolError('TOOL_AUDIT_UNAVAILABLE') } }, [], signal(), () => {}), /TOOL_AUDIT_UNAVAILABLE/)
-  const repeated = fixtureModel(Array.from({ length: 8 }, (_, index) => {
+  await assert.rejects(run(fixtureModel([activate, first]), { ...tools, call: async () => { throw new ToolError('TOOL_AUDIT_UNAVAILABLE') } }, () => {}), /TOOL_AUDIT_UNAVAILABLE/)
+  const repeated = fixtureModel([activate, ...Array.from({ length: 64 }, (_, index): AgentModelEvent[] => {
     const c = { ...call, id: String(index) }; return [{ type: 'tool_call.ready', call: c }, { type: 'completed', response: { content: '', toolCalls: [c] } }]
-  }))
-  await assert.rejects(runStreamingAgent(repeated, { ...tools, call: async () => ({}) }, [], signal(), () => {}), /AGENT_STEP_LIMIT/)
+  })])
+  await assert.rejects(run(repeated, { ...tools, call: async () => ({}) }, () => {}), /AGENT_STEP_LIMIT/)
+})
+
+test('Pi executes a batch one tool at a time and waits for all results before model inference', async () => {
+  let release!: () => void, entered!: () => void
+  const block = new Promise<void>(resolve => { release = resolve }), first = new Promise<void>(resolve => { entered = resolve })
+  const calls = [{ id: 'a', name: 'memory.write', arguments: { path: 'a.md' } }, { id: 'b', name: 'memory.write', arguments: { path: 'b.md' } }]
+  const activate = { id: 'activate', name: 'tool.activate', arguments: { names: ['memory.write'] } }
+  let requests = 0, active = 0, max = 0
+  const order: string[] = []
+  const model: StreamingAgentModel = { complete: async () => { throw new Error('Unexpected model task') }, async *stream(input) {
+    requests++; assert.equal(active, 0)
+    if (requests <= 2) {
+      const batch = requests === 1 ? [activate] : calls
+      for (const call of batch) yield { type: 'tool_call.ready', call }
+      yield { type: 'completed', response: { content: '', toolCalls: batch } }; return
+    }
+    assert.deepEqual(order, ['a.md', 'b.md']); assert.equal(input.messages.filter(m => m.role === 'tool').length, 3)
+    yield* final('Saved')
+  } }
+  const tools: AgentTools = { list: async () => [{ ...descriptor, name: 'memory.write' }], call: async (_name, args) => {
+    active++; max = Math.max(active, max); const path = (args as { path: string }).path; order.push(path)
+    if (path === 'a.md') { entered(); await block }
+    active--; return { revision: path }
+  } }
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: value => value })
+  const pending = runPiAsk({ model, tools, system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
+  await first; assert.equal(requests, 2); assert.deepEqual(order, ['a.md']); assert.equal(active, 1)
+  release(); await pending; assert.equal(max, 1); assert.equal(requests, 3)
 })

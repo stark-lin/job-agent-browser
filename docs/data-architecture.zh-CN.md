@@ -23,6 +23,8 @@
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | 跨会话写入回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts)和[版本 8 扩展](../src/platform/database/migrations/profile-writes.ts) |
 | `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
+| `chat_context_checkpoints`, `chat_memory_progress` | 私有上下文检查点及停用的旧 Memory 进度；[版本 11](../src/platform/database/migrations/ask-runtime.ts)，由[版本 13](../src/platform/database/migrations/ask-serial.ts)停用 |
+| `chat_provider_responses`, `chat_model_requests` | Host 专属续传数据（[版本 12](../src/platform/database/migrations/chat-protocol.ts)）及可删除请求诊断（[版本 14](../src/platform/database/migrations/chat-model-requests.ts)） |
 
 ## 二、业务规则
 
@@ -49,13 +51,13 @@
 
 [MCP 资料命令](../src/domain/candidate/write.service.ts)提供创建及部分更新，沿用同资料引用、日期和条目类型限制；对历史导入的空值，更新无关字段时保留。新增资料/条目/事实仍要求姓名/名称/内容。`Profile.revision` 由[版本 8 迁移](../src/platform/database/migrations/profile-writes.ts)初始化为 1，数据库触发器在基本资料、条目或事实的实际变更（包括 UI、导入、删除/级联）时单调推进。MCP 更新/新增条目和事实必须提交 expectedRevision；同一 BEGIN IMMEDIATE 事务内校验版本、写业务数据及 receipt，无实际变化不推进版本。receipt 重放先于版本检查，返回原结果及历史 revision，之后应重新读取当前版本。版本只约束带 expectedRevision 的 MCP 写入，既有人工表单仍按原 IPC 语义保存。
 
-每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。
+每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。[迁移 15](../src/platform/database/migrations/remove-fact-evidence.ts)删除 `facts.evidence` 以及历史快照 Fact 和事实回执结果中的同名字段，保留其他业务值、修订号、时间和审计行；在迁移事务内恢复快照不可变及写入保护。旧请求哈希不变；升级前的新增请求重放可能冲突，应重新读取已保存记录后核对。
 
 [条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。新数据库世代通过 JSON metadata 保留部分日期精度。
 
 [显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦具体无效字段。忽略父项会排除其事实。导入允许姓名、名称、事实内容和链接名称/URL 留空或省略；已填值仍校验格式、日期范围和长度。手动创建资料仍需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
 
-导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。[PDF 解析](../src/platform/profile-import/draft.ts)接受含 `kind`、可选 `content` 及可选 `tags` 的事实，拒绝已移除的 `source.page`/`source.quote`，不做引用匹配。空的可选字段可省略，由本地补齐默认值。导入事实的 `evidence` 为空；已有/手工证据和生成表述到 Fact 的关联继续支持。PDF 字节、完整文字、草稿及重试缓存只存内存。AI 审计继续只表示请求启动。
+导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。[PDF 解析](../src/platform/profile-import/draft.ts)接受含 `kind`、可选 `content` 及可选 `tags` 的事实，拒绝已移除的 `source.page`/`source.quote`，不做引用匹配。空的可选字段可省略，由本地补齐默认值。Fact 不含 `evidence` 附件；生成表述到 Fact 的关联继续支持。PDF 字节、完整文字、草稿及重试缓存只存内存。AI 审计继续只表示请求启动。
 
 ## 三、生成、成品与删除
 
@@ -119,13 +121,19 @@
 
 ### Ask AI 会话存储
 
-[Chat Repository](../src/platform/database/repositories/chats.ts)在首次发送时原子创建 Session/Run/User Item，以请求 UUID 及输入哈希作为回执。部分唯一索引保证每 Session 一个运行中 Run，复合外键绑定 Item 所属 Run/Session。Session 保存模型选择并复制到各 Run，新会话草稿只在 Renderer 内存中。删除会话要求无活动 Run，级联移除会话记录及回执，不撤销业务修改或清除审计。
+[Chat Repository](../src/platform/database/repositories/chats.ts)以输入哈希和请求 UUID 回执原子保存 Session/Run/User Item。迁移 11 增加 Pending/admitted 状态，部分唯一索引保证同一 Session 只有一个已放行的活动 Run；组合外键绑定 Item 与 Run/Session。模型选择按 Session 保存并复制到 Run。删除要求没有活动 Run，级联清理私有检查点，不撤销业务变更或审计。
 
-只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存可见文字、明确公开的思考摘要、允许的标量工具摘要及固定错误码；不保存原始工具参数/结果、系统提示词、隐藏推理、凭据或原始异常。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。
+只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。 工具条目还保存经白名单解析的 Guard 计数、原因、执行标记和已确认归档效果，不含凭证；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/pages/ai/TimelineItem.tsx)展示这些字段。
 
-Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner，活跃 MCP Server 启动不能中断 Main 任务。未完成文字标记 interrupted，工具标记 uncertain，不自动续跑。事件快照包含内存片段及递增水位以支持重新订阅。历史最多取 40 个已完成 user/assistant Item、256 KiB，并从用户消息边界开始；当前 Run 工具观察另限制为 2 MiB。不重放历史工具/思考内容。
+提供商续传数据与聊天 IPC 分离，保存含签名/加密推理的已校验 assistant 消息，随会话删除级联清除。历史重建 assistant/tool 消息但不执行工具；切换提供商/模型后不附带续传元数据，压缩提示词也排除这些数据。旧 Item 继续可读，不补造缺失的历史详情。
+
+**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 chat_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
+
+Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。
 
 [Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。
+
+[迁移 13](../src/platform/database/migrations/ask-serial.ts)停用 Memory 生命周期状态，将旧 memory.updating/memory.failed Run 归一化为 idle 并递增事件序号。版本 11 的 chat_memory_progress 表及待写入正文均作为停用历史保留，运行时不读取、恢复或写入。完整回答保持原样；失效 owner 的运行中 Run 使用普通中断恢复。迁移还为审计错误增加 TOOL_NOT_FOUND，保留全部审计行/序号及此前迁移校验和。[资源检查点](../src/platform/agent/context/resources.ts)增加不含正文的 Memory 路径、Revision 和不确定结果；Memory 写入并发由 [MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)管理。
 
 ## 五、API 契约与访问
 
@@ -141,7 +149,7 @@ Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner�
 | `profiles` | 联系方式/条目/事实 CRUD 与明确审核的导入 |
 | `applications` | 合法状态变更、备注、日程及事件/日历查询 |
 | `resumes` | 人工 Run/Artifact CRUD 与来源查询；Agent 阶段经过 MCP |
-| `chats` | Session 列表/读取/重命名/模型/删除、Item 与 Run 分页；不能创建模型输出 |
+| `chats` | Session 列表/读取/重命名/模型/删除、Item、Run 与模型请求诊断分页；不能创建模型输出 |
 | `audit` | 只读且不含业务内容的审计查看 |
 | `settings`, `secrets` | 校验后的文件偏好及密钥状态/保存/删除；不返回密钥 |
 

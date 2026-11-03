@@ -13,6 +13,6 @@ export interface ItemDetails {
 }
 export type ItemInput = Pick<ItemDetails, 'type' | 'title'> & Partial<Omit<ItemDetails, 'type' | 'title'>>
 export interface ProfileItem extends ItemDetails { id: string; profileId: string; parentItemId: string | null }
-export interface FactDetails { kind: typeof factKinds[number]; content: string; tags: string[]; evidence: string }
+export interface FactDetails { kind: typeof factKinds[number]; content: string; tags: string[] }
 export type FactInput = Pick<FactDetails, 'kind' | 'content'> & Partial<Omit<FactDetails, 'kind' | 'content'>>
 export interface Fact extends FactDetails { id: string; profileId: string; profileItemId: string | null; createdAt: string; updatedAt: string }

@@ -76,6 +76,7 @@ export const en = {
   "rebuilt": "Search index rebuilt"
 },
   ask: {
+  runtime: { pending: 'Waiting for the previous turn…', compacting: 'Compacting context…', searching: 'Searching tools…', activating: 'Activating tools…' },
   "sessions": "Chats",
   "openSessions": "Open chats",
   "close": "Close",
@@ -90,6 +91,11 @@ export const en = {
   "running": "Running",
   "thinking": "Thinking",
   "thought": "Thought for {{seconds}}s",
+  copyContent: 'Copy', reasoning: 'Reasoning', encryptedReasoning: 'Encrypted reasoning', encryptedUnavailable: 'The provider returned encrypted reasoning; readable text is unavailable.',
+  source: 'Source', elapsed: 'Elapsed', toolName: 'Tool', callId: 'Call ID', executionState: 'State', arguments: 'Arguments · JSON', result: 'Result · JSON', toolError: 'Error',
+  guard: { runId: 'Chat Run ID', runState: 'Run state', status: 'Run protection', active: 'Active', blocked: 'Stopped', calls: 'Calls', executedCalls: 'Dispatched calls', rejections: 'Rejected calls', noProgress: 'Consecutive calls without progress', reason: 'Protection reason', confirmedEffect: 'Confirmed effect', archived: 'Archived', restored: 'Restored', notExecuted: 'Not executed',
+    reasons: { DUPLICATE_WRITE: 'This effect was already confirmed.', REVERSED_WRITE: 'This would reverse a confirmed effect.', NO_PROGRESS_LOOP: 'Repeated calls made no progress.', CALL_BUDGET_EXCEEDED: 'The Run call limit was reached.', REPEATED_VIOLATION: 'The same rejected operation was attempted again.', WRITE_OUTCOME_UNKNOWN: 'A write could not be confirmed. Check its state before continuing.' } },
+  itemStates: { streaming: 'Thinking', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Stopped', uncertain: 'Outcome uncertain', interrupted: 'Interrupted' },
   "summary": "Reasoning summary",
   "conversation": "Conversation",
   "message": "Message",
@@ -126,6 +132,7 @@ export const en = {
   "toolRunning": "Running: {{action}}",
   "toolFailed": "Could not complete: {{action}}",
   "tools": {
+    searchTools: 'Search tools', activateTools: 'Activate tools',
     "jobs": "Read saved jobs",
     "job": "Read job",
     "updateJob": "Update job",
@@ -166,6 +173,7 @@ export const en = {
     "tool": "Run operation"
   },
   "errors": {
+    "ASK_CONTEXT_UNKNOWN": "The effective model context window is unknown. Configure deployment limits in Settings.", "ASK_CONTEXT_TOO_SMALL": "Ask AI requires an effective context window of at least 65,536 tokens.", "ASK_CONTEXT_OVERFLOW": "The current task exceeds the context budget after compaction. Reduce the request.",
     "UNKNOWN": "The operation could not be completed. Please try again.",
     "INVALID_INPUT": "Check your message and model selection.",
     "NOT_FOUND": "This chat is no longer available.",
@@ -175,6 +183,9 @@ export const en = {
     "STORAGE_BUSY": "Storage is busy. Please try again.",
     "STORAGE_UNAVAILABLE": "Could not save or load the conversation.",
     "AUDIT_UNAVAILABLE": "The required audit could not be recorded. Execution stopped.",
+    "TOOL_GUARD_DUPLICATE": "This operation was not repeated; its earlier result is confirmed.",
+    "TOOL_GUARD_CONFLICT": "This operation would reverse a confirmed result and was not executed.",
+    "TOOL_GUARD_TERMINATED": "Run protection stopped execution. Completed changes remain saved.",
     "TOOL_AUDIT_UNAVAILABLE": "The operation audit is unavailable. Check the current state before continuing.",
     "AI_NOT_CONFIGURED": "Choose a configured provider and model in Settings.",
     "ENCRYPTION_UNAVAILABLE": "The provider key is unavailable. Check Settings.",
@@ -232,7 +243,7 @@ export const en = {
   },
   imports: {
     mode: 'Import mode', single: 'Standard', parallel: 'Parallel',
-    configureModel: 'Model for parallel import settings', allowParallel: 'Allow parallel imports for this model',
+    configureModel: 'Model settings', allowParallel: 'Allow parallel requests for this model',
     enableHelp: 'Enable parallel imports for this model in Settings to use this mode.',
     parallelHelp: 'Parallel mode splits extraction across requests. Input tokens and cost may increase; speed depends on your provider.',
     retry: 'Retry failed parts', progress: '{{completed}} of {{total}} parts completed',
@@ -471,6 +482,8 @@ export const en = {
     }
   },
   settings: {
+    contextWindow: 'Effective context window (tokens)', contextWindowHelp: 'Ask AI needs at least 65,536. Enter actual deployment limits; detected runtime limits take precedence.', maxOutputTokens: 'Model maximum output tokens',
+
     "aiDescription": "Configure OpenAI-compatible Chat Completions services. Keys are stored separately for each provider.",
     "requestTimeout": "AI request timeout (seconds)",
     "pageTimeout": "Job page read timeout (seconds)",
@@ -657,7 +670,7 @@ export const en = {
     type: 'Entry type', title: 'Title', organization: 'Organization', role: 'Role', summary: 'Background summary',
     startDate: 'Start date', endDate: 'End date', dateHelp: 'Use YYYY, YYYY-MM or YYYY-MM-DD. Missing months and days are preserved.', current: 'Present',
     employmentType: 'Employment type', technologies: 'Technologies', degree: 'Degree', major: 'Major', gpa: 'GPA',
-    kind: 'Fact category', content: 'Fact', tags: 'Tags (comma separated)', evidence: 'Source excerpt and page', belongsTo: 'Belongs to',
+    kind: 'Fact category', content: 'Fact', tags: 'Tags (comma separated)', belongsTo: 'Belongs to',
     types: { EXPERIENCE: 'Work experience', PROJECT: 'Projects', EDUCATION: 'Education' },
     kinds: { ACHIEVEMENT: 'Achievement', RESPONSIBILITY: 'Responsibility', SKILL: 'Skill', AWARD: 'Award', CERTIFICATION: 'Certification', COURSE: 'Course', LANGUAGE: 'Language', OTHER: 'Other' },
     upload: 'Upload PDF and parse', importTitle: 'Import a PDF resume', importHelp: 'Extracted resume text will be sent to the provider and model shown below. Limits: 10 MB, 20 pages and 60,000 extracted characters. Scans need selectable text.',

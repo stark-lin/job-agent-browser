@@ -8,7 +8,7 @@ import { assertParent } from './item.service'
 
 const profileKeys = ['name', 'email', 'phone', 'location', 'links', 'introduction']
 const itemKeys = ['title', 'organization', 'role', 'location', 'startDate', 'endDate', 'summary', 'sortOrder', 'metadata', 'parentItemId']
-const factKeys = ['kind', 'content', 'tags', 'evidence', 'profileItemId']
+const factKeys = ['kind', 'content', 'tags', 'profileItemId']
 function patch(keys: string[]): v.Parser<Record<string, unknown>> {
   return input => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) fail('INVALID_INPUT')

@@ -14,7 +14,7 @@ export function createProfileTools(backend: ReturnType<typeof composeBackend>) {
       input => backend.profiles.listItems(input as { profileId: string }), 'profileId', 65536, 'profile'),
     bind('profile.add_item', 'Add an education, experience or project item. The optional parent must belong to this profile.', schemas.addItem, input => backend.profileWrites.addItem(input), 'profileId'),
     bind('profile.update_item', 'Patch an item in this profile. Omitted fields stay unchanged; metadata merges by field, arrays replace. Type is immutable; null parentItemId detaches.', schemas.updateItem, input => backend.profileWrites.updateItem(input), 'profileId'),
-    bind('profile.add_fact', 'Add a sourced fact to this profile, optionally attached to one of its items. evidence records source provenance; the server does not verify truth.', schemas.addFact, input => backend.profileWrites.addFact(input), 'profileId'),
+    bind('profile.add_fact', 'Add a fact to this profile, optionally attached to one of its items. Save supported content and tags; the server does not verify truth.', schemas.addFact, input => backend.profileWrites.addFact(input), 'profileId'),
     bind('profile.update_fact', 'Patch a fact in this profile. Omitted fields and its item association stay unchanged; null profileItemId detaches. Arrays replace.', schemas.updateFact, input => backend.profileWrites.updateFact(input), 'profileId')
   ]
 }

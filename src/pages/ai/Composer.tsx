@@ -7,11 +7,11 @@ export function Composer({ text, setText, busy, sending, valid, choice, config, 
   onChoice(choice: AIChoice): void; send(): void; stop(): void
 }) {
   const { t } = useTranslation()
-  return <form className="ai-composer" onSubmit={e => { e.preventDefault(); if (!busy && valid && text.trim() && !sending) send() }}>
+  return <form className="ai-composer" onSubmit={e => { e.preventDefault(); if (valid && text.trim() && !sending) send() }}>
     <ComposerSurface controls={<><ModelPicker config={config} choice={choice} busy={busy || sending} onChange={onChoice} />
-      {busy ? <Button aria-label={t($ => $.ask.stop)} title={t($ => $.ask.stop)} onClick={stop}>■</Button> : <Button variant="primary" type="submit" aria-label={t($ => $.ask.send)} title={t($ => $.ask.send)} disabled={sending || !valid || !text.trim()}>↑</Button>}</>}>
+      {busy && <Button aria-label={t($ => $.ask.stop)} title={t($ => $.ask.stop)} onClick={stop}>■</Button>}<Button variant="primary" type="submit" aria-label={t($ => $.ask.send)} title={t($ => $.ask.send)} disabled={sending || !valid || !text.trim()}>↑</Button></>}>
       <TextArea aria-label={t($ => $.ask.message)} placeholder={t($ => $.ask.placeholder)} value={text} maxLength={128000} onChange={e => setText(e.target.value)} onKeyDown={e => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); if (!busy && valid && text.trim() && !sending) send() }
+        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); if (valid && text.trim() && !sending) send() }
       }} />
     </ComposerSurface>
   </form>

@@ -24,7 +24,7 @@ const itemFields = {
   sortOrder: v.optional(v.integer(0, 1_000_000), 0), metadata: v.optional(metadata, metadata({}))
 }
 export const itemDetails = v.object(itemFields)
-const factFields = { kind: v.choice(factKinds), content: v.text(20_000, 1), tags: v.optional(v.array(v.text(100, 1), 100), []), evidence: v.optionalText(20_000) }
+const factFields = { kind: v.choice(factKinds), content: v.text(20_000, 1), tags: v.optional(v.array(v.text(100, 1), 100), []) }
 export const factDetails = v.object(factFields)
 // Imported records may be incomplete; retain format/length validation without inventing missing text.
 export const importContactFields = { name: v.optionalText(300), email: v.optionalText(320), phone: v.optionalText(100), location: v.optionalText(1000), introduction: v.optionalText(2000) }

@@ -14,6 +14,8 @@ export function AskAIPage() {
   const running = new Set(Object.entries(chat.state.runs).filter(([, runs]) => runs.some(r => r.state === 'running')).map(([id]) => id))
   const sidebar = <SessionSidebar sessions={chat.state.sessions} total={chat.state.total} activeId={chat.id} running={running} select={id => { chat.ask.select(id); setDrawer(false) }} more={() => void chat.ask.refreshSessions(true)} rename={(id, title) => chat.ask.rename(id, title)} remove={id => chat.ask.remove(id)} />
   const error = chat.state.error, knownError = error && Object.hasOwn(t($ => $.ask.errors, { returnObjects: true }), error)
+  const runtime = chat.active ?? [...chat.runs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0], status = runtime?.runtimeStatus
+  const runtimeKeys = { pending: 'pending', 'context.compacting': 'compacting', 'tools.searching': 'searching', 'tools.activating': 'activating' } as const
   return <main className="ai-page">
     {narrow ? <Drawer open={drawer} title={t($ => $.ask.sessions)} closeLabel={t($ => $.ask.close)} onClose={() => setDrawer(false)}>{sidebar}</Drawer> : <aside className="ai-session-sidebar">{sidebar}</aside>}
     <section className={`ai-conversation${!chat.id ? ' ai-conversation--empty' : ''}`} aria-label={t($ => $.ask.conversation)}>
@@ -21,6 +23,7 @@ export function AskAIPage() {
       {chat.state.loading ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : !chat.id ? <div className="ai-empty"><h1>{t($ => $.ask.empty)}</h1><p>{t($ => $.ask.emptyHint)}</p></div> :
         <ConversationTimeline key={chat.id} id={chat.id} items={chat.items} runs={chat.runs} total={chat.state.totals[chat.id]} retryEnabled={chat.valid && !chat.state.sending} positions={chat.ask.scroll} loadOlder={() => chat.ask.load(chat.id!, true)} retry={message => { if (chat.valid && chat.choice) void chat.ask.send(chat.choice, message) }} />}
       <div className="ai-composer-dock">
+        {status && status !== 'idle' && <StatusMessage>{t($ => $.ask.runtime[runtimeKeys[status]])}</StatusMessage>}
         {error && <StatusMessage tone="error">{knownError ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.errors.UNKNOWN)}</StatusMessage>}
         {!chat.valid && <div className="ai-configure"><StatusMessage>{t($ => $.ask.configure)}</StatusMessage><Button variant="ghost" onClick={() => void openPage('settings')}>{t($ => $.ask.settings)}</Button></div>}
         <Composer text={chat.text} setText={chat.ask.setDraft} busy={Boolean(chat.active)} sending={chat.state.sending} valid={chat.valid} choice={chat.choice} config={chat.config} onChoice={choice => void chat.ask.setChoice(choice)} send={() => { if (chat.choice) void chat.ask.send(chat.choice) }} stop={() => { if (chat.active) void chat.ask.stop(chat.active.id) }} />

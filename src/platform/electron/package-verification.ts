@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { LocalModelManager } from '../models/manager'
 import { manifest } from '../knowledge/rag/embedding-protocol'
 import { verifyResumePackage } from './verify-resume-package'
+import { verifyAskPackage } from './verify-ask-package'
 import { app, utilityProcess } from 'electron'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
@@ -54,18 +56,19 @@ export async function verifyEmbeddingRuntime(bundleDirectory: string, modelsDire
     await service.spaces.memory.files.write('company.md', '# Memory\nMy preferred editor is VS Code.', null)
     await service.spaces.memory.index.reconcile(); await service.spaces.memory.index.indexEmbeddings()
     stop = await startKnowledgeBroker(directory, service)
-    const session = await mcp.session('ask-ai', signal)
+    const { tools: session } = await mcp.openAskRun({ chatRunId: randomUUID(), sessionId: 'verification', sourceMessageIds: [], signal })
     const result = await session.call('knowledge.retrieve', { query: '哪家公司工作环境相对灵活？', maxContext: 4000 }, signal)
     check(JSON.stringify(result).includes('company.md'), 'packaged stdio MCP and broker retrieval')
     const memory = await session.call('memory.recall', { query: 'preferred editor VS Code' }, signal)
     check(JSON.stringify(memory).includes('VS Code') && !JSON.stringify(memory).includes('Trip.com'), 'isolated packaged Memory retrieval through shared model')
     check(forks === 1, 'one embedding process shared with MCP')
+    await verifyAskPackage(backend, mcp)
     await verifyResumePackage(backend, mcp, bundleDirectory)
     await manager.remove()
     check(manager.status().state === 'missing', 'model removal')
     const keyword = await service.spaces.knowledge.search('SQLite')
     check(!keyword.semantic && keyword.items.some(item => item.path === 'database.md'), 'keyword fallback')
-    return { ok: true, pdfVerified: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
+    return { ok: true, askVerified: true, pdfVerified: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
   } finally {
     await stop?.()
     await mcp.dispose()
@@ -86,14 +89,16 @@ export async function verifyMinimalRuntime(bundleDirectory: string, directory: s
     await service.files.write('minimal.md', '# SQLite\nKeyword retrieval works without an embedding model.', null)
     const result = await service.spaces.knowledge.search('SQLite')
     check(!result.semantic && result.items.some(item => item.path === 'minimal.md'), 'minimal keyword retrieval')
-    const session = await mcp.session('ask-ai', AbortSignal.timeout(120000))
+    const { tools: session } = await mcp.openAskRun({ chatRunId: randomUUID(), sessionId: 'verification', sourceMessageIds: [], signal: AbortSignal.timeout(120000) })
     const context = await session.call('knowledge.retrieve', { query: 'SQLite', maxContext: 4000 }, AbortSignal.timeout(120000))
     check(JSON.stringify(context).includes('minimal.md'), 'minimal MCP retrieval')
-    await session.call('memory.write', { path: 'preference.md', content: 'Remembered offline preference.', expectedRevision: null }, AbortSignal.timeout(120000))
+    const { tools: memoryWriter } = await mcp.openAskRun({ chatRunId: randomUUID(), sessionId: 'package-verification', sourceMessageIds: ['package-verification-source'], signal: AbortSignal.timeout(120000) })
+    await memoryWriter.call('memory.write', { path: 'preference.md', content: 'Remembered offline preference.', expectedRevision: null }, AbortSignal.timeout(120000))
     const memory = await session.call('memory.recall', { query: 'offline preference' }, AbortSignal.timeout(120000))
     check(JSON.stringify(memory).includes('Remembered offline preference'), 'minimal Memory lexical recall')
+    await verifyAskPackage(backend, mcp)
     await verifyResumePackage(backend, mcp, bundleDirectory)
-    return { ok: true, pdfVerified: true, dimensions: 0, forks: 0, semanticAvailable: false, platform: process.platform, arch: process.arch, electron: process.versions.electron }
+    return { ok: true, askVerified: true, pdfVerified: true, dimensions: 0, forks: 0, semanticAvailable: false, platform: process.platform, arch: process.arch, electron: process.versions.electron }
   } finally { await mcp.dispose(); await service.close(); await manager.close(); backend.close() }
 }
 export async function verifyPackageRuntime() {
@@ -101,5 +106,5 @@ export async function verifyPackageRuntime() {
   const result = process.argv.includes('--verify-minimal') ? await verifyMinimalRuntime(bundle, directory) :
     await verifyEmbeddingRuntime(bundle, join(process.resourcesPath, 'models'), directory)
   await writeFile(join(app.getPath('userData'), 'package-verification.json'), JSON.stringify(result))
-  console.log('Application runtime, MCP, PDF and keyword fallback verified.')
+  console.log('Application runtime, Pi Ask, MCP, PDF and keyword fallback verified.')
 }

@@ -136,7 +136,7 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared Agent 契约](../src/shared/agent/index.ts)管理 AgentModel/AgentTools。[Platform Tools](../src/platform/tools/index.ts)是唯一公共 MCP Registry，ToolScope 只属于 Server。只有 platform/mcp 和 platform/mcp-server 导入 MCP SDK。Agent 模块可导入纯 Domain 流程/校验，但不得直接或间接导入 Service、Repository、Registry 或数据库适配器。[MCP 架构](mcp-architecture.zh-CN.md)管理能力和会话行为。
 
-[Chat Domain](../src/domain/chat/)管理纯会话契约及人工 CRUD 校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)管理 Run 生命周期并注入私有 SQLite 记录器；[AskStore](../src/app/ai/askStore.ts)管理 App 生命周期内的事件投影，Pages 组合中央控件。Agent 代码仅接收模型、MCP 工具及纯事件回调，不导入会话 Repository。流式协议/分帧位于 platform/ai，工具/模型状态机位于 platform/agent。
+[Chat Domain](../src/domain/chat/)管理纯会话契约及人工校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)拥有 FIFO 放行、持久化回调、每轮授权和取消；[AskStore](../src/app/ai/askStore.ts)负责事件投影。platform/agent/pi、context、tools 模块仅接收模型、MCP 客户端及纯回调，不能导入 Repository 或 ToolScope。Provider 分帧留在 platform/ai。仅 Ask 使用 Pi，既有流程引擎保留；CJS 入口通过原生动态 import 加载 Pi ESM。
 
 [Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
 

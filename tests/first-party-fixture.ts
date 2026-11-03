@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -12,7 +13,7 @@ import '../src/platform/mcp-server/runtime'
 /** Real stdio runtime and shared SQLite. Only the costly renderer is deterministic here. */
 export async function firstPartyFixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'first-party-'))
-  const cleanups: (() => void | Promise<void>)[] = []
+  const cleanups: (() => void | Promise<void>)[] = [], runCleanups: (() => Promise<void>)[] = []
   const f = await seed({ after: (cleanup: () => void) => { cleanups.push(cleanup) } }, join(directory, 'database.sqlite'))
   const workspace = new SmartNoteWorkspace(directory, { preferences: () => defaultKnowledgePreferences })
   await workspace.ready
@@ -54,8 +55,12 @@ await runtime.server.connect(new StdioServerTransport(process.stdin, process.std
 })().catch(() => { process.exitCode = 1 });
 `)
   const mcp = createFirstPartyRuntime(directory, directory)
-  t.after(async () => { await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
-  return { ...f, directory, mcp, workspace, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
+  t.after(async () => { for (const close of runCleanups) await close(); await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
+  return { ...f, directory, mcp, workspace,
+    async askRun(signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []) {
+      const run = await mcp.openAskRun({ chatRunId: randomUUID(), sessionId, sourceMessageIds, signal })
+      runCleanups.push(() => run.close().catch(() => {})); return run.tools
+    }, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
     flag(name: string, on = true) { if (on) writeFileSync(join(directory, name), '1'); else rmSync(join(directory, name), { force: true }) },
     has: (name: string) => existsSync(join(directory, name)),
     outputs: () => existsSync(join(directory, 'output-count')) ? Number(readFileSync(join(directory, 'output-count'), 'utf8')) : 0 }

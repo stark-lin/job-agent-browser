@@ -52,7 +52,7 @@ Shell 提供以下全局能力：
 | Browser | 打开 URL；管理网页 Session / Cookie；文件上传下载；获取网页内容；接收粘贴的 URL 或网页内容 |
 | Agent | 提供常驻 Agent 按钮；将当前页面、当前职位或选中文字交给 AI |
 
-全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。Ask AI V2 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每个持久化会话可覆盖。当前范围为已保存的职位/资料/申请数据及可观察的本地工具操作；专用 Agent 委派、上传、跨会话记忆、搜索、文件夹及分支仍为规划。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
+全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。Ask AI V2 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每个持久化会话可覆盖。当前范围为已保存的职位/资料/申请数据及可观察的本地工具操作；Agent 自主管理的跨会话 Memory 及受预算约束的上下文已实现，专用 Agent 委派、上传、会话搜索、文件夹及分支仍为规划。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
 
 ## 四、Anything is URL
 
@@ -166,7 +166,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 这是完整功能的扩展顺序。基础 Provider 配置和流式对话已提前实现；Resume V1 已实现业务编排及引用上下文；Inbox 所需的邮箱入口配置应随 Inbox 一同提供。
 
-[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供内部 Resume/采集/申请 Agent 与外部宿主共用的公共能力。Ask AI V2 基于固定 first-party 工具允许列表提供持久化多会话 Agent 对话。工具后续里程碑包括真实服务集成及其 Transport/凭据，不替代上述分阶段产品流程。
+[MCP 基础设施](mcp-architecture.zh-CN.md)现已提供内部 Resume/采集/申请 Agent 与外部宿主共用的公共能力。Ask AI V2 基于逐步披露的已授权 first-party 工具提供持久化多会话 Agent 对话。工具后续里程碑包括真实服务集成及其 Transport/凭据，不替代上述分阶段产品流程。
 
 基础里程碑为：
 
@@ -188,4 +188,4 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 ## 智能笔记知识库
 
-**已实现：**app://knowledge 智能笔记使用同一 Explorer/编辑器容纳 Knowledge 和置顶 Memory 文件夹，搜索/历史/恢复按空间隔离，同步覆盖工作区并明确说明记忆及历史上传。Ask AI 仅支持明确用户请求后的 Manual 记忆，Job/Profile/Fact 保持权威。[当前运行](architecture.zh-CN.md#智能笔记知识库)记录实现，[面试准备](../skills/interview-prep/SKILL.zh-CN.md)仍为安装的 Skill。**规划：**Pi 集成、自动记忆和 Context Budget；不增加 Memory 页面、第二个 Git 仓库、CRDT、拖拽或协作合并。
+**已实现：**app://knowledge 智能笔记使用同一 Explorer/编辑器容纳 Knowledge 和置顶 Memory 文件夹，搜索/历史/恢复按空间隔离，同步覆盖工作区并明确说明记忆及历史上传。Ask AI 由一个 Pi Agent 通过 MCP 按需读取 Memory，执行明确或主动判断的写入，Job/Profile/Fact 保持权威。[当前运行](architecture.zh-CN.md#智能笔记知识库)记录实现，[面试准备](../skills/interview-prep/SKILL.zh-CN.md)仍为安装的 Skill。串行 Ask Runtime 与同步 Context Budget 已实现。**规划：**更完整的页面上下文捕获；不增加 Memory 页面、第二个 Git 仓库、CRDT、拖拽或协作合并。

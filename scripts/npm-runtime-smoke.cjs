@@ -76,7 +76,7 @@ console.log('Pure Node jab mcp verified Main-initialized storage, public tools w
     // The same built verification entry exercises keyword/MCP retrieval and real HTML/PDF.
     run(process.execPath, [cli, '--data-dir', data, '--verify-package', '--verify-minimal'], { cwd: tmpdir(), env, stdio: 'inherit' })
     const minimal = JSON.parse(readFileSync(join(data, 'package-verification.json')))
-    assert(minimal.ok && minimal.pdfVerified && minimal.semanticAvailable === false)
+    assert(minimal.ok && minimal.askVerified && minimal.pdfVerified && minimal.semanticAvailable === false)
     run(process.execPath, [protocol, data], { cwd: tmpdir(), env, stdio: 'inherit' })
     // Load the real GUI and typed preload, including settings and model controls.
     const guiScript = join(scratch, 'gui-smoke.cjs')
@@ -125,9 +125,9 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
       assert.equal(reopened.model.state, 'ready', 'Reinstall must detect and verify existing user model weights')
     }
     report.runtimeVerified = true
-    report.runtime = { platform: process.platform, arch: process.arch, gui: true, mcp: true, pdf: true, keywordFallback: true, reinstall: true, semantic }
+    report.runtime = { platform: process.platform, arch: process.arch, gui: true, askPi: true, mcp: true, pdf: true, keywordFallback: true, reinstall: true, semantic }
     writeFileSync(artifact, JSON.stringify(report, null, 2) + '\n')
-    console.log('Clean npm installation verified: GUI, preload, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
+    console.log('Clean npm installation verified: GUI, preload, Pi Ask, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
   } finally { rmSync(scratch, { recursive: true, force: true }) }
 }
 module.exports = { main }
