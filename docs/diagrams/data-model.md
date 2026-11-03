@@ -4,6 +4,9 @@ erDiagram
     CHAT_SESSION ||--o{ CHAT_RUN : contains
     CHAT_SESSION ||--o{ CHAT_ITEM : orders
     CHAT_RUN ||--o{ CHAT_ITEM : records
+    CHAT_SESSION ||--o| CHAT_CONTEXT_CHECKPOINT : projects
+    CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : tracks
+    CHAT_ITEM ||--o| CHAT_MEMORY_PROGRESS : checkpoints
     RUNTIME_INSTANCE ||--o{ CHAT_RUN : owns
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
@@ -45,6 +48,8 @@ erDiagram
         string state
         int event_sequence
         boolean write_started
+        string admission
+        string runtime_status
     }
     CHAT_ITEM {
         string id PK
@@ -53,6 +58,19 @@ erDiagram
         int sequence
         string state
         json content_json
+    }
+    CHAT_CONTEXT_CHECKPOINT {
+        string session_id PK,FK
+        text summary
+        int compacted_through_sequence
+        int revision
+        json protected_json
+    }
+    CHAT_MEMORY_PROGRESS {
+        string message_id PK,FK
+        string session_id FK
+        int sequence
+        json progress_json
     }
     OPERATION_RECEIPT {
         string operation PK

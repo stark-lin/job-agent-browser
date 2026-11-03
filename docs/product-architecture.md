@@ -52,7 +52,7 @@ The shell provides these global capabilities:
 | Browser | Open URLs; maintain web sessions and cookies; upload and download files; retrieve page content; accept pasted URLs or page content |
 | Agent | Keep an Agent button available; send the current page, current job, or selected text to AI |
 
-The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both are planned to use shared context and the configured AI capability. Ask AI V2 supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each persistent conversation can override it. Its current scope is saved Job/Profile/Application data and observable local tool actions. Specialist delegation, uploads, cross-session memory, search, folders and branching remain planned. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
+The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both are planned to use shared context and the configured AI capability. Ask AI V2 supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each persistent conversation can override it. Its current scope is saved Job/Profile/Application data and observable local tool actions. Automatic cross-session Memory and bounded context are implemented; specialist delegation, uploads, chat search, folders and branching remain planned. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
 
 ## 4. Anything is URL
 
@@ -166,7 +166,7 @@ Stage 1 establishes page hosting and navigation controls; Stage 3 completes the 
 
 This is the order for expanding the full features. Basic provider configuration and streaming chat are implemented ahead of Stage 6; Resume V1 now implements business orchestration and reference context; mailbox entry configuration must ship alongside Inbox.
 
-[MCP infrastructure](mcp-architecture.md) now provides one public capability surface used by internal Resume/Capture/Application Agents and external hosts. Ask AI V2 adds persistent multi-session Agent conversations over a fixed first-party tool allowlist. Future tooling milestones include a real-service integration and its required transport/credentials; these do not replace the staged product workflows above.
+[MCP infrastructure](mcp-architecture.md) now provides one public capability surface used by internal Resume/Capture/Application Agents and external hosts. Ask AI V2 adds persistent multi-session Agent conversations over progressively disclosed authorized first-party tools. Future tooling milestones include a real-service integration and its required transport/credentials; these do not replace the staged product workflows above.
 
 The foundation milestone is:
 
@@ -188,4 +188,4 @@ The baseline fixes the product structure and development direction. Detailed pag
 
 ## Smart Note knowledge
 
-**Implemented:** Smart Note at app://knowledge uses one Explorer/editor for Knowledge and a pinned Memory folder, per-space search/history/restore, and workspace-wide sync with explicit Memory/history disclosure. Ask AI supports Manual memory only after clear user requests; Job/Profile/Fact remain authoritative. [Current runtime](architecture.md#smart-note-knowledge) records implementation and [interview preparation](../skills/interview-prep/SKILL.md) remains an installed Skill. **Planned:** Pi integration, automatic memory and Context Budget; no additional Memory page, second Git repository, CRDT, drag-and-drop or collaborative merge is introduced.
+**Implemented:** Smart Note at app://knowledge uses one Explorer/editor for Knowledge and a pinned Memory folder, per-space search/history/restore, and workspace-wide sync with explicit Memory/history disclosure. Ask AI supports automatic Memory through host-controlled MCP maintenance; Job/Profile/Fact remain authoritative. [Current runtime](architecture.md#smart-note-knowledge) records implementation and [interview preparation](../skills/interview-prep/SKILL.md) remains an installed Skill. Pi integration, automatic Memory and Context Budget are implemented. **Planned:** broader page context capture; no additional Memory page, second Git repository, CRDT, drag-and-drop or collaborative merge is introduced.

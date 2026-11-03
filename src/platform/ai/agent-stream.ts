@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { AgentError, abortable, type AgentModelEvent, type AgentModelInput, type AgentResponse } from '../../shared/agent'
+import { AgentError, abortable, type AgentModelEvent, type AgentModelInput, type AgentResponse, type AgentUsage } from '../../shared/agent'
 import { DataError, type ErrorCode } from '../../domain/common/errors'
 import type { ChatRequest, Fetch } from './compatible'
-import { postChat, requestTimeout } from './transport'
+import { outputTokenParameters, postChat, requestTimeout } from './transport'
 import { parseAgentResponse, protocol, providerMessages, providerTools } from './agent-protocol'
 import { sseFrames } from './sse'
 
@@ -17,12 +17,19 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
   const timeout = requestTimeout(input.signal, deps.timeoutMs ?? config.timeoutMs), requestId = randomUUID()
   let failure: unknown, result: AgentResponse | undefined, finished: string | null = null, content = '', output = 0, done = false
   const calls = new Map<number, PartialCall>()
+  let usage: AgentUsage | undefined
   try {
-    const mapped = providerTools(input.tools)
-    const reply = await abortable(postChat(config, { messages: providerMessages(input.messages, mapped.names), ...(mapped.tools.length ? { tools: mapped.tools } : {}) }, timeout.signal, true, deps.transport), timeout.signal)
+    const mapped = providerTools(input.tools, input.stableToolNames)
+    input.validateRequest?.({ model: config.model, messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}) })
+    const reply = await abortable(postChat(config, { messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}), ...outputTokenParameters(config, input.maxOutputTokens), ...(input.maxOutputTokens ? { stream_options: { include_usage: true } } : {}) }, timeout.signal, true, deps.transport), timeout.signal)
     for await (const value of sseFrames(reply, timeout.signal)) {
       if (value === '[DONE]') { if (!finished) protocol(); done = true; break }
       const root = object(value)
+      if (root.usage && typeof root.usage === 'object') {
+        const reported = root.usage as ObjectValue
+        if (Number.isSafeInteger(reported.prompt_tokens) && Number.isSafeInteger(reported.completion_tokens)
+          && Number(reported.prompt_tokens) >= 0 && Number(reported.completion_tokens) >= 0) usage = { inputTokens: Number(reported.prompt_tokens), outputTokens: Number(reported.completion_tokens) }
+      }
       if (root.error) throw new AgentError('AI_PROVIDER_FAILED')
       if (!Array.isArray(root.choices) || root.choices.length > 1) protocol()
       if (!root.choices.length) continue
@@ -67,6 +74,7 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
     const ordered = [...calls].sort(([a], [b]) => a - b)
     if (ordered.some(([index, call], position) => index !== position || ![...mapped.names.values()].includes(call.function.name))) protocol()
     result = parseAgentResponse({ choices: [{ finish_reason: finished, message: { role: 'assistant', content, tool_calls: ordered.map(([, call]) => call) } }] }, mapped.names)
+    if (usage) result.usage = usage
     if (result.toolCalls.some(call => !mapped.names.has(call.name))) protocol()
     timeout.signal.throwIfAborted()
   } catch (error) {

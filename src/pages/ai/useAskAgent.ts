@@ -12,6 +12,6 @@ export function useAskAgent() {
   const id = state.activeId, session = state.sessions.find(s => s.id === id), key = id ?? 'draft'
   const choice = state.choices[key] ?? (session ? { providerId: session.providerId, modelId: session.modelId } : config?.default) ?? null
   const valid = Boolean(choice && config?.providers.some(p => p.id === choice.providerId && p.models.includes(choice.modelId)))
-  const runs = id ? state.runs[id] ?? [] : [], active = runs.find(r => r.state === 'running')
+  const runs = id ? state.runs[id] ?? [] : [], active = runs.find(r => r.state === 'running' && r.admission !== 'pending') ?? runs.find(r => r.state === 'running') ?? runs.find(r => r.runtimeStatus === 'memory.updating')
   return { ask, state, id, key, session, choice, valid, config, active, runs, text: state.drafts[key] ?? '', items: id ? state.items[id] ?? [] : [] }
 }

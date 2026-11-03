@@ -23,6 +23,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | Process/work ownership, invocation ownership and atomic start receipts; [version-4 schema](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | Cross-session write receipts; [version-5 schema](../src/platform/database/migrations/operation-receipts.ts) and [version-8 extension](../src/platform/database/migrations/profile-writes.ts) |
 | `chat_sessions`, `chat_runs`, `chat_items` | Host-owned transcript/model snapshots, request receipts, ordered visible items; [additive version-6 schema](../src/platform/database/migrations/chat.ts) |
+| `chat_context_checkpoints`, `chat_memory_progress` | Private context and recoverable Memory checkpoints; [additive version-11 schema](../src/platform/database/migrations/ask-runtime.ts) |
 
 ## 2. Business rules
 
@@ -119,13 +120,15 @@ Start-audit failure prevents execution. End-audit failure reports `TOOL_AUDIT_UN
 
 ### Ask AI transcript storage
 
-The [Chat repository](../src/platform/database/repositories/chats.ts) atomically creates Session/Run/User Item on first Send, with an input-hashed request UUID receipt. A partial unique index permits one running Run per Session; a composite foreign key binds every Item to its Run/Session. Model choices persist per Session and are copied per Run. New chat drafts stay in Renderer memory. Session deletion cascades transcript rows and receipts, requires no active Run and does not undo business changes or erase audit.
+The [Chat repository](../src/platform/database/repositories/chats.ts) atomically saves Session/Run/User Item with an input-hashed request UUID receipt. Migration 11 adds Pending/admitted state; a partial unique index permits one admitted running Run per Session. Composite foreign keys bind Items to Run/Session. Model choices persist per Session and snapshot per Run. Deletion requires no active Run, cascades private checkpoints and never undoes business changes or audit.
 
 Only the [Main recorder](../src/platform/electron/ask-agent-recorder.ts) appends model/tool Items. It saves visible text, explicitly public reasoning summaries, allowlisted scalar tool summaries and fixed errors; never raw tool arguments/results, system prompts, hidden reasoning, credentials or raw exceptions. Transcript content is separate from content-free audit. Item skeletons precede events; text uses one-second checkpoints and final writes, not per-token SQLite updates. A crash may lose text since the last checkpoint.
 
-Run ownership uses runtime_instances. Recovery interrupts only dead/expired owners; live MCP Server startup cannot interrupt Main work. Active text becomes interrupted and pending tools uncertain. Runs never auto-resume. Event snapshots include the in-memory partial text and monotonic watermark for resubscription. History includes at most 40 completed user/assistant Items and 256 KiB, starting at a user boundary; current-run tool observations are separately bounded at 2 MiB. Tool/reasoning history is not replayed.
+Run ownership uses runtime_instances. Recovery interrupts only dead/expired owners; live MCP startup cannot interrupt Main work. Partial answers survive and unfinished tools remain uncertain. New input creates a new Run; old business writes never replay. [Context checkpoints](../src/platform/database/repositories/ask-context.ts) save versioned summaries, monotonic compacted user-turn boundaries and minimal resource/outcome references. The token-driven model view preserves complete turns and labels partial answers; raw transcripts remain intact.
 
-[Ask IPC](../src/platform/electron/ask-agent-contract.ts) exposes start/cancel/getRun/listActive/onEvent with trusted-frame and window ownership checks. Manual Chat CRUD uses typed data IPC; Renderer cannot fabricate Runs or output Items. Retry creates a new Run, while a run that attempted writes requires state review rather than automatic replay. [Tests](../tests/chat.test.ts) cover constraints/recovery and [projection tests](../tests/ask-store.test.ts) cover snapshot races/gaps.
+[Ask IPC](../src/platform/electron/ask-agent-contract.ts) exposes start/cancel/getRun/listActive/retryMemory/onEvent with trusted-frame and window ownership checks. Manual Chat CRUD uses typed data IPC; Renderer cannot fabricate Runs or output Items. Retry creates a new Run, while a run that attempted writes requires state review rather than automatic replay. [Tests](../tests/chat.test.ts) cover constraints/recovery and [projection tests](../tests/ask-store.test.ts) cover snapshot races/gaps.
+
+[Migration 11](../src/platform/database/migrations/ask-runtime.ts) adds one replaceable Memory progress checkpoint per admitted user message: phase, source ID, pending write intents/digests, confirmed revisions and next step. Pending bodies exist only for crash recovery and are cleared on commit; there is no Memory event logger. L2 precedes Core, cross-session commits serialize, and stale revisions reconcile outside the lock. A failed Memory phase retains the admission barrier; explicit Memory retry never reruns Pi.
 
 ## 5. API contract and access
 

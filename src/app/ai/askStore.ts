@@ -123,7 +123,7 @@ export class AskStore {
   async send(choice: ChatChoice, retry?: string) {
     if (this.state.sending) return
     const key = this.state.activeId ?? 'draft', message = retry ?? this.state.drafts[key] ?? ''
-    if (!message.trim() || this.state.runs[key]?.some(r => r.state === 'running')) return
+    if (!message.trim()) return
     if (!this.request || this.request.key !== key || this.request.message !== message || JSON.stringify(this.request.choice) !== JSON.stringify(choice)) this.request = { id: crypto.randomUUID(), key, message, choice }
     this.change({ sending: true, error: null })
     try {
@@ -138,6 +138,7 @@ export class AskStore {
     finally { this.change({ sending: false }) }
   }
   async stop(runId: string) { const result = await this.api.cancel({ runId }); if (!result.ok) this.error(result.error) }
+  async retryMemory(runId: string) { const result = await this.api.retryMemory({ runId }); if (!result.ok) this.error(result.error); await this.sync(runId) }
   async rename(id: string, title: string) { const result = await this.data.chats.renameSession({ id, title }); if (!result.ok) this.error(result.error); else await this.refreshSessions() }
   async remove(id: string) {
     const result = await this.data.chats.deleteSession({ id })

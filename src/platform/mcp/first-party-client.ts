@@ -6,13 +6,13 @@ import { ToolError, toolErrorCodes, toolFail } from '../../shared/tools/errors'
 import { jsonCopy, toolOutput } from '../tools/schema'
 import { createMCPClient, type MCPClient } from './client'
 
-export type FirstPartyAgent = 'resume' | 'job-capture' | 'application' | 'ask-ai'
+export type FirstPartyAgent = 'resume' | 'job-capture' | 'application' | 'ask-ai' | 'ask-memory'
 export interface AgentBinding { runId?: string; jobId?: string }
 
 /** The only production AgentTools implementation: all calls use the stdio Client. */
 export class MCPAgentTools implements AgentTools {
   constructor(private readonly client: MCPClient, private readonly descriptors: readonly AgentToolDescriptor[],
-    readonly signal: AbortSignal, private readonly binding: AgentBinding = {}) {}
+    readonly signal: AbortSignal, private readonly binding: AgentBinding = {}, private readonly grant?: (name: string, args: unknown) => string) {}
 
   async list() { return structuredClone(this.descriptors) }
   close() { return this.client.close() }
@@ -25,7 +25,7 @@ export class MCPAgentTools implements AgentTools {
     if (!input || typeof input !== 'object' || Array.isArray(input)) toolFail('TOOL_INVALID_INPUT')
     if (this.binding.runId && input.runId !== this.binding.runId) toolFail('TOOL_FORBIDDEN')
     if (this.binding.jobId && (name.startsWith('application.') ? input.jobId : input.id) !== this.binding.jobId) toolFail('TOOL_FORBIDDEN')
-    const result = jsonCopy(await this.client.callTool(name, input, AbortSignal.any([signal, this.signal])), 1048576, 'MCP_INVALID_RESPONSE')
+    const result = jsonCopy(await this.client.callTool(name, input, AbortSignal.any([signal, this.signal]), this.grant && ['memory.write', 'memory.mkdir'].includes(name) ? this.grant(name, input) : undefined), 1048576, 'MCP_INVALID_RESPONSE')
     if (!result || typeof result !== 'object' || Array.isArray(result)) toolFail('MCP_INVALID_RESPONSE')
     if (result.isError === true) {
       const items = result.content
@@ -45,15 +45,16 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
   const clients = new Set<MCPClient>(), lifecycle = new AbortController()
   let disposed = false
   return {
-    async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default'): Promise<MCPAgentTools> {
+    async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []): Promise<MCPAgentTools> {
       if (disposed) toolFail('TOOL_UNAVAILABLE')
       signal.throwIfAborted()
-      const sessionKey = agent === 'ask-ai' ? `${agent}:${sessionId}` : agent
+      const sessionKey = agent === 'ask-ai' || agent === 'ask-memory' ? `${agent}:${sessionId}:${agent === 'ask-memory' ? sourceMessageIds.join(',') : ''}` : agent
       let pending = sessions.get(sessionKey)
       if (!pending) {
         pending = (async () => {
           const closed = new AbortController()
-          const launch = agent === 'ask-ai' ? await authority.issue(`${sessionId}:${randomUUID()}`) : undefined
+          const authSession = `${sessionId}:${randomUUID()}`
+          const launch = agent === 'ask-ai' || agent === 'ask-memory' ? await authority.issue(authSession, agent === 'ask-memory') : undefined
           if (disposed) toolFail('TOOL_UNAVAILABLE')
           let client: MCPClient
           client = createMCPClient({ id: `internal-${agent}`, enabled: true, transport: 'stdio', command: process.execPath,
@@ -66,7 +67,7 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
             await client.connect(lifecycle.signal)
             const descriptors = await client.listTools(lifecycle.signal)
             if (new Set(descriptors.map(tool => tool.name)).size !== descriptors.length) toolFail('MCP_INVALID_RESPONSE')
-            return new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal]))
+            return new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal]), {}, agent === 'ask-memory' ? (name, args) => authority.grant(authSession, name, args, sourceMessageIds) : undefined)
           } catch (error) { await client.close(); if (sessions.get(sessionKey) === pending) sessions.delete(sessionKey); throw error }
         })()
         sessions.set(sessionKey, pending)

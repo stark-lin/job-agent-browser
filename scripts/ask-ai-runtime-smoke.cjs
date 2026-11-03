@@ -42,9 +42,12 @@ app.on('browser-window-created', (_event, window) => {
         const sse = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason }] })}\n\n`
         const finish = (response, text) => response.end(sse({ content: text }, 'stop') + 'data: [DONE]\n\n')
         server = createServer((request, response) => {
+          if (request.method === 'GET') { response.writeHead(404).end(); return }
           let raw = ''; request.on('data', c => { raw += c }); request.on('end', async () => {
-            const body = JSON.parse(raw), user = body.messages.findLast(m => m.role === 'user').content, lastUser = body.messages.findLastIndex(m => m.role === 'user')
-            const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool').length
+            const body = JSON.parse(raw)
+            if (!body.stream) { response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify({ candidates: [] }) } }] })); return }
+            const user = body.messages.findLast(m => m.role === 'user').content, lastUser = body.messages.findLastIndex(m => m.role === 'user')
+            const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool' && !JSON.parse(m.content).activeOnNextRequest).length
             response.writeHead(200, { 'Content-Type': 'text/event-stream' })
             response.write(sse({ reasoning_summary: 'Comparing saved job information 中文' }))
             await new Promise(r => setTimeout(r, 150))
@@ -52,6 +55,12 @@ app.on('browser-window-created', (_event, window) => {
             if (user === 'crash checkpoint') { response.write(sse({ content: 'Checkpoint survives process termination.' })); return }
             if (user === 'failure' && failCount++ === 0) { response.end(sse({ content: 'Partial response' }) + 'data: [DONE]\n\n'); return }
             if (user !== 'workflow') { finish(response, 'Recovered answer'); return }
+            const wanted = ['List saved jobs;', 'List saved profiles', 'Read current application', 'Append a note', 'Apply a legal status']
+            if (!wanted.every(prefix => body.tools.some(t => t.function.description.startsWith(prefix)))) {
+              const activate = body.tools.find(t => t.function.description.startsWith('Activate only the tool names'))
+              assert(activate)
+              response.end(sse({ tool_calls: [{ index: 0, id: 'discover-workflow', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status'] }) } }] }, 'tool_calls') + 'data: [DONE]\n\n'); return
+            }
             const tool = prefix => { const entry = body.tools.find(t => t.function.description.startsWith(prefix)); assert(entry); return entry.function.name }
             const calls = observations === 0 ? [
               { id: 'jobs', type: 'function', function: { name: tool('List saved jobs;'), arguments: '{}' } },
@@ -69,14 +78,14 @@ app.on('browser-window-created', (_event, window) => {
           })
         })
         await new Promise(r => server.listen(0, '127.0.0.1', r))
-        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, requiresKey: false, models: ['fixture-model'], defaultModel: 'fixture-model' }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
+        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, requiresKey: false, models: ['fixture-model'], defaultModel: 'fixture-model', capabilities: { 'fixture-model': { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
         assert((await data('settings', 'savePreferences', { ai, language: 'en', theme: 'light' })).ok)
         await evaluate("window.browser.navigate('app://ai')")
         await waitFor(() => evaluate('!!document.querySelector(".ai-composer textarea")'), 'composer')
         if (stage === 'restart') {
           assert((await data('chats', 'listSessions', {})).value.total >= 4)
           const old = (await api('getRun', { runId: metadata.workflowRun })).value
-          assert.equal(old.run.state, 'completed'); assert.equal(old.items.filter(i => i.content.type === 'tool_call').length, 5)
+          assert.equal(old.run.state, 'completed'); assert.equal(old.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 5)
           await select('workflow'); await waitFor(() => evaluate('document.body.innerText.includes("Your application is updated")'), 'persistent timeline')
           await click('New chat'); await send('crash checkpoint')
           await waitFor(async () => (await api('listActive', {})).value.some(s => s.items.some(i => i.content.text?.includes('Checkpoint'))), 'crash partial output')
@@ -96,7 +105,7 @@ app.on('browser-window-created', (_event, window) => {
         const workflow = (await data('chats', 'listSessions', {})).value.items.find(s => s.title === 'workflow')
         metadata.workflowRun = (await data('chats', 'listRuns', { sessionId: workflow.id })).value.items[0].id
         const snapshot = (await api('getRun', { runId: metadata.workflowRun })).value
-        assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call').length, 5)
+        assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 5)
         assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_RESULT'), false)
         assert.equal((await data('jobs', 'getJob', { id: jobId })).value.applicationStatus, 'APPLIED')
         const captured = await evaluate('window.__askEvents')
@@ -112,6 +121,14 @@ app.on('browser-window-created', (_event, window) => {
         await waitFor(async () => (await api('listActive', {})).value.length === 1, 'A active')
         await field('next draft A'); await click('New chat'); await send('hold B')
         await waitFor(async () => (await api('listActive', {})).value.length === 2, 'A and B active')
+        window.setMinimumSize(320, 320); window.setContentSize(320, 820)
+        await waitFor(() => evaluate('innerWidth===320'), 'busy narrow resize'); await frame()
+        assert.equal(await evaluate('document.querySelector(".ai-composer").scrollWidth>document.querySelector(".ai-composer").clientWidth'), false)
+        assert(await evaluate(`(() => { const rows = [...document.querySelector('.ui-composer-controls').children].map(node => node.getBoundingClientRect().top); return Math.max(...rows) - Math.min(...rows) < 1; })()`))
+        assert(await evaluate(`!!document.querySelector('button[aria-label=Stop]') && !!document.querySelector('button[aria-label="Send message"]')`))
+        mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
+        writeFileSync(resolve(__dirname, '../.cache/ask-ai-busy-narrow.png'), (await window.capturePage()).toPNG())
+        window.setContentSize(1200, 820); await waitFor(() => evaluate('innerWidth===1200'), 'restore busy width'); await frame()
         await evaluate("window.browser.navigate('app://home')"); assert.equal((await api('listActive', {})).value.length, 2)
         await evaluate("window.browser.navigate('app://ai')"); await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'page return')
         await select('hold A'); assert.equal(await evaluate('document.querySelector(".ai-composer textarea").value'), 'next draft A')

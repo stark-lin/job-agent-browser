@@ -1,6 +1,6 @@
 import type { AgentRunEvent, ChatItem, ChatSnapshot } from '../../domain/chat/chat.types'
 import type { ChatRecorder } from '../database/repositories/chats'
-import type { StreamLoopEvent } from '../agent/stream-loop'
+import type { AgentRuntimeEvent } from '../../shared/agent'
 import { isAskWrite, presentTool } from '../agent/tool-presentation'
 
 /** Only trusted runtime events reach storage. Renderer cannot fabricate timeline output. */
@@ -22,7 +22,7 @@ export function createAskRecorder(repo: ChatRecorder, snapshot: ChatSnapshot, se
   return {
     snapshot,
     started() { emit({ type: 'run.started', run: structuredClone(snapshot.run) } as AgentRunEvent); flush() },
-    receive(event: StreamLoopEvent) {
+    receive(event: AgentRuntimeEvent) {
       if (event.type === 'segment.started' || event.type === 'tool.started') {
         const tool = event.type === 'tool.started'
         if (tool && isAskWrite(event.call.name)) { snapshot.run.writeStarted = true; flush() }

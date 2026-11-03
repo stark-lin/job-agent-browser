@@ -1,6 +1,7 @@
 import { LocalModelManager } from '../models/manager'
 import { manifest } from '../knowledge/rag/embedding-protocol'
 import { verifyResumePackage } from './verify-resume-package'
+import { verifyAskPackage } from './verify-ask-package'
 import { app, utilityProcess } from 'electron'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
@@ -60,12 +61,13 @@ export async function verifyEmbeddingRuntime(bundleDirectory: string, modelsDire
     const memory = await session.call('memory.recall', { query: 'preferred editor VS Code' }, signal)
     check(JSON.stringify(memory).includes('VS Code') && !JSON.stringify(memory).includes('Trip.com'), 'isolated packaged Memory retrieval through shared model')
     check(forks === 1, 'one embedding process shared with MCP')
+    await verifyAskPackage(backend, mcp)
     await verifyResumePackage(backend, mcp, bundleDirectory)
     await manager.remove()
     check(manager.status().state === 'missing', 'model removal')
     const keyword = await service.spaces.knowledge.search('SQLite')
     check(!keyword.semantic && keyword.items.some(item => item.path === 'database.md'), 'keyword fallback')
-    return { ok: true, pdfVerified: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
+    return { ok: true, askVerified: true, pdfVerified: true, dimensions: query.length, forks, platform: process.platform, arch: process.arch, electron: process.versions.electron }
   } finally {
     await stop?.()
     await mcp.dispose()
@@ -89,11 +91,13 @@ export async function verifyMinimalRuntime(bundleDirectory: string, directory: s
     const session = await mcp.session('ask-ai', AbortSignal.timeout(120000))
     const context = await session.call('knowledge.retrieve', { query: 'SQLite', maxContext: 4000 }, AbortSignal.timeout(120000))
     check(JSON.stringify(context).includes('minimal.md'), 'minimal MCP retrieval')
-    await session.call('memory.write', { path: 'preference.md', content: 'Remembered offline preference.', expectedRevision: null }, AbortSignal.timeout(120000))
+    const maintenance = await mcp.session('ask-memory', AbortSignal.timeout(120000), 'package-verification', ['package-verification-source'])
+    await maintenance.call('memory.write', { path: 'preference.md', content: 'Remembered offline preference.', expectedRevision: null }, AbortSignal.timeout(120000))
     const memory = await session.call('memory.recall', { query: 'offline preference' }, AbortSignal.timeout(120000))
     check(JSON.stringify(memory).includes('Remembered offline preference'), 'minimal Memory lexical recall')
+    await verifyAskPackage(backend, mcp)
     await verifyResumePackage(backend, mcp, bundleDirectory)
-    return { ok: true, pdfVerified: true, dimensions: 0, forks: 0, semanticAvailable: false, platform: process.platform, arch: process.arch, electron: process.versions.electron }
+    return { ok: true, askVerified: true, pdfVerified: true, dimensions: 0, forks: 0, semanticAvailable: false, platform: process.platform, arch: process.arch, electron: process.versions.electron }
   } finally { await mcp.dispose(); await service.close(); await manager.close(); backend.close() }
 }
 export async function verifyPackageRuntime() {
@@ -101,5 +105,5 @@ export async function verifyPackageRuntime() {
   const result = process.argv.includes('--verify-minimal') ? await verifyMinimalRuntime(bundle, directory) :
     await verifyEmbeddingRuntime(bundle, join(process.resourcesPath, 'models'), directory)
   await writeFile(join(app.getPath('userData'), 'package-verification.json'), JSON.stringify(result))
-  console.log('Application runtime, MCP, PDF and keyword fallback verified.')
+  console.log('Application runtime, Pi Ask, MCP, PDF and keyword fallback verified.')
 }

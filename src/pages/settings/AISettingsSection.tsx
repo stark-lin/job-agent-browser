@@ -50,7 +50,7 @@ export function AISettingsSection({ settings: s }: { settings: ReturnType<typeof
           <FormField label={t($ => $.settings.defaultModel)}>{props => <Select {...props} disabled={busy} value={p.defaultModel} onChange={event => s.editProvider({ defaultModel: event.target.value })}>
             <option value="">{t($ => $.settings.none)}</option>{p.models.filter(Boolean).map((model, index) => <option key={index} value={model}>{model}</option>)}
           </Select>}</FormField>
-          <ModelImportSettings key={p.id} provider={p} disabled={busy} onChange={parallelModels => s.editProvider({ parallelModels })} />
+          <ModelImportSettings key={p.id} provider={p} disabled={busy} onChange={parallelModels => s.editProvider({ parallelModels })} onCapabilities={capabilities => s.editProvider({ capabilities })} />
           <Button disabled={busy || !p.defaultModel} onClick={() => s.changeAI({ ...draft.ai, default: { providerId: p.id, modelId: p.defaultModel } })}>{t($ => $.settings.makeDefault)}</Button>
           <StatusMessage>{draft.ai.default ? t($ => $.settings.currentDefault, { provider: draft.ai.providers.find(provider => provider.id === draft.ai.default?.providerId)?.name ?? '', model: draft.ai.default.modelId }) : t($ => $.settings.noDefault)}</StatusMessage>
         </>}

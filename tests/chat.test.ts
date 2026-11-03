@@ -49,3 +49,20 @@ test('recovery interrupts only abandoned owners, preserves checkpoint text and m
   assert.deepEqual(snapshot.items.map(i => i.state), ['completed', 'interrupted', 'uncertain'])
   assert.equal(snapshot.items[1].content.type !== 'tool_call' && snapshot.items[1].content.text, 'checkpoint')
 })
+
+test('background Memory keeps a completed Pi chat busy and crash recovery preserves its answer without a stale updating state', t => {
+  const database = openDatabase(':memory:'), backend = composeBackend(database), repo = backend.chats
+  t.after(() => backend.close())
+  const result = repo.start(start()), snapshot = repo.snapshot(result.runId), user = snapshot.items[0]
+  snapshot.items.push(repo.append(result.runId, { type: 'assistant_message', text: 'Complete answer' }, 'completed'))
+  snapshot.run.state = 'completed'; snapshot.run.finishedAt = new Date().toISOString(); repo.finish(snapshot)
+  repo.saveMemory(result.sessionId, { messageId: user.id, sequence: user.sequence, phase: 'committing', writes: [], nextWrite: 0, error: null })
+  repo.runtimeStatus(result.runId, 'memory.updating', 1)
+  assert.throws(() => repo.deleteSession(result.sessionId), { code: 'INVALID_STATE' })
+  database.connection.prepare('UPDATE runtime_instances SET expires_at=0 WHERE id=?').run(backend.lease.id)
+  repo.recover()
+  assert.equal(repo.getRun(result.runId).state, 'completed'); assert.equal(repo.getRun(result.runId).runtimeStatus, 'memory.failed')
+  assert.equal(repo.snapshot(result.runId).items.at(-1)?.state, 'completed')
+  const progress = repo.memoryProgress(result.sessionId)[0]; repo.saveMemory(result.sessionId, { ...progress, phase: 'committed' })
+  repo.reconcileMemoryStatus(result.sessionId); assert.equal(repo.getRun(result.runId).runtimeStatus, 'idle')
+})

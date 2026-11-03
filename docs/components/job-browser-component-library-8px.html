@@ -241,7 +241,7 @@
         <div class="demo">
           <div class="demo-label">Checkbox · ignore imported content</div>
           <div class="demo-stage stack">
-            <label class="check-row"><input type="checkbox" /><span>Allow parallel imports for this model</span></label>
+            <label class="check-row"><input type="checkbox" /><span>Allow parallel requests for this model</span></label>
             <label class="check-row"><input type="checkbox" checked /><span>Ignore entry and its facts</span></label>
             <label class="check-row"><input type="checkbox" /><span>Ignore this fact</span></label>
             <label class="check-row"><input type="checkbox" disabled /><span>Parent entry is ignored.</span></label>
@@ -546,6 +546,8 @@
             <div class="ui-activity ui-activity--uncertain"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Operation may have completed<div class="ui-activity-description">Check the current state before trying again.</div></div></div>
             <div class="ui-chat-message">Your experience matches these requirements.</div>
             <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Example message" placeholder="Ask anything about your job search…"></textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Example model"><option>Example model</option></select><button class="btn" aria-label="Send example" disabled>↑</button></div></div>
+            <p class="muted" role="status">Updating memory… New messages wait for the previous turn.</p>
+            <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Queued example message">A follow-up question</textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Busy example model" disabled><option>Example model</option></select><button class="btn" aria-label="Stop example">■</button><button class="btn" aria-label="Queue example message">↑</button></div></div>
           </div>
         </div>
       </section>

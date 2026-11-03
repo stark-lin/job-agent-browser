@@ -85,6 +85,8 @@ jab --version
 
 ## 兼容性门槛与剩余限制
 
+Ask V2 在运行锁文件中固定 Pi Agent Core/AI 和 tokenizer。[分发验收](../src/platform/electron/verify-ask-package.ts)不使用付费模型，验证 CJS 原生加载 ESM、逐步激活及真实 first-party MCP；干净 npm 安装门禁在仓库外运行同一验收。
+
 公开推荐 npm 前，在干净 macOS ARM64 账号上测试：首次 GUI/运行时下载、可选模型安装、离线重启、取消/修复、更新/重装、Gatekeeper 提示、safeStorage 重开和 npm/DMG 凭据互通。不能从同用户 CI 推断这些结果。解密失败后不自动迁移、丢弃或覆盖密钥。模型共享不代表凭据可移植。
 
 Windows/Linux/macOS x64 的 GUI、原生模块、PDF、存储和系统权限实测仍为计划；安装成功不代表正式支持。签名证书、真实 Provider 兼容性、云备份排除和自动应用更新仍未验证/计划中。失败构建保留可用诊断 7 天。在同一工作流重跑失败作业以保留成功产物/版本；撤回发行版不会回滚已安装应用。

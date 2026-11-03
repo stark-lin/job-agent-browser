@@ -22,6 +22,7 @@ import { pathToFileURL } from 'node:url'
 import { createBackend } from '../../database/backend'
 import { trustedDataSender, registerDataIPC } from './data-ipc'
 import { createAgentModels } from '../../ai/agent-factory'
+import { resolveAskCapabilities } from '../../ai/ask-capabilities'
 import { createAIService, type AIService } from '../../ai'
 import { registerAIIPC } from './ai-ipc'
 import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
@@ -124,7 +125,8 @@ app.whenReady().then(async () => {
   jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
-  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, model: choice => models('internal.ask-ai', choice) })
+  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, settings: () => preferences.get({}).ai,
+    capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models('internal.ask-ai', choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })
   registerApplicationIPC(applicationTasks, join(__dirname, '../renderer/index.html'))

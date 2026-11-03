@@ -20,7 +20,14 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const preferences = createPreferences(join(directory,'settings.json'))
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
   const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge, memoryAuthorization ? knowledge.spaces.memory : undefined)
-  const mcp = createMCPServer(tooling.registry, { allow: [...jobAgentAllowlist, ...(memoryAuthorization ? ['memory.list', 'memory.recall', 'memory.read', 'memory.write', 'memory.mkdir'] : [])], maxRisk: 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller)
+  const memoryTools = ['memory.list', 'memory.recall', 'memory.read', 'memory.write', 'memory.mkdir']
+  const allow = memoryAuthorization?.maintenance ? memoryTools : [...jobAgentAllowlist.filter(name => !memoryAuthorization || name !== 'knowledge.delete'), ...(memoryAuthorization ? memoryTools.filter(name => !['memory.write', 'memory.mkdir'].includes(name)) : [])]
+  const mcp = createMCPServer(tooling.registry, { allow, maxRisk: 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
+    async (name, args, metadata) => {
+      if (!['memory.write', 'memory.mkdir'].includes(name)) return true
+      const token = metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabMemoryGrant : undefined
+      return Boolean(memoryAuthorization?.maintenance && await memoryAuthorization.authorize?.(token, name, args))
+    })
   let disposal: Promise<void> | undefined
   return { backend, tooling, ready: knowledge.ready, server: mcp.server, dispose() {
     return disposal ??= (async () => {

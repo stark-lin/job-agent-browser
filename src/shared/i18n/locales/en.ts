@@ -76,6 +76,7 @@ export const en = {
   "rebuilt": "Search index rebuilt"
 },
   ask: {
+  runtime: { pending: 'Waiting for the previous turn…', memoryUpdating: 'Updating memory…', memoryFailed: 'Memory update is incomplete. The next turn waits for recovery.', compacting: 'Compacting context…', searching: 'Searching tools…', activating: 'Activating tools…' }, retryMemory: 'Retry memory update',
   "sessions": "Chats",
   "openSessions": "Open chats",
   "close": "Close",
@@ -126,6 +127,7 @@ export const en = {
   "toolRunning": "Running: {{action}}",
   "toolFailed": "Could not complete: {{action}}",
   "tools": {
+    searchTools: 'Search tools', activateTools: 'Activate tools',
     "jobs": "Read saved jobs",
     "job": "Read job",
     "updateJob": "Update job",
@@ -166,6 +168,7 @@ export const en = {
     "tool": "Run operation"
   },
   "errors": {
+    "ASK_CONTEXT_UNKNOWN": "The effective model context window is unknown. Configure deployment limits in Settings.", "ASK_CONTEXT_TOO_SMALL": "Ask AI requires an effective context window of at least 65,536 tokens.", "ASK_CONTEXT_OVERFLOW": "The current task exceeds the context budget after compaction. Reduce the request.", "ASK_MEMORY_FAILED": "Memory update failed. Retry memory; completed operations will not be replayed.",
     "UNKNOWN": "The operation could not be completed. Please try again.",
     "INVALID_INPUT": "Check your message and model selection.",
     "NOT_FOUND": "This chat is no longer available.",
@@ -232,7 +235,7 @@ export const en = {
   },
   imports: {
     mode: 'Import mode', single: 'Standard', parallel: 'Parallel',
-    configureModel: 'Model for parallel import settings', allowParallel: 'Allow parallel imports for this model',
+    configureModel: 'Model settings', allowParallel: 'Allow parallel requests for this model',
     enableHelp: 'Enable parallel imports for this model in Settings to use this mode.',
     parallelHelp: 'Parallel mode splits extraction across requests. Input tokens and cost may increase; speed depends on your provider.',
     retry: 'Retry failed parts', progress: '{{completed}} of {{total}} parts completed',
@@ -471,6 +474,8 @@ export const en = {
     }
   },
   settings: {
+    contextWindow: 'Effective context window (tokens)', contextWindowHelp: 'Ask AI needs at least 65,536. Enter actual deployment limits; detected runtime limits take precedence. Allowing parallel requests also runs memory alongside answers.', maxOutputTokens: 'Model maximum output tokens',
+
     "aiDescription": "Configure OpenAI-compatible Chat Completions services. Keys are stored separately for each provider.",
     "requestTimeout": "AI request timeout (seconds)",
     "pageTimeout": "Job page read timeout (seconds)",

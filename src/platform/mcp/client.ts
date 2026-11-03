@@ -7,11 +7,11 @@ import { jsonCopy } from '../tools/schema'
 import type { MCPServerConfig } from './server-config'
 import { mcpError } from './errors'
 
-export interface MCPDiscoveredTool { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema }
+export interface MCPDiscoveredTool { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema; risk?: 'READ' | 'COMPUTE' | 'WRITE' | 'EXTERNAL_ACTION' }
 export interface MCPClient {
   connect(signal?: AbortSignal): Promise<void>
   listTools(signal?: AbortSignal): Promise<MCPDiscoveredTool[]>
-  callTool(name: string, input: unknown, signal: AbortSignal): Promise<unknown>
+  callTool(name: string, input: unknown, signal: AbortSignal, memoryGrant?: string): Promise<unknown>
   close(): Promise<void>
 }
 export interface ClientHooks { closed(): void; changed(): void }
@@ -49,6 +49,7 @@ export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, opt
         if (result.tools.length > 500) toolFail('MCP_INVALID_RESPONSE')
         jsonCopy(result.tools, 1048576, 'MCP_INVALID_RESPONSE')
         return result.tools.map(tool => ({ name: tool.name, description: tool.description ?? '', inputSchema: tool.inputSchema as JsonSchema,
+          ...(['READ', 'COMPUTE', 'WRITE', 'EXTERNAL_ACTION'].includes(String(tool._meta?.jabRisk)) ? { risk: tool._meta?.jabRisk as MCPDiscoveredTool['risk'] } : {}),
           ...(tool.outputSchema ? { outputSchema: tool.outputSchema as JsonSchema } : {}) }))
       } catch (error) {
         if (timeout.aborted) toolFail('TOOL_TIMEOUT')
@@ -56,13 +57,13 @@ export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, opt
         throw mcpError(error)
       }
     },
-    async callTool(name, input, signal) {
+    async callTool(name, input, signal, memoryGrant) {
       if (!connected || closed) toolFail('TOOL_UNAVAILABLE')
       if (signal.aborted) toolFail('TOOL_CANCELLED')
       if (active >= 4) toolFail('TOOL_BUSY')
       active++
       try {
-        return await client.callTool({ name, arguments: input as Record<string, unknown> }, { signal: signalFor(signal), timeout: 120000, maxTotalTimeout: 120000 })
+        return await client.callTool({ name, arguments: input as Record<string, unknown>, ...(memoryGrant ? { _meta: { jabMemoryGrant: memoryGrant } } : {}) }, { signal: signalFor(signal), timeout: 120000, maxTotalTimeout: 120000 })
       } catch (error) { if (signal.aborted) toolFail('TOOL_CANCELLED'); throw mcpError(error) }
       finally { active-- }
     },

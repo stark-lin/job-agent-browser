@@ -27,7 +27,7 @@ test('migrations create all tables once and enforce configured SQLite settings',
   const f = fixture(t), db = f.database.connection
   assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1)
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all()
-  assert.equal(tables.length, 21)
+  assert.equal(tables.length, 23)
   migrate(db)
   assert.equal(db.prepare('SELECT count(*) count FROM schema_migrations').get()?.count, migrations.length)
 })

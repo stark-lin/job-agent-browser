@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
-import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
+import { createFixtureAskTasks as createAskAgentTasks } from './ask-fixture'
 import { firstPartyFixture } from './first-party-fixture'
 import { fixture, value } from './helpers'
 import { migrate, migrations } from '../src/platform/database/migrations'
@@ -203,8 +203,7 @@ test('Ask AI discovers profile writes, carries revisions and presents safe summa
   ]
   const model: import('../src/shared/agent').StreamingAgentModel = {
     complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
-      assert(input.tools.some(tool => tool.name === 'profile.create'))
-      assert(input.tools.some(tool => tool.name === 'profile.list_items'))
+      assert(input.tools.some(tool => tool.name === 'tool.activate'))
       const previous = input.messages.at(-1)
       if (previous?.role === 'tool') {
         const result = JSON.parse(previous.content)

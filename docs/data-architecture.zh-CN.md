@@ -23,6 +23,7 @@
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | 跨会话写入回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts)和[版本 8 扩展](../src/platform/database/migrations/profile-writes.ts) |
 | `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
+| `chat_context_checkpoints`, `chat_memory_progress` | 私有上下文及可恢复 Memory 检查点；[增量版本 11 结构](../src/platform/database/migrations/ask-runtime.ts) |
 
 ## 二、业务规则
 
@@ -119,13 +120,15 @@
 
 ### Ask AI 会话存储
 
-[Chat Repository](../src/platform/database/repositories/chats.ts)在首次发送时原子创建 Session/Run/User Item，以请求 UUID 及输入哈希作为回执。部分唯一索引保证每 Session 一个运行中 Run，复合外键绑定 Item 所属 Run/Session。Session 保存模型选择并复制到各 Run，新会话草稿只在 Renderer 内存中。删除会话要求无活动 Run，级联移除会话记录及回执，不撤销业务修改或清除审计。
+[Chat Repository](../src/platform/database/repositories/chats.ts)以输入哈希和请求 UUID 回执原子保存 Session/Run/User Item。迁移 11 增加 Pending/admitted 状态，部分唯一索引保证同一 Session 只有一个已放行的活动 Run；组合外键绑定 Item 与 Run/Session。模型选择按 Session 保存并复制到 Run。删除要求没有活动 Run，级联清理私有检查点，不撤销业务变更或审计。
 
 只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存可见文字、明确公开的思考摘要、允许的标量工具摘要及固定错误码；不保存原始工具参数/结果、系统提示词、隐藏推理、凭据或原始异常。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。
 
-Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner，活跃 MCP Server 启动不能中断 Main 任务。未完成文字标记 interrupted，工具标记 uncertain，不自动续跑。事件快照包含内存片段及递增水位以支持重新订阅。历史最多取 40 个已完成 user/assistant Item、256 KiB，并从用户消息边界开始；当前 Run 工具观察另限制为 2 MiB。不重放历史工具/思考内容。
+Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。
 
-[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。
+[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/retryMemory/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。
+
+[迁移 11](../src/platform/database/migrations/ask-runtime.ts)为已放行的用户消息增加可覆盖的 Memory 进度检查点：阶段、来源 ID、待写入内容/摘要、已确认 Revision 及下一步。待写入正文仅用于崩溃恢复，提交后清除，不增加 Memory 事件日志。先 L2 后 Core，跨会话提交串行，过期版本在锁外重新合并。Memory 失败保留放行屏障，显式重试记忆不会重跑 Pi。
 
 ## 五、API 契约与访问
 

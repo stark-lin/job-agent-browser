@@ -1,20 +1,22 @@
 import type { AgentMessage, AgentResponse, AgentToolDescriptor } from '../../shared/agent'
 import { AgentError } from '../../shared/agent'
+import { createHash } from 'node:crypto'
 
 export function protocol(): never { throw new AgentError('AGENT_PROTOCOL_ERROR') }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : protocol()
 /** Index mapping is injective, deterministic and independent of punctuation in business names. */
-export function providerTools(tools: readonly AgentToolDescriptor[]) {
-  const names = new Map(tools.map((tool, index) => [tool.name, `tool_${index}`]))
+const stableName = (name: string) => `tool_${createHash('sha256').update(name).digest('hex').slice(0, 48)}`
+export function providerTools(tools: readonly AgentToolDescriptor[], stable = false) {
+  const names = new Map(tools.map((tool, index) => [tool.name, stable ? stableName(tool.name) : `tool_${index}`]))
   if (names.size !== tools.length) protocol()
   return { names, tools: tools.map(tool => ({ type: 'function', function: { name: names.get(tool.name), description: tool.description, parameters: tool.inputSchema } })) }
 }
-export function providerMessages(input: readonly AgentMessage[], names: Map<string, string>) {
+export function providerMessages(input: readonly AgentMessage[], names: Map<string, string>, stable = false) {
   return input.map(message => {
     if (message.role === 'tool') return { role: 'tool', tool_call_id: message.callId, content: message.content }
     if (message.role !== 'assistant') return message
     return { role: 'assistant', content: message.content || null, ...(message.toolCalls.length ? { tool_calls: message.toolCalls.map(call => ({
-      id: call.id, type: 'function', function: { name: names.get(call.name) ?? call.name, arguments: JSON.stringify(call.arguments) }
+      id: call.id, type: 'function', function: { name: names.get(call.name) ?? (stable ? stableName(call.name) : call.name), arguments: JSON.stringify(call.arguments) }
     })) } : {}) }
   })
 }
@@ -37,5 +39,7 @@ export function parseAgentResponse(value: unknown, names: Map<string, string>): 
   })
   const content = typeof message.content === 'string' ? message.content : ''
   if (!toolCalls.length && !content.trim()) protocol()
-  return { content, toolCalls }
+  const usage = root.usage && typeof root.usage === 'object' ? root.usage as Record<string, unknown> : null
+  return { content, toolCalls, ...(usage && Number.isSafeInteger(usage.prompt_tokens) && Number.isSafeInteger(usage.completion_tokens)
+    && Number(usage.prompt_tokens) >= 0 && Number(usage.completion_tokens) >= 0 ? { usage: { inputTokens: Number(usage.prompt_tokens), outputTokens: Number(usage.completion_tokens) } } : {}) }
 }

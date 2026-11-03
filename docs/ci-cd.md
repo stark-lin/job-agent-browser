@@ -85,6 +85,8 @@ The operator must own npm scope `@stark-lin`, bootstrap the package if needed, a
 
 ## Compatibility gates and remaining limits
 
+Ask V2 pins Pi Agent Core/AI and the tokenizer in the runtime lockfile. [Package verification](../src/platform/electron/verify-ask-package.ts) uses no paid model and exercises native ESM loading from CJS, progressive activation and real first-party MCP; the clean npm installation gate runs the same verifier outside the repository.
+
 Before publicly recommending npm, test a clean macOS ARM64 account: initial GUI/runtime download, optional model installation, offline restart, cancellation/repair, update/reinstall, Gatekeeper prompts, safeStorage reopen and npm/DMG credential interoperability. These checks cannot be inferred from same-user CI. Do not auto-migrate, discard or overwrite secrets after a decrypt failure. Model sharing does not imply credential portability.
 
 Manual Windows/Linux/macOS x64 GUI, native modules, PDF, storage and OS-permission checks remain planned; installation success alone does not establish support. Signed certificates, live provider compatibility, cloud-backup exclusion and automatic application updates remain unverified/planned. Failed builds retain available diagnostics for seven days. Rerun failed jobs in the same workflow to preserve successful artifacts/version; withdrawing a release does not roll back installed applications.

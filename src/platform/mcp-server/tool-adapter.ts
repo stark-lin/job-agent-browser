@@ -4,7 +4,7 @@ import type { Tool, CallToolResult } from '@modelcontextprotocol/server'
 export function mcpTool(tool: ToolDescriptor): Tool {
   return { name: tool.name, description: tool.description, inputSchema: tool.inputSchema as Tool['inputSchema'],
     ...(tool.outputSchema ? { outputSchema: tool.outputSchema as Tool['outputSchema'] } : {}),
-    annotations: { readOnlyHint: tool.mode === 'read', destructiveHint: tool.mode === 'write', openWorldHint: false } }
+    annotations: { readOnlyHint: tool.mode === 'read', destructiveHint: tool.mode === 'write', openWorldHint: false }, _meta: { jabRisk: tool.risk } }
 }
 export function mcpResult(output: ToolOutput): CallToolResult {
   const encoded = output.structuredContent === undefined ? '' : JSON.stringify(output.structuredContent)

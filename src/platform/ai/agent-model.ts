@@ -3,7 +3,7 @@ import { AgentError, abortable, type AgentErrorCode, type StreamingAgentModel, t
 import { providerTools, providerMessages, parseAgentResponse, protocol } from './agent-protocol'
 import { agentStream } from './agent-stream'
 import type { ChatRequest, Fetch } from './compatible'
-import { postChat, requestTimeout } from './transport'
+import { outputTokenParameters, postChat, requestTimeout } from './transport'
 import { DataError, type ErrorCode } from '../../domain/common/errors'
 
 export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps: {
@@ -14,9 +14,10 @@ export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps
     const timeout = requestTimeout(input.signal, deps.timeoutMs ?? snapshot.timeoutMs), requestId = randomUUID()
     let result: AgentResponse | undefined, failure: unknown
     try {
-      const mapped = providerTools(input.tools)
+      const mapped = providerTools(input.tools, input.stableToolNames)
+      input.validateRequest?.({ model: snapshot.model, messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}) })
       const pending = (async () => {
-        const reply = await postChat(snapshot, { messages: providerMessages(input.messages, mapped.names), ...(mapped.tools.length ? { tools: mapped.tools } : {}) }, timeout.signal, false, deps.transport)
+        const reply = await postChat(snapshot, { messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}), ...outputTokenParameters(snapshot, input.maxOutputTokens) }, timeout.signal, false, deps.transport)
         if (!reply.headers.get('content-type')?.toLowerCase().includes('application/json')) { await reply.body?.cancel(); protocol() }
         const reader = reply.body?.getReader()
         if (!reader) protocol()

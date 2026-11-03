@@ -1,8 +1,13 @@
 import type { Result } from './ipc'
 
+export interface ModelCapabilities {
+  contextWindow: number; maxOutputTokens: number
+  source: 'catalog' | 'provider' | 'runtime' | 'manual'; verified: boolean
+}
 export interface AIProvider {
   id: string; name: string; baseURL: string; requiresKey: boolean
   models: string[]; defaultModel: string; parallelModels?: string[]
+  capabilities?: Record<string, ModelCapabilities>
 }
 export interface AIChoice { providerId: string; modelId: string }
 export interface AITimeouts { requestSeconds: number; pageSeconds: number; modelsSeconds: number }

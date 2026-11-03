@@ -19,7 +19,7 @@ const serverOnly = process.argv.includes('--mcp-server')
 const mcpOnly = process.argv.includes('--mcp')
 const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => name.endsWith('.test.js') &&
   (!knowledgeOnly || /^(knowledge(?:-remote)?|memory(?:-workspace|-mcp|-agent)?)\.test\.js$/.test(name)) &&
-  (!askOnly || /^(memory-mcp|memory-agent|chat|agent-stream|ask-agent|ask-store)\.test\.js$/.test(name)) &&
+  (!askOnly || /^(memory-mcp|memory-agent|chat|agent-stream|ask-agent|ask-store|ask-context)\.test\.js$/.test(name)) &&
   (!agentOnly || /^(chat|agent-stream|ask-agent|ask-store|business-tools|profile-writes|application-agent|capture-agent|job-import|import-parallel|agent|resume-document|resume-agent|resume-output|resume-tools|resume-runtime-parity|runtime-leases|profile-import|profile-session|storage)\.test\.js$/.test(name)) &&
   (!serverOnly || /^(memory-mcp|business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
   (!mcpOnly || /^(tools|mcp|capability-audit)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))

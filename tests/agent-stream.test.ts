@@ -1,7 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { compatibleAgentModel } from '../src/platform/ai/agent-model'
-import { runStreamingAgent, type StreamLoopEvent } from '../src/platform/agent/stream-loop'
+import type { AgentRuntimeEvent } from '../src/shared/agent'
+import { runPiAsk } from '../src/platform/agent/pi/runtime'
+import { ContextBudget } from '../src/platform/agent/context/budget'
+import { ContextManager } from '../src/platform/agent/context/manager'
 import type { AgentModelEvent, StreamingAgentModel, AgentTools } from '../src/shared/agent'
 import { ToolError } from '../src/shared/tools/errors'
 const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
@@ -41,18 +44,25 @@ test('malformed batches, truncation, duplicate IDs, unknown names and audit fail
 })
 function fixtureModel(batches: AgentModelEvent[][]): StreamingAgentModel { return { complete: async () => ({ content: '', toolCalls: [] }), async *stream() { yield* batches.shift()! } } }
 const final = (text: string): AgentModelEvent[] => [{ type: 'content.delta', text }, { type: 'completed', response: { content: text, toolCalls: [] } }]
-test('stream loop preserves interleaving, complete call batches, recoverable errors and fatal audit boundaries', async () => {
-  const call = { id: 'a', name: 'job.list', arguments: {} }, events: StreamLoopEvent[] = [], observations: unknown[] = []
+test('Pi preserves interleaving, complete call batches, recoverable errors, fatal audit boundaries and the 64-request limit', async () => {
+  const call = { id: 'a', name: 'job.list', arguments: {} }, events: AgentRuntimeEvent[] = [], observations: unknown[] = []
+  const activation = { id: 'activate', name: 'tool.activate', arguments: { names: ['job.list'] } }
+  const activate: AgentModelEvent[] = [{ type: 'tool_call.ready', call: activation }, { type: 'completed', response: { content: '', toolCalls: [activation] } }]
   const tools: AgentTools = { list: async () => [descriptor], call: async () => { throw new ToolError('TOOL_FORBIDDEN') } }
   const first: AgentModelEvent[] = [{ type: 'reasoning.delta', text: 'Summary' }, { type: 'content.delta', text: 'Reading' }, { type: 'reasoning.delta', text: 'More' }, { type: 'tool_call.ready', call }, { type: 'completed', response: { content: 'Reading', toolCalls: [call] } }]
-  const model = fixtureModel([first, final('Recovered')]), original = model.stream
+  const run = (model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void) => {
+    const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+    const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save(value) { return value } })
+    return runPiAsk({ model, tools, system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
+  }
+  const model = fixtureModel([activate, first, final('Recovered')]), original = model.stream
   model.stream = input => { observations.push(input.messages); return original(input) }
-  await runStreamingAgent(model, tools, [], signal(), e => events.push(e))
+  await run(model, tools, e => events.push(e))
   assert.deepEqual(events.filter(e => e.type === 'segment.started').map(e => e.kind), ['reasoning', 'assistant_message', 'reasoning', 'assistant_message'])
   assert(events.some(e => e.type === 'tool.failed')); assert(JSON.stringify(observations).includes('TOOL_FORBIDDEN'))
-  await assert.rejects(runStreamingAgent(fixtureModel([first]), { ...tools, call: async () => { throw new ToolError('TOOL_AUDIT_UNAVAILABLE') } }, [], signal(), () => {}), /TOOL_AUDIT_UNAVAILABLE/)
-  const repeated = fixtureModel(Array.from({ length: 8 }, (_, index) => {
+  await assert.rejects(run(fixtureModel([activate, first]), { ...tools, call: async () => { throw new ToolError('TOOL_AUDIT_UNAVAILABLE') } }, () => {}), /TOOL_AUDIT_UNAVAILABLE/)
+  const repeated = fixtureModel([activate, ...Array.from({ length: 64 }, (_, index): AgentModelEvent[] => {
     const c = { ...call, id: String(index) }; return [{ type: 'tool_call.ready', call: c }, { type: 'completed', response: { content: '', toolCalls: [c] } }]
-  }))
-  await assert.rejects(runStreamingAgent(repeated, { ...tools, call: async () => ({}) }, [], signal(), () => {}), /AGENT_STEP_LIMIT/)
+  })])
+  await assert.rejects(run(repeated, { ...tools, call: async () => ({}) }, () => {}), /AGENT_STEP_LIMIT/)
 })
