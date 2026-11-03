@@ -5,6 +5,7 @@ import { fail } from '../../../domain/common/errors'
 import { storageError } from '../errors'
 import type { RuntimeLease } from '../runtime-leases'
 import { askContextRepository } from './ask-context'
+import { chatModelRequestsRepository } from './chat-model-requests'
 
 type Row = Record<string, SQLOutputValue>
 const session = (r: Row): ChatSession => ({ id: String(r.id), title: String(r.title), providerId: String(r.provider_id), modelId: String(r.model_id), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
@@ -40,6 +41,7 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
   }
   return {
     transaction, getSession, getRun, lookup, ...askContextRepository(db, transaction),
+    ...chatModelRequestsRepository(db, transaction, assertRunning, read),
     admit(id: string) { transaction(() => { assertRunning(id); db.prepare("UPDATE chat_runs SET admission='admitted' WHERE id=?").run(id) }) },
     runtimeStatus(id: string, status: NonNullable<ChatRun['runtimeStatus']>, sequence: number) {
       transaction(() => { lease.ensure(); const row = db.prepare('SELECT owner_runtime_id,state FROM chat_runs WHERE id=?').get(id)

@@ -24,6 +24,8 @@ export function createAskRecorder(repo: ChatRecorder, snapshot: ChatSnapshot, se
     snapshot,
     started() { emit({ type: 'run.started', run: structuredClone(snapshot.run) } as AgentRunEvent); flush() },
     receive(event: AgentRuntimeEvent) {
+      if (event.type === 'model.request.prepared') { repo.saveModelRequest(snapshot.run.id, event.request); return }
+      if (event.type === 'model.request.activation') { repo.saveActivationDiagnostic(snapshot.run.id, event.activation); return }
       if (event.type === 'model.completed') {
         repo.saveProviderResponse(snapshot.run.id, { ...event.response,
           toolCalls: event.response.toolCalls.map(call => ({ ...call, arguments: redactTranscript(call.arguments) })) }, snapshot.items.at(-1)?.sequence ?? 0)

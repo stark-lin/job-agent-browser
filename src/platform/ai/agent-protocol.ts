@@ -5,12 +5,12 @@ import { ReasoningAccumulator } from './reasoning'
 
 export function protocol(): never { throw new AgentError('AGENT_PROTOCOL_ERROR') }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : protocol()
-/** Index mapping is injective, deterministic and independent of punctuation in business names. */
-const stableName = (name: string) => `tool_${createHash('sha256').update(name).digest('hex').slice(0, 48)}`
+/** Keep business names recognizable while distinguishing punctuation and truncated slugs. */
+export const stableName = (name: string) => `tool_${name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)}_${createHash('sha256').update(name).digest('hex').slice(0, 10)}`
 export function providerTools(tools: readonly AgentToolDescriptor[], stable = false) {
   const names = new Map(tools.map((tool, index) => [tool.name, stable ? stableName(tool.name) : `tool_${index}`]))
-  if (names.size !== tools.length) protocol()
-  return { names, tools: tools.map(tool => ({ type: 'function', function: { name: names.get(tool.name), description: tool.description, parameters: tool.inputSchema } })) }
+  if (names.size !== tools.length || new Set(names.values()).size !== tools.length) protocol()
+  return { names, tools: tools.map(tool => ({ type: 'function', function: { name: names.get(tool.name)!, description: stable ? `[${tool.name}] ${tool.description}` : tool.description, parameters: tool.inputSchema } })) }
 }
 export function providerMessages(input: readonly AgentMessage[], names: Map<string, string>, stable = false) {
   return input.map(message => {

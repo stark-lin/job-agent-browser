@@ -2,6 +2,7 @@ import type { AssistantMessage, Message, ToolCall, Usage } from '@earendil-works
 import type { StreamFn } from '@earendil-works/pi-agent-core' with { 'resolution-mode': 'import' }
 import { AgentError, abortable, type AgentMessage, type AgentResponse, type AgentToolCall, type AgentToolDescriptor, type StreamingAgentModel, type ProviderReasoning, type ReasoningInfo } from '../../../shared/agent'
 import type { ContextBudget } from '../context/budget'
+import { toolSnapshot, verifyRequest } from '../../ai/agent-request'
 
 export const emptyUsage = (): Usage => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } })
 type HostAssistant = AssistantMessage & { jabReasoning?: ProviderReasoning }
@@ -20,6 +21,8 @@ export async function createPiStream(deps: {
   prepare(messages: AgentMessage[], tools: AgentToolDescriptor[], signal: AbortSignal): Promise<AgentMessage[]>
   failed(error: unknown): void
   completed?(response: AgentResponse): void
+  loadout?(): { version: number; tools: AgentToolDescriptor[] }
+  advertised?(names: string[]): void
 }): Promise<StreamFn> {
   const { createAssistantMessageEventStream, getCurrentTools, getCurrentSystemPrompt } = await import('@earendil-works/pi-ai')
   const seen = new Set<string>()
@@ -44,7 +47,10 @@ export async function createPiStream(deps: {
           stream.push({ type: current.kind === 'text' ? 'text_end' : 'thinking_end', contentIndex: current.index, content: current.value, partial })
           current = undefined
         }
-        const iterator = deps.model.stream({ messages, tools, signal, maxOutputTokens: deps.budget.output, stableToolNames: true, validateRequest(payload) {
+        const loadout = deps.loadout?.() ?? { version: 0, tools }
+        const requestContext = { purpose: 'agent-turn' as const, loadoutVersion: loadout.version, expectedTools: toolSnapshot(loadout.tools), piTools: toolSnapshot(tools) }
+        const iterator = deps.model.stream({ messages, tools, signal, maxOutputTokens: deps.budget.output, stableToolNames: true, requestContext,
+          onRequestPrepared(request) { verifyRequest(request, requestContext); deps.advertised?.(request.tools.map(t => t.name)) }, validateRequest(payload) {
           if (deps.budget.tokens.count(payload) > deps.budget.input) throw new AgentError('ASK_CONTEXT_OVERFLOW')
         } })[Symbol.asyncIterator]()
         try { for (;;) {

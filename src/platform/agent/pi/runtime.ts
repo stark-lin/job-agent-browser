@@ -15,10 +15,13 @@ export async function runPiAsk(deps: {
   status(value: AskRuntimeStatus): void; protect(name: string, args: unknown, result: unknown, uncertain: boolean): void
 }) {
   const { Agent } = await import('@earendil-works/pi-agent-core')
-  const registry = new ToolDiscovery(deps.tools, deps.budget)
-  await registry.refresh()
   let failure: unknown, serial = 0
   const failed = (error: unknown) => { failure ??= error }
+  const registry = new ToolDiscovery(deps.tools, deps.budget, activation => {
+    try { deps.emit({ type: 'model.request.activation', activation }) }
+    catch (error) { failed(error); throw error }
+  })
+  await registry.refresh()
   const tool = (descriptor: AgentToolDescriptor): AgentTool => ({ name: descriptor.name, label: descriptor.name, description: descriptor.description, parameters: descriptor.inputSchema,
     async execute(_callId, args, signal) {
       const id = `tool-${++serial}`, began = Date.now(), combined = signal ? AbortSignal.any([signal, deps.signal]) : deps.signal
@@ -33,7 +36,7 @@ export async function runPiAsk(deps: {
       } catch (error) {
         const code = error instanceof ToolError || error instanceof AgentError ? error.code : 'TOOL_EXECUTION_FAILED'
         const uncertain = isAskWrite(descriptor.name) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
-        const fatal = uncertain || combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE'].includes(code)
+        const fatal = failure || uncertain || combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE'].includes(code)
         deps.protect(descriptor.name, args, null, uncertain)
         deps.emit({ type: 'tool.failed', id, name: descriptor.name, error: code, durationMs: Date.now() - began, uncertain })
         if (fatal) { failed(error); agent.abort() }
@@ -41,6 +44,7 @@ export async function runPiAsk(deps: {
       }
     } })
   const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, prepare: async (m, t, s) => { const messages = await deps.context.prepare(m, t, s); s.throwIfAborted(); deps.status('idle'); return messages }, failed,
+    loadout: () => registry.snapshot(), advertised: names => registry.confirmRequest(names),
     completed: response => deps.emit({ type: 'model.completed', response }) })
   const agent = new Agent({ streamFn, toolExecution: 'sequential', initialState: {
     systemPrompt: deps.system, tools: registry.loadout().map(tool), thinkingLevel: 'off',

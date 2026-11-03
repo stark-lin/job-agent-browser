@@ -1,6 +1,8 @@
 import type { JsonSchema } from '../tools/tool.types'
 import type { ProviderReasoning, ReasoningInfo } from './reasoning'
+import type { ActivationDiagnostic, PreparedRequest, RequestContext, RequestDiagnostic } from './requests'
 export type { ProviderReasoning, ReasoningInfo } from './reasoning'
+export type { ActivationDiagnostic, PreparedRequest, PreparedTool, RequestContext, RequestDiagnostic } from './requests'
 
 export interface AgentToolDescriptor { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema; risk?: 'READ' | 'COMPUTE' | 'WRITE' | 'EXTERNAL_ACTION' }
 /** A protocol client contract. Business results are returned as structured JSON. */
@@ -15,7 +17,8 @@ export type AgentMessage = { role: 'system' | 'user'; content: string }
   | { role: 'tool'; callId: string; content: string }
 export interface AgentUsage { inputTokens: number; outputTokens: number }
 export interface AgentResponse { content: string; toolCalls: AgentToolCall[]; usage?: AgentUsage; providerReasoning?: ProviderReasoning }
-export interface AgentModelInput { messages: readonly AgentMessage[]; tools: readonly AgentToolDescriptor[]; signal: AbortSignal; maxOutputTokens?: number; stableToolNames?: boolean; validateRequest?(payload: object): void }
+export interface AgentModelInput { messages: readonly AgentMessage[]; tools: readonly AgentToolDescriptor[]; signal: AbortSignal; maxOutputTokens?: number; stableToolNames?: boolean; validateRequest?(payload: object): void
+  requestContext?: RequestContext; onRequestPrepared?(request: PreparedRequest): void }
 export interface AgentModel { complete(input: AgentModelInput): Promise<AgentResponse> }
 export type AgentModelEvent = { type: 'content.delta'; text: string }
   | { type: 'reasoning.delta'; text: string; reasoning?: ReasoningInfo }
@@ -29,6 +32,8 @@ export type AgentRuntimeEvent = { type: 'segment.started'; id: string; kind: 're
   | { type: 'tool.completed'; id: string; name: string; result: unknown; durationMs: number }
   | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean }
   | { type: 'model.completed'; response: AgentResponse }
+  | { type: 'model.request.prepared'; request: RequestDiagnostic }
+  | { type: 'model.request.activation'; activation: ActivationDiagnostic }
 export type AgentErrorCode = 'AGENT_CANCELLED' | 'AGENT_TIMEOUT' | 'AGENT_PROTOCOL_ERROR' | 'AGENT_STEP_LIMIT'
   | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED' | 'AUDIT_UNAVAILABLE'
   | 'ASK_CONTEXT_UNKNOWN' | 'ASK_CONTEXT_TOO_SMALL' | 'ASK_CONTEXT_OVERFLOW'

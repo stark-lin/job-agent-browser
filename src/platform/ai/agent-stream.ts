@@ -6,6 +6,7 @@ import { outputTokenParameters, postChat, requestTimeout } from './transport'
 import { parseAgentResponse, protocol, providerMessages, providerTools } from './agent-protocol'
 import { sseFrames } from './sse'
 import { ReasoningAccumulator } from './reasoning'
+import { preparedTools } from './agent-request'
 
 type ObjectValue = Record<string, unknown>
 const object = (value: unknown): ObjectValue => value && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : protocol()
@@ -22,8 +23,10 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
   let usage: AgentUsage | undefined
   try {
     const mapped = providerTools(input.tools, input.stableToolNames)
-    input.validateRequest?.({ model: config.model, messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}) })
-    const reply = await abortable(postChat(config, { messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}), ...outputTokenParameters(config, input.maxOutputTokens), ...(input.maxOutputTokens ? { stream_options: { include_usage: true } } : {}) }, timeout.signal, true, deps.transport), timeout.signal)
+    const body = { messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}), ...outputTokenParameters(config, input.maxOutputTokens), ...(input.maxOutputTokens ? { stream_options: { include_usage: true } } : {}) }
+    input.validateRequest?.({ model: config.model, ...body, stream: true })
+    input.onRequestPrepared?.({ providerId: config.provider.id, modelId: config.model, preparedAt: new Date().toISOString(), tools: preparedTools(mapped) })
+    const reply = await abortable(postChat(config, body, timeout.signal, true, deps.transport), timeout.signal)
     for await (const value of sseFrames(reply, timeout.signal)) {
       if (value === '[DONE]') { if (!finished) protocol(); done = true; break }
       const root = object(value)

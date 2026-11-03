@@ -24,7 +24,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 | `operation_receipts` | Cross-session write receipts; [version-5 schema](../src/platform/database/migrations/operation-receipts.ts) and [version-8 extension](../src/platform/database/migrations/profile-writes.ts) |
 | `chat_sessions`, `chat_runs`, `chat_items` | Host-owned transcript/model snapshots, request receipts, ordered visible items; [additive version-6 schema](../src/platform/database/migrations/chat.ts) |
 | `chat_context_checkpoints`, `chat_memory_progress` | Private context checkpoints and inactive legacy Memory progress; [version 11](../src/platform/database/migrations/ask-runtime.ts), retired by [version 13](../src/platform/database/migrations/ask-serial.ts) |
-| `chat_provider_responses` | Host-only per-response continuation capsules; [additive V12 schema](../src/platform/database/migrations/chat-protocol.ts) |
+| `chat_provider_responses`, `chat_model_requests` | Host-only continuation capsules ([V12](../src/platform/database/migrations/chat-protocol.ts)) and deletable request diagnostics ([V14](../src/platform/database/migrations/chat-model-requests.ts)) |
 
 ## 2. Business rules
 
@@ -127,6 +127,8 @@ Only the [Main recorder](../src/platform/electron/ask-agent-recorder.ts) appends
 
 Provider continuation capsules are separate from chat IPC and contain validated assistant messages including signatures/encrypted reasoning; they cascade on chat deletion. History reconstructs assistant/tool exchanges without replaying tools, omits continuation metadata after a provider/model switch, and excludes it from compaction prompts. Existing Items remain readable; absent historical details are not reconstructed.
 
+**Implemented request diagnostics:** [Migration 14](../src/platform/database/migrations/chat-model-requests.ts) adds chat_model_requests keyed by Run/ordinal, cascading with chat deletion. The [request observer](../src/platform/agent/pi/request-observer.ts) records preparation time, Provider/model, agent-turn/context-summary purpose, loadout version, expected/Pi/provider name mappings, canonical SHA-256 input-schema fingerprints, verification and activation-repeat outcomes through Main; persistence failure prevents dispatch. Prepared does not mean sent or successful. [chats.listModelRequests](../src/platform/electron/data-contract.ts) paginates these records; they never enter model history, transcript Items or audit and contain no bodies, full schemas, arguments, results or reasoning. Existing chats.deleteSession removes them only after all Runs settle, preserving business data and audit. [Tests](../tests/chat-model-requests.test.ts) cover migration, persistence, pagination and deletion; no diagnostic UI is provided.
+
 Run ownership uses runtime_instances. Recovery interrupts only dead/expired owners; live MCP startup cannot interrupt Main work. Partial answers survive and unfinished tools remain uncertain. New input creates a new Run; old business writes never replay. [Context checkpoints](../src/platform/database/repositories/ask-context.ts) save versioned summaries, monotonic compacted user-turn boundaries and minimal resource/outcome references. The token-driven model view preserves complete turns and labels partial answers; raw transcripts remain intact.
 
 [Ask IPC](../src/platform/electron/ask-agent-contract.ts) exposes start/cancel/getRun/listActive/onEvent with trusted-frame and window ownership checks. Manual Chat CRUD uses typed data IPC; Renderer cannot fabricate Runs or output Items. Retry creates a new Run, while a run that attempted writes requires state review rather than automatic replay. [Tests](../tests/chat.test.ts) cover constraints/recovery and [projection tests](../tests/ask-store.test.ts) cover snapshot races/gaps.
@@ -147,7 +149,7 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `profiles` | Contact/item/fact CRUD and explicit reviewed import |
 | `applications` | Legal status changes, notes, schedules, event/calendar queries |
 | `resumes` | Manual Run/Artifact CRUD and provenance queries; Agent stages use MCP |
-| `chats` | Session list/get/rename/model/delete, paginated items and runs; no output creation |
+| `chats` | Session list/get/rename/model/delete, paginated items, runs and model-request diagnostics; no output creation |
 | `audit` | Read-only content-free audit browsing |
 | `settings`, `secrets` | Validated file preferences and key status/save/delete; never return keys |
 

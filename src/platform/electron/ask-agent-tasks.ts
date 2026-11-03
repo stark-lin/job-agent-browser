@@ -15,6 +15,7 @@ import { ContextManager } from '../agent/context/manager'
 import { loadCoreMemory } from '../agent/context/core-memory'
 import { resourceRecord, updateResourceRecords } from '../agent/context/resources'
 import { createAskRecorder } from './ask-agent-recorder'
+import { observeAskModel } from '../agent/pi/request-observer'
 
 export function askError(error: unknown): string {
   if (error instanceof DataError || error instanceof AgentError || error instanceof ToolError) return error.code
@@ -56,7 +57,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
           await abortable(prior, controller.signal); controller.signal.throwIfAborted()
           const budget = new ContextBudget(await deps.capabilities(args.choice, controller.signal), args.choice.modelId)
           controller.signal.throwIfAborted()
-          const model = deps.model(args.choice)
+          const model = observeAskModel(deps.model(args.choice), recorder.receive)
           budget.assert([{ role: 'system', content: askSystem }, { role: 'user', content: args.message.trim() }], discoveryTools)
           const user = snapshot.items[0], sessionId = result.sessionId
           deps.chats.admit(result.runId); snapshot.run.admission = 'admitted'

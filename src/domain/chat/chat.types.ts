@@ -30,4 +30,13 @@ export type AgentRunEvent = { sessionId: string; runId: string; eventSequence: n
   | { type: 'run.completed' | 'run.failed' | 'run.cancelled'; run: ChatRun }
 )
 export interface ChatPage<T> { items: T[]; total: number }
+export interface ChatPreparedTool { name: string; providerName: string; schemaHash: string }
+export interface ChatActivationDiagnostic { names: string[]; repeats: number; reason: 'already-active' | 'activation-loop' }
+/** Conversation projection, structurally matching the runtime's pure diagnostic contract. */
+export interface ChatModelRequest {
+  runId: string; ordinal: number; providerId: string; modelId: string; preparedAt: string
+  purpose: 'agent-turn' | 'context-summary'; loadoutVersion: number
+  expectedTools: ChatPreparedTool[]; piTools: ChatPreparedTool[]; tools: ChatPreparedTool[]
+  verification: 'matched' | 'mismatch'; activations: ChatActivationDiagnostic[]
+}
 export interface ChatStart { requestId: string; sessionId?: string; message: string; choice: ChatChoice }

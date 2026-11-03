@@ -64,20 +64,20 @@ app.on('browser-window-created', (_event, window) => {
             if (user === 'crash checkpoint') { response.write(sse({ content: 'Checkpoint survives process termination.' })); return }
             if (user === 'failure' && failCount++ === 0) { response.end(sse({ content: 'Partial response' }) + 'data: [DONE]\n\n'); return }
             if (user !== 'workflow') { finish(response, 'Recovered answer'); return }
-            const wanted = ['List saved jobs;', 'List saved profiles', 'Read current application', 'Append a note', 'Apply a legal status']
-            if (!wanted.every(prefix => body.tools.some(t => t.function.description.startsWith(prefix)))) {
-              const activate = body.tools.find(t => t.function.description.startsWith('Activate only the tool names'))
+            const wanted = ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status']
+            if (!wanted.every(name => body.tools.some(t => t.function.description.startsWith(`[${name}] `)))) {
+              const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
               assert(activate)
               response.end(sse({ tool_calls: [{ index: 0, id: 'discover-workflow', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status'] }) } }] }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
-            const tool = prefix => { const entry = body.tools.find(t => t.function.description.startsWith(prefix)); assert(entry); return entry.function.name }
+            const tool = name => { const entry = body.tools.find(t => t.function.description.startsWith(`[${name}] `)); assert(entry); return entry.function.name }
             const calls = observations === 0 ? [
-              { id: 'jobs', type: 'function', function: { name: tool('List saved jobs;'), arguments: '{}' } },
-              { id: 'profiles', type: 'function', function: { name: tool('List saved profiles'), arguments: '{}' } },
-              { id: 'state', type: 'function', function: { name: tool('Read current application'), arguments: JSON.stringify({ jobId }) } }
+              { id: 'jobs', type: 'function', function: { name: tool('job.list'), arguments: '{}' } },
+              { id: 'profiles', type: 'function', function: { name: tool('profile.list'), arguments: '{}' } },
+              { id: 'state', type: 'function', function: { name: tool('application.get'), arguments: JSON.stringify({ jobId }) } }
             ] : observations === 3 ? [
-              { id: 'note', type: 'function', function: { name: tool('Append a note'), arguments: JSON.stringify({ jobId, text: 'PRIVATE_NOTE_RESULT', requestId: randomUUID() }) } },
-              { id: 'status', type: 'function', function: { name: tool('Apply a legal status'), arguments: JSON.stringify({ jobId, status: 'APPLIED' }) } }
+              { id: 'note', type: 'function', function: { name: tool('application.add_note'), arguments: JSON.stringify({ jobId, text: 'PRIVATE_NOTE_RESULT', requestId: randomUUID() }) } },
+              { id: 'status', type: 'function', function: { name: tool('application.set_status'), arguments: JSON.stringify({ jobId, status: 'APPLIED' }) } }
             ] : []
             if (calls.length) {
               response.write(sse({ content: observations ? 'Updating your application.' : 'Reading your saved records.' }))
