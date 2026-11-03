@@ -29,7 +29,7 @@ export function ConversationTimeline({ id, items, runs, total, loadOlder, retry,
     {items.map((item, index) => {
       const run = runs.find(r => r.id === item.runId), end = items[index + 1]?.runId !== item.runId
       const error = run?.error, known = error && Object.hasOwn(t($ => $.ask.errors, { returnObjects: true }), error)
-      return <Fragment key={item.id}><div data-item-type={item.content.type} data-item-state={item.state}><TimelineItem item={item} /></div>
+      return <Fragment key={item.id}><div data-item-type={item.content.type} data-item-state={item.state}><TimelineItem item={item} run={run} /></div>
         {end && run && ['failed', 'cancelled', 'interrupted'].includes(run.state) && <div className="ai-run-result" data-run-state={run.state}>
           <StatusMessage tone={run.state === 'failed' ? 'error' : 'neutral'}>{run.state === 'cancelled' ? t($ => $.ask.stopped) : run.state === 'interrupted' ? t($ => $.ask.interrupted) : known ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.failed)}</StatusMessage>
           {run.writeStarted ? <StatusMessage>{t($ => $.ask.reviewWrites)}</StatusMessage> : end && item === last && !active && <Button onClick={() => { const user = items.find(i => i.runId === run.id && i.content.type === 'user_message'); if (user && user.content.type !== 'tool_call') retry(user.content.text) }} disabled={!retryEnabled || !items.some(i => i.runId === run.id && i.content.type === 'user_message')}>{t($ => $.ask.retry)}</Button>}

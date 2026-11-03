@@ -14,13 +14,14 @@ export class ToolDiscovery {
   private catalog: readonly AgentToolDescriptor[] = []
   private advertised = new Set<string>()
   private repeats = new Map<string, number>()
+  private searches = new Map<string, number>()
   private current: AgentToolDescriptor[] = []
   private version = 0
   constructor(private readonly tools: AgentTools, private readonly budget: ContextBudget, private readonly diagnose: (value: ActivationDiagnostic) => void = () => {}) {}
   async refresh() {
     const catalog = (await this.tools.list()).filter(t => allowedAskTool(t.name))
     const signature = (items: readonly AgentToolDescriptor[]) => fingerprint([...items].sort((a, b) => a.name.localeCompare(b.name)))
-    if (signature(catalog) !== signature(this.catalog)) { this.repeats.clear(); this.advertised.clear(); this.version++ }
+    if (signature(catalog) !== signature(this.catalog)) { this.repeats.clear(); this.searches.clear(); this.advertised.clear(); this.version++ }
     this.catalog = catalog
     this.active = this.active.filter(n => catalog.some(t => t.name === n))
     this.desired = this.desired.filter(n => catalog.some(t => t.name === n))
@@ -37,10 +38,15 @@ export class ToolDiscovery {
   async call(name: string, input: unknown, signal: AbortSignal): Promise<unknown> {
     const args = input as Record<string, unknown>
     if (name === 'tool.search') {
-      const words = String(args.query).toLowerCase().match(/[\p{L}\p{N}_.]+/gu) ?? []
-      return this.catalog.map(tool => ({ tool, score: words.reduce((sum, word) => sum + (`${tool.name} ${tool.description}`.toLowerCase().includes(word) ? 1 : 0), 0) }))
+      if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 2048 || Object.keys(args).some(k => k !== 'query')) throw new AgentError('AGENT_PROTOCOL_ERROR')
+      const words = args.query.toLowerCase().match(/[\p{L}\p{N}_.]+/gu) ?? []
+      const result = this.catalog.map(tool => ({ tool, score: words.reduce((sum, word) => sum + (`${tool.name} ${tool.description}`.toLowerCase().includes(word) ? 1 : 0), 0) }))
         .filter(x => x.score > 0).sort((a, b) => b.score - a.score || a.tool.name.localeCompare(b.tool.name)).slice(0, 8)
         .map(({ tool }) => ({ name: tool.name, description: tool.description, namespace: tool.name.split('.')[0], risk: tool.risk ?? 'WRITE', schemaTokens: this.budget.tokens.count(tool.inputSchema) }))
+      const key = fingerprint([[...new Set(words)].sort(), result]), repeats = this.searches.get(key) ?? 0
+      this.searches.set(key, repeats + 1)
+      if (repeats >= 2) throw new AgentError('AGENT_STEP_LIMIT')
+      return repeats ? { tools: result, nextAction: 'The same search returned no new tools. Activate the needed tool, use it, or answer.' } : result
     }
     if (name === 'tool.activate') {
       await this.refresh()
@@ -53,7 +59,7 @@ export class ToolDiscovery {
       while (updating && keep.length > names.length && (keep.length > 8 || this.budget.tokens.count(keep.map(n => this.catalog.find(t => t.name === n))) > soft)) keep.shift()
       if (this.budget.tokens.count(keep.map(n => this.catalog.find(t => t.name === n))) > this.budget.input) throw new AgentError('ASK_CONTEXT_OVERFLOW')
       const changed = fingerprint([...keep].sort()) !== fingerprint([...this.desired].sort())
-      if (changed) this.repeats.clear()
+      if (changed) { this.repeats.clear(); this.searches.clear() }
       else if (alreadyActive.length === names.length) {
         const key = JSON.stringify(names), repeats = (this.repeats.get(key) ?? 0) + 1
         this.repeats.set(key, repeats)
@@ -64,8 +70,10 @@ export class ToolDiscovery {
       return { activeOnNextRequest: keep, alreadyActive, changed, nextAction: `Call ${names.join(', ')} directly on the next request; do not reactivate available tools.` }
     }
     if (!this.active.includes(name) || !allowedAskTool(name)) throw new AgentError('AGENT_PROTOCOL_ERROR')
+    const progress = this.tools.getRunGuardSnapshot?.()?.progress
     const result = await this.tools.call(name, input, signal)
     this.repeats.clear()
+    if (progress === undefined || (this.tools.getRunGuardSnapshot?.()?.progress ?? 0) > progress) this.searches.clear()
     return result
   }
 }

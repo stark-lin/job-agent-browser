@@ -104,7 +104,7 @@ test('job groups enforce field ownership and salary rules and match single-reque
 test('job retries keep the source and model, enforce ownership and expose no partial draft', async () => {
   const mock = mockAI(), events: JobImportEvent[] = []; let reads = 0
   const config = structuredClone(settings)
-  const importer = createJobImporter({ model: () => mock.model, mcp: { session: async () => assert.fail('Capture must not connect during parsing'), dispose: async () => {} }, settings: () => config, reader: { read: async () => { reads++; return snapshot } } })
+  const importer = createJobImporter({ model: () => mock.model, mcp: { openAskRun: async () => { throw new Error('Unexpected Ask run') }, session: async () => assert.fail('Capture must not connect during parsing'), dispose: async () => {} }, settings: () => config, reader: { read: async () => { reads++; return snapshot } } })
   assert.throws(() => importer.start(1, { url: snapshot.url, choice: { ...choice, modelId: 'other' }, mode: 'parallel' }, () => {}), /INVALID_INPUT/)
   const task = importer.start(1, { url: snapshot.url, choice, mode: 'parallel' }, event => events.push(event))
   await tick(); assert.equal(mock.calls.length, 3)

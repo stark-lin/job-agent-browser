@@ -14,7 +14,7 @@ type Versioned<T> = T & { revision: number }
 const signal = () => new AbortController().signal
 
 test('profile MCP creates and patches without clearing omitted fields, preserves metadata and fact ownership, and replays original receipts', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal())
   const call = <T>(name: string, args: object) => tools.call(name, args, signal()) as Promise<T>
   const request = { requestId: randomUUID(), details: { name: 'Resume Person', email: 'keep@example.com', introduction: 'Original introduction', links: [{ label: 'Portfolio', url: 'https://example.com' }] } }
   const profile = await call<Profile>('profile.create', request)
@@ -53,7 +53,7 @@ test('profile MCP creates and patches without clearing omitted fields, preserves
 
 test('concurrent profile writes reject stale revisions; identical retries survive independent sessions and restart', async t => {
   const f = await firstPartyFixture(t)
-  const [a, b] = await Promise.all([f.mcp.session('ask-ai', signal()), f.mcp.session('application', signal())])
+  const [a, b] = await Promise.all([f.askRun(signal()), f.mcp.session('application', signal())])
   const current = await a.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const request = { profileId: current.id, expectedRevision: current.revision, requestId: randomUUID(), details: { type: 'PROJECT', title: 'One project' } }
   const [left, right] = await Promise.all([a.call('profile.add_item', request, signal()), b.call('profile.add_item', request, signal())])
@@ -65,7 +65,7 @@ test('concurrent profile writes reject stale revisions; identical retries surviv
   const rejected = results.find(result => result.status === 'rejected') as PromiseRejectedResult
   assert.equal(rejected.reason.code, 'TOOL_CONFLICT')
   await a.close()
-  const restarted = await f.mcp.session('ask-ai', signal())
+  const restarted = await f.askRun(signal())
   assert.deepEqual(await restarted.call('profile.add_item', request, signal()), left)
   assert.equal(value(await f.api.profiles.listItems({ profileId: current.id })).total, 2)
   value(await f.api.profiles.deleteItem({ id: (left as ProfileItem).id }))
@@ -92,7 +92,7 @@ test('UI contact, item, fact, import and delete mutations advance the aggregate 
 })
 
 test('profile tools reject invalid patches, ownership changes, cycles and impossible dates without partial mutation', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal())
   const call = (name: string, args: object) => tools.call(name, args, signal())
   const current = await call('profile.get', { id: f.profile.id }) as Profile
   const base = { profileId: current.id, expectedRevision: current.revision, requestId: randomUUID() }
@@ -113,8 +113,8 @@ test('profile tools reject invalid patches, ownership changes, cycles and imposs
   assert.equal(f.database.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 0)
 })
 
-test('profile receipts and revisions roll back together, and terminal audit failures can be retried safely', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+test('profile receipts and revisions roll back together; a new Run can explicitly reconcile uncertain writes', async t => {
+  const f = await firstPartyFixture(t); let tools = await f.askRun(signal())
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const request = { profileId: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), details: { kind: 'OTHER', content: 'Atomic sourced fact', evidence: 'resume.pdf page 1: source excerpt' } }
   f.database.connection.exec("CREATE TRIGGER fixture_receipt_failure BEFORE INSERT ON operation_receipts BEGIN SELECT RAISE(ABORT,'fixture'); END")
@@ -126,6 +126,8 @@ test('profile receipts and revisions roll back together, and terminal audit fail
   await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_AUDIT_UNAVAILABLE' })
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
   f.flag('fail-audit-finish', false)
+  await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_GUARD_TERMINATED' })
+  tools = await f.askRun(signal()) // A new user attempt may reconcile with the identical business receipt.
   const saved = await tools.call('profile.add_fact', request, signal()) as Versioned<Fact>
   assert.equal(saved.content, request.details.content)
   assert.equal(value(await f.api.profiles.getProfile({ id: profile.id })).revision, saved.revision)
@@ -133,7 +135,7 @@ test('profile receipts and revisions roll back together, and terminal audit fail
 })
 
 test('MCP edits affect future resume snapshots while prior snapshots remain immutable', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal())
   const first = await tools.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: randomUUID() }, signal()) as { runId: string }
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const updated = await tools.call('profile.update', { id: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), changes: { name: 'Updated name' } }, signal()) as Profile
@@ -167,8 +169,8 @@ test('migration preserves existing profile data and old receipts and initializes
   } finally { db.close() }
 })
 
-test('partial updates preserve incomplete imported fields and no-op fact/item edits leave revision unchanged', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+test('external MCP partial updates preserve incomplete fields and repeated no-op receipts without RunGuard enforcement', async t => {
+  const f = await firstPartyFixture(t), tools = await f.mcp.session('application', signal())
   const imported = value(await f.api.profiles.applyImport({ sessionId: randomUUID(), batchId: randomUUID(), profileId: null,
     contact: {}, links: [{ draftId: randomUUID(), label: '', url: '' }],
     items: [{ draftId: randomUUID(), details: { type: 'PROJECT', title: '' } }],

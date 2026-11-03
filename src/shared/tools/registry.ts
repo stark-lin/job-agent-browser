@@ -9,7 +9,7 @@ export function createToolRegistry() {
   function prepare(tool: RegisteredTool): Entry {
     validateDescriptor(tool.descriptor)
     const descriptor = frozenCopy(tool.descriptor)
-    return { tool: { descriptor, execute: tool.execute }, revoked: new AbortController() }
+    return { tool: { descriptor, execute: tool.execute, prepareInput: tool.prepareInput }, revoked: new AbortController() }
   }
   function unregister(name: string) {
     const previous = entries.get(name)
@@ -53,6 +53,12 @@ export function createToolRegistry() {
       }
       return {
         get: name => live(name)?.tool.descriptor ?? null,
+        prepareInput(name, input) {
+          const entry = live(name)
+          if (!entry) toolFail('TOOL_FORBIDDEN')
+          if (!entry.tool.prepareInput) toolFail('TOOL_UNSUPPORTED')
+          return entry.tool.prepareInput(input)
+        },
         list: () => [...snapshot.keys()].flatMap(name => live(name) ? [live(name)!.tool.descriptor] : []).sort((a, b) => a.name.localeCompare(b.name)),
         async execute(name, args) {
           if (stopped.signal.aborted || identity.signal.aborted) toolFail('TOOL_CANCELLED')

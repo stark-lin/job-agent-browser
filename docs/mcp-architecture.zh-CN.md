@@ -25,13 +25,21 @@ UI    → typed IPC → Domain
 
 [Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
 
-[Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)，保留共享 Resume 证据策略。初始仅暴露 tool.search/tool.activate，[目录](../src/platform/agent/tools/discovery.ts)索引已授权 MCP 描述及风险元数据，包含全部五个 Memory 工具。搜索最多返回八条摘要，激活默认八个工具，Schema 软预算为输入的 8%、最高 8,192 Tokens，仍受总上下文硬限制。工具集合只在请求边界变化，执行调用 MCPAgentTools.call。Ask 排除 Delete 工具。完整批次校验后顺序执行，等待每个结果后才进入下一次推理，每 Run 工具循环最多 64 次 Provider 请求；取消、审计失败或不确定写入终止执行。
+[Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)，保留共享 Resume 证据策略。初始仅暴露 tool.search/tool.activate，[目录](../src/platform/agent/tools/discovery.ts)索引已授权 MCP 描述及风险元数据，包含全部五个 Memory 工具。搜索最多返回八条摘要，激活默认八个工具，Schema 软预算为输入的 8%、最高 8,192 Tokens，仍受总上下文硬限制。工具集合只在请求边界变化，执行调用 MCPAgentTools.call。Ask 排除 Delete 工具。完整批次校验后顺序执行，等待每个结果后才进入下一次推理，每 Run 的主循环及上下文摘要合计最多 64 次 Provider 请求；取消、审计失败或不确定写入终止执行。
 
 **已实现激活保护：**激活保留 activeOnNextRequest，增加 alreadyActive/changed/nextAction。仅仍获授权且已在组装请求中通过校验的工具计为已激活；名称换序/重复不构成进展。同一规范化工具组容忍一次冗余激活，第二次以 AGENT_STEP_LIMIT 结束 Run，阻止同批后续工具和推理。搜索不清除计数；业务调用成功、有效 loadout 变化或目录变化会清除。同批尚未生效的激活及淘汰后重激活不算冗余。[运行时架构](architecture.zh-CN.md)管理请求校验，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理独立于审计的可删除诊断。[回归测试](../tests/agent-disclosure.test.ts)覆盖保护及同步失败。
 
+### Ask Run 保护
+
+**已实现：**[openAskRun](../src/platform/mcp/first-party-client.ts)为每个准入 Chat Run 创建可取消工具视图，复用 Session 连接。Main 注册身份，签发有效期 30 秒、一次性的 `_meta.jabRunGrant`，绑定实例、认证连接、Run、操作和规范化参数摘要。Memory 写入仍需原有来源授权。已认证 Ask 连接没有 Run 时只能发现工具，不能调用；调用者标签不能开启保护或权限。Chat 身份不覆盖 Resume 的业务 runId。
+
+[Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在审计和 Domain 之前拒绝。显式稳定读取、修订及 Resume 阶段策略追踪进展，未知输出保持中性。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次、连续三次无进展或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。
+
+[Pi 适配器](../src/platform/agent/pi/runtime.ts)在执行后检测阻断 Run 时保留本次成功，再停止批次余项和推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止排队/活动调用、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 保持原有未启用 Guard 的行为；外部 Run 边界/模式及第三方出站保护仍为规划。[回归测试](../tests/mcp-run-guard.test.ts)覆盖授权、并发、有界循环和真实结果。诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
+
 ## 三、内部与第三方 Client
 
-[first-party runtime](../src/platform/mcp/first-party-client.ts)按流程/Ask 聊天惰性创建并复用真实 stdio 会话。每个已放行的 Ask 轮次通过共享传输获得独立、绑定来源且可取消的写入授权视图；完成/取消后的视图不能替后续轮次写入。不再存在独立 Memory 会话。通过 Electron Node 模式和显式 userData 启动构建后的 Server。同一 Resume run 保留原会话，丢失会话不能回退本地服务或接管旧 Run。
+[first-party runtime](../src/platform/mcp/first-party-client.ts)按流程/Ask 聊天惰性创建并复用真实 stdio 会话。每个已放行的 Ask 轮次获得上文定义的独立 Run 授权视图；关闭/取消后的视图不能替后续轮次调用。不再存在独立 Memory 会话。通过 Electron Node 模式和显式 userData 启动构建后的 Server。同一 Resume run 保留原会话，丢失会话不能回退本地服务或接管旧 Run。
 
 [Client](../src/platform/mcp/client.ts)只允许可信组合入口传入 processEnv，userData/mcp.json 不接受任意环境变量配置。内部标识为 internal.resume、internal.job-capture、internal.application 和 internal.ask-ai。[Caller 校验](../src/platform/mcp-server/caller.ts)遵循审计标识格式，无效值回退为 mcp-client。JOB_BROWSER_MCP_CALLER 不改变权限、schema、工具列表或语义。
 

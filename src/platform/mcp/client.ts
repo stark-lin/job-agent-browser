@@ -11,7 +11,7 @@ export interface MCPDiscoveredTool { name: string; description: string; inputSch
 export interface MCPClient {
   connect(signal?: AbortSignal): Promise<void>
   listTools(signal?: AbortSignal): Promise<MCPDiscoveredTool[]>
-  callTool(name: string, input: unknown, signal: AbortSignal, memoryGrant?: string): Promise<unknown>
+  callTool(name: string, input: unknown, signal: AbortSignal, metadata?: { jabMemoryGrant?: string; jabRunGrant?: string }): Promise<unknown>
   close(): Promise<void>
 }
 export interface ClientHooks { closed(): void; changed(): void }
@@ -57,13 +57,13 @@ export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, opt
         throw mcpError(error)
       }
     },
-    async callTool(name, input, signal, memoryGrant) {
+    async callTool(name, input, signal, metadata) {
       if (!connected || closed) toolFail('TOOL_UNAVAILABLE')
       if (signal.aborted) toolFail('TOOL_CANCELLED')
       if (active >= 4) toolFail('TOOL_BUSY')
       active++
       try {
-        return await client.callTool({ name, arguments: input as Record<string, unknown>, ...(memoryGrant ? { _meta: { jabMemoryGrant: memoryGrant } } : {}) }, { signal: signalFor(signal), timeout: 120000, maxTotalTimeout: 120000 })
+        return await client.callTool({ name, arguments: input as Record<string, unknown>, ...(metadata ? { _meta: metadata } : {}) }, { signal: signalFor(signal), timeout: 120000, maxTotalTimeout: 120000 })
       } catch (error) { if (signal.aborted) toolFail('TOOL_CANCELLED'); throw mcpError(error) }
       finally { active-- }
     },

@@ -30,7 +30,7 @@ test('authenticated Ask AI sessions expose all five Memory tools; writes require
   assert.equal(one, two)
 })
 test('Memory MCP fixes the physical space, rejects unsafe paths, stale/missing revisions and unprovided operations; audits omit bodies and queries', async t => {
-  const f = await firstPartyFixture(t), reader = await f.mcp.session('ask-ai', signal), ask = await f.mcp.session('ask-ai', signal, 'writer', [randomUUID()])
+  const f = await firstPartyFixture(t), reader = await f.askRun(signal), ask = await f.askRun(signal, 'writer', [randomUUID()])
   await reader.call('knowledge.write', { path: 'same.md', content: 'Knowledge SECRET_K', expectedRevision: null }, signal)
   const memory = await ask.call('memory.write', { path: 'same.md', content: '# Memory\nSECRET_M pineapple', expectedRevision: null }, signal) as { revision: string }
   assert.notEqual(memory.revision, '')
@@ -80,29 +80,31 @@ test('server-side Ask grants bind exact inputs and cannot be replayed or borrowe
   const authority = createMemoryAuthority(f.directory); f.cleanup(() => authority.close())
   const writer = external(f, await authority.issue('writer-session'))
   await writer.connect()
+  const run = authority.registerRun('writer-session', randomUUID(), 'writer-chat')
   const payload = { path: 'grant.md', content: 'Source-backed memory.', expectedRevision: null }
   const denied = await writer.callTool('memory.write', payload, signal) as { isError: boolean }; assert(denied.isError)
   const token = authority.grant('writer-session', 'memory.write', payload, ['user-source'])
-  const changed = await writer.callTool('memory.write', { ...payload, content: 'Changed input' }, signal, token) as { isError: boolean }; assert(changed.isError)
-  const consumed = await writer.callTool('memory.write', payload, signal, token) as { isError: boolean }; assert(consumed.isError)
+  const changed = await writer.callTool('memory.write', { ...payload, content: 'Changed input' }, signal, { jabMemoryGrant: token, jabRunGrant: run.grant('memory.write', { ...payload, content: 'Changed input' }) }) as { isError: boolean }; assert(changed.isError)
+  const consumed = await writer.callTool('memory.write', payload, signal, { jabMemoryGrant: token, jabRunGrant: run.grant('memory.write', payload) }) as { isError: boolean }; assert(consumed.isError)
   const valid = authority.grant('writer-session', 'memory.write', payload, ['user-source'])
-  const result = await writer.callTool('memory.write', payload, signal, valid) as { isError?: boolean }; assert(!result.isError)
-  const replay = await writer.callTool('memory.write', payload, signal, valid) as { isError: boolean }; assert(replay.isError)
+  const result = await writer.callTool('memory.write', payload, signal, { jabMemoryGrant: valid, jabRunGrant: run.grant('memory.write', payload) }) as { isError?: boolean }; assert(!result.isError)
+  const replay = await writer.callTool('memory.write', payload, signal, { jabMemoryGrant: valid, jabRunGrant: run.grant('memory.write', payload) }) as { isError: boolean }; assert(replay.isError)
   const ask = external(f, await authority.issue('ask-session'))
   await ask.connect()
+  const otherRun = authority.registerRun('ask-session', randomUUID(), 'other-chat')
   const borrowed = authority.grant('writer-session', 'memory.write', { ...payload, path: 'other.md' }, ['user-source'])
   for (const [name, args, grant] of [['memory.write', { ...payload, path: 'other.md' }, borrowed], ['knowledge.delete', { path: 'README.md', expectedRevision: 'a'.repeat(64), recursive: false }, undefined]] as const) {
-    const reply = await ask.callTool(name, args, signal, grant) as { isError: boolean }; assert(reply.isError)
+    const reply = await ask.callTool(name, args, signal, { jabMemoryGrant: grant, jabRunGrant: otherRun.grant(name, args) }) as { isError: boolean }; assert(reply.isError)
   }
 })
 
 test('reused Ask transport has distinct immutable per-turn grants; cancellation revokes only the old turn', async t => {
   const f = await firstPartyFixture(t), controller = new AbortController(), sources = [randomUUID()]
-  const first = await f.mcp.session('ask-ai', controller.signal, 'reused', sources)
+  const first = await f.askRun(controller.signal, 'reused', sources)
   sources.length = 0
   await first.call('memory.write', { path: 'first-turn.md', content: 'First', expectedRevision: null }, signal)
   controller.abort()
-  const second = await f.mcp.session('ask-ai', signal, 'reused', [randomUUID()])
+  const second = await f.askRun(signal, 'reused', [randomUUID()])
   assert.notEqual(first, second)
   await assert.rejects(first.call('memory.write', { path: 'forbidden.md', content: 'Old turn', expectedRevision: null }, signal))
   await second.call('memory.write', { path: 'second-turn.md', content: 'Second', expectedRevision: null }, signal)

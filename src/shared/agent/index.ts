@@ -1,6 +1,8 @@
 import type { JsonSchema } from '../tools/tool.types'
 import type { ProviderReasoning, ReasoningInfo } from './reasoning'
 import type { ActivationDiagnostic, PreparedRequest, RequestContext, RequestDiagnostic } from './requests'
+import type { RunGuardSnapshot } from './run-guard'
+export type { RunGuardSnapshot, GuardReason } from './run-guard'
 export type { ProviderReasoning, ReasoningInfo } from './reasoning'
 export type { ActivationDiagnostic, PreparedRequest, PreparedTool, RequestContext, RequestDiagnostic } from './requests'
 
@@ -9,6 +11,7 @@ export interface AgentToolDescriptor { name: string; description: string; inputS
 export interface AgentTools {
   list(): Promise<readonly AgentToolDescriptor[]>
   call(name: string, args: unknown, signal: AbortSignal): Promise<unknown>
+  getRunGuardSnapshot?(): RunGuardSnapshot | undefined
 }
 
 export interface AgentToolCall { id: string; name: string; arguments: unknown }
@@ -29,8 +32,8 @@ export type AgentRuntimeEvent = { type: 'segment.started'; id: string; kind: 're
   | { type: 'segment.delta'; id: string; text: string }
   | { type: 'segment.completed'; id: string }
   | { type: 'tool.started'; id: string; call: AgentToolCall }
-  | { type: 'tool.completed'; id: string; name: string; result: unknown; durationMs: number }
-  | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean }
+  | { type: 'tool.completed'; id: string; name: string; result: unknown; durationMs: number; guard?: RunGuardSnapshot }
+  | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean; guard?: RunGuardSnapshot }
   | { type: 'model.completed'; response: AgentResponse }
   | { type: 'model.request.prepared'; request: RequestDiagnostic }
   | { type: 'model.request.activation'; activation: ActivationDiagnostic }

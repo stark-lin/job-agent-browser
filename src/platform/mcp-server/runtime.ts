@@ -27,7 +27,10 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
       if (!['memory.write', 'memory.mkdir'].includes(name)) return true
       const token = metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabMemoryGrant : undefined
       return Boolean(memoryAuthorization && await memoryAuthorization.authorize?.(token, name, args))
-    })
+    }, memoryAuthorization ? {
+      authorize: (name, args, metadata) => memoryAuthorization.authorizeRun(metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabRunGrant : undefined, name, args),
+      onClosed: listener => memoryAuthorization.onRunClosed(listener)
+    } : undefined)
   let disposal: Promise<void> | undefined
   return { backend, tooling, ready: knowledge.ready, server: mcp.server, dispose() {
     return disposal ??= (async () => {

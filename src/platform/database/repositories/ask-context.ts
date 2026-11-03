@@ -1,3 +1,4 @@
+import { modelToolResult } from '../../../shared/agent/tool-result'
 import type { DatabaseSync } from 'node:sqlite'
 import type { ContextCheckpoint, ContextTurn } from '../../../shared/ask'
 import { fail } from '../../../domain/common/errors'
@@ -53,7 +54,7 @@ export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () =
               ...(!choice || choice.providerId === row.provider_id && choice.modelId === row.model_id ? { providerReasoning: response.providerReasoning } : {}) })
             for (const call of response.toolCalls) {
               const resultRow = results.get(`${row.run_id}:${call.id}`), tool = resultRow?.content
-              turn.messages.push({ role: 'tool', callId: call.id, content: JSON.stringify(tool?.type === 'tool_call' && resultRow?.state === 'completed' ? tool.result ?? null : { error: tool?.type === 'tool_call' ? tool.error ?? 'INTERRUPTED' : 'INTERRUPTED' }) })
+              turn.messages.push({ role: 'tool', callId: call.id, content: JSON.stringify(tool?.type === 'tool_call' && resultRow?.state === 'completed' ? modelToolResult(call.name, tool.result ?? null) : { error: tool?.type === 'tool_call' ? tool.error ?? 'INTERRUPTED' : 'INTERRUPTED' }) })
             }
           }
         }

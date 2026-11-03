@@ -125,9 +125,9 @@ test('terminal persistence failure holds the next turn and retries records witho
 for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory ${failure} retains uncertain state and never retries the write`, async t => {
   const f = await firstPartyFixture(t)
   let writes = 0, step = 0
-  const session = f.mcp.session.bind(f.mcp), blocked = gate(), entered = gate()
-  f.mcp.session = async (...args) => {
-    const tools = await session(...args), original = tools.call.bind(tools)
+  const open = f.mcp.openAskRun.bind(f.mcp), blocked = gate(), entered = gate()
+  f.mcp.openAskRun = async (...args) => {
+    const run = await open(...args), tools = run.tools, original = tools.call.bind(tools)
     tools.call = async (name, input, callSignal) => {
       if (name !== 'memory.write') return original(name, input, callSignal)
       writes++
@@ -137,7 +137,7 @@ for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory 
       if (failure === 'stop') { entered.release(); await blocked.ready }
       return output
     }
-    return tools
+    return run
   }
   const tasks = setup(f, () => discoveringModel({ complete: noTask, async *stream() {
     if (!step++) { yield* call('write', 'memory.write', { path: 'uncertain.md', content: 'Committed once', expectedRevision: null }); return }

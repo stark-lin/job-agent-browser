@@ -1,5 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core' with { 'resolution-mode': 'import' }
 import { AgentError, abortable, type AgentToolDescriptor, type AgentTools, type StreamingAgentModel } from '../../../shared/agent'
+import { modelToolResult } from '../../../shared/agent/tool-result'
 import { ToolError } from '../../../shared/tools/errors'
 import type { AskRuntimeStatus } from '../../../shared/ask'
 import type { ContextBudget } from '../context/budget'
@@ -31,16 +32,20 @@ export async function runPiAsk(deps: {
       try {
         const result = await abortable(registry.call(descriptor.name, args, combined), combined)
         deps.protect(descriptor.name, args, result, false)
-        deps.emit({ type: 'tool.completed', id, name: descriptor.name, result, durationMs: Date.now() - began })
-        return { content: [{ type: 'text', text: JSON.stringify(result) }], details: {} }
+        const guard = descriptor.name.startsWith('tool.') ? undefined : deps.tools.getRunGuardSnapshot?.()
+        deps.emit({ type: 'tool.completed', id, name: descriptor.name, result, durationMs: Date.now() - began, guard })
+        if (guard?.status === 'BLOCKED') { failed(new ToolError('TOOL_GUARD_TERMINATED')); agent.abort() }
+        return { content: [{ type: 'text', text: JSON.stringify(modelToolResult(descriptor.name, result)) }], details: {} }
       } catch (error) {
         const code = error instanceof ToolError || error instanceof AgentError ? error.code : 'TOOL_EXECUTION_FAILED'
-        const uncertain = isAskWrite(descriptor.name) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
-        const fatal = failure || uncertain || combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE'].includes(code)
-        deps.protect(descriptor.name, args, null, uncertain)
-        deps.emit({ type: 'tool.failed', id, name: descriptor.name, error: code, durationMs: Date.now() - began, uncertain })
-        if (fatal) { failed(error); agent.abort() }
-        return { content: [{ type: 'text', text: JSON.stringify({ error: code }) }], details: {}, isError: true }
+        const guard = descriptor.name.startsWith('tool.') ? undefined : deps.tools.getRunGuardSnapshot?.()
+        const rejected = code.startsWith('TOOL_GUARD_') && guard?.executed === false
+        const uncertain = !rejected && isAskWrite(descriptor.name) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
+        const fatal = guard?.status === 'BLOCKED' || code === 'TOOL_GUARD_TERMINATED' || failure || uncertain || combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE'].includes(code)
+        if (!rejected) deps.protect(descriptor.name, args, null, uncertain)
+        deps.emit({ type: 'tool.failed', id, name: descriptor.name, error: code, durationMs: Date.now() - began, uncertain, guard })
+        if (fatal) { failed(guard?.status === 'BLOCKED' && !uncertain ? new ToolError('TOOL_GUARD_TERMINATED') : error); agent.abort() }
+        return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(guard ? { reason: guard.reason, executed: guard.executed, effectAlreadyConfirmed: guard.effectAlreadyConfirmed } : {}) }) }], details: {}, isError: true }
       }
     } })
   const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, prepare: async (m, t, s) => { const messages = await deps.context.prepare(m, t, s); s.throwIfAborted(); deps.status('idle'); return messages }, failed,

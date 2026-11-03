@@ -123,11 +123,11 @@
 
 [Chat Repository](../src/platform/database/repositories/chats.ts)以输入哈希和请求 UUID 回执原子保存 Session/Run/User Item。迁移 11 增加 Pending/admitted 状态，部分唯一索引保证同一 Session 只有一个已放行的活动 Run；组合外键绑定 Item 与 Run/Session。模型选择按 Session 保存并复制到 Run。删除要求没有活动 Run，级联清理私有检查点，不撤销业务变更或审计。
 
-只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。
+只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。 工具条目还保存经白名单解析的 Guard 计数、原因、执行标记和已确认归档效果，不含凭证；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/pages/ai/TimelineItem.tsx)展示这些字段。
 
 提供商续传数据与聊天 IPC 分离，保存含签名/加密推理的已校验 assistant 消息，随会话删除级联清除。历史重建 assistant/tool 消息但不执行工具；切换提供商/模型后不附带续传元数据，压缩提示词也排除这些数据。旧 Item 继续可读，不补造缺失的历史详情。
 
-**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 chat_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；未提供诊断 UI。
+**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 chat_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
 
 Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。
 

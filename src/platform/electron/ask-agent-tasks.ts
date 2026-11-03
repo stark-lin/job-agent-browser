@@ -52,6 +52,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
       }
       const prior = tails.get(result.sessionId) ?? Promise.resolve()
       task.done = new Promise<void>(resolve => setImmediate(resolve)).then(async () => {
+        let run: Awaited<ReturnType<FirstPartyRuntime['openAskRun']>> | undefined
         try {
           recorder.started(); status('pending')
           await abortable(prior, controller.signal); controller.signal.throwIfAborted()
@@ -61,7 +62,8 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
           budget.assert([{ role: 'system', content: askSystem }, { role: 'user', content: args.message.trim() }], discoveryTools)
           const user = snapshot.items[0], sessionId = result.sessionId
           deps.chats.admit(result.runId); snapshot.run.admission = 'admitted'
-          const tools = await deps.mcp.session('ask-ai', controller.signal, sessionId, [user.id])
+          run = await deps.mcp.openAskRun({ chatRunId: result.runId, sessionId, sourceMessageIds: [user.id], signal: controller.signal })
+          const tools = run.tools
           const signal = AbortSignal.any([controller.signal, tools.signal])
           const memory = await loadCoreMemory(tools, budget, signal)
           const context = new ContextManager({ budget, model, checkpoint: deps.chats.context(sessionId), turns: deps.chats.contextTurns(sessionId, user.sequence, args.choice),
@@ -73,8 +75,9 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
               const record = resourceRecord(name, input, output, uncertain)
               if (record) { deps.chats.saveProtected(sessionId, updateResourceRecords(deps.chats.protectedState(sessionId), record)); context.protect(record) }
             } })
-          signal.throwIfAborted(); snapshot.run.runtimeStatus = 'idle'; recorder.finish('completed', null)
+          signal.throwIfAborted(); await run.close(); snapshot.run.runtimeStatus = 'idle'; recorder.finish('completed', null)
         } catch (error) {
+          await run?.close().catch(() => {})
           const cancelled = controller.signal.aborted && !task.failure
           snapshot.run.runtimeStatus = 'idle'
           try { recorder.finish(cancelled ? 'cancelled' : 'failed', cancelled ? null : askError(task.failure ?? error)) }
@@ -88,7 +91,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
             try { send({ type: 'run.failed', run: structuredClone(snapshot.run), sessionId: snapshot.run.sessionId, runId: snapshot.run.id, eventSequence: snapshot.run.eventSequence }) } catch { /* Window unavailable. */ }
           }
         } finally {
-          controller.abort(); task.settled = true
+          controller.abort(); await run?.close().catch(() => {}); task.settled = true
           for (const [id, old] of tasks) if (tasks.size > 64 && old.settled && !old.undurable) tasks.delete(id)
         }
       })

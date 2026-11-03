@@ -63,6 +63,14 @@ app.on('browser-window-created', (_event, window) => {
             if (user.startsWith('hold')) { response.write(sse({ content: `Working ${user}` })); releases[user] = () => finish(response, ' completed'); return }
             if (user === 'crash checkpoint') { response.write(sse({ content: 'Checkpoint survives process termination.' })); return }
             if (user === 'failure' && failCount++ === 0) { response.end(sse({ content: 'Partial response' }) + 'data: [DONE]\n\n'); return }
+            if (user === 'archive loop') {
+              const archive = body.tools.find(t => t.function.description.startsWith('[job.set_archived] '))
+              const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
+              const calls = archive ? [true, false, true, false].map((archived, i) => ({ index: i, id: `archive-loop-${i}`, type: 'function', function: { name: archive.function.name, arguments: JSON.stringify({ id: jobId, archived }) } }))
+                : [{ index: 0, id: 'activate-archive', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.set_archived'] }) } }]
+              assert(!body.messages.slice(lastUser).some(m => m.role === 'tool' && JSON.parse(m.content).error === 'TOOL_GUARD_TERMINATED'), 'No model request after guard termination')
+              response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
+            }
             if (user !== 'workflow') { finish(response, 'Recovered answer'); return }
             const wanted = ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status']
             if (!wanted.every(name => body.tools.some(t => t.function.description.startsWith(`[${name}] `)))) {
@@ -141,6 +149,25 @@ app.on('browser-window-created', (_event, window) => {
         assert(await evaluate('!!document.querySelector(".ai-new-output")'))
         await click('↓ View new output'); await frame()
         assert.equal(await evaluate('document.querySelectorAll(".ui-markdown table").length'), 1)
+        await click('New chat'); await send('archive loop')
+        await waitFor(() => evaluate('!!document.querySelector("[data-run-state=failed]")'), 'guard termination visible')
+        const guarded = (await data('chats', 'listSessions', {})).value.items.find(s => s.title === 'archive loop')
+        const guardRun = (await data('chats', 'listRuns', { sessionId: guarded.id })).value.items[0]
+        assert.equal(guardRun.error, 'TOOL_GUARD_TERMINATED')
+        const guardSnapshot = (await api('getRun', { runId: guardRun.id })).value
+        const guardCalls = guardSnapshot.items.filter(i => i.content.toolName === 'job.set_archived')
+        assert.deepEqual(guardCalls.map(i => i.state), ['completed', 'failed', 'failed', 'failed'])
+        assert(guardCalls.slice(1).every(i => i.content.guard.executed === false))
+        assert((await data('jobs', 'getJob', { id: jobId })).value.archivedAt)
+        await evaluate(`document.querySelectorAll('[data-item-type=tool_call] .ui-collapsible > button').forEach(b=>b.click())`)
+        await frame()
+        assert(await evaluate('document.body.innerText.includes("Not executed") && document.body.innerText.includes("Confirmed effect") && document.body.innerText.includes("Rejected calls")'))
+        window.setMinimumSize(320, 320); window.setContentSize(320, 820)
+        await waitFor(() => evaluate('innerWidth===320'), 'guard narrow resize'); await frame()
+        assert.equal(await evaluate('document.documentElement.scrollWidth>innerWidth'), false)
+        mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
+        writeFileSync(resolve(__dirname, '../.cache/ask-ai-guard-narrow.png'), (await window.capturePage()).toPNG())
+        window.setContentSize(1200, 820); await waitFor(() => evaluate('innerWidth===1200'), 'restore guard width'); await frame()
         await click('New chat'); await send('hold reasoning')
         await waitFor(() => evaluate('!!document.querySelector("[data-item-type=reasoning][data-item-state=streaming] .ui-code-block")'), 'live readable reasoning')
         assert.equal(await evaluate('document.querySelector("[data-item-state=streaming] .ui-collapsible > button").getAttribute("aria-expanded")'), 'true')

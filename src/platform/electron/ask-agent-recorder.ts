@@ -49,10 +49,10 @@ export function createAskRecorder(repo: ChatRecorder, snapshot: ChatSnapshot, se
         if (Date.now() - checkpointAt >= 1000) flush()
       } else {
         item.state = 'completed'
-        if (event.type === 'tool.completed' && item.content.type === 'tool_call') item.content = { ...item.content, display: presentTool(event.name, event.result), result: redactTranscript(event.result), durationMs: event.durationMs }
+        if (event.type === 'tool.completed' && item.content.type === 'tool_call') item.content = { ...item.content, display: presentTool(event.name, event.result), result: redactTranscript(event.result), guard: event.guard, durationMs: event.durationMs }
         if (event.type === 'tool.failed') {
           item.state = event.uncertain && isAskWrite(event.name) ? 'uncertain' : 'failed'
-          if (item.content.type === 'tool_call') item.content = { ...item.content, display: presentTool(event.name), error: event.error, durationMs: event.durationMs }
+          if (item.content.type === 'tool_call') item.content = { ...item.content, display: presentTool(event.name), error: event.error, guard: event.guard, durationMs: event.durationMs }
         }
         itemEvent(item.state === 'completed' ? 'item.completed' : 'item.failed', item)
       }

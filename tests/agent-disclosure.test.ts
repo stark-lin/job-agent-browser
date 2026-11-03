@@ -152,3 +152,37 @@ test('request observation preserves the default index mapping for callers withou
   assert(request?.type === 'model.request.prepared'); assert.equal(request.request.verification, 'matched')
   assert.equal(request.request.tools[0].providerName, 'tool_0')
 })
+
+test('identical normalized searches warn once, then stop without executing a later batch tool', async () => {
+  let calls = 0
+  const model = scriptedModel((_request, ordinal) => {
+    if (ordinal === 1) return [activation()]
+    return [{ name: 'tool.search', arguments: { query: ordinal % 2 ? 'JOB   list' : 'list job' } },
+      ...(ordinal === 4 ? [{ name: 'job.list', arguments: {} }] : [])]
+  })
+  await assert.rejects(runDisclosure(model.model, { list: async () => [descriptor()], call: async () => { calls++; return {} } }), /AGENT_STEP_LIMIT/)
+  assert.equal(model.requests.length, 4); assert.equal(calls, 0)
+})
+
+test('effective activation and confirmed business progress reset repeated search detection', async () => {
+  const registry = new ToolDiscovery({ list: async () => [descriptor()], call: async () => ({ total: 1 }) }, new ContextBudget(capabilities, 'fixture'))
+  await registry.refresh(); registry.loadout()
+  await registry.call('tool.search', { query: 'job' }, signal()); await registry.call('tool.search', { query: 'job' }, signal())
+  await registry.call('tool.activate', { names: ['job.list'] }, signal()); registry.loadout()
+  await registry.call('tool.search', { query: 'job' }, signal()); await registry.call('tool.search', { query: 'job' }, signal())
+  await registry.call('job.list', {}, signal())
+  assert(Array.isArray(await registry.call('tool.search', { query: 'job' }, signal())))
+})
+
+test('summary and main-loop requests share a hard budget of 64 before model dispatch', async () => {
+  let complete = 0, streamed = 0
+  const model = observeAskModel({ complete: async () => { complete++; return { content: 'summary', toolCalls: [] } }, async *stream() {
+    streamed++; yield { type: 'completed', response: { content: 'answer', toolCalls: [] } }
+  } }, () => {})
+  const input = { messages: [], tools: [], signal: signal() }
+  for (let i = 0; i < 16; i++) await model.complete(input)
+  for (let i = 0; i < 48; i++) for await (const _event of model.stream(input)) { /* Consume actual requests. */ }
+  assert.throws(() => model.stream(input), /AGENT_STEP_LIMIT/)
+  assert.throws(() => model.complete(input), /AGENT_STEP_LIMIT/)
+  assert.equal(complete, 16); assert.equal(streamed, 48)
+})

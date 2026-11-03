@@ -19,9 +19,9 @@ const serverOnly = process.argv.includes('--mcp-server')
 const mcpOnly = process.argv.includes('--mcp')
 const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => name.endsWith('.test.js') &&
   (!knowledgeOnly || /^(knowledge(?:-remote)?|memory(?:-workspace|-mcp|-agent)?)\.test\.js$/.test(name)) &&
-  (!askOnly || /^(memory-mcp|memory-agent|chat|chat-model-requests|reasoning|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-store|ask-context)\.test\.js$/.test(name)) &&
-  (!agentOnly || /^(chat|chat-model-requests|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-store|business-tools|profile-writes|application-agent|capture-agent|job-import|import-parallel|agent|resume-document|resume-agent|resume-output|resume-tools|resume-runtime-parity|runtime-leases|profile-import|profile-session|storage)\.test\.js$/.test(name)) &&
-  (!serverOnly || /^(memory-mcp|business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
+  (!askOnly || /^(mcp-run-guard|memory-mcp|memory-agent|chat|chat-model-requests|reasoning|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-store|ask-context)\.test\.js$/.test(name)) &&
+  (!agentOnly || /^(mcp-run-guard|chat|chat-model-requests|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-store|business-tools|profile-writes|application-agent|capture-agent|job-import|import-parallel|agent|resume-document|resume-agent|resume-output|resume-tools|resume-runtime-parity|runtime-leases|profile-import|profile-session|storage)\.test\.js$/.test(name)) &&
+  (!serverOnly || /^(mcp-run-guard|memory-mcp|business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
   (!mcpOnly || /^(tools|mcp|capability-audit)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))
 if (tests.length === 0) throw new Error('No tests discovered')
 run(['--test', '--test-timeout=60000', '--test-concurrency=1', ...tests])
