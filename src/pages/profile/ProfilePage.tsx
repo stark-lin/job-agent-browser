@@ -55,10 +55,9 @@ export function ProfilePage() {
   function renderFact(entry: Fact) {
     return <SectionCard key={entry.id} title={t($ => $.profile.kinds[entry.kind])}><div className="profile-stack">
       <DetailsList items={[{ label: t($ => $.profile.content), value: entry.content },
-        ...(entry.tags.length ? [{ label: t($ => $.profile.tags), value: entry.tags.join(', ') }] : []),
-        ...(entry.evidence ? [{ label: t($ => $.profile.evidence), value: entry.evidence }] : [])]} />
+        ...(entry.tags.length ? [{ label: t($ => $.profile.tags), value: entry.tags.join(', ') }] : [])]} />
       <div className="profile-actions">
-        <Button disabled={manualDisabled} onClick={() => beginFact({ kind: entry.kind, content: entry.content, tags: entry.tags, evidence: entry.evidence }, entry.profileItemId, entry.id)}>{t($ => $.profile.edit)}</Button>
+        <Button disabled={manualDisabled} onClick={() => beginFact({ kind: entry.kind, content: entry.content, tags: entry.tags }, entry.profileItemId, entry.id)}>{t($ => $.profile.edit)}</Button>
         <Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'fact', id: entry.id })}>{t($ => $.profile.remove)}</Button></div>
     </div></SectionCard>
   }

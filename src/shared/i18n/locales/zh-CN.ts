@@ -630,7 +630,7 @@ export const zhCN = {
     type: '条目类型', title: '名称', organization: '组织', role: '角色', summary: '背景简介',
     startDate: '开始日期', endDate: '结束日期', dateHelp: '使用 YYYY、YYYY-MM 或 YYYY-MM-DD，保留缺失的月份和日期。', current: '至今',
     employmentType: '雇佣类型', technologies: '技术栈', degree: '学位', major: '专业', gpa: 'GPA',
-    kind: '事实类别', content: '事实内容', tags: '标签（逗号分隔）', evidence: '原文片段及页码', belongsTo: '所属条目',
+    kind: '事实类别', content: '事实内容', tags: '标签（逗号分隔）', belongsTo: '所属条目',
     types: { EXPERIENCE: '工作经历', PROJECT: '项目', EDUCATION: '教育' },
     kinds: { ACHIEVEMENT: '成果', RESPONSIBILITY: '职责', SKILL: '技能', AWARD: '奖项', CERTIFICATION: '证书', COURSE: '课程', LANGUAGE: '语言', OTHER: '其他' },
     upload: '上传 PDF 并解析', importTitle: '导入 PDF 简历', importHelp: '提取的简历文字将发送给下方显示的服务与模型。上限：10 MB、20 页、60,000 个提取字符。扫描件需要包含可选文字。',

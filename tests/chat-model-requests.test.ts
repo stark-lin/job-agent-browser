@@ -68,7 +68,7 @@ test('V14 is additive and preserves earlier migration checksums and audit defini
     migrate(db, migrations.slice(0, 13))
     const versions = db.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
     const auditSchema = db.prepare("SELECT * FROM sqlite_master WHERE name LIKE '%audit%' ORDER BY name").all()
-    migrate(db)
+    migrate(db, migrations.slice(0, 14))
     assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=13 ORDER BY version').all(), versions)
     assert.deepEqual(db.prepare("SELECT * FROM sqlite_master WHERE name LIKE '%audit%' ORDER BY name").all(), auditSchema)
   } finally { db.close() }

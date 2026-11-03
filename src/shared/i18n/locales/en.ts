@@ -670,7 +670,7 @@ export const en = {
     type: 'Entry type', title: 'Title', organization: 'Organization', role: 'Role', summary: 'Background summary',
     startDate: 'Start date', endDate: 'End date', dateHelp: 'Use YYYY, YYYY-MM or YYYY-MM-DD. Missing months and days are preserved.', current: 'Present',
     employmentType: 'Employment type', technologies: 'Technologies', degree: 'Degree', major: 'Major', gpa: 'GPA',
-    kind: 'Fact category', content: 'Fact', tags: 'Tags (comma separated)', evidence: 'Source excerpt and page', belongsTo: 'Belongs to',
+    kind: 'Fact category', content: 'Fact', tags: 'Tags (comma separated)', belongsTo: 'Belongs to',
     types: { EXPERIENCE: 'Work experience', PROJECT: 'Projects', EDUCATION: 'Education' },
     kinds: { ACHIEVEMENT: 'Achievement', RESPONSIBILITY: 'Responsibility', SKILL: 'Skill', AWARD: 'Award', CERTIFICATION: 'Certification', COURSE: 'Course', LANGUAGE: 'Language', OTHER: 'Other' },
     upload: 'Upload PDF and parse', importTitle: 'Import a PDF resume', importHelp: 'Extracted resume text will be sent to the provider and model shown below. Limits: 10 MB, 20 pages and 60,000 extracted characters. Scans need selectable text.',

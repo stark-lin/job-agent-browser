@@ -105,7 +105,7 @@ Internal workflows and external hosts share the following public contracts; only
 | resume.publish, resume.fail, resume.cancel | Publication or fixed-code failure/cancellation of the owning runtime's run |
 | artifact.get, artifact.build | Content/provenance or model-free HTML/PDF output and local paths |
 
-[Profile tools](../src/platform/tools/profile.ts) persist host-understood data without fetching/parsing resumes or repositories. Omitted patch fields are preserved, empty strings/arrays clear, arrays replace, metadata merges by field, and null associations detach. Revision, transaction and receipt rules belong to [data architecture](data-architecture.md#2-business-rules). Profile write input is limited to 256 KiB.
+[Profile tools](../src/platform/tools/profile.ts) persist host-understood data without fetching/parsing resumes or repositories. Omitted patch fields are preserved, empty strings/arrays clear, arrays replace, metadata merges by field, and null associations detach. Revision, transaction and receipt rules belong to [data architecture](data-architecture.md#2-business-rules). Profile write input is limited to 256 KiB. Fact inputs/results omit `evidence`; supplying that removed field is rejected as unknown. Distillation Skills save concise facts and tags without source attachments or moving them into other fields.
 
 Resume snapshot bounds remain 1000 facts, 200 items, 256 KiB context and 8 KiB per fact. Reads page at most 100 facts. Conflicting/out-of-order submissions fail. Semantic truth still requires evidence review. Interrupted generation cannot be resumed by another Server session.
 

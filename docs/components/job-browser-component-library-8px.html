@@ -239,6 +239,15 @@
         </div>
 
         <div class="demo">
+          <div class="demo-label">Profile fact · manual editing and import review</div>
+          <div class="demo-stage vstack">
+            <label class="field"><span class="field-label">Fact category</span><select class="control"><option>Achievement</option><option>Skill</option></select></label>
+            <label class="field"><span class="field-label">Fact</span><textarea class="control" maxlength="20000">Built TypeScript services with automated tests.</textarea></label>
+            <label class="field"><span class="field-label">Tags (comma separated)</span><input class="control" value="TypeScript, testing" /></label>
+          </div>
+        </div>
+
+        <div class="demo">
           <div class="demo-label">Checkbox · ignore imported content</div>
           <div class="demo-stage stack">
             <label class="check-row"><input type="checkbox" /><span>Allow parallel requests for this model</span></label>
@@ -548,6 +557,7 @@
             <div class="ui-activity ui-activity--failed"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Archive job · Not executed<details class="ui-collapsible"><summary>Details</summary><div class="ui-collapsible-content"><dl class="ui-details-list"><div><dt>Chat Run ID</dt><dd>f2ad4f18-70d3-4a20-9037-93440e0c6111</dd></div><div><dt>Run state</dt><dd>Failed</dd></div><div><dt>Calls / dispatched / rejected</dt><dd>4 / 1 / 3</dd></div><div><dt>Confirmed effect</dt><dd>Saved job · Archived</dd></div><div><dt>Protection reason</dt><dd>The same rejected operation was attempted again.</dd></div></dl></div></details></div></div>
             <div class="ui-activity ui-activity--uncertain"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Operation may have completed<div class="ui-activity-description">Check the current state before trying again.</div></div></div>
             <div class="ui-chat-message">Your experience matches these requirements.</div>
+            <p class="rule-note">Composer focus keeps the neutral border and shadow; the textarea has no focus outline or glow. Model and action controls retain their focus indicators.</p>
             <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Example message" placeholder="Ask anything about your job search…"></textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Example model"><option>Example model</option></select><button class="btn" aria-label="Send example" disabled>↑</button></div></div>
             <p class="muted" role="status">Waiting for the previous run… New messages are queued in this session.</p>
             <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Queued example message">A follow-up question</textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Busy example model" disabled><option>Example model</option></select><button class="btn" aria-label="Stop example">■</button><button class="btn" aria-label="Queue example message">↑</button></div></div>

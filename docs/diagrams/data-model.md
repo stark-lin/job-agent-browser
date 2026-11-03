@@ -147,7 +147,6 @@ erDiagram
         string profile_item_id FK
         string kind
         text content
-        text evidence
     }
     GENERATION_RUN {
         string id PK
