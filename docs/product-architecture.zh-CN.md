@@ -188,4 +188,4 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 ## 智能笔记知识库
 
-智能笔记通过 app://knowledge 完整替代原占位入口。唯一 Knowledge Base 支持用户/Agent 编辑 Markdown、历史与结构检索；面试准备改为安装的 [Skill](../skills/interview-prep/SKILL.zh-CN.md)。不引入多 Vault、CRDT、拖拽或协作合并。
+**已实现：**app://knowledge 智能笔记使用同一 Explorer/编辑器容纳 Knowledge 和置顶 Memory 文件夹，搜索/历史/恢复按空间隔离，同步覆盖工作区并明确说明记忆及历史上传。Ask AI 仅支持明确用户请求后的 Manual 记忆，Job/Profile/Fact 保持权威。[当前运行](architecture.zh-CN.md#智能笔记知识库)记录实现，[面试准备](../skills/interview-prep/SKILL.zh-CN.md)仍为安装的 Skill。**规划：**Pi 集成、自动记忆和 Context Budget；不增加 Memory 页面、第二个 Git 仓库、CRDT、拖拽或协作合并。

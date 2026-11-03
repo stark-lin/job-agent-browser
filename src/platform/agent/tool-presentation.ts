@@ -1,6 +1,7 @@
 import type { ToolDisplay, ToolSummaryKey } from '../../domain/chat/chat.types'
 
 const labels: Record<string, ToolSummaryKey> = {
+  'memory.list': 'memoryRead', 'memory.read': 'memoryRead', 'memory.recall': 'memoryRead', 'memory.write': 'memoryWrite', 'memory.mkdir': 'memoryWrite',
   'knowledge.list':'knowledgeRead','knowledge.read':'knowledgeRead','knowledge.search':'knowledgeRead','knowledge.retrieve':'knowledgeRead','knowledge.write':'knowledgeWrite','knowledge.mkdir':'knowledgeWrite','knowledge.move':'knowledgeWrite','knowledge.delete':'knowledgeWrite',
   'job.list': 'jobs', 'job.get': 'job', 'job.update': 'updateJob', 'job.set_archived': 'archiveJob',
   'profile.list_items': 'profileItems', 'profile.create': 'createProfile', 'profile.update': 'updateProfile',
@@ -14,7 +15,7 @@ const labels: Record<string, ToolSummaryKey> = {
   'resume.fail': 'failResume', 'resume.cancel': 'cancelResume', 'artifact.build': 'buildArtifact'
 }
 // Treat unknown future capabilities as writes so interruption never suggests a safe replay.
-const readTools = new Set(['knowledge.list','knowledge.read','knowledge.search','knowledge.retrieve','job.list', 'job.get', 'profile.list', 'profile.get', 'profile.list_facts', 'profile.list_items',
+const readTools = new Set(['memory.list', 'memory.read', 'memory.recall','knowledge.list','knowledge.read','knowledge.search','knowledge.retrieve','job.list', 'job.get', 'profile.list', 'profile.get', 'profile.list_facts', 'profile.list_items',
   'application.get', 'application.list_events', 'resume.get_context', 'resume.list_facts', 'artifact.get'])
 export const isAskWrite = (name: string) => !readTools.has(name)
 /** Allowlisted scalar summaries only: raw arguments/results never enter the transcript. */

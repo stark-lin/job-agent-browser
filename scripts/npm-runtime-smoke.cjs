@@ -38,7 +38,7 @@ const {createRequire}=require('node:module');const local=createRequire(${JSON.st
 const {Client}=local('@modelcontextprotocol/client');const {StdioClientTransport}=local('@modelcontextprotocol/client/stdio');
 const client=new Client({name:'npm-cli-smoke',version:'1'});
 (async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[${JSON.stringify(cli)},'mcp','--data-dir',process.argv[2]],stderr:'pipe'});
-try{await client.connect(transport);const tools=await client.listTools();assert(tools.tools.some(t=>t.name==='knowledge.retrieve'));
+try{await client.connect(transport);const tools=await client.listTools();assert(tools.tools.some(t=>t.name==='knowledge.retrieve'));assert(!tools.tools.some(t=>t.name.startsWith('memory.')));
 const call=async(name,input)=>{const r=await client.callTool({name,arguments:input},{timeout:180000});assert(!r.isError,JSON.stringify(r));return r.structuredContent};
 const result=await call('knowledge.retrieve',{query:'SQLite'});assert(result);
 const job=await call('job.import',{requestId:randomUUID(),details:{title:'TypeScript Engineer',companyNameRaw:'npm fixture',description:'Build reliable TypeScript services.'}});
@@ -52,13 +52,14 @@ await call('resume.submit_selection',{runId,selection:{factIds:[fact.id],itemIds
 const writing={summary:{id:randomUUID(),text:fact.content,factIds:[fact.id]},experience:[{profileItemId:item.id,bullets:[{id:randomUUID(),text:fact.content,factIds:[fact.id]}]}],projects:[],education:[],skills:[]};
 await call('resume.submit_draft',{runId,writing});await call('resume.submit_polished',{runId,writing});
 const {artifact}=await call('resume.publish',{runId});const built=await call('artifact.build',{artifactId:artifact.id});assert.equal(built.output.status,'READY');
-console.log('Pure Node jab mcp verified first-use Electron initialization and real PDF output without protocol stdout contamination.');
+console.log('Pure Node jab mcp verified Main-initialized storage, public tools without Memory, and real PDF output without protocol stdout contamination.');
 }finally{await client.close()}})().catch(e=>{console.error(e);process.exitCode=1});
 `)
     const data = join(scratch, 'user-data')
     mkdirSync(data)
     writeFileSync(join(data, 'database.sqlite'), '')
-    run(process.execPath, [protocol, data], { cwd: tmpdir(), env, stdio: 'inherit' })
+    const recovery = spawnSync(process.execPath, [cli, 'mcp', '--data-dir', data], { cwd: tmpdir(), env, encoding: 'utf8', timeout: 15000 })
+    assert.equal(recovery.status, 1); assert.equal(recovery.stdout, ''); assert(recovery.stderr.includes('KNOWLEDGE_RECOVERY_REQUIRED_START_JAB'))
     // The tarball is genuinely installed outside the repository. Initialize Electron through
     // its official runtime module; no dependency or binary is copied from the checkout.
     delete env.ELECTRON_SKIP_BINARY_DOWNLOAD
@@ -76,6 +77,7 @@ console.log('Pure Node jab mcp verified first-use Electron initialization and re
     run(process.execPath, [cli, '--data-dir', data, '--verify-package', '--verify-minimal'], { cwd: tmpdir(), env, stdio: 'inherit' })
     const minimal = JSON.parse(readFileSync(join(data, 'package-verification.json')))
     assert(minimal.ok && minimal.pdfVerified && minimal.semanticAvailable === false)
+    run(process.execPath, [protocol, data], { cwd: tmpdir(), env, stdio: 'inherit' })
     // Load the real GUI and typed preload, including settings and model controls.
     const guiScript = join(scratch, 'gui-smoke.cjs')
     writeFileSync(guiScript, `

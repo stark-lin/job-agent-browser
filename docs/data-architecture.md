@@ -145,22 +145,9 @@ Optional detail text and optional URLs default to empty strings, arrays to empty
 | `audit` | Read-only content-free audit browsing |
 | `settings`, `secrets` | Validated file preferences and key status/save/delete; never return keys |
 
-The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Agent generation stages use MCP, separate from this manual/UI IPC API. IPC mutations are not automatically retried/idempotent; refresh uncertain state before retrying. MCP creation receipts provide the explicit exceptions described in section 4. Use the following fixed codes rather than database messages.
+The API offers no raw SQL/table CRUD, unrestricted filters, transaction management, audit writer or generation-stage writes. Agent generation stages use MCP, separate from this manual/UI IPC API. IPC mutations are not automatically retried/idempotent; refresh uncertain state before retrying. MCP creation receipts provide the explicit exceptions described in section 4. The source contract below owns the fixed errors.
 
-| Error code | Meaning |
-| --- | --- |
-| `INVALID_INPUT` | Unknown field, invalid shape/value or exceeded input/query limit |
-| `NOT_FOUND` | Requested live entity does not exist |
-| `CONFLICT` | Relationship, immutable data, provenance or SQL integrity violation |
-| `INVALID_STATE` | Disallowed lifecycle transition, generation stage or operation |
-| `STORAGE_BUSY` | Database lock contention exceeded the wait limit |
-| `STORAGE_UNAVAILABLE` | Storage operation could not complete; raw error details are withheld |
-| `AUDIT_UNAVAILABLE` | Required business/call audit could not be committed; the operation reports failure |
-| `NOT_IMPLEMENTED` | Storage adapter was not supplied to a non-production backend |
-| `ENCRYPTION_UNAVAILABLE` | OS-backed encryption is unavailable; key saving is refused |
-| `FORBIDDEN` | IPC caller is not the trusted top-level renderer document or request owner |
-| `AI_NOT_CONFIGURED`, `AI_AUTH_FAILED`, `AI_RATE_LIMITED` | Missing provider/model/key, rejected authorization or rate limit |
-| `AI_PROVIDER_FAILED`, `AI_PROTOCOL_ERROR`, `AI_CONNECT_FAILED`, `AI_TIMEOUT`, `AI_CANCELLED` | Provider, stream format, transport, timeout or cancellation outcome |
+[Fixed error codes](../src/domain/common/errors.ts) cover invalid input, missing/conflicting state, storage/audit availability, forbidden callers, encryption and AI failures. Only codes cross IPC; raw database messages never do.
 
 [The PDF import bridge](../src/platform/electron/profile-import-contract.ts) exposes `window.profileImport.selectPdf/start/retry/cancel/discard/onEvent`, without path-reading access. Both import `start` operations accept optional `mode` (`single` by default); events include `progress.groups` with states and `queueMs`/`elapsedMs`, and `failed.retryable` indicates cached part retry. PDF `retry({sessionId})` retains the session and returns a new `taskId`. File/network work stays outside synchronous business transactions.
 
@@ -189,10 +176,16 @@ The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads
 - [Product architecture](product-architecture.md): planned product scope.
 - [README](../README.md): validation commands and documentation index.
 
-## Smart Note knowledge
+## Smart Note storage and Memory v1
 
-Files are truth: userData/knowledge contains canonical Markdown; no Note table exists. knowledge-index.sqlite is disposable and independent of database.sqlite. [Backup](../src/platform/knowledge/git/backup.ts) snapshots Markdown only; restore first snapshots current files and journals multi-file replacement. Revision checks reject stale writes. Delete retains Git history; Git omits empty directories.
+**Implemented:** canonical Markdown lives in `userData/smart-note/knowledge/` and `memory/`, sharing one `.git`; no Note/Memory business table exists. Job, Profile and Fact remain authoritative business facts. Independent `knowledge-index.sqlite` and `memory-index.sqlite` caches keep FTS, vectors, ranking and context expansion isolated; [embedding identity](../src/platform/knowledge/rag/embedding-protocol.ts) controls vector compatibility.
 
-[Embedding identity](../src/platform/knowledge/rag/embedding-protocol.ts) includes model revision, dtype, dimensions, pooling, normalization, token limit and prefix version. The index re-embeds missing, changed or incompatible chunks and excludes other identities during vector retrieval. Raw Markdown remains canonical. [Preference loading](../src/platform/storage/knowledge-preferences.ts) drops legacy providerId/modelId only on disk reads, preserves semanticEnabled (including false), and defaults new installations to true; new writes reject obsolete fields.
+[Migration](../src/platform/knowledge/workspace-storage.ts) completes the old restore journal, locks the legacy library and workspace, hashes/copies every regular file (including untracked data and `.git`) to same-filesystem staging, and commits the directory change. It verifies contents/history before atomic publication, retains `knowledge-archive-v1`, and replaces the old entry with a file that old path checks reject. Links, unsafe names and unverifiable states stop migration; journals make interrupted stages reentrant without initializing an empty library.
 
-[User model storage](../src/platform/models/paths.ts) is separate from userData/knowledge and both SQLite databases: macOS `~/Library/Application Support/JAB/managed-models`, Windows `%LOCALAPPDATA%/JAB/Models`, Linux `${XDG_DATA_HOME:-~/.local/share}/JAB/models`. `JAB_MODEL_STORE` accepts an absolute override. Revision directories, verified retry staging, heartbeat locks/reader leases and `.installed.json` are filesystem resources, not business records; every activation verifies sizes/SHA256 independently of the installation marker. Atomic `seed-preferences.json` records initialized revisions and disables automatic Seed import after explicit removal. npm update/uninstall leaves these files intact. Deleting weights retains chunks, FTS and derived vectors, but unavailable providers cannot use those vectors.
+`smart-note-runtime/` remains outside Git and stores migration/restore journals, generation 1, original HEAD, migration commit, explicit legacy commit IDs and normalized-remote consent. Legacy commits map entirely to Knowledge, including old directories named `knowledge/` or `memory/`; current layout is never inferred from prefixes alone. Independent MCP requires Main to finish initialization/recovery first.
+
+[Backup](../src/platform/knowledge/git/backup.ts) snapshots Markdown in both spaces under one lock, follows the active local branch and syncs to the configured remote branch. Space-filtered history paginates after filtering and returns relative paths; restore checks only the target tree revision, snapshots both spaces and journals only target changes. Internal sync uses workspace journals; the UI exposes no workspace restore. Root rename/delete is invalid; `expectedRevision:null` creates only, updates require the current SHA-256. Git omits empty directories and retains deleted-note history.
+
+[Workspace](../src/platform/knowledge/workspace.ts) persists sync consent through trusted IPC for the current normalized remote. Upgrade, first remote use and remote changes require disclosure that Memory and its Git history upload too. Without consent sync performs local backup only; the transport gate also covers conflict uploads. Unknown remote layout cannot replace local files. Audit migration 10 preserves existing rows and adds opaque Memory targets; permissions belong to [MCP architecture](mcp-architecture.md).
+
+[User model storage](../src/platform/models/paths.ts) is independent of Smart Note, its two derived indexes and `database.sqlite`: macOS `~/Library/Application Support/JAB/managed-models`, Windows `%LOCALAPPDATA%/JAB/Models`, Linux `${XDG_DATA_HOME:-~/.local/share}/JAB/models`. `JAB_MODEL_STORE` accepts an absolute override. Verified revisions, retry staging, heartbeat locks/leases and `.installed.json` are filesystem resources; activation rechecks size/SHA256. Atomic `seed-preferences.json` records initialized revisions and disables automatic Seed import after removal. npm update/uninstall preserves these files; unavailable weights retain chunks/FTS/vectors but retrieval falls back to lexical search. [Preference loading](../src/platform/storage/knowledge-preferences.ts) drops obsolete providerId/modelId only on disk reads and preserves semanticEnabled, default true.

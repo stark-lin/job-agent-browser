@@ -1,6 +1,6 @@
 import { npmMCPLaunch } from '../../npm/distribution'
 import { verifyPackageRuntime } from '../package-verification'
-import { KnowledgeService } from '../../knowledge/service'
+import { SmartNoteWorkspace } from '../../knowledge/workspace'
 import { LocalModelManager } from '../../models/manager'
 import { userModelStore } from '../../models/paths'
 import { createKnowledgeEmbeddings } from '../../knowledge/rag/model-path'
@@ -66,7 +66,7 @@ let resumes: ResumeTasks | undefined
 let firstParty: FirstPartyRuntime | undefined
 let askAgent: AskAgentTasks | undefined
 let externalMCP: ExternalMCPInstaller | undefined
-let knowledge: KnowledgeService | undefined
+let knowledge: SmartNoteWorkspace | undefined
 let localModels: LocalModelManager | undefined
 let stopKnowledgeBroker: (()=>Promise<void>) | undefined
 let shuttingDown = false
@@ -82,6 +82,7 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--verify-package')) { await verifyPackageRuntime(); app.exit(0); return }
   const directory = app.getPath('userData')
   preferences = createPreferences(join(directory, 'settings.json'), value => {
+    knowledge?.remoteChanged(value.knowledge?.remote ?? defaultKnowledgePreferences.remote)
     applyTheme(value.theme)
     void i18n.changeLanguage(value.language)
   })
@@ -100,13 +101,13 @@ app.whenReady().then(async () => {
     seed: app.isPackaged ? join(process.resourcesPath, 'models/multilingual-e5-small') : join(app.getAppPath(), '.cache/models/multilingual-e5-small'),
     stop: () => embeddings?.stop(), activated: () => knowledge?.refreshEmbeddings() })
   embeddings = createKnowledgeEmbeddings(() => knowledgePreferences().semanticEnabled, localModels)
-  knowledge = new KnowledgeService(directory, { preferences: knowledgePreferences, watch: true,
+  knowledge = new SmartNoteWorkspace(directory, { preferences: knowledgePreferences, watch: true,
     configure: value => preferences.savePreferences({ knowledge: value }).knowledge!,
     token: () => secrets.readProviderKey(githubKey), tokenStatus: () => secrets.hasProviderKey({provider: githubKey}).configured,
     saveToken: value => { if(value === null) secrets.deleteProviderKey({provider:githubKey}); else secrets.saveProviderKey({provider:githubKey,apiKey:value}) },
     models: localModels, embeddings })
   registerKnowledgeIPC(knowledge, join(__dirname, '../renderer/index.html'))
-  void knowledge.ready.then(async () => { if (shuttingDown) return; const stop = await startKnowledgeBroker(directory, knowledge!.index); if (shuttingDown) await stop(); else stopKnowledgeBroker = stop }).catch(() => {})
+  void knowledge.ready.then(async () => { if (shuttingDown) return; const stop = await startKnowledgeBroker(directory, knowledge!); if (shuttingDown) await stop(); else stopKnowledgeBroker = stop }).catch(() => {})
   externalMCP = createExternalMCPInstaller({ home: app.getPath('home'), codexHome: process.env.CODEX_HOME,
     ...npmMCPLaunch(directory), directory, bundleDirectory: __dirname, executable: process.execPath, writeClipboard: text => clipboard.writeText(text) })
   registerExternalMCPIPC(externalMCP, join(__dirname, '../renderer/index.html'))

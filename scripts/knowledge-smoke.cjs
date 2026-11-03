@@ -2,6 +2,8 @@ const { app } = require('electron'),
   assert = require('node:assert/strict'),
   { resolve, join } = require('node:path'),
   { writeFileSync } = require('node:fs')
+const memoryUI = require('./memory-ui-smoke.cjs')
+memoryUI.install()
 const directory = process.env.JOB_BROWSER_SMOKE_DATA
 assert(directory)
 app.setPath('userData', directory)
@@ -18,7 +20,7 @@ app.on('browser-window-created', (_event, window) => {
     if (e.level === 'error') console.error('Renderer:', e.message)
   })
   window.webContents.once('did-finish-load', async () => {
-    const evaluate = (code) => window.webContents.executeJavaScript(code),
+    const evaluate = (code) => window.webContents.executeJavaScript(code).catch(error => { console.error('Failed smoke evaluation:', code); throw error }),
       call = (method, input = {}) => evaluate(`window.knowledge.${method}(${JSON.stringify(input)})`)
     const wait = async (fn, label) => {
       const end = Date.now() + 10000
@@ -28,7 +30,7 @@ app.on('browser-window-created', (_event, window) => {
       }
     }
     const click = (text) =>
-      evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)}).click()`)
+      evaluate(`[...(document.querySelector('dialog[open]')??document).querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent===${JSON.stringify(text)}).click()`)
     try {
       await evaluate("window.browser.navigate('app://knowledge')")
       await wait(() => evaluate('!!document.querySelector("[data-knowledge-page]")'), 'knowledge page')
@@ -44,6 +46,7 @@ app.on('browser-window-created', (_event, window) => {
           'Knowledge restart smoke passed: Markdown, preferences, Git history and rebuilt retrieval survive restart.'
         )
       } else {
+        await memoryUI.run({ window, evaluate, call, wait, click })
         assert((await call('mkdir', { path: 'interview' })).ok)
         assert(
           (
@@ -119,13 +122,13 @@ app.on('browser-window-created', (_event, window) => {
           'edit mode'
         )
         await click('Split')
-        writeFileSync(join(directory, 'knowledge', 'interview', 'ctrip.md'), '# External update\n\n外部编辑')
+        writeFileSync(join(directory, 'smart-note', 'knowledge', 'interview', 'ctrip.md'), '# External update\n\n外部编辑')
         await wait(
           () => evaluate('document.querySelector(".cm-content").textContent.includes("External update")'),
           'watcher reload'
         )
         await edit('# Local draft\n\nMust survive conflict')
-        writeFileSync(join(directory, 'knowledge', 'interview', 'ctrip.md'), '# Other writer\n\nExternal version')
+        writeFileSync(join(directory, 'smart-note', 'knowledge', 'interview', 'ctrip.md'), '# Other writer\n\nExternal version')
         await wait(() => evaluate('document.body.textContent.includes("This file changed")'), 'conflict UI')
         assert((await call('read', { path: 'interview/ctrip.md' })).value.content.includes('Other writer'))
         await click('Save draft as…')
@@ -167,10 +170,18 @@ app.on('browser-window-created', (_event, window) => {
         writeFileSync(join(require('node:os').tmpdir(), 'jab-smart-note.png'), (await window.webContents.capturePage()).toPNG())
         await evaluate("window.browser.navigate('app://settings')")
         await wait(
-          () => evaluate('document.body.textContent.includes("Knowledge backup and retrieval")'),
+          () => evaluate('document.body.textContent.includes("Smart Note backup and retrieval")'),
           'knowledge settings'
         )
         assert.equal((await call('configuration')).value.preferences.semanticEnabled, true)
+        const settingsPrefs = (await call('configuration')).value.preferences
+        await call('configure', { ...settingsPrefs, remote: 'https://github.com/fixture/settings-memory.git' })
+        await click('Sync now')
+        await wait(() => evaluate('document.querySelector("dialog[open]")?.textContent.includes("Upload Memory and its history?")'), 'Settings sync consent')
+        assert.equal(await evaluate('document.activeElement.textContent'), 'Cancel')
+        await click('Cancel')
+        assert((await call('syncConsent')).value.required)
+        await call('configure', { ...settingsPrefs, remote: '' })
         await evaluate("window.browser.navigate('app://knowledge')")
         await wait(() => evaluate('!!document.querySelector("[data-knowledge-page]")'), 'knowledge before quit')
         await click('Edit')
@@ -185,6 +196,7 @@ app.on('browser-window-created', (_event, window) => {
       app.quit()
     } catch (error) {
       console.error(error)
+      console.error('UI diagnostic', await evaluate('({body:document.body.innerText,editor:document.querySelector(".cm-content")?.textContent})'))
       clearTimeout(timeout)
       app.exit(1)
     }

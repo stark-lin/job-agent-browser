@@ -9,7 +9,10 @@ import type {
   BackupVersion,
   BackupStatus
 } from '../../domain/knowledge'
-export interface KnowledgeMethods {
+import type { SpaceId } from '../../shared/smart-note'
+interface Methods {
+  syncConsent: { input: Record<string, never>; output: { remote: string; required: boolean } }
+  approveSync: { input: { remote: string }; output: null }
   modelStatus: { input: Record<string, never>; output: ModelStatus }
   modelInstall: { input: { source: 'download' | 'seed' }; output: null }
   modelCancel: { input: Record<string, never>; output: null }
@@ -37,7 +40,10 @@ export interface KnowledgeMethods {
   }
   token: { input: { token: string | null }; output: { configured: boolean } }
 }
+export type SpaceMethod = 'tree' | 'read' | 'write' | 'mkdir' | 'move' | 'delete' | 'search' | 'retrieve' | 'history' | 'restore' | 'rebuild'
+export type KnowledgeMethods = { [K in keyof Methods]: { input: K extends SpaceMethod ? (K extends 'tree' | 'rebuild' ? { space?: SpaceId } : Methods[K]['input'] & { space?: SpaceId }) : Methods[K]['input']; output: Methods[K]['output'] } }
 export const knowledgeMethods = [
+  'syncConsent', 'approveSync',
   'modelStatus', 'modelInstall', 'modelCancel', 'modelVerify', 'modelRemove',
   'tree',
   'read',

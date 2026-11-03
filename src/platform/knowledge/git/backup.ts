@@ -15,6 +15,7 @@ import {
 import { KnowledgeFiles } from '../filesystem'
 import { atomicWrite, safePath, hash } from '../paths'
 interface RestoreJournal {
+  space?: 'knowledge' | 'memory' | 'workspace'
   commit: string
   before: Record<string, string>
   after: Record<string, string>
@@ -26,22 +27,24 @@ export class KnowledgeBackup {
     readonly files: KnowledgeFiles,
     private preferences: () => KnowledgePreferences,
     private token: () => string | null = () => null,
-    private transport: typeof http = http
+    private transport: typeof http = http,
+    private consent: (remote: string) => boolean = () => false
   ) {}
   private get options() {
-    return { fs, dir: this.files.root }
+    return { fs, dir: this.files.storage?.root ?? this.files.root }
   }
   private get journal() {
-    return join(this.files.directory, 'knowledge-runtime', 'restore.json')
+    return join(this.files.storage?.runtime ?? join(this.files.directory, 'knowledge-runtime'), 'restore.json')
   }
   async initialize() {
     await this.files.initialize()
-    const path = join(this.files.root, '.git')
+    const path = join(this.options.dir, '.git')
     try {
       const info = await lstat(path)
       if (!info.isDirectory() || info.isSymbolicLink()) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+      if (this.files.storage) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
       await git.init({ ...this.options, defaultBranch: 'main' })
     }
     const inspect = async (directory: string): Promise<void> => {
@@ -61,7 +64,7 @@ export class KnowledgeBackup {
   }
   private async snapshot(reason: string) {
     await this.initialize()
-    const tree = await this.files.tree(),
+    const tree = await this.allFiles().tree(),
       managed = new Set<string>()
     const collect = (n: typeof tree) => {
       if (n.type === 'file') managed.add(n.path)
@@ -102,26 +105,37 @@ export class KnowledgeBackup {
       return { dirty: true, state: 'failed', error: 'KNOWLEDGE_UNAVAILABLE' }
     }
   }
-  async versionFiles(commit: string) {
+  private allFiles() {
+    return this.files.storage ? new KnowledgeFiles(this.files.directory, 'workspace', this.files.storage) : this.files
+  }
+  async versionFiles(commit: string, whole = false) {
     await this.initialize()
     if (!/^[0-9a-f]{40}$/.test(commit)) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
     const result: Record<string, string> = {}
+    const layout = this.files.storage?.layout
+    const legacy = layout?.legacyCommits.includes(commit) ?? false
+    if (layout && !legacy && commit !== layout.migrationCommit && !(await git.isDescendent({ ...this.options, oid: commit, ancestor: layout.migrationCommit }))) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
     let bytes = 0
     const walk = async (oid: string, prefix: string) => {
       const { tree } = await git.readTree({ ...this.options, oid })
       for (const entry of tree) {
         const path = prefix + entry.path
+        if (layout && !legacy && !prefix && (!['knowledge', 'memory'].includes(entry.path) || entry.type !== 'tree')) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
         if (entry.type === 'tree') {
           markdownPath(path + '/README.md')
           await walk(entry.oid, path + '/')
         } else {
-          markdownPath(path)
           if (!['100644', '100755'].includes(entry.mode)) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
+          // Migration retains non-Markdown data; business restore only touches managed Markdown.
+          if (!/\.md$/i.test(path) || path.split('/').some(p => p.startsWith('.'))) continue
+          markdownPath(path)
           const { blob } = await git.readBlob({ ...this.options, oid: entry.oid })
           bytes += blob.length
           if (blob.length > MAX_FILE_BYTES || bytes > 16 * 1024 * 1024 || Object.keys(result).length >= 10000)
             throw new KnowledgeError('KNOWLEDGE_TOO_LARGE')
-          result[path] = new TextDecoder('utf-8', { fatal: true }).decode(blob)
+          const mapped = layout && legacy ? `knowledge/${path}` : path
+          const relative = layout && !whole ? (mapped.startsWith(`${this.files.space}/`) ? mapped.slice(this.files.space.length + 1) : null) : mapped
+          if (relative !== null) result[relative] = new TextDecoder('utf-8', { fatal: true }).decode(blob)
         }
       }
     }
@@ -129,10 +143,22 @@ export class KnowledgeBackup {
     await walk(object.tree, '')
     return result
   }
+  private async unmanaged(commit: string) {
+    const result: [string, string][] = []
+    const walk = async (oid: string, prefix: string) => {
+      for (const entry of (await git.readTree({ ...this.options, oid })).tree) {
+        const path = prefix + entry.path
+        if (entry.type === 'tree') await walk(entry.oid, path + '/')
+        else if (!/\.md$/i.test(path) || path.split('/').some(part => part.startsWith('.'))) result.push([path, `${entry.mode}:${entry.oid}`])
+      }
+    }
+    await walk((await git.readCommit({ ...this.options, oid: commit })).commit.tree, '')
+    return JSON.stringify(result.sort(([a], [b]) => a.localeCompare(b)))
+  }
   async history(offset = 0, limit = 25): Promise<BackupVersion[]> {
     await this.initialize()
     if (!(await this.head())) return []
-    const entries = (await git.log({ ...this.options, depth: offset + limit })).slice(offset, offset + limit)
+    const entries = await git.log(this.options)
     const result: BackupVersion[] = []
     for (const entry of entries) {
       const current = await this.versionFiles(entry.oid),
@@ -140,6 +166,7 @@ export class KnowledgeBackup {
       const files = [...new Set([...Object.keys(current), ...Object.keys(parent)])].filter(
         (p) => current[p] !== parent[p]
       )
+      if (!files.length) continue
       result.push({
         commit: entry.oid,
         timestamp: new Date(entry.commit.committer.timestamp * 1000).toISOString(),
@@ -147,26 +174,28 @@ export class KnowledgeBackup {
         files
       })
     }
-    return result
+    return result.slice(offset, offset + limit)
   }
-  private async capture() {
+  private async capture(whole = false) {
     const result: Record<string, string> = {},
-      root = await this.files.tree()
+      root = await (whole ? this.allFiles() : this.files).tree()
     const walk = async (n: typeof root) => {
-      if (n.type === 'file') result[n.path] = (await this.files.read(n.path)).content
+      if (n.type === 'file') result[n.path] = (await (whole ? this.allFiles() : this.files).read(n.path)).content
       for (const c of n.children ?? []) await walk(c)
     }
     await walk(root)
     return result
   }
   private async apply(journal: RestoreJournal) {
+    if (journal.space && !['knowledge', 'memory', 'workspace'].includes(journal.space)) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
+    const files = this.files.storage ? new KnowledgeFiles(this.files.directory, journal.space ?? 'knowledge', this.files.storage) : this.files
     const paths = [...new Set([...Object.keys(journal.before), ...Object.keys(journal.after)])]
     // Preflight every path before mutating anything. Recovery accepts either the old or intended version.
     for (const p of paths) {
       markdownPath(p)
       let current: string | undefined
       try {
-        current = (await this.files.read(p)).content
+        current = (await files.read(p)).content
       } catch (e) {
         if (!(e instanceof KnowledgeError && e.code === 'KNOWLEDGE_NOT_FOUND')) throw e
       }
@@ -176,17 +205,17 @@ export class KnowledgeBackup {
     for (const p of paths) {
       let current: string | undefined
       try {
-        current = (await this.files.read(p)).content
+        current = (await files.read(p)).content
       } catch (e) {
         if (!(e instanceof KnowledgeError && e.code === 'KNOWLEDGE_NOT_FOUND')) throw e
       }
       if (current === journal.after[p]) continue
       if (current !== journal.before[p]) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
-      const physical = await safePath(this.files.root, p)
+      const physical = await safePath(files.root, p)
       if (journal.after[p] === undefined) await unlink(physical)
       else {
         await mkdir(dirname(physical), { recursive: true })
-        await safePath(this.files.root, p)
+        await safePath(files.root, p)
         await atomicWrite(physical, journal.after[p])
       }
     }
@@ -197,7 +226,7 @@ export class KnowledgeBackup {
       const after = await this.versionFiles(commit),
         before = await this.capture()
       await this.snapshot('Before restore')
-      const journal = { commit, before, after }
+      const journal = { commit, before, after, space: this.files.space }
       await mkdir(dirname(this.journal), { recursive: true, mode: 0o700 })
       await atomicWrite(this.journal, JSON.stringify(journal))
       await this.apply(journal)
@@ -237,6 +266,10 @@ export class KnowledgeBackup {
           await this.snapshot('Manual backup')
           return (this.state = { dirty: false, state: 'local' })
         }
+        if (!this.consent(config.remote)) {
+          await this.snapshot('Local backup; remote consent required')
+          return (this.state = { dirty: false, state: 'local', error: 'SYNC_CONSENT_REQUIRED' })
+        }
         const url = new URL(config.remote)
         if (
           url.protocol !== 'https:' ||
@@ -253,7 +286,7 @@ export class KnowledgeBackup {
         const auth = {
           http: {
             request: (request: Parameters<typeof http.request>[0]) => {
-              if (new URL(request.url).origin !== url.origin) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
+              if (!this.consent(config.remote) || new URL(request.url).origin !== url.origin) throw new KnowledgeError('KNOWLEDGE_INVALID_PATH')
               return this.transport.request({
                 ...request,
                 fetchOptions: { ...request.fetchOptions, maxRedirects: 0 },
@@ -271,7 +304,9 @@ export class KnowledgeBackup {
           }
         }
         const local = await this.snapshot('Before sync'),
-          branch = config.branch
+          branch = config.branch,
+          localBranch = await git.currentBranch(this.options)
+        if (!localBranch) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
         await git.addRemote({ ...this.options, remote: 'origin', url: config.remote, force: true })
         let remote: string | undefined
         const refs = await git.listServerRefs({ ...this.options, ...auth, url: config.remote, prefix: 'refs/heads/' })
@@ -284,14 +319,16 @@ export class KnowledgeBackup {
           !(await git.isDescendent({ ...this.options, oid: local, ancestor: remote }))
         ) {
           if (await git.isDescendent({ ...this.options, oid: remote, ancestor: local })) {
-            const before = await this.capture(),
-              after = await this.versionFiles(remote)
-            const journal = { commit: remote, before, after }
+            const before = await this.capture(true),
+              after = await this.versionFiles(remote, true)
+            // Never advance HEAD over foreign/non-Markdown changes we cannot safely materialize.
+            if (await this.unmanaged(local) !== await this.unmanaged(remote)) throw new KnowledgeError('KNOWLEDGE_RECOVERY_REQUIRED')
+            const journal: RestoreJournal = { commit: remote, before, after, space: 'workspace' }
             await mkdir(dirname(this.journal), { recursive: true, mode: 0o700 })
             await atomicWrite(this.journal, JSON.stringify(journal))
             await this.apply(journal)
             // Keep published history intact while advancing the local ref to the fetched descendant.
-            await git.writeRef({ ...this.options, ref: 'refs/heads/main', value: remote, force: true })
+            await git.writeRef({ ...this.options, ref: `refs/heads/${localBranch}`, value: remote, force: true })
             for (const filepath of new Set([...Object.keys(before), ...Object.keys(after)]))
               await git.resetIndex({ ...this.options, filepath })
             await unlink(this.journal)
@@ -318,7 +355,7 @@ export class KnowledgeBackup {
             return (this.state = { dirty: false, state: 'failed', conflictBranch, error: 'CONFLICT_UPLOAD_FAILED' })
           }
         }
-        await git.push({ ...this.options, ...auth, remote: 'origin', ref: 'main', remoteRef: branch })
+        await git.push({ ...this.options, ...auth, remote: 'origin', ref: localBranch, remoteRef: branch })
         return (this.state = { dirty: false, state: 'synced' })
       })
       .catch(() => (this.state = { dirty: true, state: 'failed', error: 'SYNC_FAILED' }))
