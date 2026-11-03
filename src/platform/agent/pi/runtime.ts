@@ -5,8 +5,9 @@ import type { AskRuntimeStatus } from '../../../shared/ask'
 import type { ContextBudget } from '../context/budget'
 import type { ContextManager } from '../context/manager'
 import type { AgentRuntimeEvent } from '../../../shared/agent'
+import { isAskWrite } from '../tool-presentation'
 import { ToolDiscovery } from '../tools/discovery'
-import { createPiStream } from './model-adapter'
+import { createPiStream, piReasoning } from './model-adapter'
 
 export async function runPiAsk(deps: {
   model: StreamingAgentModel; tools: AgentTools; system: string; message: string; signal: AbortSignal
@@ -31,14 +32,16 @@ export async function runPiAsk(deps: {
         return { content: [{ type: 'text', text: JSON.stringify(result) }], details: {} }
       } catch (error) {
         const code = error instanceof ToolError || error instanceof AgentError ? error.code : 'TOOL_EXECUTION_FAILED'
-        const fatal = combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE'].includes(code)
-        deps.protect(descriptor.name, args, null, fatal)
-        deps.emit({ type: 'tool.failed', id, name: descriptor.name, error: code, durationMs: Date.now() - began, uncertain: fatal })
+        const uncertain = isAskWrite(descriptor.name) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
+        const fatal = uncertain || combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE'].includes(code)
+        deps.protect(descriptor.name, args, null, uncertain)
+        deps.emit({ type: 'tool.failed', id, name: descriptor.name, error: code, durationMs: Date.now() - began, uncertain })
         if (fatal) { failed(error); agent.abort() }
         return { content: [{ type: 'text', text: JSON.stringify({ error: code }) }], details: {}, isError: true }
       }
     } })
-  const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, prepare: (m, t, s) => deps.context.prepare(m, t, s), failed })
+  const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, prepare: async (m, t, s) => { const messages = await deps.context.prepare(m, t, s); s.throwIfAborted(); deps.status('idle'); return messages }, failed,
+    completed: response => deps.emit({ type: 'model.completed', response }) })
   const agent = new Agent({ streamFn, toolExecution: 'sequential', initialState: {
     systemPrompt: deps.system, tools: registry.loadout().map(tool), thinkingLevel: 'off',
     model: { id: 'jab-model', name: 'JAB model', api: 'openai-completions', provider: 'jab', baseUrl: '', input: ['text'], reasoning: false,
@@ -56,7 +59,8 @@ export async function runPiAsk(deps: {
     if (event.type !== 'message_update') return
     const update = event.assistantMessageEvent
     if (update.type === 'text_start' || update.type === 'thinking_start') {
-      segment = `segment-${++serial}`; deps.emit({ type: 'segment.started', id: segment, kind: update.type === 'text_start' ? 'assistant_message' : 'reasoning' })
+      segment = `segment-${++serial}`; deps.emit({ type: 'segment.started', id: segment, kind: update.type === 'text_start' ? 'assistant_message' : 'reasoning',
+        ...(update.type === 'thinking_start' ? { reasoning: piReasoning(update.partial.content[update.contentIndex]) } : {}) })
     }
     if ((update.type === 'text_delta' || update.type === 'thinking_delta') && segment) deps.emit({ type: 'segment.delta', id: segment, text: update.delta })
     if ((update.type === 'text_end' || update.type === 'thinking_end') && segment) { deps.emit({ type: 'segment.completed', id: segment }); segment = undefined }

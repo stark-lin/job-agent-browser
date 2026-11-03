@@ -13,7 +13,7 @@ const delta = (eventSequence: number, text: string): AgentRunEvent => ({ type: '
 const tick = () => new Promise(resolve => setImmediate(resolve))
 function fixture(getRun: AskAgentAPI['getRun']) {
   let receive!: (event: AgentRunEvent) => void, starts = 0
-  const api: AskAgentAPI = { getRun, retryMemory: async () => ({ ok: true, value: null }), listActive: async () => ({ ok: true, value: [] }), onEvent: callback => { receive = callback; return () => {} }, cancel: async () => ({ ok: true, value: null }), start: async () => { starts++; return { ok: true, value: { sessionId: 'session', runId: 'run' } } } }
+  const api: AskAgentAPI = { getRun, listActive: async () => ({ ok: true, value: [] }), onEvent: callback => { receive = callback; return () => {} }, cancel: async () => ({ ok: true, value: null }), start: async () => { starts++; return { ok: true, value: { sessionId: 'session', runId: 'run' } } } }
   const data = { chats: { listSessions: async () => ({ ok: true, value: { items: [session], total: 1 } }), listItems: async () => ({ ok: true, value: { items: [], total: 0 } }), listRuns: async () => ({ ok: true, value: { items: [], total: 0 } }) } } as unknown as DataAPI
   const store = new AskStore(api, data), dispose = store.start()
   return { store, receive: (event: AgentRunEvent) => receive(event), dispose, starts: () => starts }

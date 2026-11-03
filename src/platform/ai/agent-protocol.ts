@@ -1,6 +1,7 @@
 import type { AgentMessage, AgentResponse, AgentToolDescriptor } from '../../shared/agent'
 import { AgentError } from '../../shared/agent'
 import { createHash } from 'node:crypto'
+import { ReasoningAccumulator } from './reasoning'
 
 export function protocol(): never { throw new AgentError('AGENT_PROTOCOL_ERROR') }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : protocol()
@@ -15,7 +16,7 @@ export function providerMessages(input: readonly AgentMessage[], names: Map<stri
   return input.map(message => {
     if (message.role === 'tool') return { role: 'tool', tool_call_id: message.callId, content: message.content }
     if (message.role !== 'assistant') return message
-    return { role: 'assistant', content: message.content || null, ...(message.toolCalls.length ? { tool_calls: message.toolCalls.map(call => ({
+    return { role: 'assistant', content: message.content || null, ...message.providerReasoning, ...(message.toolCalls.length ? { tool_calls: message.toolCalls.map(call => ({
       id: call.id, type: 'function', function: { name: names.get(call.name) ?? (stable ? stableName(call.name) : call.name), arguments: JSON.stringify(call.arguments) }
     })) } : {}) }
   })
@@ -38,8 +39,9 @@ export function parseAgentResponse(value: unknown, names: Map<string, string>): 
     return { id: call.id, name, arguments: args }
   })
   const content = typeof message.content === 'string' ? message.content : ''
+  const reasoning = new ReasoningAccumulator(); reasoning.read(message)
   if (!toolCalls.length && !content.trim()) protocol()
   const usage = root.usage && typeof root.usage === 'object' ? root.usage as Record<string, unknown> : null
-  return { content, toolCalls, ...(usage && Number.isSafeInteger(usage.prompt_tokens) && Number.isSafeInteger(usage.completion_tokens)
+  return { content, toolCalls, ...(Object.keys(reasoning.state).length ? { providerReasoning: reasoning.state } : {}), ...(usage && Number.isSafeInteger(usage.prompt_tokens) && Number.isSafeInteger(usage.completion_tokens)
     && Number(usage.prompt_tokens) >= 0 && Number(usage.completion_tokens) >= 0 ? { usage: { inputTokens: Number(usage.prompt_tokens), outputTokens: Number(usage.completion_tokens) } } : {}) }
 }

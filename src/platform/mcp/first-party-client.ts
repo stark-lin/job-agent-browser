@@ -6,7 +6,7 @@ import { ToolError, toolErrorCodes, toolFail } from '../../shared/tools/errors'
 import { jsonCopy, toolOutput } from '../tools/schema'
 import { createMCPClient, type MCPClient } from './client'
 
-export type FirstPartyAgent = 'resume' | 'job-capture' | 'application' | 'ask-ai' | 'ask-memory'
+export type FirstPartyAgent = 'resume' | 'job-capture' | 'application' | 'ask-ai'
 export interface AgentBinding { runId?: string; jobId?: string }
 
 /** The only production AgentTools implementation: all calls use the stdio Client. */
@@ -14,12 +14,16 @@ export class MCPAgentTools implements AgentTools {
   constructor(private readonly client: MCPClient, private readonly descriptors: readonly AgentToolDescriptor[],
     readonly signal: AbortSignal, private readonly binding: AgentBinding = {}, private readonly grant?: (name: string, args: unknown) => string) {}
 
+  withMemoryGrant(signal: AbortSignal, grant: (name: string, args: unknown) => string) {
+    return new MCPAgentTools(this.client, this.descriptors, AbortSignal.any([signal, this.signal]), this.binding, grant)
+  }
   async list() { return structuredClone(this.descriptors) }
   close() { return this.client.close() }
   view(allow: readonly string[], binding: AgentBinding = {}) {
     return new MCPAgentTools(this.client, this.descriptors.filter(tool => allow.includes(tool.name)), this.signal, { ...this.binding, ...binding })
   }
   async call(name: string, args: unknown, signal: AbortSignal): Promise<unknown> {
+    signal.throwIfAborted(); this.signal.throwIfAborted()
     if (!this.descriptors.some(tool => tool.name === name)) toolFail('TOOL_FORBIDDEN')
     const input = jsonCopy(args, 1048576, 'TOOL_INVALID_INPUT')
     if (!input || typeof input !== 'object' || Array.isArray(input)) toolFail('TOOL_INVALID_INPUT')
@@ -41,20 +45,20 @@ export class MCPAgentTools implements AgentTools {
 /** One stable server session per workflow; a lost session is never used for run takeover. */
 export function createFirstPartyRuntime(directory: string, bundleDirectory: string) {
   const authority = createMemoryAuthority(directory)
-  const sessions = new Map<string, Promise<MCPAgentTools>>()
+  const sessions = new Map<string, Promise<{ tools: MCPAgentTools; authSession: string }>>()
   const clients = new Set<MCPClient>(), lifecycle = new AbortController()
   let disposed = false
   return {
     async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []): Promise<MCPAgentTools> {
       if (disposed) toolFail('TOOL_UNAVAILABLE')
       signal.throwIfAborted()
-      const sessionKey = agent === 'ask-ai' || agent === 'ask-memory' ? `${agent}:${sessionId}:${agent === 'ask-memory' ? sourceMessageIds.join(',') : ''}` : agent
+      const sessionKey = agent === 'ask-ai' ? `${agent}:${sessionId}` : agent
       let pending = sessions.get(sessionKey)
       if (!pending) {
         pending = (async () => {
           const closed = new AbortController()
           const authSession = `${sessionId}:${randomUUID()}`
-          const launch = agent === 'ask-ai' || agent === 'ask-memory' ? await authority.issue(authSession, agent === 'ask-memory') : undefined
+          const launch = agent === 'ask-ai' ? await authority.issue(authSession) : undefined
           if (disposed) toolFail('TOOL_UNAVAILABLE')
           let client: MCPClient
           client = createMCPClient({ id: `internal-${agent}`, enabled: true, transport: 'stdio', command: process.execPath,
@@ -67,12 +71,15 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
             await client.connect(lifecycle.signal)
             const descriptors = await client.listTools(lifecycle.signal)
             if (new Set(descriptors.map(tool => tool.name)).size !== descriptors.length) toolFail('MCP_INVALID_RESPONSE')
-            return new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal]), {}, agent === 'ask-memory' ? (name, args) => authority.grant(authSession, name, args, sourceMessageIds) : undefined)
+            return { tools: new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal])), authSession }
           } catch (error) { await client.close(); if (sessions.get(sessionKey) === pending) sessions.delete(sessionKey); throw error }
         })()
         sessions.set(sessionKey, pending)
       }
-      return abortable(pending, signal)
+      const { tools, authSession } = await abortable(pending, signal)
+      // Each admitted turn gets its own immutable source binding; the transport remains shared.
+      const sources = [...sourceMessageIds]
+      return agent === 'ask-ai' && sources.length ? tools.withMemoryGrant(signal, (name, args) => authority.grant(authSession, name, args, sources)) : tools
     },
     async dispose() {
       disposed = true; lifecycle.abort()

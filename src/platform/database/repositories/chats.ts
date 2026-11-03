@@ -31,7 +31,7 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
     const row = db.prepare('SELECT owner_runtime_id,state FROM chat_runs WHERE id=?').get(id)
     if (!row || row.owner_runtime_id !== lease.id || row.state !== 'running') fail('CONFLICT')
   }
-  function idle(id: string) { getSession(id); if (db.prepare("SELECT 1 FROM chat_runs WHERE session_id=? AND (state='running' OR runtime_status='memory.updating')").get(id)) fail('INVALID_STATE') }
+  function idle(id: string) { getSession(id); if (db.prepare("SELECT 1 FROM chat_runs WHERE session_id=? AND state='running'").get(id)) fail('INVALID_STATE') }
   function lookup(input: ChatStart) {
     const row = db.prepare('SELECT * FROM chat_runs WHERE request_id=?').get(input.requestId)
     if (!row) return null
@@ -101,21 +101,19 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
       transaction(() => {
         assertRunning(snapshot.run.id)
         for (const value of snapshot.items) db.prepare('UPDATE chat_items SET state=?,content_json=?,updated_at=? WHERE id=? AND run_id=?').run(value.state, JSON.stringify(value.content), value.updatedAt, value.id, snapshot.run.id)
-        db.prepare('UPDATE chat_runs SET state=?,error=?,event_sequence=?,write_started=?,finished_at=? WHERE id=?').run(snapshot.run.state, snapshot.run.error, snapshot.run.eventSequence, Number(snapshot.run.writeStarted), snapshot.run.finishedAt, snapshot.run.id)
+        db.prepare('UPDATE chat_runs SET state=?,error=?,event_sequence=?,write_started=?,finished_at=?,runtime_status=? WHERE id=?').run(snapshot.run.state, snapshot.run.error, snapshot.run.eventSequence, Number(snapshot.run.writeStarted), snapshot.run.finishedAt, snapshot.run.runtimeStatus ?? 'idle', snapshot.run.id)
         db.prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?').run(snapshot.run.finishedAt!, snapshot.run.sessionId)
       })
     },
     recover() {
       transaction(() => {
-        const rows = db.prepare("SELECT id,owner_runtime_id FROM chat_runs WHERE state='running' OR runtime_status='memory.updating'").all()
+        const rows = db.prepare("SELECT id,owner_runtime_id FROM chat_runs WHERE state='running'").all()
         for (const row of rows) if (!lease.live(String(row.owner_runtime_id))) {
           const now = new Date().toISOString()
           db.prepare("UPDATE chat_items SET state=CASE WHEN json_extract(content_json,'$.type')='tool_call' THEN 'uncertain' ELSE 'interrupted' END,updated_at=? WHERE run_id=? AND state IN ('streaming','running')").run(now, row.id)
           db.prepare(`UPDATE chat_runs SET state=CASE WHEN state='running' THEN 'interrupted' ELSE state END,
             error=CASE WHEN state='running' THEN 'AGENT_INTERRUPTED' ELSE error END,
-            finished_at=CASE WHEN state='running' THEN ? ELSE finished_at END,event_sequence=event_sequence+1,runtime_status=CASE WHEN EXISTS
-            (SELECT 1 FROM chat_memory_progress p WHERE p.session_id=chat_runs.session_id AND json_extract(p.progress_json,'$.phase') NOT IN ('committed','no_change'))
-            THEN 'memory.failed' ELSE 'idle' END WHERE id=?`).run(now, row.id)
+            finished_at=CASE WHEN state='running' THEN ? ELSE finished_at END,event_sequence=event_sequence+1,runtime_status='idle' WHERE id=?`).run(now, row.id)
           db.prepare('UPDATE chat_sessions SET updated_at=? WHERE id=(SELECT session_id FROM chat_runs WHERE id=?)').run(now, row.id)
         }
       })

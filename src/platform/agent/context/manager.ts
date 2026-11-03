@@ -45,6 +45,7 @@ export class ContextManager {
       }
       this.resultViews.set(message.callId, summary); live[index] = { ...message, content: `[Compacted tool result; reference data]\n${summary}` }
     }
+    signal.throwIfAborted()
     let projected = this.project(live)
     if (budget.estimate(projected, tools) < budget.input * defaults.compactionTriggerRatio) return projected
     this.deps.compacting()
@@ -55,6 +56,7 @@ export class ContextManager {
       const selected = this.turns.slice(0, count)
       const summary = await modelTask(model, budget, summaryInstruction, { previousSummary: this.checkpoint.summary, turns: selected, maxTokens: defaults.summaryMaxTokens }, defaults.summaryMaxTokens, signal)
       const next = { ...this.checkpoint, summary, compactedThroughSequence: selected.at(-1)!.sequence }
+      signal.throwIfAborted()
       this.checkpoint = this.deps.save(next, this.checkpoint.revision)
       this.turns = this.turns.slice(count)
       projected = this.project(live)

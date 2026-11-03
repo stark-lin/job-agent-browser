@@ -1,4 +1,3 @@
-import type { ReasoningInfo } from '../../shared/agent/reasoning'
 /** Host-owned conversation records; these never grant business capability access. */
 export interface ChatChoice { providerId: string; modelId: string }
 export interface ChatSession extends ChatChoice { id: string; title: string; createdAt: string; updatedAt: string }
@@ -14,14 +13,15 @@ export type ToolSummaryKey = 'memoryRead' | 'memoryWrite' | 'knowledgeRead' | 'k
   | 'application' | 'events' | 'setStatus' | 'addNote' | 'schedule' | 'reschedule' | 'artifact' | 'tool'
   | 'importJob' | 'startResume' | 'resumeContext' | 'resumeFacts' | 'scoreResume' | 'checkResume' | 'selectResume' | 'draftResume' | 'polishResume' | 'publishResume' | 'failResume' | 'cancelResume' | 'buildArtifact' | 'searchTools' | 'activateTools'
 export interface ToolDisplay { key: ToolSummaryKey; count?: number; status?: string; startsAt?: string }
-export type ChatContent = { type: 'user_message' | 'assistant_message' | 'reasoning'; text: string; reasoning?: ReasoningInfo }
+export interface ChatReasoning { source: string; kind: 'text' | 'summary' | 'encrypted'; blockId?: string }
+export type ChatContent = { type: 'user_message' | 'assistant_message' | 'reasoning'; text: string; reasoning?: ChatReasoning }
   | { type: 'tool_call'; toolName: string; display: ToolDisplay; durationMs?: number; error?: string; callId?: string; arguments?: unknown; result?: unknown }
 export interface ChatItem {
   id: string; sessionId: string; runId: string; sequence: number; state: ChatItemState; content: ChatContent
   createdAt: string; updatedAt: string
 }
 export interface ChatSnapshot { run: ChatRun; items: ChatItem[] }
-export type RuntimeStatus = 'pending' | 'memory.updating' | 'memory.failed' | 'context.compacting' | 'tools.searching' | 'tools.activating' | 'idle'
+export type RuntimeStatus = 'pending' | 'context.compacting' | 'tools.searching' | 'tools.activating' | 'idle'
 export type AgentRunEvent = { sessionId: string; runId: string; eventSequence: number } & (
   { type: 'run.started'; run: ChatRun }
   | { type: 'runtime.status'; status: RuntimeStatus; run: ChatRun }

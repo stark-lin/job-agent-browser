@@ -13,7 +13,7 @@ async function wait(tasks: ReturnType<typeof createAskAgentTasks>, runId: string
 }
 function answer(text: string): AgentModelEvent[] { return [{ type: 'content.delta', text }, { type: 'completed', response: { content: text, toolCalls: [] } }] }
 function batch(call: AgentToolCall): AgentModelEvent[] { return [{ type: 'tool_call.ready', call }, { type: 'completed', response: { content: '', toolCalls: [call] } }] }
-test('Ask AI streams read/write tools over real first-party MCP, stores only summaries, and keeps ordered events', async t => {
+test('Ask AI streams read/write tools over real first-party MCP, stores full tool details, and keeps ordered events', async t => {
   const f = await firstPartyFixture(t), events: AgentRunEvent[] = []
   const batches = [batch({ id: 'jobs', name: 'job.list', arguments: {} }), batch({ id: 'profiles', name: 'profile.list', arguments: {} }),
     batch({ id: 'note', name: 'application.add_note', arguments: { requestId: randomUUID(), jobId: f.job.id, text: 'PRIVATE_NOTE_BODY' } }),
@@ -28,7 +28,7 @@ test('Ask AI streams read/write tools over real first-party MCP, stores only sum
   const snapshot = await wait(tasks, ids.runId)
   assert.equal(snapshot.run.state, 'completed'); assert(snapshot.run.writeStarted)
   assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 4)
-  assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_BODY'), false)
+  assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_BODY'), true)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).applicationStatus, 'APPLIED')
   assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).items.filter(e => e.type === 'NOTE').length, 1)
   assert(events.every((e, index) => e.eventSequence === index + 1))
@@ -57,7 +57,7 @@ test('per-session exclusion, two simultaneous sessions, targeted cancellation, o
   assert.equal(tasks.listActive(1, {}).length, 0)
 })
 
-test('uncertain write audits stop execution without offering a replay or storing raw results', async t => {
+test('uncertain write audits stop execution without offering a replay and retains attempted inputs', async t => {
   const f = await firstPartyFixture(t), input = start('Add a note'), events: AgentRunEvent[] = []
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream() {
     f.flag('fail-audit-finish'); yield* batch({ id: 'note', name: 'application.add_note', arguments: { requestId: randomUUID(), jobId: f.job.id, text: 'Uncertain committed note' } })
@@ -67,7 +67,7 @@ test('uncertain write audits stop execution without offering a replay or storing
   assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'TOOL_AUDIT_UNAVAILABLE'); assert(snapshot.run.writeStarted)
   assert.equal(snapshot.items.at(-1)?.state, 'uncertain')
   assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).total, 1)
-  assert(!JSON.stringify(snapshot).includes('Uncertain committed note'))
+  assert(JSON.stringify(snapshot).includes('Uncertain committed note'))
   assert(events.some(event => event.type === 'run.failed'))
 })
 
@@ -121,7 +121,7 @@ test('Ask AI imports a job and completes the entire resume and output workflow b
   const calls = snapshot.items.filter(item => item.content.type === 'tool_call' && !item.content.toolName.startsWith('tool.'))
   assert.equal(calls.length, plan.length)
   for (const item of calls) { assert.equal(item.state, 'completed'); if (item.content.type === 'tool_call') assert.notEqual(item.content.display.key, 'tool') }
-  for (const privateText of ['PRIVATE_IMPORTED_JOB', 'PRIVATE_IMPORTED_COMPANY', f.fact.content, 'PRIVATE_SCORE_REASON', f.outputDirectory]) assert(!JSON.stringify(snapshot).includes(privateText))
+  for (const privateText of ['PRIVATE_IMPORTED_JOB', 'PRIVATE_IMPORTED_COMPANY', f.fact.content, 'PRIVATE_SCORE_REASON', f.outputDirectory]) assert(JSON.stringify(snapshot).includes(privateText))
   assert(events.every((event, index) => event.eventSequence === index + 1))
 })
 
@@ -165,10 +165,10 @@ test('uncertain job import marks the new write and never replays it', async t =>
   assert.equal(snapshot.run.error, 'TOOL_AUDIT_UNAVAILABLE'); assert(snapshot.run.writeStarted)
   assert.equal(snapshot.items.at(-1)?.state, 'uncertain'); assert.equal(calls, 1)
   assert.equal(f.backend.jobs.listJobs({ search: 'PRIVATE_UNCERTAIN_IMPORT' }).total, 1)
-  assert(!JSON.stringify(snapshot).includes('PRIVATE_UNCERTAIN_IMPORT'))
+  assert(JSON.stringify(snapshot).includes('PRIVATE_UNCERTAIN_IMPORT'))
 })
 
-test('Ask AI reads and writes shared Markdown through real MCP and records only knowledge summaries',async t=>{
+test('Ask AI reads and writes shared Markdown through real MCP and records complete knowledge details',async t=>{
   const f=await firstPartyFixture(t);let step=0,revision=''
   const model:StreamingAgentModel={complete:async()=>({content:'',toolCalls:[]}),async *stream(input){
     const previous=input.messages.at(-1)
@@ -185,6 +185,6 @@ test('Ask AI reads and writes shared Markdown through real MCP and records only 
   const ids=tasks.start(1,start('Save my interview preparation'),()=>{}),snapshot=await wait(tasks,ids.runId)
   assert.equal(snapshot.run.state,'completed',snapshot.run.error??'');assert(snapshot.run.writeStarted)
   const {readFileSync}=await import('node:fs');const {join}=await import('node:path');assert.equal(readFileSync(join(f.directory,'smart-note','knowledge','interview','notes.md'),'utf8'),'PRIVATE_KNOWLEDGE_BODY final pricing')
-  const text=JSON.stringify(snapshot);assert(!text.includes('PRIVATE_KNOWLEDGE_BODY'));assert(snapshot.items.filter(item=>item.content.type==='tool_call'&&!item.content.toolName.startsWith('tool.')).every(item=>item.content.type==='tool_call'&&['knowledgeRead','knowledgeWrite'].includes(item.content.display.key)))
+  const text=JSON.stringify(snapshot);assert(text.includes('PRIVATE_KNOWLEDGE_BODY'));assert(snapshot.items.filter(item=>item.content.type==='tool_call'&&!item.content.toolName.startsWith('tool.')).every(item=>item.content.type==='tool_call'&&['knowledgeRead','knowledgeWrite'].includes(item.content.display.key)))
   assert(!JSON.stringify(f.backend.toolAudit.list()).includes('interview/notes.md'))
 })

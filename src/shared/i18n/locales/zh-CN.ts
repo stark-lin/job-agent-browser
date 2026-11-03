@@ -78,7 +78,7 @@ export const zhCN = {
   "rebuilt": "检索索引已重建"
 },
   ask: {
-  runtime: { pending: '等待上一轮完成…', memoryUpdating: '正在更新记忆…', memoryFailed: '记忆更新未完成，下一轮将等待恢复。', compacting: '正在压缩上下文…', searching: '正在搜索工具…', activating: '正在激活工具…' }, retryMemory: '重试记忆更新',
+  runtime: { pending: '等待上一轮完成…', compacting: '正在压缩上下文…', searching: '正在搜索工具…', activating: '正在激活工具…' },
   "sessions": "会话",
   "openSessions": "打开会话列表",
   "close": "关闭",
@@ -93,6 +93,9 @@ export const zhCN = {
   "running": "运行中",
   "thinking": "正在思考",
   "thought": "思考了 {{seconds}} 秒",
+  copyContent: '复制', reasoning: '推理内容', encryptedReasoning: '加密推理', encryptedUnavailable: '提供商返回了加密推理，没有可读文本。',
+  source: '来源', elapsed: '耗时', toolName: '工具', callId: '调用 ID', executionState: '状态', arguments: '参数 · JSON', result: '结果 · JSON', toolError: '错误',
+  itemStates: { streaming: '正在思考', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已停止', uncertain: '结果不确定', interrupted: '已中断' },
   "summary": "思考摘要",
   "conversation": "对话",
   "message": "消息",
@@ -170,7 +173,7 @@ export const zhCN = {
     "tool": "执行操作"
   },
   "errors": {
-    "ASK_CONTEXT_UNKNOWN": "无法确认模型实际上下文窗口，请在设置中填写部署参数。", "ASK_CONTEXT_TOO_SMALL": "Ask AI 需要至少 65,536 Tokens 的实际上下文窗口。", "ASK_CONTEXT_OVERFLOW": "压缩后当前任务仍超出上下文预算，请缩小请求。", "ASK_MEMORY_FAILED": "记忆更新失败，请重试；已完成的操作不会重放。",
+    "ASK_CONTEXT_UNKNOWN": "无法确认模型实际上下文窗口，请在设置中填写部署参数。", "ASK_CONTEXT_TOO_SMALL": "Ask AI 需要至少 65,536 Tokens 的实际上下文窗口。", "ASK_CONTEXT_OVERFLOW": "压缩后当前任务仍超出上下文预算，请缩小请求。",
     "UNKNOWN": "未能完成操作，请重试。",
     "INVALID_INPUT": "请检查消息和模型选择。",
     "NOT_FOUND": "此会话已不存在。",
@@ -447,7 +450,7 @@ export const zhCN = {
     }
   },
   settings: {
-    contextWindow: '实际上下文窗口（Tokens）', contextWindowHelp: 'Ask AI 至少需要 65,536。请填写部署时的实际限制；可检测到的运行参数优先。模型允许并行时，自动记忆与回答同时运行。', maxOutputTokens: '模型最大输出 Tokens',
+    contextWindow: '实际上下文窗口（Tokens）', contextWindowHelp: 'Ask AI 至少需要 65,536。请填写部署时的实际限制；可检测到的运行参数优先。', maxOutputTokens: '模型最大输出 Tokens',
 
     "aiDescription": "配置兼容 OpenAI Chat Completions 的服务。每个 Provider 的密钥分别加密保存。",
     "requestTimeout": "AI 请求超时（秒）",

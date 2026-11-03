@@ -19,7 +19,7 @@ const labels: Record<string, ToolSummaryKey> = {
 const readTools = new Set(['tool.search', 'tool.activate', 'memory.list', 'memory.read', 'memory.recall','knowledge.list','knowledge.read','knowledge.search','knowledge.retrieve','job.list', 'job.get', 'profile.list', 'profile.get', 'profile.list_facts', 'profile.list_items',
   'application.get', 'application.list_events', 'resume.get_context', 'resume.list_facts', 'artifact.get'])
 export const isAskWrite = (name: string) => !readTools.has(name)
-/** Allowlisted scalar summaries only: raw arguments/results never enter the transcript. */
+/** Compact allowlisted labels; the Host recorder separately stores redacted full details. */
 export function presentTool(name: string, result?: unknown): ToolDisplay {
   const display: ToolDisplay = { key: labels[name] ?? 'tool' }
   if (result && typeof result === 'object' && !Array.isArray(result)) {

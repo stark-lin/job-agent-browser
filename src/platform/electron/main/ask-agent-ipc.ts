@@ -12,7 +12,7 @@ export function registerAskAgentIPC(service: AskAgentTasks, rendererPath: string
     try {
       const value = method === 'start' ? service.start(sender.id, input, message => {
         if (!sender.isDestroyed() && frame && !frame.detached && sender.mainFrame === frame) frame.send(ASK_AGENT_EVENT, message)
-      }) : method === 'cancel' ? service.cancel(sender.id, input) : method === 'getRun' ? service.getRun(sender.id, input) : method === 'retryMemory' ? await service.retryMemory(sender.id, input) : service.listActive(sender.id, input)
+      }) : method === 'cancel' ? service.cancel(sender.id, input) : method === 'getRun' ? service.getRun(sender.id, input) : service.listActive(sender.id, input)
       return { ok: true, value }
     } catch (error) { return { ok: false, error: askError(error) } }
   })

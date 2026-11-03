@@ -57,7 +57,7 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 
 `test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. [CI](docs/ci-cd.md) exercises PDF rendering on the macOS arm64 release target; live-provider compatibility and clean-machine behavior beyond CI remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
 
-`test:ask-ai` checks Pi streaming, token budgets/compaction, tool disclosure, automatic Memory, transcript storage, MCP boundaries and event resync, then exercises concurrent chats, Stop, drafts, Markdown, bilingual layouts and forced-process recovery in Electron. It uses local fixtures and disposable userData; live-provider compatibility remains unverified. Migration 11 upgrades matching-generation databases additively.
+`test:ask-ai` checks Pi streaming, token budgets/compaction, tool disclosure, Agent-managed Memory, transcript storage, MCP boundaries and event resync, then exercises concurrent chats, Stop, drafts, Markdown, bilingual layouts and forced-process recovery in Electron. It uses local fixtures and disposable userData; live-provider compatibility remains unverified. Migration 13 preserves legacy Memory progress and retires its runtime lifecycle.
 
 For documentation changes, check language parity, implementation labels, relative links, Mermaid consistency, and length limits before reviewing `git diff --check`.
 
@@ -105,4 +105,4 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 
 ## Smart Note knowledge
 
-Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and automatic Ask AI memory. Ask AI needs a verified effective model window of at least 65,536 tokens; configure unknown deployment limits in Settings. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).
+Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Ask AI needs a verified effective model window of at least 65,536 tokens; configure unknown deployment limits in Settings. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).

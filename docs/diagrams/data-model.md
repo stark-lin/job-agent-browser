@@ -4,9 +4,10 @@ erDiagram
     CHAT_SESSION ||--o{ CHAT_RUN : contains
     CHAT_SESSION ||--o{ CHAT_ITEM : orders
     CHAT_RUN ||--o{ CHAT_ITEM : records
+    CHAT_RUN ||--o{ CHAT_PROVIDER_RESPONSE : continues
     CHAT_SESSION ||--o| CHAT_CONTEXT_CHECKPOINT : projects
-    CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : tracks
-    CHAT_ITEM ||--o| CHAT_MEMORY_PROGRESS : checkpoints
+    CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : retains_legacy
+    CHAT_ITEM ||--o| CHAT_MEMORY_PROGRESS : retains_legacy
     RUNTIME_INSTANCE ||--o{ CHAT_RUN : owns
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
@@ -59,6 +60,12 @@ erDiagram
         string state
         json content_json
     }
+    CHAT_PROVIDER_RESPONSE {
+        string run_id PK,FK
+        int ordinal PK
+        int through_sequence
+        json response_json
+    }
     CHAT_CONTEXT_CHECKPOINT {
         string session_id PK,FK
         text summary
@@ -70,7 +77,7 @@ erDiagram
         string message_id PK,FK
         string session_id FK
         int sequence
-        json progress_json
+        json progress_json "inactive legacy; no runtime replay"
     }
     OPERATION_RECEIPT {
         string operation PK

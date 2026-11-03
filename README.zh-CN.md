@@ -57,7 +57,7 @@ npm run test:ask-ai
 
 `test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
 
-`test:ask-ai` 验证 Pi 流式运行、Token 预算/压缩、工具披露、自动 Memory、会话存储、MCP 边界及事件重同步，再通过 Electron 验证并发会话、停止、草稿、Markdown、双语布局及强制结束进程后的恢复。测试使用本地样本与临时 userData；真实 Provider 兼容性仍未认证。迁移 11 对匹配代际的数据库进行增量升级。
+`test:ask-ai` 验证 Pi 流式运行、Token 预算/压缩、工具披露、Agent 自主管理 Memory、会话存储、MCP 边界及事件重同步，再通过 Electron 验证并发会话、停止、草稿、Markdown、双语布局及强制结束进程后的恢复。测试使用本地样本与临时 userData；真实 Provider 兼容性仍未认证。迁移 13 保留旧 Memory 进度并停用其运行生命周期。
 
 文档修改应检查双语含义、实现状态、相对链接、Mermaid 一致性和篇幅限制，并检查 `git diff --check` 的结果。
 
@@ -105,4 +105,4 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 
 ## 智能笔记知识库
 
-Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及自动 Ask AI 记忆。Ask AI 需要经过核验且至少为 65,536 Tokens 的实际模型窗口；未知部署限制需在 Settings 配置。见[运行时](docs/architecture.zh-CN.md)、[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。
+Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及 Ask AI Agent 自主管理记忆。Ask AI 需要经过核验且至少为 65,536 Tokens 的实际模型窗口；未知部署限制需在 Settings 配置。见[运行时](docs/architecture.zh-CN.md)、[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。

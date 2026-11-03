@@ -20,20 +20,22 @@ function safeLink(href: string) {
     return null
   }
 }
-function CodeBlock({
+export function CodeBlock({
   text,
   language,
   copyLabel,
-  copiedLabel
+  copiedLabel,
+  wrap = false
 }: {
   text: string
   language: string
   copyLabel: string
   copiedLabel: string
+  wrap?: boolean
 }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="ui-code-block">
+    <div className={`ui-code-block${wrap ? ' ui-code-block--wrap' : ''}`}>
       <div className="ui-code-heading">
         <span>{language}</span>
         <Button

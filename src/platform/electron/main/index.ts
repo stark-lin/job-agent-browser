@@ -125,7 +125,7 @@ app.whenReady().then(async () => {
   jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
-  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, settings: () => preferences.get({}).ai,
+  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty,
     capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models('internal.ask-ai', choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })

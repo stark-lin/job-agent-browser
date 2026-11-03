@@ -45,12 +45,21 @@ app.on('browser-window-created', (_event, window) => {
           if (request.method === 'GET') { response.writeHead(404).end(); return }
           let raw = ''; request.on('data', c => { raw += c }); request.on('end', async () => {
             const body = JSON.parse(raw)
-            if (!body.stream) { response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify({ candidates: [] }) } }] })); return }
+            assert.equal(body.stream, true, 'Ordinary Ask smoke must not run automatic model tasks')
             const user = body.messages.findLast(m => m.role === 'user').content, lastUser = body.messages.findLastIndex(m => m.role === 'user')
+            for (const previous of body.messages.filter(m => m.role === 'assistant' && m.tool_calls?.length)) {
+              assert.equal(previous.reasoning_content, 'Full provider reasoning 中文')
+              assert.equal(previous.reasoning_details.find(d => d.type === 'reasoning.encrypted').data, 'OPAQUE_PROVIDER_STATE')
+            }
             const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool' && !JSON.parse(m.content).activeOnNextRequest).length
             response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-            response.write(sse({ reasoning_summary: 'Comparing saved job information 中文' }))
+            response.write(sse({ reasoning_content: 'Full provider reasoning 中文', reasoning: 'Full provider reasoning 中文' }))
+            response.write(sse({ reasoning_summary: 'Comparing saved job information 中文', reasoning_details: [
+              { type: 'reasoning.summary', index: 0, summary: 'Comparing saved job information 中文' },
+              { type: 'reasoning.encrypted', index: 1, data: 'OPAQUE_PROVIDER_STATE', signature: 'PRIVATE_SIGNATURE' }
+            ] }))
             await new Promise(r => setTimeout(r, 150))
+            if (user === 'hold reasoning') { response.write(sse({ reasoning_content: ' still thinking' })); releases[user] = () => finish(response, 'Reasoning finished'); return }
             if (user.startsWith('hold')) { response.write(sse({ content: `Working ${user}` })); releases[user] = () => finish(response, ' completed'); return }
             if (user === 'crash checkpoint') { response.write(sse({ content: 'Checkpoint survives process termination.' })); return }
             if (user === 'failure' && failCount++ === 0) { response.end(sse({ content: 'Partial response' }) + 'data: [DONE]\n\n'); return }
@@ -106,7 +115,22 @@ app.on('browser-window-created', (_event, window) => {
         metadata.workflowRun = (await data('chats', 'listRuns', { sessionId: workflow.id })).value.items[0].id
         const snapshot = (await api('getRun', { runId: metadata.workflowRun })).value
         assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 5)
-        assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_RESULT'), false)
+        assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_RESULT'), true)
+        assert.equal(JSON.stringify(snapshot).includes('OPAQUE_PROVIDER_STATE'), false)
+        assert.equal(JSON.stringify(snapshot).includes('PRIVATE_SIGNATURE'), false)
+        assert(snapshot.items.some(i => i.content.type === 'reasoning' && i.content.reasoning.kind === 'encrypted'))
+        assert(snapshot.items.some(i => i.content.type === 'reasoning' && i.content.text === 'Full provider reasoning 中文'))
+        assert.equal(snapshot.items.filter(i => i.content.type === 'reasoning' && i.content.text === 'Full provider reasoning 中文').length,
+          snapshot.items.filter(i => i.content.type === 'reasoning' && i.content.reasoning.kind === 'encrypted').length)
+        await evaluate(`document.querySelectorAll('[data-item-type=reasoning] .ui-collapsible > button').forEach(b=>b.click())`)
+        await frame()
+        assert(await evaluate('document.body.innerText.includes("Reasoning summary") && document.body.innerText.includes("readable text is unavailable")'))
+        await evaluate(`document.querySelectorAll('[data-item-type=tool_call] .ui-collapsible > button').forEach(b=>b.click())`)
+        await frame()
+        assert(await evaluate('document.body.innerText.includes("PRIVATE_NOTE_RESULT") && document.body.innerText.includes("Arguments · JSON") && document.body.innerText.includes("Call ID")'))
+        await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copied=text}}});document.querySelector('[data-item-type=tool_call] .ui-code-heading button').click()`)
+        await frame(); assert.equal(await evaluate('window.__copied'), JSON.stringify(snapshot.items.find(i=>i.content.type==='tool_call').content.arguments, null, 2))
+        await evaluate(`document.querySelectorAll('[data-item-type=tool_call] .ui-collapsible > button, [data-item-type=reasoning] .ui-collapsible > button').forEach(b=>b.click())`)
         assert.equal((await data('jobs', 'getJob', { id: jobId })).value.applicationStatus, 'APPLIED')
         const captured = await evaluate('window.__askEvents')
         assert(captured.some(e => e.type === 'item.started' && e.item.content.type === 'tool_call' && e.item.state === 'running'))
@@ -117,6 +141,16 @@ app.on('browser-window-created', (_event, window) => {
         assert(await evaluate('!!document.querySelector(".ai-new-output")'))
         await click('↓ View new output'); await frame()
         assert.equal(await evaluate('document.querySelectorAll(".ui-markdown table").length'), 1)
+        await click('New chat'); await send('hold reasoning')
+        await waitFor(() => evaluate('!!document.querySelector("[data-item-type=reasoning][data-item-state=streaming] .ui-code-block")'), 'live readable reasoning')
+        assert.equal(await evaluate('document.querySelector("[data-item-state=streaming] .ui-collapsible > button").getAttribute("aria-expanded")'), 'true')
+        await evaluate('document.querySelector("[data-item-state=streaming] .ui-collapsible > button").click()')
+        await waitFor(() => Boolean(releases['hold reasoning']), 'reasoning release'); releases['hold reasoning']()
+        await waitFor(async () => (await api('listActive', {})).value.length === 0, 'reasoning completed')
+        await frame()
+        assert.equal(await evaluate('[...document.querySelectorAll("[data-item-type=reasoning] .ui-collapsible > button")].at(-1).getAttribute("aria-expanded")'), 'false')
+        await evaluate('[...document.querySelectorAll("[data-item-type=reasoning] .ui-collapsible > button")].at(-1).click()')
+        await frame(); assert(await evaluate('document.body.innerText.includes(" still thinking")'))
         await click('New chat'); await send('hold A')
         await waitFor(async () => (await api('listActive', {})).value.length === 1, 'A active')
         await field('next draft A'); await click('New chat'); await send('hold B')
@@ -153,6 +187,8 @@ app.on('browser-window-created', (_event, window) => {
         await waitFor(async () => (await data('chats', 'listSessions', {})).value.total===beforeIme, 'deleted session')
         assert.equal((await data('jobs', 'getJob', {id:jobId})).value.applicationStatus,'APPLIED')
         await select('workflow')
+        await evaluate(`document.querySelectorAll('[data-item-type=tool_call] .ui-collapsible > button, [data-item-type=reasoning] .ui-collapsible > button').forEach(b=>{if(b.getAttribute('aria-expanded')==='false')b.click()})`)
+        await frame()
         window.setMinimumSize(320, 320)
         mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
         for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {
@@ -174,7 +210,7 @@ app.on('browser-window-created', (_event, window) => {
         await outsider.loadURL('data:text/html,<p>Untrusted</p>')
         assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('ask-agent:call','start',{})"), { ok: false, error: 'FORBIDDEN' }); outsider.destroy()
         writeFileSync(metadataPath, JSON.stringify(metadata))
-        console.log('Ask AI smoke passed: real SSE/IPC/MCP read and write, public reasoning, interleaved tools, A/B concurrency, targeted Stop, page remount, drafts, IME, rename/delete, retry, Markdown, pinned scrolling, bilingual themes, 320/640/1200px and rejected untrusted IPC.')
+        console.log('Ask AI smoke passed: real SSE/IPC/MCP read and write, full provider reasoning/summary/opaque markers and continuation, full tool details, interleaved tools, A/B concurrency, targeted Stop, page remount, drafts, IME, rename/delete, retry, Markdown, pinned scrolling, bilingual themes, 320/640/1200px and rejected untrusted IPC.')
       }
       server?.closeAllConnections(); server?.close()
       app.once('will-quit', () => { clearTimeout(watchdog); app.exit(0) }); app.quit()

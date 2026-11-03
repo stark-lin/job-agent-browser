@@ -9,7 +9,7 @@ export async function verifyAskPackage(backend: ReturnType<typeof createBackend>
   let step = 0
   const choice = { providerId: 'package-fixture', modelId: 'package-model' }
   const model: StreamingAgentModel = {
-    complete: async () => ({ content: '{"candidates":[]}', toolCalls: [] }),
+    complete: async () => { throw new Error('Unexpected automatic model task') },
     async *stream(input) {
       if (step === 0 && JSON.stringify(input.tools.map(t => t.name)) !== JSON.stringify(['tool.search', 'tool.activate'])) throw new Error('PACKAGE_ASK_INITIAL_TOOLS')
       if (step < 2) {
@@ -25,7 +25,7 @@ export async function verifyAskPackage(backend: ReturnType<typeof createBackend>
     }
   }
   const tasks = createAskAgentTasks({ chats: backend.chats, mcp, model: () => model,
-    settings: () => ({ providers: [], default: null }), capabilities: async () => ({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }) })
+    capabilities: async () => ({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }) })
   const result = tasks.start(1, { requestId: randomUUID(), choice, message: 'Verify the installed Ask runtime.' }, () => {})
   try {
     const end = Date.now() + 15000

@@ -62,13 +62,13 @@ React App → Page → Preload → IPC → Main
 
 [旧 AI IPC](../src/platform/electron/main/ai-ipc.ts)暴露启动/取消及模型发现，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，对话使用已保存的 AI 请求超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
-[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)和单个 [Pi Runtime](../src/platform/agent/pi/runtime.ts)。同一 Session 一次放行一个 Run，后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止同时取消 Pi 与 Memory，保留部分内容及已完成写入。中断 Run 不续跑，用户新输入创建新 Run。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留重命名/删除、草稿及分页。存储与 MCP 权限由所属文档管理。
+[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)，每个活跃 Run 只有一个 [Pi Agent](../src/platform/agent/pi/runtime.ts)。同一 Session 按 FIFO 完成能力解析、Core 加载、上下文准备、串行推理/工具及终态持久化，不同 Session 可以并发。后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止取消当前链路，保留部分内容与已提交写入；中断 Run 不续跑。仅恢复宿主记录落盘时保持该 Session 队列屏障，不重放工具。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿及分页。存储与 MCP 权限由所属文档管理。
 
-[流式适配](../src/platform/ai/agent-stream.ts)规范化正文及明确公开的 `reasoning_summary` 字符串增量。忽略未分类的 `reasoning`/`reasoning_content` 字段；不提供摘要的模型显示处理中及工具活动。工具调用整批组装、校验及审计成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、并发、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
+[流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装、校验及审计成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、并发、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
 
-[上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时增量压缩完整轮次，目标为 60%。Core/召回/摘要上限分别为 1,024/2,048/4,096 Tokens。[能力解析](../src/platform/ai/ask-capabilities.ts)优先使用 LM Studio 已加载实例限制，不能用理论目录覆盖；未知或低于 64K 的窗口不能运行 Ask AI，Settings 支持填写部署限制。
+[上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts)优先使用 LM Studio 已加载实例限制；未知或低于 64K 的窗口不能运行 Ask AI。Settings 支持填写部署限制。
 
-[Memory Manager](../src/platform/agent/memory/manager.ts)运行普通模型任务，不增加 Agent，跟随本轮 Ask 模型并复用现有并行许可：允许时与 Pi 并行且使用固定快照，否则先完成 Memory。下一轮同时等待前轮 Pi 结束及 Memory 提交/no_change，失败时保留屏障并提供只重试记忆的操作。原 Resume/Capture/Application 流程继续使用既有引擎。
+[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策，包括明确记忆请求与有价值的主动保存。普通对话没有宿主 Memory 模型任务；工具依次返回后才恢复推理，压缩是唯一的上下文模型任务。不再存在 Blocking/Parallel Memory 模式、维护 Agent 或 Memory 重试屏障。导入并行许可及原 Resume/Capture/Application 引擎保持原行为；[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责 Memory 权限与写入一致性。
 
 **已实现模型发现：**[Main 检测服务](../src/platform/ai/models.ts)按用户操作向已保存 Provider 的 `models` 资源发起 `GET`，使用已保存密钥；无需密钥的服务不发送身份验证。不要求已有模型/默认值。服务拒绝重定向，限制 JSON 为 1 MB/10,000 条，校验、去重并排序 ID，使用已保存的模型检测超时，每个窗口最多一个请求、全局最多 16 个。窗口释放/导航或应用退出会中止检测。
 
@@ -154,7 +154,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 [工作区队列](../src/platform/knowledge/workspace-embedding.ts)串行调度唯一共享 Provider，限制排队并优先查询。重建单个索引仅等待自身任务，不取消或释放共享模型；全局配置/移除/退出协调两个视图。[Broker](../src/platform/knowledge/broker.ts)仅依赖共享查询向量生成能力，不依赖任一空间索引。独立 MCP 不加载模型，Main 或模型不可用时保留词法检索。
 
-[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md#智能笔记知识库)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及自动记忆授权。Ask V2 Runtime 行为见上文。
+[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md#智能笔记知识库)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及 Ask Memory 写入授权。Ask V2 Runtime 行为见上文。
 
 [本地 embedding](../src/platform/knowledge/rag/local-embedding.ts) 按需调度单个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，优先处理查询、限制队列并拒绝取消/超时/崩溃请求。Worker 禁止远程加载和 fetch，只读取用户模型存储中完整校验过的 revision。Main 的 [Model Manager](../src/platform/models/manager.ts) 管理下载/Seed 导入、重试/取消、校验、原子提交和删除；[路径](../src/platform/models/paths.ts) 独立于安装位置和 cwd。GUI 启动不等待模型校验或导入；模型不可用时保留关键词搜索。激活后立即调度缺失向量，删除权重前停止本实例推理。跨进程读取租约阻止替换或删除其他实例正在使用的模型。[打包](ci-cd.zh-CN.md) 负责发行检查。
 

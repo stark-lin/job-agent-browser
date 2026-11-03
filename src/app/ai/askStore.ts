@@ -138,7 +138,6 @@ export class AskStore {
     finally { this.change({ sending: false }) }
   }
   async stop(runId: string) { const result = await this.api.cancel({ runId }); if (!result.ok) this.error(result.error) }
-  async retryMemory(runId: string) { const result = await this.api.retryMemory({ runId }); if (!result.ok) this.error(result.error); await this.sync(runId) }
   async rename(id: string, title: string) { const result = await this.data.chats.renameSession({ id, title }); if (!result.ok) this.error(result.error); else await this.refreshSessions() }
   async remove(id: string) {
     const result = await this.data.chats.deleteSession({ id })

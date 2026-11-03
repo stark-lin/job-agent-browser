@@ -5,7 +5,7 @@ export const discoveryTools: AgentToolDescriptor[] = [
   { name: 'tool.search', description: 'Find authorized tools by task, keywords or namespace. Returns names, purposes and risks, not full schemas.', risk: 'READ', inputSchema: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 2048 } }, required: ['query'], additionalProperties: false } },
   { name: 'tool.activate', description: 'Activate only the tool names needed for this task. Activation never changes authorization. Takes effect at the next model request.', risk: 'READ', inputSchema: { type: 'object', properties: { names: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 16 } }, required: ['names'], additionalProperties: false } }
 ]
-export function allowedAskTool(name: string) { return !/(?:^|[._])delete(?:$|[._])/i.test(name) && !['memory.write', 'memory.mkdir'].includes(name) }
+export function allowedAskTool(name: string) { return !/(?:^|[._])delete(?:$|[._])/i.test(name) }
 
 export class ToolDiscovery {
   private active: string[] = []

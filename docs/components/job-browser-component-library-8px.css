@@ -721,7 +721,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .ui-activity-symbol { flex: 0 0 var(--space-2); text-align: center; }
 .ui-activity--completed .ui-activity-symbol { color: var(--success); }
 .ui-activity--failed, .ui-activity--uncertain { color: var(--danger); }
-.ui-activity-body { min-width: 0; overflow-wrap: anywhere; }
+.ui-activity-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ui-activity-description { font-size: var(--font-xs); }
 .ui-session-entry { display: flex; align-items: center; min-width: 0; border-radius: var(--radius-sm); }
 .ui-session-entry--selected { background: var(--primary-soft); }
@@ -749,6 +749,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .ui-code-heading { padding: var(--space-1) var(--space-2); display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); background: var(--panel-solid); font-size: var(--font-xs); }
 .ui-code-block pre { margin: 0; padding: var(--space-2); overflow: auto; max-height: var(--document-preview-height); white-space: pre; }
 .ui-code-block code { background: transparent; }
+.ui-code-block--wrap pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ui-collapsible-content .ui-details-list { white-space: normal; }
 .ui-markdown-table { max-width: 100%; overflow: auto; margin-bottom: var(--space-2); }
 .ui-markdown table { border-collapse: collapse; width: 100%; }
 .ui-markdown td, .ui-markdown th { padding: var(--space-1); border: var(--border-width) solid var(--line); text-align: left; }

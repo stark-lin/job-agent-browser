@@ -191,7 +191,7 @@ test('partial updates preserve incomplete imported fields and no-op fact/item ed
   assert.deepEqual(await tools.call('profile.update_fact', factRequest, signal()), fact)
 })
 
-test('Ask AI discovers profile writes, carries revisions and presents safe summaries through real MCP', async t => {
+test('Ask AI discovers profile writes, carries revisions and presents summaries and complete details through real MCP', async t => {
   const f = await firstPartyFixture(t)
   let revision = 0, profileId = '', itemId = '', step = 0
   const plan: (() => [string, object])[] = [
@@ -225,7 +225,7 @@ test('Ask AI discovers profile writes, carries revisions and presents safe summa
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
   assert(snapshot.run.writeStarted)
   for (const item of snapshot.items) if (item.content.type === 'tool_call') assert.notEqual(item.content.display.key, 'tool')
-  for (const privateText of ['PRIVATE_DISTILLED_PERSON', 'PRIVATE_REPO_TITLE', 'PRIVATE_IMPLEMENTATION_CLAIM', 'PRIVATE_SOURCE_LOCATOR']) assert(!JSON.stringify(snapshot).includes(privateText))
+  for (const privateText of ['PRIVATE_DISTILLED_PERSON', 'PRIVATE_REPO_TITLE', 'PRIVATE_IMPLEMENTATION_CLAIM', 'PRIVATE_SOURCE_LOCATOR']) assert(JSON.stringify(snapshot).includes(privateText))
   const facts = value(await f.api.profiles.listFacts({ profileId }))
   assert.equal(facts.total, 1); assert.equal(facts.items[0].evidence, 'PRIVATE_SOURCE_LOCATOR'); assert.equal(facts.items[0].profileItemId, itemId)
 })

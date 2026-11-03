@@ -5,7 +5,7 @@ export const fixtureCapabilities = { contextWindow: 262144, maxOutputTokens: 819
 /** Existing business scenarios now model activation explicitly while retaining their business scripts. */
 export function discoveringModel(model: StreamingAgentModel): StreamingAgentModel {
   let pending: AgentModelEvent[] | undefined, serial = 0
-  return { complete: async () => ({ content: '{"candidates":[]}', toolCalls: [] }), async *stream(input) {
+  return { complete: input => model.complete(input), async *stream(input) {
     if (pending) { yield* pending; pending = undefined; return }
     const businessInput = { ...input, messages: input.messages.filter(m => !(m.role === 'assistant' && m.toolCalls.some(c => c.name.startsWith('tool.')))
       && !(m.role === 'tool' && m.callId.startsWith('discover-'))) }
@@ -24,6 +24,5 @@ export function discoveringModel(model: StreamingAgentModel): StreamingAgentMode
   } }
 }
 export function createFixtureAskTasks(deps: Pick<Parameters<typeof createAskAgentTasks>[0], 'chats' | 'mcp' | 'model'>) {
-  const model = discoveringModel(deps.model({ providerId: 'fixture', modelId: 'test' }))
-  return createAskAgentTasks({ ...deps, model: () => model, settings: () => ({ providers: [], default: null }), capabilities: async () => fixtureCapabilities })
+  return createAskAgentTasks({ ...deps, model: choice => discoveringModel(deps.model(choice)), capabilities: async () => fixtureCapabilities })
 }

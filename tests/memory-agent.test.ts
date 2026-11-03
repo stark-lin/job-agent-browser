@@ -3,136 +3,153 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { firstPartyFixture } from './first-party-fixture'
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
-import type { AgentModelInput, StreamingAgentModel } from '../src/shared/agent'
-import { fixtureCapabilities } from './ask-fixture'
-import { ContextBudget } from '../src/platform/agent/context/budget'
-import { MemoryManager } from '../src/platform/agent/memory/manager'
-import type { MemoryProgress } from '../src/shared/ask'
-const choice = { providerId: 'fixture', modelId: 'memory-model' }
-const input = (message: string, sessionId?: string) => ({ message, sessionId, requestId: randomUUID(), choice })
+import { discoveringModel, fixtureCapabilities } from './ask-fixture'
+import type { AgentModelEvent, AgentModelInput, StreamingAgentModel } from '../src/shared/agent'
+
+const choice = { providerId: 'fixture', modelId: 'test' }, signal = new AbortController().signal
+const start = (message: string, sessionId?: string) => ({ requestId: randomUUID(), message, sessionId, choice })
+const gate = () => { let release!: () => void; const ready = new Promise<void>(resolve => { release = resolve }); return { ready, release } }
+async function until(check: () => boolean) {
+  for (let n = 0; n < 1000; n++) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 10)) }
+  assert.fail('Condition did not settle')
+}
 async function wait(tasks: ReturnType<typeof createAskAgentTasks>, runId: string) {
-  for (let n = 0; n < 800; n++) { const value = tasks.getRun(1, { runId }); if (value.run.state !== 'running' && value.run.runtimeStatus !== 'memory.updating') return value; await new Promise(r => setTimeout(r, 10)) }
-  throw new Error('Memory task timeout')
+  await until(() => tasks.getRun(1, { runId }).run.state !== 'running')
+  const snapshot = tasks.getRun(1, { runId }); assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
+  return snapshot
 }
-function automaticModel(before?: (request: AgentModelInput) => Promise<void>): StreamingAgentModel {
-  return { async complete(request) {
-    await before?.(request)
-    const data = JSON.parse(request.messages[1].content) as Record<string, unknown>
-    if (request.messages[0].content.startsWith('Select the existing')) return { content: JSON.stringify({ targetPath: data.defaultPath }), toolCalls: [] }
-    if (request.messages[0].content.startsWith('Extract durable')) return { content: JSON.stringify({ candidates: String(data.userMessage).includes('prefer') ? [{ category: 'preference', content: data.userMessage, quote: data.userMessage, sourceMessageIds: [data.sourceMessageId], importance: 0.9 }] : [] }), toolCalls: [] }
-    const candidates = data.candidates as { content: string }[] | undefined
-    const value = candidates?.map(c => c.content).join('\n') ?? String(data.pendingUpdate ?? '')
-    return { content: JSON.stringify({ content: `${data.existing || '# Preferences'}\n${value}` }), toolCalls: [] }
-  }, async *stream(request) {
-    assert(!request.tools.some(t => ['memory.write', 'memory.mkdir', 'knowledge.delete'].includes(t.name)))
-    const text = 'Answer'; yield { type: 'content.delta', text }; yield { type: 'completed', response: { content: text, toolCalls: [] } }
-  } }
+function answer(text = 'Done'): AgentModelEvent[] { return [{ type: 'content.delta', text }, { type: 'completed', response: { content: text, toolCalls: [] } }] }
+function call(id: string, name: string, args: unknown): AgentModelEvent[] {
+  const call = { id, name, arguments: args }; return [{ type: 'tool_call.ready', call }, { type: 'completed', response: { content: '', toolCalls: [call] } }]
 }
-function tasksFor(f: Awaited<ReturnType<typeof firstPartyFixture>>, model: StreamingAgentModel, parallel = false) {
-  return createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model, capabilities: async () => fixtureCapabilities,
-    settings: () => ({ providers: [{ id: 'fixture', name: 'Fixture', baseURL: 'http://localhost', requiresKey: false, models: [choice.modelId], defaultModel: choice.modelId, parallelModels: parallel ? [choice.modelId] : [] }], default: choice }) })
+function result(input: AgentModelInput): Record<string, string> {
+  const last = input.messages.at(-1); assert.equal(last?.role, 'tool')
+  return JSON.parse(last!.content)
 }
-test('automatic Memory uses source-bound MCP writes; ordinary chat is no_change; Core and L2 are visible in later sessions', async t => {
-  const f = await firstPartyFixture(t), model = automaticModel(), tasks = tasksFor(f, model); t.after(() => tasks.dispose())
-  const normal = tasks.start(1, input('Hello'), () => {}); assert.equal((await wait(tasks, normal.runId)).run.state, 'completed')
-  assert.equal(f.backend.chats.memoryProgress(normal.sessionId)[0].phase, 'no_change')
-  const saved = tasks.start(1, input('I prefer VS Code for editing.'), () => {}), result = await wait(tasks, saved.runId)
-  assert.equal(result.run.state, 'completed', result.run.error ?? '')
-  assert.equal(f.backend.chats.memoryProgress(saved.sessionId)[0].phase, 'committed')
-  for (const path of ['preferences.md', 'CORE.md']) assert((await f.workspace.spaces.memory.files.read(path)).content.includes('VS Code'))
-  assert(!JSON.stringify(result.items.filter(item => item.content.type === 'tool_call')).includes('VS Code'))
-  let captured = ''
-  const reader = tasksFor(f, { ...automaticModel(), async *stream(request) { captured = JSON.stringify(request.messages); yield { type: 'content.delta', text: 'Hello' }; yield { type: 'completed', response: { content: 'Hello', toolCalls: [] } } } }); t.after(() => reader.dispose())
-  const recalled = reader.start(1, input('What editor do I use?'), () => {}); assert.equal((await wait(reader, recalled.runId)).run.state, 'completed'); assert(captured.includes('VS Code'))
-})
-test('parallel Memory freezes the current snapshot and blocks admission of the next turn until commit', async t => {
-  const f = await firstPartyFixture(t)
-  let release!: () => void, entered = false, streams = 0
-  const block = new Promise<void>(r => { release = r })
-  const model = automaticModel(async request => { if (request.messages[0].content.startsWith('Extract durable') && !entered) { entered = true; await block } })
-  const original = model.stream
-  model.stream = async function* (request) { streams++; yield* original(request) }
-  const tasks = tasksFor(f, model, true); t.after(() => tasks.dispose())
-  const first = tasks.start(1, input('I prefer VS Code.'), () => {})
-  for (let n = 0; n < 500 && (!entered || streams < 1); n++) await new Promise(r => setTimeout(r, 10))
-  assert(entered); assert.equal(streams, 1)
-  const next = tasks.start(1, input('Next question', first.sessionId), () => {})
-  assert.equal(tasks.getRun(1, { runId: next.runId }).run.admission, 'pending')
-  await new Promise(r => setTimeout(r, 30)); assert.equal(streams, 1)
-  release(); assert.equal((await wait(tasks, next.runId)).run.state, 'completed'); assert.equal(streams, 2)
-})
-test('blocking mode finishes Memory before Pi; Stop cancels memory and a new input recovers it without replaying the old run', async t => {
-  const f = await firstPartyFixture(t)
-  let entered = false, streams = 0, first = true
-  const model = automaticModel(async request => {
-    if (first && request.messages[0].content.startsWith('Extract durable')) {
-      first = false; entered = true
-      await new Promise<void>(r => { request.signal.addEventListener('abort', () => r(), { once: true }) }); request.signal.throwIfAborted()
-    }
-  })
-  const original = model.stream; model.stream = async function* (request) { streams++; yield* original(request) }
-  const tasks = tasksFor(f, model); t.after(() => tasks.dispose())
-  const old = tasks.start(1, input('I prefer VS Code.'), () => {})
-  for (let n = 0; n < 500 && !entered; n++) await new Promise(r => setTimeout(r, 10))
-  assert(entered); assert.equal(streams, 0); tasks.cancel(1, { runId: old.runId })
-  assert.equal((await wait(tasks, old.runId)).run.state, 'cancelled')
-  const next = tasks.start(1, input('Continue with a new question', old.sessionId), () => {})
-  assert.notEqual(next.runId, old.runId); assert.equal((await wait(tasks, next.runId)).run.state, 'completed')
-  assert.equal(streams, 1); assert.equal(f.backend.chats.getRun(old.runId).state, 'cancelled')
-  assert.equal(f.backend.chats.memoryProgress(old.sessionId)[0].phase, 'committed')
+function setup(f: Awaited<ReturnType<typeof firstPartyFixture>>, model: () => StreamingAgentModel) {
+  return createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model, capabilities: async () => fixtureCapabilities })
+}
+const noTask = async (): Promise<never> => { throw new Error('Unexpected automatic Memory model request') }
+
+test('ordinary chat only loads Core, refreshes it every admitted turn, and never recalls L2 or creates progress', async t => {
+  const f = await firstPartyFixture(t), core = f.workspace.spaces.memory.files
+  const initial = await core.write('CORE.md', 'Core version one', null)
+  let expected = 'Core version one', requests = 0
+  const tasks = setup(f, () => ({ complete: noTask, async *stream(input) {
+    requests++; assert(JSON.stringify(input.messages).includes(expected)); yield* answer()
+  } })); t.after(() => tasks.dispose())
+  const first = tasks.start(1, start('Hello'), () => {}); await wait(tasks, first.runId)
+  await core.write('CORE.md', 'Core version two', initial.revision); expected = 'Core version two'
+  const second = tasks.start(1, start('Hello again', first.sessionId), () => {}); await wait(tasks, second.runId)
+  assert.equal(requests, 2)
+  const names = f.backend.toolAudit.list().filter(r => r.phase === 'START').map(r => r.tool_name)
+  assert.deepEqual(names, ['memory.read', 'memory.read'])
+  assert.equal(f.database.connection.prepare('SELECT count(*) n FROM chat_memory_progress').get()?.n, 0)
 })
 
-test('persistent Memory failure retains queued input until Memory-only retry releases the barrier', async t => {
+test('the sole Agent handles explicit and proactive Memory decisions through source-bound MCP writes', async t => {
   const f = await firstPartyFixture(t)
-  let failing = true, streams = 0
-  const model = automaticModel(async request => { if (failing && request.messages[0].content.startsWith('Extract durable')) throw new Error('offline') })
-  const original = model.stream; model.stream = async function* (request) { streams++; yield* original(request) }
-  const tasks = tasksFor(f, model); t.after(() => tasks.dispose())
-  const first = tasks.start(1, input('I prefer VS Code.'), () => {})
-  for (let n = 0; n < 500 && tasks.getRun(1, { runId: first.runId }).run.runtimeStatus !== 'memory.failed'; n++) await new Promise(r => setTimeout(r, 10))
-  assert.equal(tasks.getRun(1, { runId: first.runId }).run.state, 'running'); assert.equal(streams, 0)
-  const second = tasks.start(1, input('Follow-up', first.sessionId), () => {})
-  assert.equal(tasks.getRun(1, { runId: second.runId }).run.admission, 'pending')
-  await assert.rejects(tasks.retryMemory(1, { runId: first.runId }), /offline/)
-  assert.equal(tasks.getRun(1, { runId: second.runId }).run.state, 'running')
-  failing = false; await tasks.retryMemory(1, { runId: first.runId })
-  assert.equal((await wait(tasks, second.runId)).run.state, 'completed'); assert.equal(streams, 2)
-  assert.equal(f.backend.chats.listItems(first.sessionId, 100).items.filter(i => i.content.type === 'user_message').length, 2)
+  let ordinal = 0
+  const tasks = setup(f, () => {
+    const file = `decision-${++ordinal}.md`; let step = 0
+    return discoveringModel({ complete: noTask, async *stream(input) {
+      if (step === 0) { step++; yield* call('read', 'memory.read', { path: file }); return }
+      if (step === 1) { assert.equal(result(input).error, 'TOOL_NOT_FOUND'); step++; yield* call('write', 'memory.write', { path: file, content: 'Supported durable preference.', expectedRevision: null }); return }
+      assert(result(input).revision); yield* answer('Memory saved.')
+    } })
+  }); t.after(() => tasks.dispose())
+  const first = tasks.start(1, start('Remember that I prefer short answers.'), () => {}); await wait(tasks, first.runId)
+  const second = tasks.start(1, start('My ongoing preference is plain English.', first.sessionId), () => {}); await wait(tasks, second.runId)
+  for (const path of ['decision-1.md', 'decision-2.md']) assert.equal((await f.workspace.spaces.memory.files.read(path)).content, 'Supported durable preference.')
+  const protectedState = f.backend.chats.protectedState(first.sessionId).join('\n')
+  assert(protectedState.includes('decision-2.md')); assert(!protectedState.includes('Supported durable preference.'))
+  assert.equal(f.backend.toolAudit.list().filter(r => r.tool_name === 'memory.write' && r.status === 'SUCCESS').length, 2)
 })
 
-for (const fault of ['lost-core-response', 'checkpoint-failure']) test(`Memory recovery reconciles ${fault} without repeating committed files`, async t => {
-  const f = await firstPartyFixture(t), saved = f.backend.chats.start(input('I prefer VS Code.'))
-  const user = f.backend.chats.snapshot(saved.runId).items[0], signal = new AbortController().signal
-  const tools = await f.mcp.session('ask-memory', signal, saved.sessionId, [user.id])
-  let progress: MemoryProgress = { messageId: user.id, sequence: user.sequence, phase: 'pending', writes: [], nextWrite: 0, error: null }
-  let inject = true
-  const counts = new Map<string, number>()
-  const wrapped = { list: () => tools.list(), async call(name: string, args: unknown, abort: AbortSignal) {
-    const result = await tools.call(name, args, abort)
-    if (name === 'memory.write') {
-      const { path } = args as { path: string }; counts.set(path, (counts.get(path) ?? 0) + 1)
-      if (inject && fault === 'lost-core-response' && path === 'CORE.md') { inject = false; throw new Error('response lost after commit') }
-    }
-    return result
-  } }
-  const make = () => new MemoryManager({ model: automaticModel(), tools: wrapped, budget: new ContextBudget(fixtureCapabilities, 'fixture'), source: { id: user.id, text: 'I prefer VS Code.' }, progress: structuredClone(progress),
-    save(value) {
-      if (inject && fault === 'checkpoint-failure' && value.phase === 'committed') { inject = false; throw new Error('checkpoint failed') }
-      progress = structuredClone(value); f.backend.chats.saveMemory(saved.sessionId, value)
-    }, commit: operation => operation() })
-  await assert.rejects(make().run(signal)); assert.equal(progress.phase, 'failed'); assert(progress.writes.length > 0)
-  await make().run(signal); assert.equal(progress.phase, 'committed')
-  assert.equal(counts.get('preferences.md'), 1); assert.equal(counts.get('CORE.md'), 1)
-  assert.equal(progress.writes.length, 0)
-})
-
-test('concurrent Sessions reconcile shared L2 and Core revisions instead of losing another user decision', async t => {
-  const f = await firstPartyFixture(t), tasks = tasksFor(f, automaticModel(), true); t.after(() => tasks.dispose())
-  const a = tasks.start(1, input('I prefer VS Code.'), () => {}), b = tasks.start(1, input('I prefer concise answers.'), () => {})
+test('different Agent Sessions resolve a deterministic CAS conflict by rereading and merging outside the lock', async t => {
+  const f = await firstPartyFixture(t), bothRead = gate()
+  await f.workspace.spaces.memory.files.write('shared.md', 'Original decision', null)
+  let readers = 0, conflicts = 0, ordinal = 0
+  const tasks = setup(f, () => {
+    const addition = `Decision ${++ordinal}`; let step = 0
+    return discoveringModel({ complete: noTask, async *stream(input) {
+      if (step === 0) { step++; yield* call('read', 'memory.read', { path: 'shared.md' }); return }
+      if (step === 1) {
+        const old = result(input); if (++readers === 2) bothRead.release(); await bothRead.ready
+        step++; yield* call('write', 'memory.write', { path: 'shared.md', content: `${old.content}\n${addition}`, expectedRevision: old.revision }); return
+      }
+      if (step === 2 && result(input).error === 'TOOL_CONFLICT') { conflicts++; step++; yield* call('reread', 'memory.read', { path: 'shared.md' }); return }
+      if (step === 3) { const old = result(input); step++; yield* call('merge', 'memory.write', { path: 'shared.md', content: `${old.content}\n${addition}`, expectedRevision: old.revision }); return }
+      assert(result(input).revision); yield* answer()
+    } })
+  }); t.after(() => tasks.dispose())
+  const a = tasks.start(1, start('Remember decision A'), () => {}), b = tasks.start(1, start('Remember decision B'), () => {})
   await Promise.all([wait(tasks, a.runId), wait(tasks, b.runId)])
-  for (const [runId, sessionId] of [[a.runId, a.sessionId], [b.runId, b.sessionId]]) assert.equal(tasks.getRun(1, { runId }).run.runtimeStatus, 'idle', JSON.stringify(f.backend.chats.memoryProgress(sessionId).map(p => ({ phase: p.phase, error: p.error }))))
-  for (const path of ['preferences.md', 'CORE.md']) {
-    const file = await f.workspace.spaces.memory.files.read(path)
-    assert(file.content.includes('VS Code')); assert(file.content.includes('concise answers'))
+  assert.equal(conflicts, 1)
+  const saved = await f.workspace.spaces.memory.files.read('shared.md')
+  for (const text of ['Original decision', 'Decision 1', 'Decision 2']) assert(saved.content.includes(text))
+})
+
+test('FIFO skips a cancelled queued turn without letting its successor overtake; capabilities wait too', async t => {
+  const f = await firstPartyFixture(t), blocked = gate(), entered = gate(), order: string[] = []
+  let capabilities = 0
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => { capabilities++; return fixtureCapabilities }, model: () => ({ complete: noTask, async *stream(input) {
+    const current = input.messages.filter(m => m.role === 'user').at(-1)!.content; order.push(current)
+    if (current === 'First') { entered.release(); await blocked.ready }
+    yield* answer()
+  } }) }); t.after(() => tasks.dispose())
+  const first = tasks.start(1, start('First'), () => {}); await entered.ready
+  const cancelled = tasks.start(1, start('Cancelled', first.sessionId), () => {})
+  const last = tasks.start(1, start('Last', first.sessionId), () => {})
+  tasks.cancel(1, { runId: cancelled.runId })
+  await until(() => tasks.getRun(1, { runId: cancelled.runId }).run.state === 'cancelled')
+  assert.equal(capabilities, 1); assert.deepEqual(order, ['First'])
+  blocked.release(); await wait(tasks, last.runId)
+  assert.deepEqual(order, ['First', 'Last']); assert.equal(capabilities, 2)
+})
+
+test('terminal persistence failure holds the next turn and retries records without rerunning models or tools', async t => {
+  const f = await firstPartyFixture(t), entered = gate(), blocked = gate()
+  let failing = true, requests = 0, attempts = 0
+  const finish = f.backend.chats.finish.bind(f.backend.chats)
+  f.backend.chats.finish = snapshot => { attempts++; if (failing) throw new Error('disk unavailable'); finish(snapshot) }
+  const tasks = setup(f, () => ({ complete: noTask, async *stream() { requests++; if (requests === 1) { entered.release(); await blocked.ready }; yield* answer() } })); t.after(() => tasks.dispose())
+  const first = tasks.start(1, start('First'), () => {}); await entered.ready
+  const next = tasks.start(1, start('Next', first.sessionId), () => {}); blocked.release()
+  await until(() => attempts >= 2)
+  assert.equal(requests, 1); assert.equal(f.backend.chats.getRun(first.runId).state, 'running')
+  failing = false; await wait(tasks, next.runId)
+  assert.equal(requests, 2); assert.equal(f.backend.chats.getRun(first.runId).state, 'failed')
+})
+
+for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory ${failure} retains uncertain state and never retries the write`, async t => {
+  const f = await firstPartyFixture(t)
+  let writes = 0, step = 0
+  const session = f.mcp.session.bind(f.mcp), blocked = gate(), entered = gate()
+  f.mcp.session = async (...args) => {
+    const tools = await session(...args), original = tools.call.bind(tools)
+    tools.call = async (name, input, callSignal) => {
+      if (name !== 'memory.write') return original(name, input, callSignal)
+      writes++
+      if (failure === 'audit') f.flag('fail-audit-finish')
+      const output = await original(name, input, callSignal)
+      if (failure === 'lost-response') throw new Error('Response lost after commit')
+      if (failure === 'stop') { entered.release(); await blocked.ready }
+      return output
+    }
+    return tools
   }
+  const tasks = setup(f, () => discoveringModel({ complete: noTask, async *stream() {
+    if (!step++) { yield* call('write', 'memory.write', { path: 'uncertain.md', content: 'Committed once', expectedRevision: null }); return }
+    assert.fail('An uncertain write must stop before another model inference')
+  } })); t.after(() => tasks.dispose())
+  const ids = tasks.start(1, start('Remember this'), () => {})
+  if (failure === 'stop') { await entered.ready; tasks.cancel(1, { runId: ids.runId }); blocked.release() }
+  await until(() => tasks.getRun(1, { runId: ids.runId }).run.state !== 'running')
+  const snapshot = tasks.getRun(1, { runId: ids.runId })
+  assert.equal(writes, 1); assert.equal(snapshot.run.state, failure === 'stop' ? 'cancelled' : 'failed')
+  assert(snapshot.items.some(i => i.state === 'uncertain' && i.content.type === 'tool_call' && i.content.toolName === 'memory.write'))
+  assert.equal((await f.workspace.spaces.memory.files.read('uncertain.md')).content, 'Committed once')
+  const state = f.backend.chats.protectedState(ids.sessionId).join('\n'); assert(state.includes('uncertain.md')); assert(state.includes('uncertain')); assert(!state.includes('Committed once'))
+  assert.equal((await f.mcp.session('ask-ai', signal, 'read-back')).signal.aborted, false)
 })
