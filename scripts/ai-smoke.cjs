@@ -5,16 +5,28 @@ const { resolve } = require('node:path')
 
 module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   const requests = []
+  let capabilityRequests = 0
   const chunk = (content, finish = null) => `data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: finish }] })}\n\n`
   const server = createServer((request, response) => {
+    if (request.method === 'GET') {
+      response.setHeader('Content-Type', 'application/json')
+      if (request.url === '/v1/models') {
+        response.end(JSON.stringify({ data: [{ id: 'fixture-model' }, { id: 'fixture-other' }] }))
+      } else if (request.url === '/api/v1/models') {
+        capabilityRequests++
+        response.end(JSON.stringify({ models: [{ key: 'fixture-model', loaded_instances: [
+          { id: 'fixture-model', config: { context_length: 65536 } }
+        ] }] }))
+      } else response.writeHead(404).end(JSON.stringify({ error: 'Not found' }))
+      return
+    }
+    if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
+      response.writeHead(404).end()
+      return
+    }
     let text = ''
     request.on('data', data => { text += data })
     request.on('end', () => {
-      if (request.method === 'GET' && request.url === '/v1/models') {
-        response.writeHead(200, { 'Content-Type': 'application/json' })
-        response.end(JSON.stringify({ data: [{ id: 'fixture-model' }, { id: 'fixture-other' }] }))
-        return
-      }
       const body = JSON.parse(text)
       requests.push({ body, path: request.url, auth: request.headers.authorization })
       response.writeHead(200, { 'Content-Type': 'text/event-stream' })
@@ -90,6 +102,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     await evaluate('document.querySelector(".ai-composer").requestSubmit()')
     await waitFor(() => evaluate('document.querySelector("[data-item-type=assistant_message]") && document.body.innerText.includes("Fixture ")'), 'visible SSE delta')
     await waitFor(() => evaluate('document.body.innerText.includes("reply 中文") && !document.querySelector(".ai-page textarea").disabled'), 'stream completed')
+    assert.equal(capabilityRequests, 1, 'Ask resolves the fixture model context before streaming')
     assert.equal(requests.at(-1).path, '/v1/chat/completions')
     assert.equal(requests.at(-1).auth, undefined)
     assert.equal(requests.at(-1).body.model, 'fixture-model')

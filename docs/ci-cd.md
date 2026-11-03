@@ -14,6 +14,8 @@ Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` 
 
 [Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and Electron/Knowledge smokes. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
 
+The [Electron smoke](../scripts/smoke.cjs) logs uncaught Main exceptions and exits immediately, avoiding a blocking error dialog in unattended runs. Its [AI fixture](../scripts/ai-smoke.cjs) serves model discovery, runtime context metadata and streaming completions; Ask verifies the fixture's deployed context before inference.
+
 [Packaging](../.github/workflows/package.yml) has two jobs: Full DMG with verified offline Seed/inference, and a model-free npm tarball with a clean installation/runtime smoke. Both use the same release metadata. No cross-architecture result is accepted. Windows, Linux and macOS x64 remain **Scaffolded**, outside publication.
 
 The [base builder](../electron-builder.yml) produces Minimal desktop apps; [Full configuration](../electron-builder.full.yml) adds a Seed. Existing `package` commands retain Full by default; `package:minimal` opts into Minimal. ONNX/Sharp native libraries stay unpacked. App inference never reads Seed paths directly.
