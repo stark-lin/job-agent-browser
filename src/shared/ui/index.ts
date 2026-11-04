@@ -1,5 +1,6 @@
 export { PlaceholderPage } from './PlaceholderPage'
 export { Button, IconButton } from './Button'
+export { CopyButton } from './CopyButton'
 export { TextInput } from './TextInput'
 export { Icon, IconBox } from './Icon'
 export { FeatureCard } from './FeatureCard'

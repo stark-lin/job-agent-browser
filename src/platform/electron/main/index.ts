@@ -1,3 +1,5 @@
+import { createChatDebugOutput } from './chat-debug-output'
+import { buildCommit } from './build-info'
 import { npmMCPLaunch } from '../../npm/distribution'
 import { verifyPackageRuntime } from '../package-verification'
 import { SmartNoteWorkspace } from '../../knowledge/workspace'
@@ -94,7 +96,7 @@ app.whenReady().then(async () => {
     available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)
   })
-  backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
+  backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets }, 'internal', { chatDebugOutput: createChatDebugOutput(clipboard, { version: app.getVersion(), commit: buildCommit, platform: process.platform }) })
   const knowledgePreferences = () => preferences.get({}).knowledge ?? defaultKnowledgePreferences
   const githubKey = 'knowledge-github-backup'
   let embeddings: ReturnType<typeof createKnowledgeEmbeddings> | undefined

@@ -1,4 +1,5 @@
 const { app, BrowserWindow } = require('electron')
+const { chatDebugSmoke, chatDebugLayoutSmoke } = require('./chat-debug-smoke.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { randomUUID } = require('node:crypto')
@@ -121,6 +122,7 @@ app.on('browser-window-created', (_event, window) => {
         await waitFor(async () => (await data('chats', 'listRuns', { sessionId: (await data('chats', 'listSessions', {})).value.items[0].id })).value.items[0]?.state === 'completed', 'workflow completion')
         const workflow = (await data('chats', 'listSessions', {})).value.items.find(s => s.title === 'workflow')
         metadata.workflowRun = (await data('chats', 'listRuns', { sessionId: workflow.id })).value.items[0].id
+        await chatDebugSmoke({ window, evaluate, data, click, frame, waitFor, directory, session: workflow })
         const snapshot = (await api('getRun', { runId: metadata.workflowRun })).value
         assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 5)
         assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_RESULT'), true)
@@ -180,6 +182,8 @@ app.on('browser-window-created', (_event, window) => {
         await frame(); assert(await evaluate('document.body.innerText.includes(" still thinking")'))
         await click('New chat'); await send('hold A')
         await waitFor(async () => (await api('listActive', {})).value.length === 1, 'A active')
+        const runningSession = (await data('chats', 'listSessions', {})).value.items.find(s => s.title === 'hold A')
+        await chatDebugSmoke({ window, evaluate, data, click, frame, waitFor, directory, session: runningSession, running: true })
         await field('next draft A'); await click('New chat'); await send('hold B')
         await waitFor(async () => (await api('listActive', {})).value.length === 2, 'A and B active')
         window.setMinimumSize(320, 320); window.setContentSize(320, 820)
@@ -222,6 +226,7 @@ app.on('browser-window-created', (_event, window) => {
           assert((await data('settings', 'savePreferences', { language, theme })).ok)
           for (const width of [320, 640, 1200]) {
             window.setContentSize(width, 820); await waitFor(() => evaluate(`innerWidth===${width}`), 'resize'); await frame()
+            await chatDebugLayoutSmoke({ window, evaluate, click, frame, waitFor, language, width, session: workflow })
             assert.equal(await evaluate('document.querySelector(".ai-page").scrollWidth>document.querySelector(".ai-page").clientWidth'), false)
             assert.equal(await evaluate('document.querySelector(".ai-composer").scrollWidth>document.querySelector(".ai-composer").clientWidth'), false)
           }
@@ -237,7 +242,7 @@ app.on('browser-window-created', (_event, window) => {
         await outsider.loadURL('data:text/html,<p>Untrusted</p>')
         assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('ask-agent:call','start',{})"), { ok: false, error: 'FORBIDDEN' }); outsider.destroy()
         writeFileSync(metadataPath, JSON.stringify(metadata))
-        console.log('Ask AI smoke passed: real SSE/IPC/MCP read and write, full provider reasoning/summary/opaque markers and continuation, full tool details, interleaved tools, A/B concurrency, targeted Stop, page remount, drafts, IME, rename/delete, retry, Markdown, pinned scrolling, bilingual themes, 320/640/1200px and rejected untrusted IPC.')
+        console.log('Ask AI smoke passed: real SSE/IPC/MCP read and write, full provider reasoning/summary/opaque markers and continuation, full tool details, interleaved tools, A/B concurrency, targeted Stop, page remount, drafts, IME, rename/delete, retry, confirmed full persisted debug JSON, running export, clipboard failure/retry, zero-call cancellation, keyboard copy, Markdown, pinned scrolling, bilingual themes, 320/640/1200px and rejected untrusted IPC.')
       }
       server?.closeAllConnections(); server?.close()
       app.once('will-quit', () => { clearTimeout(watchdog); app.exit(0) }); app.quit()

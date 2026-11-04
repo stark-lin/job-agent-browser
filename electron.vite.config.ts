@@ -1,11 +1,21 @@
+import { execFileSync } from 'node:child_process'
 import { en } from './src/shared/i18n/locales/en'
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { copyFileSync, mkdirSync, cpSync, rmSync } from 'node:fs'
 
+function buildCommit(): string | null {
+  const valid = (value: string | undefined) => value && /^[0-9a-f]{40}$/i.test(value) ? value.toLowerCase() : null
+  const ci = valid(process.env.GITHUB_SHA) ?? valid(process.env.CI_COMMIT_SHA)
+  if (ci) return ci
+  try { return valid(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()) }
+  catch { return null }
+}
+
 export default defineConfig({
   main: {
+    define: { __JAB_BUILD_COMMIT__: JSON.stringify(buildCommit()) },
     plugins: [externalizeDepsPlugin({ exclude: ['chokidar'] }), { name: 'profile-pdf-worker', writeBundle() {
       mkdirSync(resolve(__dirname, 'out/main'), { recursive: true })
       cpSync(resolve(__dirname, 'resources/fonts'), resolve(__dirname, 'out/main/fonts'), { recursive: true })
