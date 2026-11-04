@@ -48,9 +48,10 @@ import {
   BROWSER_GET_STATE,
   BROWSER_NAVIGATE,
   BROWSER_SET_VISIBLE,
-  BROWSER_SET_UNSAVED
+  BROWSER_SET_UNSAVED,
 } from '../../../shared/browser'
 import { createMainWindow } from './window'
+import { registerSelectionIPC } from './browser-selection-ipc'
 import { applyTheme } from './theme'
 import type { BrowserManager } from '../../browser/browserManager'
 import { createToolRuntime, type ToolRuntime } from '../../mcp/runtime'
@@ -186,6 +187,7 @@ ipcMain.handle(BROWSER_GET_STATE, (event) => {
   assertTrustedRenderer(event)
   return requireBrowser().getState()
 })
+registerSelectionIPC(requireBrowser, assertTrustedRenderer)
 ipcMain.handle(BROWSER_SET_VISIBLE, (event, visible: unknown, presentation: unknown) => {
   assertTrustedRenderer(event)
   if (typeof visible !== 'boolean') throw new Error(t($ => $.errors.visibilityInput))

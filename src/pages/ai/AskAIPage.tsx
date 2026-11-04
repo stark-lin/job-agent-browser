@@ -7,10 +7,12 @@ import { useAskAgent } from './useAskAgent'
 import { SessionSidebar } from './SessionSidebar'
 import { ConversationTimeline } from './ConversationTimeline'
 import { Composer } from './Composer'
+import { useWebSelection } from '../../app/navigation/useWebSelection'
 import './ai.css'
 export function AskAIPage() {
   const { t } = useTranslation(), { openPage } = useNavigation(), chat = useAskAgent(), { data } = useServices(), [drawer, setDrawer] = useState(false)
   const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 959px)').matches)
+  const selection = useWebSelection('ask-ai', chat.ask.insertWebSelection)
   useEffect(() => { const media = matchMedia('(max-width: 959px)'), change = () => { setNarrow(media.matches); setDrawer(false) }; media.addEventListener('change', change); return () => media.removeEventListener('change', change) }, [])
   const running = new Set(Object.entries(chat.state.runs).filter(([, runs]) => runs.some(r => r.state === 'running')).map(([id]) => id))
   const sidebar = <SessionSidebar sessions={chat.state.sessions} total={chat.state.total} activeId={chat.id} running={running} select={id => { chat.ask.select(id); setDrawer(false) }} more={() => void chat.ask.refreshSessions(true)} rename={(id, title) => chat.ask.rename(id, title)} copyDebugJson={sessionId => data.chats.copyDebugJson({ sessionId })} remove={id => chat.ask.remove(id)} />
@@ -24,6 +26,7 @@ export function AskAIPage() {
       {chat.state.loading ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : !chat.id ? <div className="ai-empty"><h1>{t($ => $.ask.empty)}</h1><p>{t($ => $.ask.emptyHint)}</p></div> :
         <ConversationTimeline key={chat.id} id={chat.id} items={chat.items} runs={chat.runs} total={chat.state.totals[chat.id]} retryEnabled={chat.valid && !chat.state.sending} positions={chat.ask.scroll} loadOlder={() => chat.ask.load(chat.id!, true)} retry={message => { if (chat.valid && chat.choice) void chat.ask.send(chat.choice, message) }} />}
       <div className="ai-composer-dock">
+        {selection.error && <div><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></div>}
         {status && status !== 'idle' && <StatusMessage>{t($ => $.ask.runtime[runtimeKeys[status]])}</StatusMessage>}
         {error && <StatusMessage tone="error">{knownError ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.errors.UNKNOWN)}</StatusMessage>}
         {!chat.valid && <div className="ai-configure"><StatusMessage>{t($ => $.ask.configure)}</StatusMessage><Button variant="ghost" onClick={() => void openPage('settings')}>{t($ => $.ask.settings)}</Button></div>}

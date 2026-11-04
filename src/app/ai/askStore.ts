@@ -1,6 +1,8 @@
 import type { AskAgentAPI } from '../../platform/electron/ask-agent-contract'
 import type { DataAPI } from '../../platform/electron/data-contract'
 import type { AgentRunEvent, ChatChoice, ChatItem, ChatRun, ChatSession, ChatSnapshot } from '../../domain/chat/chat.types'
+import { ASK_MESSAGE_LIMIT, selectionQuote, type WebSelection } from '../../shared/browser-selection'
+import { t } from '../../shared/i18n'
 
 export interface AskState {
   sessions: ChatSession[]; total: number; activeId: string | null; items: Record<string, ChatItem[]>; runs: Record<string, ChatRun[]>
@@ -17,6 +19,8 @@ export class AskStore {
   private refreshing?: Promise<void>
   private unlisten?: () => void
   private request?: { id: string; key: string; message: string; choice: ChatChoice }
+  private selectionGeneration = 0
+  private readonly insertedSelections = new Set<string>()
   readonly scroll = new Map<string, number>()
   constructor(private readonly api: AskAgentAPI, private readonly data: DataAPI) {}
   getSnapshot = () => this.state
@@ -49,8 +53,17 @@ export class AskStore {
     if (!result.ok) { this.error(result.error); return }
     this.change({ sessions: more ? [...new Map([...this.state.sessions, ...result.value.items].map(s => [s.id, s])).values()] : result.value.items, total: result.value.total })
   }
-  select = (id: string | null) => { const session = this.state.sessions.find(s => s.id === id); this.change({ activeId: id, error: null, choices: session ? { ...this.state.choices, [session.id]: this.state.choices[session.id] ?? { providerId: session.providerId, modelId: session.modelId } } : this.state.choices }); if (id) void this.load(id).catch(() => this.error('STORAGE_UNAVAILABLE')) }
+  select = (id: string | null) => { this.selectionGeneration++; const session = this.state.sessions.find(s => s.id === id); this.change({ activeId: id, error: null, choices: session ? { ...this.state.choices, [session.id]: this.state.choices[session.id] ?? { providerId: session.providerId, modelId: session.modelId } } : this.state.choices }); if (id) void this.load(id).catch(() => this.error('STORAGE_UNAVAILABLE')) }
   setDraft = (text: string) => { const key = this.state.activeId ?? 'draft'; this.change({ drafts: { ...this.state.drafts, [key]: text } }) }
+  insertWebSelection = (selection: WebSelection): void => {
+    if (this.insertedSelections.has(selection.id)) return
+    const quote = selectionQuote(selection, { source: t($ => $.selection.source), content: t($ => $.selection.content) })
+    const previous = this.state.drafts.draft ?? '', text = previous ? `${previous}\n\n---\n\n${quote}` : quote
+    if (text.length > ASK_MESSAGE_LIMIT) throw new Error('SELECTION_TOO_LARGE')
+    this.insertedSelections.add(selection.id)
+    this.selectionGeneration++
+    this.change({ activeId: null, drafts: { ...this.state.drafts, draft: text }, error: null })
+  }
   async setChoice(choice: ChatChoice | null) {
     const key = this.state.activeId ?? 'draft'
     if (this.state.activeId && choice) {
@@ -124,6 +137,7 @@ export class AskStore {
     if (this.state.sending) return
     const key = this.state.activeId ?? 'draft', message = retry ?? this.state.drafts[key] ?? ''
     if (!message.trim()) return
+    const selectionGeneration = this.selectionGeneration
     if (!this.request || this.request.key !== key || this.request.message !== message || JSON.stringify(this.request.choice) !== JSON.stringify(choice)) this.request = { id: crypto.randomUUID(), key, message, choice }
     this.change({ sending: true, error: null })
     try {
@@ -131,8 +145,8 @@ export class AskStore {
       if (!result.ok) { this.error(result.error); return }
       this.request = undefined
       const drafts = { ...this.state.drafts, [key]: this.state.drafts[key] === message ? '' : this.state.drafts[key] ?? '' }
-      if (result.value.sessionId !== key) drafts[result.value.sessionId] = ''
-      this.change({ activeId: (this.state.activeId ?? 'draft') === key ? result.value.sessionId : this.state.activeId, drafts, choices: { ...this.state.choices, [result.value.sessionId]: choice } })
+      if (result.value.sessionId !== key) drafts[result.value.sessionId] ??= ''
+      this.change({ activeId: selectionGeneration === this.selectionGeneration && (this.state.activeId ?? 'draft') === key ? result.value.sessionId : this.state.activeId, drafts, choices: { ...this.state.choices, [result.value.sessionId]: choice } })
       await Promise.all([this.sync(result.value.runId), this.refreshSessions()])
     } catch { this.error('STORAGE_UNAVAILABLE') }
     finally { this.change({ sending: false }) }

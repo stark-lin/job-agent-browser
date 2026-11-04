@@ -125,6 +125,10 @@ Enter 发送、Shift+Enter 换行，输入法组合期间不发送。运行中�
 
 [工具详情](../src/pages/ai/TimelineItem.tsx)组合现有 DetailsList 和 Collapsible，显示 Chat Run ID/最终状态、Guard 调用/派发/拦截计数、已确认操作及本地化停止原因。可选告警/恢复和下一步行说明策略切换，不改变工具成功状态。执行前拒绝标为“未执行”，成功及不确定结果保留各自状态。Feedback 图库包含这些区别，Token 和几何保持不变。
 
+### 浏览器选区输入
+
+浏览器业务操作使用 Electron 原生菜单，不新增应用样式右键菜单或 Token。Ask 和 Add Job 使用现有 StatusMessage/Button 展示交接失败及重试。Add Job 在普通文本输入旁通过 StatusMessage 展示来源标题/网址；内容可编辑，解析/保存仍由用户明确触发。Ask 保留已有草稿，将来源和引用文本追加至新对话输入框。Forms Gallery 包含来源/输入/重试参考。窄屏下来源文本在页面内换行，原生菜单标签随应用语言切换。交接不新增确认或权限流程。
+
 ## 六、维护与验证
 
 1. 确认组件已在公共入口提供。必要时扩展中央实现和 `components.css`，页面行为与布局保留在调用处。

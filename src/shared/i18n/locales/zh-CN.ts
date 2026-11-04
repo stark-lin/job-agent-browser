@@ -2,6 +2,13 @@ import type { en } from './en'
 type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translation<T[K]> }
 
 export const zhCN = {
+  selection: {
+    ask: '发送给 Ask AI', job: '职位导入', ok: '确定',
+    invalid: '请在 HTTP(S) 网页中选择 1 至 60,000 个字符。来源网址不能超过 4,096 个字符，标题不能超过 1,000 个字符。',
+    failed: '未能交接选中内容，可在当前页面重试。',
+    tooLarge: '选区与已有草稿合计超过 128,000 个字符，请缩短新对话草稿后重试。',
+    retry: '重试交接', source: '来源网页', content: '选中的网页内容'
+  },
   knowledge: {
     indexSpace: '要重建的索引',
     memory: '记忆', knowledgeSpace: '知识', syncConsentTitle: '上传记忆及其历史？', syncConsentHelp: '同步会将知识和记忆两个空间及其 Git 历史上传到此远程仓库。取消不影响本地笔记和备份。', syncConsentRequired: '远程同步需要你的同意。',

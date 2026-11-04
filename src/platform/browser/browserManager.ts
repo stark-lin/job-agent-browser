@@ -10,6 +10,8 @@ import { resolveDestination } from './navigationManager'
 import { MixedHistory } from './mixedHistory'
 import { SESSION_PARTITION, WebSegment } from './webSegment'
 import { installShortcuts } from './shortcuts'
+import { SelectionHandoff } from './selectionHandoff'
+import type { SelectionTarget, WebSelection } from '../../shared/browser-selection'
 
 interface Tab { id: string; version: number; history: MixedHistory<WebSegment> }
 
@@ -21,6 +23,7 @@ export class BrowserManager {
   private unsaved = false
   private confirming = false
   private rendererLoading = false
+  private readonly selections = new SelectionHandoff()
 
   constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null) {
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
@@ -64,6 +67,7 @@ export class BrowserManager {
       nativeTheme.off('updated', themeChanged)
       for (const tab of this.tabs.values()) tab.history.dispose()
       this.tabs.clear()
+      this.selections.dispose()
     })
   }
 
@@ -151,6 +155,7 @@ export class BrowserManager {
     const tab = this.requireTab(id), ids = [...this.tabs.keys()], index = ids.indexOf(id)
     if (this.activeTabId === id && (this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     this.tabs.delete(id)
+    this.selections.clear(id)
     tab.history.dispose()
     if (!this.tabs.size) { await this.createTab(); return }
     if (this.activeTabId === id) {
@@ -185,7 +190,10 @@ export class BrowserManager {
           if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
           await this.createTab(); await this.navigate(url, segment.surface)
         })().catch(() => { /* The popup's load error belongs to its own tab. */ })
-      }, surface)
+      }, surface, {
+        identity: () => this.selectionIdentity(tab, segment),
+        accept: (target, content) => this.handoff(tab, segment, target, content)
+      })
       this.shortcuts(segment.view.webContents)
       tab.history.append({ kind: 'web', id: segment.id, segment })
     }
@@ -232,10 +240,42 @@ export class BrowserManager {
   }
 
   private transition(tab: Tab): void {
+    this.selections.dispose()
     this.unsaved = false
     tab.version++
     this.visible = false // The owning Browser or Inbox page acknowledges the committed target.
     this.updateVisibility(); this.publishState()
+  }
+
+  private selectionIdentity(tab: Tab, segment: WebSegment): string | null {
+    return !this.window.isDestroyed() && !this.rendererLoading && this.visible && this.activeTabId === tab.id && this.tabs.has(tab.id) &&
+      tab.history.current.kind === 'web' && tab.history.current.segment === segment && segment.surface === 'browser' ? this.targetId(tab) : null
+  }
+
+  private handoff(tab: Tab, segment: WebSegment, target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void {
+    if (!this.selectionIdentity(tab, segment)) return
+    this.selections.dispose()
+    tab.history.append({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: target === 'ask-ai' ? 'ai' : 'find' } })
+    tab.version++; this.unsaved = false; this.visible = false
+    this.selections.put({ tabId: tab.id, targetId: this.targetId(tab) }, { id: randomUUID(), target, ...content })
+    this.updateVisibility(); this.publishState()
+  }
+
+  private selectionTarget(presentation: Presentation): SelectionTarget | null {
+    const tab = this.tabs.get(this.activeTabId)
+    if (!tab || tab.id !== presentation.tabId || this.targetId(tab) !== presentation.targetId) return null
+    const item = tab.history.current
+    return item.kind === 'internal' ? item.destination.page === 'ai' ? 'ask-ai' : item.destination.page === 'find' ? 'job-import' : null : null
+  }
+
+  peekSelection(presentation: Presentation): WebSelection | null {
+    const target = this.selectionTarget(presentation)
+    return target ? this.selections.peek(presentation, target) : null
+  }
+
+  ackSelection(input: Presentation & { id: string }): void {
+    const target = this.selectionTarget(input)
+    if (target) this.selections.ack(input, input.id, target)
   }
 
   private updateVisibility(): void {

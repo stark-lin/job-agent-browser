@@ -125,6 +125,10 @@ Existing StatusMessage primitives show Pending, synchronous context compaction a
 
 [Tool details](../src/pages/ai/TimelineItem.tsx) compose existing DetailsList and Collapsible for Chat Run ID/final state, Guard calls/dispatches/rejections, confirmed effects and localized stop reasons. Optional Warning/Recovery and Next action rows explain a strategy change without changing the successful tool state. Pre-execution rejection is labelled “Not executed”; completed and uncertain results retain their own states. The Feedback gallery includes these distinctions; tokens and geometry remain unchanged.
 
+### Browser selection input
+
+Browser business actions use Electron native menus; no app-styled context menu or new token is introduced. Ask and Add Job compose existing StatusMessage/Button for transfer failures and retry. Add Job shows the source title/URL with StatusMessage beside its ordinary Text input; content remains editable and Parse/Save stay explicit. Ask preserves existing drafts and appends source/quoted text to its new-chat composer. The Forms gallery includes the source/input/retry reference. Source text wraps within the page at narrow widths; native menu labels follow application language. Transfer creates no extra confirmation or permission flow.
+
 ## 6. Maintenance and verification
 
 1. Confirm the component exists in the public entry. Extend its implementation and `components.css` centrally if needed; keep page behavior and layout at the call site.
