@@ -22,7 +22,7 @@ export function trustedDataSender(sender: Sender, expectedURL: string): boolean 
 
 export function registerDataIPC(backend: ReturnType<typeof composeBackend>, rendererPath: string, importer?: ProfileImporter): void {
   const expectedURL = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(rendererPath).href
-  ipcMain.handle(DATA_CALL, (event: IpcMainInvokeEvent, group: unknown, method: unknown, input: unknown): Result<unknown> => {
+  ipcMain.handle(DATA_CALL, (event: IpcMainInvokeEvent, group: unknown, method: unknown, input: unknown): Result<unknown> | Promise<Result<unknown>> => {
     const window = BrowserWindow.fromWebContents(event.sender)
     const sender: Sender = { windowOwned: Boolean(window), mainFrame: event.senderFrame === event.sender.mainFrame, url: event.senderFrame?.url ?? '' }
     if (!trustedDataSender(sender, expectedURL)) return { ok: false, error: 'FORBIDDEN' }

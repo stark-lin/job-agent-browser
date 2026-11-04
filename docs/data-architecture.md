@@ -1,7 +1,6 @@
 # V1 Data Architecture and API
 
 Purpose: define implemented local storage and business API boundaries. Status: **Implemented** transactional SQLite/audit, Settings/secrets, Profile editing/import, Job Capture/Application Agents and Resume Agent V1 with immutable evidence, HTML/PDF output and asynchronous IPC. Remaining product flows are **Planned**.
-
 Language: English · [简体中文](data-architecture.zh-CN.md)
 
 ## 1. Runtime and storage
@@ -125,7 +124,7 @@ The [Chat repository](../src/platform/database/repositories/chats.ts) atomically
 
 Only the [Main recorder](../src/platform/electron/ask-agent-recorder.ts) appends model/tool Items. It saves returned readable reasoning with source/type, encrypted-block markers, tool call IDs, full arguments/results, fixed errors and durations. [Transcript redaction](../src/platform/electron/transcript-redaction.ts) removes credential fields before persistence/events; ordinary business text remains complete. System prompts, encrypted payloads, signatures and raw exceptions never enter Items. Transcript content is separate from content-free audit. Item skeletons precede events; text uses one-second checkpoints and final writes, not per-token SQLite updates. A crash may lose text since the last checkpoint. Tool Items also store allowlisted Guard counters, reasons, execution markers and confirmed archive effects, without credentials; diagnostics cascade with chat deletion and never restore Guard execution state. The [detail view](../src/pages/ai/TimelineItem.tsx) displays them.
 
-Provider continuation capsules are separate from chat IPC and contain validated assistant messages including signatures/encrypted reasoning; they cascade on chat deletion. History reconstructs assistant/tool exchanges without replaying tools, omits continuation metadata after a provider/model switch, and excludes it from compaction prompts. Existing Items remain readable; absent historical details are not reconstructed.
+Provider continuation capsules are separate from ordinary chat projection IPC and contain validated assistant messages including signatures/encrypted reasoning; they cascade on chat deletion. History reconstructs assistant/tool exchanges without replaying tools, omits continuation metadata after a provider/model switch, and excludes it from compaction prompts. Existing Items remain readable; absent historical details are not reconstructed.
 
 **Implemented request diagnostics:** [Migration 14](../src/platform/database/migrations/chat-model-requests.ts) adds chat_model_requests keyed by Run/ordinal, cascading with chat deletion. The [request observer](../src/platform/agent/pi/request-observer.ts) records preparation time, Provider/model, agent-turn/context-summary purpose, loadout version, expected/Pi/provider name mappings, canonical SHA-256 input-schema fingerprints, verification and activation-repeat outcomes through Main; persistence failure prevents dispatch. Prepared does not mean sent or successful. [chats.listModelRequests](../src/platform/electron/data-contract.ts) paginates these records; they never enter model history, transcript Items or audit and contain no bodies, full schemas, arguments, results or reasoning. Existing chats.deleteSession removes them only after all Runs settle, preserving business data and audit. [Tests](../tests/chat-model-requests.test.ts) cover migration, persistence, pagination and deletion; the request-schema diagnostic UI remains planned.
 
@@ -133,7 +132,15 @@ Run ownership uses runtime_instances. Recovery interrupts only dead/expired owne
 
 [Ask IPC](../src/platform/electron/ask-agent-contract.ts) exposes start/cancel/getRun/listActive/onEvent with trusted-frame and window ownership checks. Manual Chat CRUD uses typed data IPC; Renderer cannot fabricate Runs or output Items. Retry creates a new Run, while a run that attempted writes requires state review rather than automatic replay. [Tests](../tests/chat.test.ts) cover constraints/recovery and [projection tests](../tests/ask-store.test.ts) cover snapshot races/gaps.
 
-[Migration 13](../src/platform/database/migrations/ask-serial.ts) retires Memory lifecycle states, normalizes old memory.updating/memory.failed Runs to idle and advances their event sequences. The version-11 chat_memory_progress table and all pending bodies remain inactive historical data; no runtime reads, resumes or writes them. Completed answers remain intact; abandoned running Runs use ordinary interruption recovery. The migration also adds TOOL_NOT_FOUND to audit errors while preserving every audit row/sequence and prior migration checksum. [Resource checkpoints](../src/platform/agent/context/resources.ts) now include Memory paths, revisions and uncertain outcomes without bodies; Memory write concurrency belongs to [MCP architecture](mcp-architecture.md#smart-note-knowledge).
+[Migration 13](../src/platform/database/migrations/ask-serial.ts) retires Memory lifecycle states, normalizes old memory.updating/memory.failed Runs to idle and advances their event sequences. The version-11 chat_memory_progress table and all pending bodies remain inactive historical data; the debug snapshot below reads them, while Agent execution never reads, resumes or writes them. Completed answers remain intact; abandoned running Runs use ordinary interruption recovery. The migration also adds TOOL_NOT_FOUND to audit errors while preserving every audit row/sequence and prior migration checksum. [Resource checkpoints](../src/platform/agent/context/resources.ts) now include Memory paths, revisions and uncertain outcomes without bodies; Memory write concurrency belongs to [MCP architecture](mcp-architecture.md#smart-note-knowledge).
+
+### Copy Debug JSON
+
+**Implemented:** `data.chats.copyDebugJson({ sessionId })` resolves to `Result<null, ErrorCode>` through the existing allowlisted [Data Bridge](../src/platform/electron/preload/data-bridge.ts), trusted `DATA_CALL` handler and backend dispatcher. The independent [Domain use case](../src/domain/chat/chat-debug.service.ts) validates input before reading; a missing optional host output returns `NOT_IMPLEMENTED` without reading. Ask Agent IPC and Agent Runtime are unchanged.
+
+The [repository](../src/platform/database/repositories/chat-debug-export.ts) reads all seven chat tables for that Session in one explicit snapshot transaction, without pagination/truncation. Runs sort by `created_at,id`; Items by `sequence`; requests/responses by `ordinal`; Memory Progress by `sequence,message_id`, ascending. Raw column names, IDs, numeric flags, nulls and `*_json` strings remain unchanged; absent checkpoint is `null`, collections are `[]`. Running/Pending and terminal Runs include persisted records only: no stream flush, recovery, MCP, business/audit writes, reconstruction or additional redaction.
+
+The [version-1 schema](../src/domain/chat/chat-debug.v1.schema.json) defines `{ format: "jab-debug", schemaVersion: 1, exportedAt, app: { version, commit, platform }, session, runs: [{ run, items, modelRequests, providerResponses }], context: { checkpoint, memoryProgress } }`. The [Main output](../src/platform/electron/main/chat-debug-output.ts) uses `JSON.stringify(bundle, null, 2)` and awaits clipboard write plus exact full-text readback. Version comes from Electron, platform from `process.platform`, commit from a valid CI SHA/local HEAD captured at [build time](../electron.vite.config.ts), otherwise `null`; runtime never runs Git. Renderer receives only success/null or fixed errors, including `DEBUG_SERIALIZATION_FAILED` and `CLIPBOARD_FAILED`. [Export tests](../tests/chat-debug-export.test.ts), [dispatcher tests](../tests/chat-debug-ipc.test.ts) and [Electron smoke](../scripts/chat-debug-smoke.cjs) verify completeness, WAL isolation, read-only failure paths and confirmation. No migration, file export or upload is added.
 
 ## 5. API contract and access
 
@@ -141,15 +148,13 @@ The sandboxed [Preload](../src/platform/electron/preload/index.ts) exposes `wind
 
 Every method accepts one input object and resolves to `{ ok: true, value }` or `{ ok: false, error }`. Implemented business endpoints reject unknown fields, including injected audit/transaction fields. Edit-details methods replace the allowed details, applying documented type defaults; they are not arbitrary patches. Lists use `limit` (default 25, maximum 100) and `offset` (default 0, maximum 1000000), returning `{ items, total }` with stable ordering. Multi-table reads use a consistent read transaction.
 
-Optional detail text and optional URLs default to empty strings, arrays to empty arrays, nullable IDs/dates/salary to null, and item order to 0. Required source/contact-link URLs must use HTTP(S) without credentials. ResumeDocument must contain at least one sourced statement; its budget uses the shared language-aware counter. Exact accepted shapes and limits are enforced by the Domain validation modules.
-
 | Namespace | Implemented responsibility; exact signatures are owned by [DataContract](../src/platform/electron/data-contract.ts) |
 | --- | --- |
 | `jobs` | Job/company CRUD, source attachment, archive and paginated queries |
 | `profiles` | Contact/item/fact CRUD and explicit reviewed import |
 | `applications` | Legal status changes, notes, schedules, event/calendar queries |
 | `resumes` | Manual Run/Artifact CRUD and provenance queries; Agent stages use MCP |
-| `chats` | Session list/get/rename/model/delete, paginated items, runs and model-request diagnostics; no output creation |
+| `chats` | Session CRUD, paginated Items/Runs/diagnostics and confirmed Main-only debug clipboard copying |
 | `audit` | Read-only content-free audit browsing |
 | `settings`, `secrets` | Validated file preferences and key status/save/delete; never return keys |
 
@@ -177,12 +182,7 @@ The optional Main-only [MCP config](../src/platform/storage/mcp-config.ts) reads
 
 [Secrets](../src/platform/storage/secrets.ts) store version-2 ciphertext maps keyed by Provider instance ID, encrypted by Electron `safeStorage` at [Main composition](../src/platform/electron/main/index.ts). Unavailable encryption (including Linux `basic_text`) refuses saves; deletion remains available. The API returns configuration/encryption status, never decrypted keys. Keys stay outside ordinary preferences, SQLite, snapshots and audit; file preferences/key operations do not append business audit. Version-1 OpenAI ciphertext remains readable and upgrades atomically on the next key write without decrypting unrelated keys. Only the internal AI service can read plaintext through the injected capability; the public bridge returns status. Saving configuration/keys makes no model request; the explicit connection test sends a short prompt to the saved provider/model and can incur charges.
 
-[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` only when a backend is composed without file services. AI chat uses local fixtures in [AI tests](../tests/ai.test.ts) and [production smoke](../scripts/ai-smoke.cjs); live third-party compatibility and account permissions remain unverified. Strict structured-output negotiation, authenticated page extraction/deduplication, remaining business UI and full privacy purge remain unimplemented. Resume provider compatibility is verified by local fixtures; live providers remain unverified.
-
-- [Current architecture](architecture.md): runtime initialization and process boundaries.
-- [Code architecture](code-architecture.md): source ownership and quality checks.
-- [Product architecture](product-architecture.md): planned product scope.
-- [README](../README.md): validation commands and documentation index.
+[Settings tests](../tests/settings.test.ts) verify reopen, all theme values, version-1 compatibility, partial-save preservation, validation, corruption, write failures and encrypted-key lifecycle. [Fallback adapters](../src/platform/storage/index.ts) return `NOT_IMPLEMENTED` for missing file services; debug copying separately requires its host output. AI chat uses local fixtures in [AI tests](../tests/ai.test.ts) and [production smoke](../scripts/ai-smoke.cjs); live third-party compatibility and account permissions remain unverified. Strict structured-output negotiation, authenticated page extraction/deduplication, remaining business UI and full privacy purge remain unimplemented. Resume provider compatibility is verified by local fixtures; live providers remain unverified.
 
 ## Smart Note storage and Memory v1
 

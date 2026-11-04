@@ -27,6 +27,7 @@
 | 已实现组件 | 支持用途 | 实现 |
 | --- | --- | --- |
 | `Button`, `IconButton` | 操作、图标与浏览器标签变体；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
+| `CopyButton` | 异步复制并防止重复提交；成功后原按钮禁用并切换为传入的已复制文案，以礼貌实时反馈播报；失败仍可重试 | [CopyButton.tsx](../src/shared/ui/CopyButton.tsx) |
 | `TextArea` | 多行模型 ID、聊天输入和个人简介；最小高度使用 96px Token，支持缩放/焦点/禁用/错误状态 | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
 | `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立忽略控件及按模型开启并行导入 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
 | `TextInput` | 文本、URL、密码和数字字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
@@ -117,6 +118,8 @@
 返回的推理正文与摘要分别标注，展示来源/状态/耗时并支持全文复制；加密块明确标记没有可读文本。推理在流式期间展开，完成后折叠，尊重用户手动选择。未返回推理时显示处理中。工具行保留简短摘要，详情默认折叠，包含调用 ID/名称、状态、耗时、脱敏后的完整参数/结果及固定错误码。共享 CodeBlock 支持复制、JSON 局部滚动及推理文本换行；写入结果不确定时明确要求核对当前状态。停止后保留已完成写入；删除要求会话空闲并确认，尝试过写入的 Run 不提供自动重试。
 
 Enter 发送、Shift+Enter 换行，输入法组合期间不发送。运行中允许发送到可靠 Pending 队列，同时保留停止操作；切换会话恢复草稿和滚动位置。靠近底部时跟随输出，向上滚动后保留位置并提供跳转最新；加载旧 Item 保留视口。控件支持键盘焦点，抽屉支持 Escape/焦点约束，遵循减少动画设置并仅播报简短状态，不逐 token 播报。
+
+[会话操作](../src/pages/ai/SessionSidebar.tsx)顺序为重命名 → 复制调试 JSON → 删除。复制复用中央 Dialog/Button/CopyButton/StatusMessage，展示完整敏感数据警告，初始聚焦取消，并提供复制 JSON；不加复选框或展示 Token。打开、取消及 Escape 不复制。每次确认固定目标 Session（包括运行中的 Session），阻止重复提交；成功后保留弹窗，原 CopyButton 切换为“已复制到剪贴板”并保持禁用，关闭弹窗后才可重新确认复制；会话列表下方不显示成功提示。失败保留错误/重试弹窗。Overlays 画廊包含警告示例；完整数据留在 Main。
 
 沿用 StatusMessage 展示 Pending、同步上下文压缩及工具搜索/激活。Memory 读写使用普通工具时间线行，不显示后台 Memory 状态或重试操作。仅有 Run 运行时 Session 才繁忙。Settings 每模型并行许可仅用于导入，实际上下文/输出控件仍供 Ask 使用。不提供 Ask Memory 模式开关或 Memory 控制台。
 

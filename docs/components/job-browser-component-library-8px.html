@@ -586,6 +586,24 @@
             </div>
           </div>
         </div>
+        <div class="demo">
+          <div class="demo-label">Copy Debug JSON · Rename → Copy Debug JSON → Delete</div>
+          <p class="rule-note">Each copy needs confirmation. Cancel starts focused; Cancel and Escape copy nothing. Submission disables repeat actions; failure keeps the dialog open for retry, while success keeps it open and changes the same disabled CopyButton to Copied to clipboard, with polite live feedback and no success message under the chat list. Running Sessions are supported.</p>
+          <div class="dialog-demo">
+            <div class="dialog">
+              <div class="dialog-body">
+                <h3>Copy full debug data?</h3>
+                <p>This will copy the complete saved debug data for the current conversation to the system clipboard. It may include personal profile information, conversation content, model responses, tool call arguments and results, and other sensitive information. After copying, paste only into trusted locations.</p>
+              </div>
+              <div class="dialog-foot">
+                <button class="btn btn-ghost">Cancel</button>
+                <button class="btn btn-primary">Copy JSON</button>
+              </div>
+            </div>
+          </div>
+          <p class="rule-note">CopyButton · success state on the initiating button:</p>
+          <button class="btn btn-primary" disabled aria-live="polite">Copied to clipboard</button>
+        </div>
       </section>
 
       <section class="section" id="tables">

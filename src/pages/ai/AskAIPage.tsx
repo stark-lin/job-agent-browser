@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Drawer, StatusMessage } from '../../shared/ui'
+import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useAskAgent } from './useAskAgent'
 import { SessionSidebar } from './SessionSidebar'
@@ -8,11 +9,11 @@ import { ConversationTimeline } from './ConversationTimeline'
 import { Composer } from './Composer'
 import './ai.css'
 export function AskAIPage() {
-  const { t } = useTranslation(), { openPage } = useNavigation(), chat = useAskAgent(), [drawer, setDrawer] = useState(false)
+  const { t } = useTranslation(), { openPage } = useNavigation(), chat = useAskAgent(), { data } = useServices(), [drawer, setDrawer] = useState(false)
   const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 959px)').matches)
   useEffect(() => { const media = matchMedia('(max-width: 959px)'), change = () => { setNarrow(media.matches); setDrawer(false) }; media.addEventListener('change', change); return () => media.removeEventListener('change', change) }, [])
   const running = new Set(Object.entries(chat.state.runs).filter(([, runs]) => runs.some(r => r.state === 'running')).map(([id]) => id))
-  const sidebar = <SessionSidebar sessions={chat.state.sessions} total={chat.state.total} activeId={chat.id} running={running} select={id => { chat.ask.select(id); setDrawer(false) }} more={() => void chat.ask.refreshSessions(true)} rename={(id, title) => chat.ask.rename(id, title)} remove={id => chat.ask.remove(id)} />
+  const sidebar = <SessionSidebar sessions={chat.state.sessions} total={chat.state.total} activeId={chat.id} running={running} select={id => { chat.ask.select(id); setDrawer(false) }} more={() => void chat.ask.refreshSessions(true)} rename={(id, title) => chat.ask.rename(id, title)} copyDebugJson={sessionId => data.chats.copyDebugJson({ sessionId })} remove={id => chat.ask.remove(id)} />
   const error = chat.state.error, knownError = error && Object.hasOwn(t($ => $.ask.errors, { returnObjects: true }), error)
   const runtime = chat.active ?? [...chat.runs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0], status = runtime?.runtimeStatus
   const runtimeKeys = { pending: 'pending', 'context.compacting': 'compacting', 'tools.searching': 'searching', 'tools.activating': 'activating' } as const
