@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, mixed navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, separate workspace/browser navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -16,7 +16,7 @@ Organize product code by Page, business rules by Domain and technical adapters b
 | Platform | Electron, browser, database, filesystem, AI and settings adapters | [Browser manager](../src/platform/browser/browserManager.ts), [SQLite](../src/platform/database/sqlite.ts) |
 | Shared | Framework-free contracts and business-free UI/utilities/hooks | [Navigation contract](../src/shared/navigation.ts), [placeholder UI](../src/shared/ui/PlaceholderPage.tsx) |
 
-[Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. The package entry remains `out/main/index.js`; additional Node MCP and Electron output-worker entries are built alongside it.
+[Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. The package entry remains `out/main/index.js`; additional Node MCP and Electron output-worker entries are built alongside it. A separate sandboxed `browser-gestures` preload owns webpage wheel input without exposing the trusted application bridge.
 
 All UI components must compose primitives from the [central library entry](../src/shared/ui/index.ts); add missing variants centrally before page use. Pages keep layout and event behavior. The [design specification](design-system.md#2-mandatory-central-component-reuse) owns the full reuse rule.
 
@@ -102,7 +102,7 @@ The [shared i18n module](../src/shared/i18n/) owns framework-independent resourc
 
 [App navigation](../src/app/navigation/) provides a subscribed projection of Main snapshots and a unified navigation hook. React Context supplies dependencies and `useSyncExternalStore` reads stable snapshots. No routing/state library is added. Provider lifecycle owns subscriptions, initialization races and cleanup; page-local state remains in page hooks/components.
 
-The framework-free [Destination](../src/shared/navigation.ts) contract is shared across processes. [Main browser management](../src/platform/browser/browserManager.ts) owns tabs and authoritative mixed histories; [MixedHistory](../src/platform/browser/mixedHistory.ts) joins internal entries and native-history segments, while [WebSegment](../src/platform/browser/webSegment.ts) owns view events, native traversal and disposal. App routing never changes the trusted document URL.
+The framework-free [Destination](../src/shared/navigation.ts) contract is shared across processes. [Main browser management](../src/platform/browser/browserManager.ts) owns tabs and authoritative navigation state; [TabNavigation](../src/platform/browser/tabNavigation.ts) separates workspace destinations from retained native surfaces, while [WebSegment](../src/platform/browser/webSegment.ts) owns view events, native traversal and disposal. App routing never changes the trusted document URL.
 
 Browser owns its tab strip/address/controls; other internal pages hide the entire browser bar and all internal URLs. Browser and Inbox acknowledge their own native surfaces through the [presentation hook](../src/app/navigation/useNativePresentation.ts), identifying the active tab and target so old acknowledgments cannot cover another page. Inbox never renders Browser controls. UI URLs and history rules are owned by product architecture; runtime details are owned by current architecture.
 
@@ -113,8 +113,8 @@ Home invokes navigation only. Cross-page business rules stay in Domain; navigati
 ### Page button ownership
 
 - App owns the persistent workspace sidebar and feature navigation metadata; Pages own their workflow buttons, placement, enabled/loading state and handlers. The sidebar uses the same navigation API and leave guard, without a global Back/Next/Forward bar.
-- Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button (Ask AI V2 uses the persistent Home sidebar entry); do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward toolbar.
-- Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than mixed page history. Business actions and links remain page-owned.
+- Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button (Ask AI V2 uses the persistent Home sidebar entry); do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward/Refresh toolbar.
+- Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than browser history. Business actions and links remain page-owned.
 - Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
 
 ## 5. Data and capability placement

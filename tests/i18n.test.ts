@@ -52,7 +52,7 @@ test('complete sentence interpolation preserves external titles and React render
   const tab: BrowserTabState = {
     id: 'tab-1', targetId: 'target-1', title, url: 'https://example.com/',
     destination: { kind: 'web', url: 'https://example.com/' },
-    canGoBack: false, canGoForward: false, isLoading: false, error: ''
+    browserTitle: title, canGoBack: false, canGoForward: false, isLoading: false, error: ''
   }
   const markup = renderToStaticMarkup(createElement(I18nextProvider, { i18n: instance },
     createElement(TabStrip, { tabs: [tab], activeTabId: tab.id, onCreate: () => {}, onActivate: () => {}, onClose: () => {} })))

@@ -15,7 +15,7 @@ function fixture() {
     getState: () => new Promise((resolve) => reads.push(resolve)),
     onStateChange: (callback) => { callbacks.add(callback); return () => { callbacks.delete(callback) } },
     onFocusAddress: () => () => {}, setVisible: async () => {}, setUnsaved: async () => {}, navigate: async () => {},
-    back: async () => {}, forward: async () => {}, createTab: async () => {}, activateTab: async () => {}, closeTab: async () => {}
+    back: async () => {}, reload: async () => {}, forward: async () => {}, createTab: async () => {}, activateTab: async () => {}, closeTab: async () => {}
   }
   return { store: new NavigationStore(api), callbacks, reads }
 }

@@ -16,6 +16,7 @@ export function useNavigation() {
     openPage: (page: InternalPage) => navigation.run(() => navigation.api.navigate(`app://${page}`)),
     back: () => navigation.run(() => navigation.api.back()),
     forward: () => navigation.run(() => navigation.api.forward()),
+    reload: () => navigation.run(() => navigation.api.reload()),
     createTab: () => navigation.run(() => navigation.api.createTab()),
     activateTab: (id: string) => navigation.run(() => navigation.api.activateTab(id)),
     closeTab: (id: string) => navigation.run(() => navigation.api.closeTab(id))

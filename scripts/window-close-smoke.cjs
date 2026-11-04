@@ -17,7 +17,7 @@ module.exports = async function windowCloseSmoke(window) {
     const url = `http://127.0.0.1:${server.address().port}/retained`
     await window.webContents.executeJavaScript(`window.browser.navigate(${JSON.stringify(url)})`)
     await window.webContents.executeJavaScript("window.browser.navigate('app://home')")
-    const retained = window.contentView.children.filter((view) => view.webContents).map((view) => view.webContents)
+    const retained = require('./native-views.cjs').views(window).map((view) => view.webContents)
     assert(retained.length > 0)
     const themeListeners = nativeTheme.listenerCount('updated')
     // WebContents.close() completes asynchronously after the BrowserWindow's

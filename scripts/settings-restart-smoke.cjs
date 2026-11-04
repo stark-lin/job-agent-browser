@@ -51,7 +51,7 @@ app.once('browser-window-created', (_event, window) => {
           const deadline = Date.now() + 4000
           let view
           while (Date.now() < deadline) {
-            view = window.contentView.children.find(view => view.webContents && view.webContents.getTitle() === 'Authenticated')
+            view = require('./native-views.cjs').views(window).find(view => view.webContents.getTitle() === 'Authenticated')
             if (view) break
             await new Promise(resolve => setTimeout(resolve, 20))
           }

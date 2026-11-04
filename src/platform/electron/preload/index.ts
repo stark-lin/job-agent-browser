@@ -22,6 +22,7 @@ import type { ProfileImportAPI, ImportEvent } from '../profile-import-contract'
 import { PROFILE_IMPORT_RETRY, PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
 import {
   BROWSER_BACK,
+  BROWSER_RELOAD,
   BROWSER_CREATE_TAB,
   BROWSER_ACTIVATE_TAB,
   BROWSER_CLOSE_TAB,
@@ -46,6 +47,7 @@ const browserAPI: BrowserAPI = {
   navigate: (input) => ipcRenderer.invoke(BROWSER_NAVIGATE, input),
   back: () => ipcRenderer.invoke(BROWSER_BACK),
   forward: () => ipcRenderer.invoke(BROWSER_FORWARD),
+  reload: () => ipcRenderer.invoke(BROWSER_RELOAD),
   createTab: () => ipcRenderer.invoke(BROWSER_CREATE_TAB),
   activateTab: (id) => ipcRenderer.invoke(BROWSER_ACTIVATE_TAB, id),
   closeTab: (id) => ipcRenderer.invoke(BROWSER_CLOSE_TAB, id),

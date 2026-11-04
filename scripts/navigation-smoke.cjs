@@ -30,6 +30,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     assert.equal(await evaluate('document.querySelectorAll(".home-page button").length'), 9)
     assert.equal(await evaluate('!!document.querySelector(".home-back")'), false)
   }
+  await call('navigate', 'app://home')
   assert.equal(active(await read()).destination.page, 'home')
   await home()
   for (const [title, page] of routes) {
@@ -54,102 +55,74 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     await home()
   }
   await capture('react-home.png')
-  // Start an isolated journey and verify each native/app boundary in both directions.
+  // Workspace navigation never becomes part of a Browser tab's native history.
   await call('createTab')
   const journeyId = (await read()).activeTabId
-  await call('navigate', 'app://find')
+  await waitFor(() => evaluate('!!document.querySelector(".new-tab-page")'), 'new tab opens Browser')
+  assert.equal(active(await read()).destination.page, 'browser')
+  assert.equal(active(await read()).canGoBack, false)
   await call('navigate', `${origin}/one`)
+  assert.equal(active(await read()).canGoBack, false, 'First webpage cannot go back to Home or a blank tab')
   await call('navigate', `${origin}/two`)
   const a = pageFor(`${origin}/two`), aContents = a.webContents
-  await aContents.executeJavaScript('document.querySelector("#draft").value = "Mixed history draft"')
+  await aContents.executeJavaScript('document.querySelector("#draft").value = "Retained browser draft"')
   const stale = { tabId: journeyId, targetId: active(await read()).targetId }
-  await call('navigate', 'app://resume')
-  await internal('resume')
+  await call('navigate', 'app://resume'); await internal('resume')
+  const resumeTarget = active(await read()).targetId
   await call('setVisible', true, stale)
   assert(!a.getVisible())
-  await call('navigate', `${origin}/other`)
-  const c = pageFor(`${origin}/other`), cContents = c.webContents
-  for (const target of ['resume', `${origin}/two`, `${origin}/one`, 'find', 'home']) {
-    await call('back')
-    if (target.startsWith('http')) await waitState((state) => active(state).url === target, 'mixed back')
-    else await internal(target)
-    if (target === `${origin}/two`) {
-      await waitFor(() => a.getVisible(), 'preserved segment visible')
-      assert.equal(await aContents.executeJavaScript('document.querySelector("#draft").value'), 'Mixed history draft')
-    }
-  }
+  for (const method of ['back', 'forward']) await call(method)
+  shortcut(window.webContents, 'Left', ['alt'])
+  shortcut(window.webContents, 'Right', ['alt'])
+  await internal('resume')
+  assert.equal(active(await read()).targetId, resumeTarget)
   assert.equal(active(await read()).canGoBack, false)
-  for (const target of ['find', `${origin}/one`, `${origin}/two`, 'resume', `${origin}/other`]) {
-    await call('forward')
-    if (target.startsWith('http')) await waitState((state) => active(state).url === target, 'mixed forward')
-    else await internal(target)
+  assert.equal(active(await read()).canGoForward, false)
+  await call('navigate', 'app://browser')
+  await waitFor(() => a.getVisible(), 'Browser restores retained view')
+  assert.equal(active(await read()).url, `${origin}/two`)
+  assert.equal(await aContents.executeJavaScript('document.querySelector("#draft").value'), 'Retained browser draft')
+  await call('back')
+  await waitState(state => active(state).url === `${origin}/one`, 'native Back')
+  assert.equal(active(await read()).canGoBack, false)
+  await call('back')
+  assert.equal(active(await read()).url, `${origin}/one`)
+  // Visiting multiple features after Back preserves the native forward stack.
+  for (const page of ['settings', 'profile', 'home']) {
+    await call('navigate', `app://${page}`); await internal(page)
   }
-  assert.equal(active(await read()).canGoForward, false)
-  // Fork while inside the older native segment: drop its native future and the later segment.
-  await call('back'); await call('back'); await call('back')
-  await waitState((state) => active(state).url === `${origin}/one`, 'branch position')
-  await call('navigate', 'app://settings')
-  await internal('settings')
-  assert(cContents.isDestroyed())
-  assert.equal(aContents.navigationHistory.length(), 1)
+  await call('navigate', 'app://browser')
+  assert(active(await read()).canGoForward)
+  await call('forward')
+  await waitState(state => active(state).url === `${origin}/two`, 'forward after workspace navigation')
   await call('back')
-  await waitState((state) => active(state).url === `${origin}/one`, 'older segment')
-  // A website link branches app history without creating a second native segment.
-  await aContents.executeJavaScript(`location.href = ${JSON.stringify(`${origin}/linked`)}`)
-  await waitState((state) => active(state).url === `${origin}/linked` && !active(state).isLoading, 'website link')
-  assert.equal(active(await read()).canGoForward, false)
-  await aContents.executeJavaScript("history.pushState({}, '', '/spa'); history.replaceState({}, '', '/spa-replaced')")
-  await waitState((state) => active(state).url === `${origin}/spa-replaced`, 'SPA push/replace')
-  // Native same-URL branching must invalidate an app future, using native
-  // page state/index rather than URL equality to distinguish new entries.
-  await aContents.executeJavaScript("history.pushState({}, '', '/same-url'); history.pushState({}, '', '/same-url')")
-  await waitState((state) => active(state).url === `${origin}/same-url`, 'repeated SPA URL')
-  await call('navigate', 'app://profile')
-  await call('back'); await call('back')
-  await waitFor(() => aContents.navigationHistory.getActiveIndex() === aContents.navigationHistory.length() - 2, 'older repeated URL entry')
-  await aContents.executeJavaScript("history.pushState({}, '', '/same-url')")
-  await waitState((state) => !active(state).canGoForward, 'same-URL native branch prunes internal future')
-  // A website's own history traversal preserves its app-level future.
-  await call('navigate', 'app://resume'); await call('back')
-  const traverseWebsite = direction => new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { aContents.removeListener('did-navigate-in-page', done); reject(new Error('Website history event timed out')) }, 5000)
-    const done = () => { clearTimeout(timer); resolve() }
-    aContents.once('did-navigate-in-page', done)
-    void aContents.executeJavaScript(`history.${direction}()`).catch(error => { clearTimeout(timer); aContents.removeListener('did-navigate-in-page', done); reject(error) })
-  })
-  await traverseWebsite('back')
-  await waitFor(() => aContents.navigationHistory.getActiveIndex() === aContents.navigationHistory.length() - 2, 'website back')
-  await traverseWebsite('forward')
-  await waitFor(() => aContents.navigationHistory.getActiveIndex() === aContents.navigationHistory.length() - 1, 'website forward')
-  await call('forward'); await internal('resume')
-  await call('back')
-  // Remove the native test entries before continuing the duplicate-entry journey.
+  await waitState(state => active(state).url === `${origin}/one`, 'branch position')
+  await call('navigate', 'app://settings'); await internal('settings')
   await call('navigate', `${origin}/linked`)
-  await aContents.executeJavaScript("history.pushState({}, '', '/spa-replaced')")
-  await waitState((state) => active(state).url === `${origin}/spa-replaced`, 'SPA fixture restored')
-  // Duplicate URL entries remain distinct native history items.
+  assert.equal(pageFor(`${origin}/linked`), a, 'Returning with a URL reuses the same Browser surface')
+  assert.equal(active(await read()).canGoForward, false)
+  assert.equal(aContents.navigationHistory.length(), 2)
+  // SPA push, replace, repeated URLs and website-driven history use native entry identity.
+  await aContents.executeJavaScript("history.pushState({}, '', '/spa'); history.replaceState({}, '', '/spa-replaced')")
+  await waitState(state => active(state).url === `${origin}/spa-replaced`, 'SPA push/replace')
   const beforeDuplicate = aContents.navigationHistory.length()
   await aContents.executeJavaScript("history.pushState({}, '', location.href)")
-  await waitFor(() => aContents.navigationHistory.length() === beforeDuplicate + 1, 'duplicate native URL')
-  await call('navigate', 'app://profile')
-  await call('back')
-  await waitState((state) => active(state).url === `${origin}/spa-replaced`, 'resume duplicate entry')
+  await waitFor(() => aContents.navigationHistory.length() === beforeDuplicate + 1, 'duplicate URL')
   await call('back')
   await waitFor(() => aContents.navigationHistory.getActiveIndex() === beforeDuplicate - 1, 'duplicate history traversal')
-  await call('back')
-  await waitState((state) => active(state).url === `${origin}/linked`, 'SPA back')
-  // replaceState must preserve the app-level forward destination.
-  await aContents.executeJavaScript("history.replaceState({}, '', '/replace-current')")
-  await waitState((state) => active(state).url === `${origin}/replace-current`, 'replace active entry')
-  assert(active(await read()).canGoForward)
-  await call('forward'); await call('forward'); await call('forward')
-  await internal('profile')
-  // Reload restores Main's current internal page, without revealing native views.
+  await call('navigate', 'app://profile'); await internal('profile')
   await reloadRenderer()
   await waitFor(() => evaluate('!!window.browser && document.querySelector("h1")?.textContent === "My Profile"'), 'renderer internal reload')
   await internal('profile')
-  await call('back')
+  await call('navigate', 'app://browser')
   await waitFor(() => a.getVisible(), 'Browser after renderer reload')
+  assert.equal(aContents.navigationHistory.getActiveIndex(), beforeDuplicate - 1)
+  assert(active(await read()).canGoForward)
+  await aContents.executeJavaScript("history.replaceState({}, '', '/replace-current')")
+  await waitState(state => active(state).url === `${origin}/replace-current`, 'replace entry')
+  assert(active(await read()).canGoForward)
+  await call('forward')
+  await waitState(state => active(state).url === `${origin}/spa-replaced`, 'native forward after replace')
   const beforeReload = { tabId: journeyId, targetId: active(await read()).targetId }
   await reloadRenderer()
   await waitFor(async () => (await evaluate('!!document.querySelector(".address-form")')) && a.getVisible(), 'renderer Browser reload')
@@ -161,29 +134,26 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   assert.equal(active(await read()).url, priorURL)
   assert.equal(active(await read()).destination.kind, 'web')
   await call('navigate', `${origin}/redirect`)
-  await waitState((state) => active(state).url === `${origin}/redirect-final` && !active(state).isLoading, 'redirect commit')
-  await call('back')
-  await waitState((state) => active(state).url === priorURL, 'redirect is one native navigation')
-  // Alt history keys work while the browser toolbar is absent.
-  await call('navigate', 'app://resume'); await internal('resume')
-  shortcut(window.webContents, 'Left', ['alt'])
-  await waitState((state) => active(state).destination.kind === 'web', 'internal keyboard Back')
-  // A late loading completion cannot reactivate a segment after switching to an internal page.
+  await waitState(state => active(state).url === `${origin}/redirect-final` && !active(state).isLoading, 'redirect commit')
+  shortcut(aContents, 'Left', ['alt'])
+  await waitState(state => active(state).url === priorURL, 'Browser Alt+Left')
+  shortcut(window.webContents, 'Right', ['alt'])
+  await waitState(state => active(state).url === `${origin}/redirect-final`, 'Browser Alt+Right')
+  // A late loading completion cannot reactivate a surface after switching pages.
   const slow = call('navigate', `${origin}/slow`)
-  await waitState((state) => active(state).isLoading, 'pending navigation')
+  await waitState(state => active(state).isLoading, 'pending navigation')
   await call('navigate', 'app://settings'); await internal('settings')
-  await slow
-  await internal('settings')
+  await slow; await internal('settings')
   await call('closeTab', journeyId)
   assert(aContents.isDestroyed())
-  // Close a tab during navigation; completion must not change the replacement Home.
   await call('createTab')
   const closingId = (await read()).activeTabId
   const closingLoad = call('navigate', `${origin}/slow`)
-  await waitState((state) => active(state).isLoading, 'closing navigation')
+  await waitState(state => active(state).isLoading, 'closing navigation')
   await call('closeTab', closingId)
   await closingLoad
   assert.notEqual((await read()).activeTabId, closingId)
   await assert.rejects(call('navigate', 'app://unknown'))
-  console.log('Navigation smoke passed: nine entries, hidden internal URLs/chrome, mixed history, branching/disposal, duplicate URLs, SPA history, stale visibility, reload and navigation races.')
+  await call('navigate', 'app://home')
+  console.log('Navigation smoke passed: workspace/history separation, retained views/forward history, new tabs, native boundaries, duplicate URLs, SPA, stale visibility, reload and navigation races.')
 }

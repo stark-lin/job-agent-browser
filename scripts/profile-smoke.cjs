@@ -172,9 +172,10 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     }
     await settings({ language: 'en' }); await frame()
     const profileTabId = active(await read()).id
-    await call('navigate', 'app://home'); await call('back')
+    await call('navigate', 'app://home'); await call('navigate', 'app://profile')
     await call('createTab'); const otherTabId = active(await read()).id
     await call('activateTab', profileTabId)
+    await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input")'), 'profile restored for leave guards')
     await field('Personal introduction', 'Unsaved introduction')
     let prompts = 0
@@ -184,10 +185,14 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     const beforeTabs = (await read()).tabs.length
     await call('createTab'); assert.equal((await read()).tabs.length, beforeTabs)
     window.close(); await waitFor(() => Promise.resolve(prompts === 3), 'profile window-close guard'); assert(!window.isDestroyed())
-    for (const [method, argument] of [['closeTab', profileTabId], ['activateTab', otherTabId], ['back'], ['forward']]) {
+    for (const [method, argument] of [['closeTab', profileTabId], ['activateTab', otherTabId]]) {
       const before = prompts; await call(method, ...(argument ? [argument] : []))
       assert.equal(prompts, before + 1, `${method} checks unsaved profile`); assert.equal(active(await read()).destination.page, 'profile')
     }
+    const beforeHistory = prompts
+    await call('back'); await call('forward')
+    assert.equal(prompts, beforeHistory, 'Browser history is inactive on Profile')
+    assert.equal(active(await read()).destination.page, 'profile')
     let refreshPrompts = 0
     dialog.showMessageBoxSync = () => { refreshPrompts++; return 0 }
     await window.webContents.executeJavaScript('document.querySelector(".profile-page form input").focus()', true)

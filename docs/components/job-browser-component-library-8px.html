@@ -279,6 +279,13 @@
 
         <div class="demo">
           <div class="demo-label">Tabs & breadcrumbs</div>
+          <p class="rule-note">Browser Back/Forward, Alt history shortcuts, right-button drags and horizontal touchpad swipes stay within webpage history. Content and chrome stay fixed. A 48px circular edge arrow in a 64px transparent overlay with an 8px inset highlights when ready; unavailable directions stay muted, and short/cancelled strokes dismiss it immediately. No gesture translation or animation runs. Ordinary right clicks retain native menus and website scrolling takes priority; geometry reuses existing tokens. History commits and Refresh use the solid neutral browser-transition-bg cover (#303030 in both themes) until the target frame is ready, then reveal directly without a fade. Refresh follows Forward and is also in native Browser/Inbox menus. The separate browser-canvas-bg is #e5e5e5 in light mode and #303030 in dark mode. Workspace navigation preserves browser state and forward entries; new tabs open an empty Browser workspace, and tabs retain browser titles.</p>
+          <div class="demo-stage" aria-label="History gesture arrow states">
+            <span data-direction="back" data-ready="false"><span class="ui-history-indicator" role="img" aria-label="Back, below threshold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+            <span data-direction="back" data-ready="true"><span class="ui-history-indicator" role="img" aria-label="Back, ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+            <span data-direction="forward" data-ready="true"><span class="ui-history-indicator" role="img" aria-label="Forward, ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+            <span data-direction="forward" data-available="false"><span class="ui-history-indicator" role="img" aria-label="Forward, unavailable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+          </div>
           <div class="demo-stage vstack">
             <div class="tabs" role="tablist">
               <button class="tab active">Overview</button>

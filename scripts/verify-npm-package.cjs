@@ -35,7 +35,7 @@ function verify(directory = join(root, 'dist/npm')) {
     }
   }
   walk(directory)
-  for (const name of ['out/main/index.js', 'out/main/job-agent-mcp.js', 'out/main/resume-output-worker.js', 'out/main/embedding-process.js', 'out/main/pdf-worker.mjs', 'out/main/fonts/NotoSansSC.ttf', 'out/main/skills', 'out/preload/index.js', 'out/renderer/index.html', 'resources/embedding-model.json', 'resources/model-notice.txt']) assert(existsSync(join(directory, name)), 'Missing resource: ' + name)
+  for (const name of ['out/main/index.js', 'out/main/job-agent-mcp.js', 'out/main/resume-output-worker.js', 'out/main/embedding-process.js', 'out/main/pdf-worker.mjs', 'out/main/fonts/NotoSansSC.ttf', 'out/main/skills', 'out/preload/index.js', 'out/preload/browser-gestures.js', 'out/renderer/index.html', 'resources/embedding-model.json', 'resources/model-notice.txt']) assert(existsSync(join(directory, name)), 'Missing resource: ' + name)
   const destination = join(root, 'dist/npm-artifacts'); mkdirSync(destination, { recursive: true })
   const pack = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', destination], { cwd: directory, encoding: 'utf8', env: { ...process.env, npm_config_cache: join(root, '.cache/npm-pack') } })
   assert.equal(pack.status, 0, pack.stderr)

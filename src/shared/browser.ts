@@ -10,6 +10,7 @@ export interface Presentation {
 export interface BrowserTabState {
   id: string
   title: string
+  browserTitle: string
   url: string
   destination: Destination
   targetId: string
@@ -35,6 +36,7 @@ export interface BrowserAPI {
   navigate(input: string): Promise<void>
   back(): Promise<void>
   forward(): Promise<void>
+  reload(): Promise<void>
   createTab(): Promise<void>
   activateTab(id: string): Promise<void>
   closeTab(id: string): Promise<void>
@@ -49,6 +51,7 @@ export const BROWSER_ACK_SELECTION = 'browser:ack-selection'
 export const BROWSER_NAVIGATE = 'browser:navigate'
 export const BROWSER_BACK = 'browser:back'
 export const BROWSER_FORWARD = 'browser:forward'
+export const BROWSER_RELOAD = 'browser:reload'
 export const BROWSER_GET_STATE = 'browser:get-state'
 export const BROWSER_SET_VISIBLE = 'browser:set-visible'
 export const BROWSER_SET_UNSAVED = 'browser:set-unsaved'

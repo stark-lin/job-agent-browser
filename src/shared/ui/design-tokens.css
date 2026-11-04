@@ -1,6 +1,8 @@
 /* Generated from design-tokens.json: npm run design:tokens */
 :root {
   color-scheme: light;
+  --browser-canvas-bg: #e5e5e5;
+  --browser-transition-bg: #303030;
   --bg: #f7f7f5;
   --panel: rgba(255,255,255,.72);
   --panel-solid: #fbfbfa;
@@ -134,6 +136,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --browser-canvas-bg: #303030;
+    --browser-transition-bg: #303030;
     --bg: #18181b;
     --panel: rgba(39,39,42,.72);
     --panel-solid: #202023;
@@ -197,6 +201,8 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --browser-canvas-bg: #303030;
+  --browser-transition-bg: #303030;
   --bg: #18181b;
   --panel: rgba(39,39,42,.72);
   --panel-solid: #202023;

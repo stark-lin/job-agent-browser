@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
+用途：定义源码职责、依赖边界及交付约束。状态：App/路由、工作区/浏览器分离导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -16,7 +16,7 @@
 | Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
 | Shared | 无框架契约及不含业务语义的 UI/工具/hooks | [导航契约](../src/shared/navigation.ts)、[占位布局](../src/shared/ui/PlaceholderPage.tsx) |
 
-[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。包入口保持 `out/main/index.js`；同时构建独立 Node MCP 及 Electron 输出 Worker 入口。
+[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。包入口保持 `out/main/index.js`；同时构建独立 Node MCP 及 Electron 输出 Worker 入口。独立沙箱中的 `browser-gestures` Preload 管理网页滚动输入，不暴露可信应用桥接。
 
 所有 UI 组件必须组合[中央组件库入口](../src/shared/ui/index.ts)提供的基础组件；缺少变体时先扩展中央库再用于页面。页面保留布局与事件行为。[设计规范](design-system.zh-CN.md#二必须复用中央组件库)管理完整复用规则。
 
@@ -102,7 +102,7 @@ Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Rep
 
 [App 导航](../src/app/navigation/)提供 Main 快照的订阅投影和统一导航 hook。React Context 注入依赖，`useSyncExternalStore` 读取稳定快照，不增加路由/状态库。Provider 生命周期管理订阅、初始化竞争和清理；页面局部状态仍在页面 hooks/components 中。
 
-无框架的 [Destination](../src/shared/navigation.ts) 契约跨进程共享。[Main 浏览器管理](../src/platform/browser/browserManager.ts)拥有标签和权威混合历史；[MixedHistory](../src/platform/browser/mixedHistory.ts) 组合内部项与原生历史段，[WebSegment](../src/platform/browser/webSegment.ts) 管理视图事件、原生回放和释放。App 路由不改变可信文档 URL。
+无框架的 [Destination](../src/shared/navigation.ts) 契约跨进程共享。[Main 浏览器管理](../src/platform/browser/browserManager.ts)拥有标签和权威导航状态；[TabNavigation](../src/platform/browser/tabNavigation.ts) 分离工作区目标与保留的原生视图，[WebSegment](../src/platform/browser/webSegment.ts) 管理视图事件、原生回放和释放。App 路由不改变可信文档 URL。
 
 Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览器栏和全部内部 URL。Browser 和 Inbox 通过[展示 hook](../src/app/navigation/useNativePresentation.ts) 确认各自原生视图，携带活动标签与目标，避免旧确认覆盖其他页面。Inbox 不渲染 Browser 控件。UI URL 和历史规则由产品架构管理，运行细节由当前架构管理。
 
@@ -113,8 +113,8 @@ Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切�
 ### 页面按钮归属
 
 - App 管理常驻工作区侧栏和功能导航元数据；Pages 管理各自流程按钮、位置、启用/加载状态及处理函数。侧栏复用相同导航 API 和离开保护，不提供全局 Back/Next/Forward 栏。
-- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward 工具栏。
-- 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用混合页面历史。业务操作和链接仍由所属页面管理。
+- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward/Refresh 工具栏。
+- 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用浏览器历史。业务操作和链接仍由所属页面管理。
 - Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作和回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
 ## 五、数据与能力归属

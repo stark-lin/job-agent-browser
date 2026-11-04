@@ -38,8 +38,9 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'src/platform/electron/preload/index.ts'),
-        output: { format: 'cjs', entryFileNames: 'index.js' }
+        input: { index: resolve(__dirname, 'src/platform/electron/preload/index.ts'),
+          'browser-gestures': resolve(__dirname, 'src/platform/electron/preload/browser-gestures.ts') },
+        output: { format: 'cjs', entryFileNames: '[name].js' }
       }
     }
   },

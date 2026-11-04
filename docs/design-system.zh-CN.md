@@ -9,10 +9,10 @@
 | 职责 | 权威来源 |
 | --- | --- |
 | Token 值 | [浅色及共享 Tokens](../src/shared/ui/design-tokens.json)、[暗色颜色覆盖](../src/shared/ui/design-tokens.dark.json) |
-| 公共 React 组件 | [中央入口](../src/shared/ui/index.ts) |
+| 公共 UI 基础组件 | [中央入口](../src/shared/ui/index.ts) |
 | 共享应用外观 | [components.css](../src/shared/ui/components.css) |
 | 参考示例及其展示样式 | [展示库 HTML](components/job-browser-component-library-8px.html) 和 [component-library.css](../src/shared/ui/component-library.css) |
-| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
+| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[原生箭头样式](../src/shared/ui/history-indicator-styles.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
 
 [Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。
 
@@ -34,6 +34,7 @@
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
 | `Glyph` | Home 与工作区导航复用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
+| `historyIndicatorDocument` | 无页面脚本的原生历史箭头；固定位置、触发就绪及不可用状态 | [HistoryIndicator.ts](../src/shared/ui/HistoryIndicator.ts), [history-indicator.css](../src/shared/ui/history-indicator.css) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | 图标栏、无障碍导航分组及带悬停提示和当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | 带图标、标题和描述的功能入口 | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
@@ -103,7 +104,7 @@
 - Settings 审计查看器组合中央 `DataTable`、`Badge`、`DetailsList` 和 `Dialog` 正文。表格行至少 64px，ID 可换行，状态带文字，横向滚动区可通过键盘聚焦，不撑宽页面。元数据弹窗在视口内滚动。Tables 展示库包含审计参考。
 - Tailor Resume 组合中央选择字段、操作、阶段进度、来源详情和文档预览。页面 CSS 只管理布局，输出重试、取消及系统保存明确显示状态。Feedback 图库包含这两个原语，PDF 排版由固定输出模板管理。
 - 保留原生键盘激活、禁用行为和可见焦点。裸 `TextInput` 必须位于提供可见焦点反馈的容器中，参见 [AddressBar](../src/pages/browser/AddressBar.tsx)；其自身描边按设计被移除。
-- 标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
+- Browser 的 Back/Forward、Alt 历史快捷键、右键拖动和触控板横向滑动仅操作网页历史；工作区导航保留浏览器状态及前进项。手势中内容和工具栏固定；中央 `historyIndicatorDocument` 组件在对应边缘的 64px 透明原生浮层中显示 48px 圆形箭头，边距为 8px。可用箭头使用 text/surface Token，达到触发距离后使用 primary/on-primary，不可用方向使用 muted/panel-solid；短距离或取消手势立即隐藏箭头，无位移或动画；成功的历史导航和刷新使用纯中性的 `--browser-transition-bg`（亮色和暗色均为 #303030）遮罩，目标帧就绪后直接显示。Browser 工作区/底层画布使用独立的 `--browser-canvas-bg`（亮色 #e5e5e5 / 暗色 #303030）。刷新位于 Forward 右侧，也出现在 Browser/Inbox 原生菜单；普通右键点击保留原生菜单，网页滚动优先。箭头和手势尺寸由现有尺寸/间距 Token 生成。新标签打开空白 Browser 工作区，标签名称使用浏览器标题。标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
 - 区分加载、空状态、成功与错误。不得让参考示例看起来像已实现操作；页面文案归属 [i18n 资源](../src/shared/i18n/locales/en.ts)。
 - 遵循减少动态效果偏好，检查窄屏换行、裁剪和滚动。运行时动效规则位于[中央样式](../src/shared/ui/components.css)和[浏览器样式](../src/renderer/styles/global.css)。
 

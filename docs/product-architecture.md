@@ -79,7 +79,7 @@ A single navigation journey can therefore cross internal pages and websites:
 Home → Add Job → Applications → Tailor Resume → Company Application
 ```
 
-Each tab has independent mixed history across internal pages and websites. Home adds history in the current tab; switching tabs adds none. Startup, new tabs and closing the final tab open Home. The Browser card opens an empty workspace, with an empty address field until a website is opened. Home has no Back button; other business pages provide Go home as their only page navigation button (Ask AI V2 uses the persistent sidebar Home entry), and keyboard history navigation remains available. Browser retains its own Home/Back/Forward controls. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
+Workspace destinations are separate from each tab’s native webpage history. Startup opens Home; new tabs and closing the final tab open an empty Browser workspace. The Browser card resumes the retained webpage or opens an empty workspace. Home has no Back button; other business pages provide Go home as their only page navigation button (Ask AI V2 uses the persistent sidebar Home entry), and browser history shortcuts operate only within Browser. Browser retains its own Home/Back/Forward/Refresh controls and supports content-only history gestures. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
 
 ## 5. Shared Context
 

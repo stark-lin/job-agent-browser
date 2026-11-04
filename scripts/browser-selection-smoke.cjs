@@ -35,7 +35,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
   const origin = `http://127.0.0.1:${server.address().port}`, url = `${origin}/job?id=123&access_token=private-token#private-fragment`
   Menu.prototype.popup = function (options) { menu = this; popupOptions = options }
   dialog.showMessageBox = async () => { notices++; return { response: 1, checkboxChecked: false } }
-  const view = () => window.contentView.children.find(view => view.webContents && view.getVisible())
+  const view = () => require('./native-views.cjs').views(window).find(view => view.getVisible())
   const tick = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   async function navigate(destination = url) {
     await call('navigate', destination)
@@ -119,11 +119,11 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     const presentation = active(await read())
     assert.equal(await call('peekSelection', { tabId: presentation.id, targetId: presentation.targetId }), null)
     await field('.ai-composer textarea', 'Existing unsent draft')
-    await call('back'); await waitFor(() => !!view(), 'back to original selection view')
+    await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'restore original selection view')
     await choose(view())
     assert((await evaluate('document.querySelector(".ai-composer textarea").value')).startsWith('Existing unsent draft\n\n---'))
     assert.equal(aiCalls, 0)
-    await call('back'); await waitFor(() => !!view(), 'back before job import')
+    await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'restore Browser before job import')
     await choose(view(), 'job-import')
     assert.equal(await evaluate('document.querySelector("[name=jobText]").value'), selected)
     assert((await evaluate('document.querySelector(".job-page").textContent')).includes(`${origin}/job?id=123`)); assert.equal(aiCalls, 0)
@@ -145,7 +145,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
       await evaluate(`(() => {const select=document.querySelector('[name=captureSource]');select.value='${kind}';select.dispatchEvent(new Event('change',{bubbles:true}))})()`); await tick()
     }
     assert(!(await evaluate('document.querySelector(".job-page").textContent')).includes(`${origin}/job?id=123`))
-    await call('back'); await waitFor(() => !!view(), 'back for sourced import')
+    await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'restore Browser for sourced import')
     const settings = { ai: { providers: [{ id: 'selection-fixture', name: 'Selection fixture', baseURL: `${origin}/v1`, requiresKey: false, models: ['fixture'], defaultModel: 'fixture', capabilities: { fixture: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'selection-fixture', modelId: 'fixture' } } }
     await evaluate(`window.data.settings.savePreferences(${JSON.stringify(settings)})`)
     await choose(view(), 'job-import')
@@ -184,7 +184,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     await navigate(`${origin}/session/protected`)
     assert.equal(await view().webContents.executeJavaScript('document.title'), 'Authenticated')
     for (const destination of ['app://ai', 'app://find']) {
-      await call('navigate', destination); await call('back'); await waitFor(() => !!view(), 'return to authenticated web view')
+      await call('navigate', destination); await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'return to authenticated web view')
       assert.equal(await view().webContents.executeJavaScript('localStorage.getItem("jab-session-test")'), 'retained')
     }
     await call('createTab'); await navigate(`${origin}/session/protected`)

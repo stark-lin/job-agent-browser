@@ -1,4 +1,6 @@
 {
+  "browser-canvas-bg": "#e5e5e5",
+  "browser-transition-bg": "#303030",
   "bg": "#f7f7f5",
   "panel": "rgba(255,255,255,.72)",
   "panel-solid": "#fbfbfa",

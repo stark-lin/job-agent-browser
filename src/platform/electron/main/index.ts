@@ -12,7 +12,7 @@ import { defaultKnowledgePreferences } from '../../../shared/knowledge-settings'
 import { createAskAgentTasks, type AskAgentTasks } from '../ask-agent-tasks'
 import { registerAskAgentIPC } from './ask-agent-ipc'
 import { t, i18n } from '../../../shared/i18n'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, safeStorage, shell } from 'electron'
 import { createExternalSkillsInstaller } from '../../skills/install'
 import { registerExternalSkillsIPC } from './external-skills-ipc'
 import { createExternalMCPInstaller, type ExternalMCPInstaller } from '../../mcp/external-install'
@@ -39,19 +39,8 @@ import { defaultAITimeouts } from '../../../shared/ai'
 import { registerJobImportIPC } from './job-import-ipc'
 import type { ImportSaved } from '../../../domain/candidate/import.types'
 import type { Result } from '../../../shared/ipc'
-import {
-  BROWSER_BACK,
-  BROWSER_CREATE_TAB,
-  BROWSER_ACTIVATE_TAB,
-  BROWSER_CLOSE_TAB,
-  BROWSER_FORWARD,
-  BROWSER_GET_STATE,
-  BROWSER_NAVIGATE,
-  BROWSER_SET_VISIBLE,
-  BROWSER_SET_UNSAVED,
-} from '../../../shared/browser'
 import { createMainWindow } from './window'
-import { registerSelectionIPC } from './browser-selection-ipc'
+import { registerBrowserIPC } from './browser-ipc'
 import { applyTheme } from './theme'
 import type { BrowserManager } from '../../browser/browserManager'
 import { createToolRuntime, type ToolRuntime } from '../../mcp/runtime'
@@ -170,58 +159,7 @@ app.on('will-quit', event => {
   void Promise.allSettled([localModels?.close(), knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
-ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof input !== 'string') throw new Error(t($ => $.errors.navigationInput))
-  await requireBrowser().navigate(input)
-})
-ipcMain.handle(BROWSER_BACK, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().back()
-})
-ipcMain.handle(BROWSER_FORWARD, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().forward()
-})
-ipcMain.handle(BROWSER_GET_STATE, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().getState()
-})
-registerSelectionIPC(requireBrowser, assertTrustedRenderer)
-ipcMain.handle(BROWSER_SET_VISIBLE, (event, visible: unknown, presentation: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof visible !== 'boolean') throw new Error(t($ => $.errors.visibilityInput))
-  if (!presentation || typeof presentation !== 'object' ||
-    !('tabId' in presentation) || typeof presentation.tabId !== 'string' ||
-    !('targetId' in presentation) || typeof presentation.targetId !== 'string') {
-    throw new Error(t($ => $.errors.presentationInput))
-  }
-  requireBrowser().setVisible(visible, { tabId: presentation.tabId, targetId: presentation.targetId })
-})
-
-ipcMain.handle(BROWSER_SET_UNSAVED, (event, unsaved: unknown, presentation: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof unsaved !== 'boolean' || !presentation || typeof presentation !== 'object' ||
-    !('tabId' in presentation) || typeof presentation.tabId !== 'string' || !('targetId' in presentation) || typeof presentation.targetId !== 'string') {
-    throw new Error(t($ => $.errors.presentationInput))
-  }
-  requireBrowser().setUnsaved(unsaved, { tabId: presentation.tabId, targetId: presentation.targetId })
-})
-
-ipcMain.handle(BROWSER_CREATE_TAB, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().createTab()
-})
-ipcMain.handle(BROWSER_ACTIVATE_TAB, (event, id: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof id !== 'string') throw new Error(t($ => $.errors.tabIdInput))
-  return requireBrowser().activateTab(id)
-})
-ipcMain.handle(BROWSER_CLOSE_TAB, (event, id: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof id !== 'string') throw new Error(t($ => $.errors.tabIdInput))
-  return requireBrowser().closeTab(id)
-})
+registerBrowserIPC(requireBrowser, assertTrustedRenderer)
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

@@ -7,13 +7,13 @@ import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_FOCUS_ADDRESS, BROWSER_
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
 import { isBrowserDestination } from '../../shared/navigation'
 import { resolveDestination } from './navigationManager'
-import { MixedHistory } from './mixedHistory'
+import { TabNavigation } from './tabNavigation'
 import { SESSION_PARTITION, WebSegment } from './webSegment'
 import { installShortcuts } from './shortcuts'
 import { SelectionHandoff } from './selectionHandoff'
 import type { SelectionTarget, WebSelection } from '../../shared/browser-selection'
 
-interface Tab { id: string; version: number; history: MixedHistory<WebSegment> }
+interface Tab { id: string; version: number; history: TabNavigation<WebSegment> }
 
 export class BrowserManager {
   private readonly tabs = new Map<string, Tab>()
@@ -27,7 +27,7 @@ export class BrowserManager {
 
   constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null) {
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    void this.createTab()
+    this.addTab('home')
     const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
     i18n.on('languageChanged', languageChanged)
     const themeChanged = () => {
@@ -51,6 +51,11 @@ export class BrowserManager {
       if (!this.unsaved || dialog.showMessageBoxSync(window, this.leaveDialog()) === 1) { this.unsaved = false; event.preventDefault() }
     })
     this.shortcuts(window.webContents)
+    window.webContents.on('before-mouse-event', (event, mouse) => {
+      const item = this.tabs.get(this.activeTabId)?.history.current
+      if (item?.kind === 'web') item.segment.handleMouse(event, mouse, true)
+    })
+    window.on('blur', () => { for (const tab of this.tabs.values()) for (const item of tab.history.items) item.segment.cancelDrag() })
     window.webContents.on('did-start-loading', () => {
       // Keep the current React draft/target until beforeunload permits a commit.
       this.rendererLoading = true; this.updateVisibility()
@@ -121,7 +126,7 @@ export class BrowserManager {
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
       if (item.kind === 'web') {
         const inset = item.segment.surface === 'inbox' ? 0 : BROWSER_CHROME_HEIGHT
-        item.segment.view.setBounds({ x: sidebar, y: inset, width: Math.max(0, width - sidebar), height: Math.max(0, height - inset) })
+        item.segment.layout({ x: sidebar, y: inset, width: Math.max(0, width - sidebar), height: Math.max(0, height - inset) })
       }
     }
   }
@@ -136,8 +141,11 @@ export class BrowserManager {
 
   async createTab(): Promise<void> {
     if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
-    const tab: Tab = { id: randomUUID(), version: 0, history: new MixedHistory() }
-    tab.history.append({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'home' } })
+    this.addTab('browser')
+  }
+
+  private addTab(page: 'home' | 'browser'): void {
+    const tab: Tab = { id: randomUUID(), version: 0, history: new TabNavigation({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page } }) }
     this.tabs.set(tab.id, tab)
     this.activeTabId = tab.id
     this.transition(tab)
@@ -147,6 +155,7 @@ export class BrowserManager {
     const tab = this.requireTab(id)
     if (this.activeTabId === id) return
     if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
+    if (this.isBrowser()) tab.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'browser' } })
     this.activeTabId = id
     this.transition(tab)
   }
@@ -154,49 +163,57 @@ export class BrowserManager {
   async closeTab(id: string): Promise<void> {
     const tab = this.requireTab(id), ids = [...this.tabs.keys()], index = ids.indexOf(id)
     if (this.activeTabId === id && (this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
+    const browser = this.isBrowser()
     this.tabs.delete(id)
     this.selections.clear(id)
     tab.history.dispose()
     if (!this.tabs.size) { await this.createTab(); return }
     if (this.activeTabId === id) {
       this.activeTabId = ids[index + 1] ?? ids[index - 1]
-      this.transition(this.requireTab(this.activeTabId))
+      const next = this.requireTab(this.activeTabId)
+      if (browser) next.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'browser' } })
+      this.transition(next)
     } else this.publishState()
   }
 
   async navigate(input: string, surface: 'browser' | 'inbox' = 'browser'): Promise<void> {
     let destination = resolveDestination(input) // Reject invalid input before mutating either history.
-    if (destination.kind === 'internal' && destination.page === 'inbox') {
+    const tab = this.requireTab(this.activeTabId)
+    const inbox = destination.kind === 'internal' && destination.page === 'inbox'
+    if (inbox) {
       const inboxURL = this.getInboxURL()
       if (inboxURL) { destination = resolveDestination(inboxURL); surface = 'inbox' }
     }
     if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
-    const tab = this.requireTab(this.activeTabId)
     if (destination.kind === 'internal') {
-      tab.history.append({ kind: 'internal', id: randomUUID(), destination })
+      tab.history.showPage({ kind: 'internal', id: randomUUID(), destination })
       this.transition(tab)
       return
     }
-    tab.history.branch()
-    let segment: WebSegment
-    if (tab.history.current.kind === 'web' && tab.history.current.segment.surface === surface) segment = tab.history.current.segment
-    else {
-      segment = new WebSegment(this.window, (newEntry) => {
+    let segment = tab.history.segment(surface)
+    // Reopening Inbox resumes its live page/draft when its configured entry URL is unchanged.
+    if (inbox && segment && !segment.error && segment.entryURL === destination.url) {
+      tab.history.showWeb(segment); this.transition(tab); return
+    }
+    if (!segment) {
+      const created: WebSegment = new WebSegment(this.window, () => {
         if (!this.tabs.has(tab.id)) return
-        if (newEntry && tab.history.current.kind === 'web' && tab.history.current.segment === segment) tab.history.discardFuture()
         this.updateVisibility(); this.publishState()
       }, (url) => {
         void (async () => {
           if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
-          await this.createTab(); await this.navigate(url, segment.surface)
+          await this.createTab(); await this.navigate(url, created.surface)
         })().catch(() => { /* The popup's load error belongs to its own tab. */ })
       }, surface, {
-        identity: () => this.selectionIdentity(tab, segment),
-        accept: (target, content) => this.handoff(tab, segment, target, content)
+        identity: () => this.selectionIdentity(tab, created),
+        accept: (target, content) => this.handoff(tab, created, target, content),
+        travel: direction => { if (this.selectionIdentity(tab, created)) void this.travel(direction) }
       })
-      this.shortcuts(segment.view.webContents)
-      tab.history.append({ kind: 'web', id: segment.id, segment })
+      segment = created
+      this.shortcuts(created.view.webContents)
     }
+    tab.history.showWeb(segment)
+    segment.trimForward()
     // Establish a web destination before publishing or asking React to present it.
     segment.url = destination.url
     this.transition(tab)
@@ -205,6 +222,10 @@ export class BrowserManager {
 
   back(): Promise<void> { return this.travel(-1) }
   forward(): Promise<void> { return this.travel(1) }
+  async reload(): Promise<void> {
+    const item = this.requireTab(this.activeTabId).history.current
+    if (item.kind === 'web' && item.segment.surface === 'browser') item.segment.reload()
+  }
 
   getState(): BrowserState {
     return { language: i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en', theme: resolvedTheme(), revision: this.revision, tabs: [...this.tabs.values()].map((tab) => this.tabState(tab)), activeTabId: this.activeTabId }
@@ -215,7 +236,7 @@ export class BrowserManager {
     const destination = item.kind === 'internal' ? item.destination : { kind: 'web' as const, url: item.segment.url,
       ...(item.segment.surface === 'inbox' ? { surface: 'inbox' as const } : {}) }
     return {
-      id: tab.id, destination, targetId: this.targetId(tab),
+      id: tab.id, browserTitle: tab.history.segment('browser')?.title || t($ => $.browser.newTab), destination, targetId: this.targetId(tab),
       title: item.kind === 'internal' ? t($ => $.navigation.pages[item.destination.page]) : item.segment.surface === 'inbox' ? t($ => $.navigation.pages.inbox) : item.segment.title,
       url: destination.kind === 'web' ? destination.url : '',
       canGoBack: tab.history.canGoBack, canGoForward: tab.history.canGoForward,
@@ -223,6 +244,8 @@ export class BrowserManager {
       error: item.kind === 'web' ? item.segment.error : ''
     }
   }
+
+  private isBrowser(): boolean { return isBrowserDestination(this.tabState(this.requireTab(this.activeTabId)).destination) }
 
   private targetId(tab: Tab): string { return `${tab.history.current.id}:${tab.version}` }
   private requireTab(id: string): Tab {
@@ -236,14 +259,14 @@ export class BrowserManager {
     if (direction === -1 ? !tab.history.canGoBack : !tab.history.canGoForward) return
     if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
     tab.history.travel(direction)
-    this.transition(tab)
+    this.transition(tab, true)
   }
 
-  private transition(tab: Tab): void {
+  private transition(tab: Tab, preserveSurface = false): void {
     this.selections.dispose()
     this.unsaved = false
     tab.version++
-    this.visible = false // The owning Browser or Inbox page acknowledges the committed target.
+    if (!preserveSurface) this.visible = false // History keeps its gray native cover across the target change.
     this.updateVisibility(); this.publishState()
   }
 
@@ -255,7 +278,7 @@ export class BrowserManager {
   private handoff(tab: Tab, segment: WebSegment, target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void {
     if (!this.selectionIdentity(tab, segment)) return
     this.selections.dispose()
-    tab.history.append({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: target === 'ask-ai' ? 'ai' : 'find' } })
+    tab.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: target === 'ask-ai' ? 'ai' : 'find' } })
     tab.version++; this.unsaved = false; this.visible = false
     this.selections.put({ tabId: tab.id, targetId: this.targetId(tab) }, { id: randomUUID(), target, ...content })
     this.updateVisibility(); this.publishState()
@@ -280,7 +303,7 @@ export class BrowserManager {
 
   private updateVisibility(): void {
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
-      if (item.kind === 'web') item.segment.view.setVisible(!this.rendererLoading && this.visible && tab.id === this.activeTabId && item === tab.history.current)
+      if (item.kind === 'web') item.segment.setVisible(!this.rendererLoading && this.visible && tab.id === this.activeTabId && item === tab.history.current)
     }
     if (!this.window.isDestroyed()) this.layout()
   }
@@ -288,8 +311,9 @@ export class BrowserManager {
   private shortcuts(contents: WebContents): void {
     installShortcuts(contents, {
       back: () => this.back(), forward: () => this.forward(), createTab: () => this.createTab(),
-      closeActive: () => this.closeTab(this.activeTabId),
+      closeActive: () => { if (this.isBrowser()) void this.closeTab(this.activeTabId) },
       cycle: (direction) => {
+        if (!this.isBrowser()) return
         const ids = [...this.tabs.keys()], index = ids.indexOf(this.activeTabId)
         this.activateTab(ids[(index + direction + ids.length) % ids.length])
       },

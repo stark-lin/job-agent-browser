@@ -38,7 +38,7 @@ module.exports = async function browserSmoke(window) {
     throw new Error(`Timed out: ${label}`)
   }
   const waitState = (check, label) => waitFor(async () => check(await read()), label)
-  const views = () => window.contentView.children.filter((view) => view.webContents)
+  const views = () => require('./native-views.cjs').views(window)
   const pageFor = (url) => views().find((view) => view.webContents.getURL() === url)
   async function submit(value) {
     await evaluate(`(() => {
@@ -99,17 +99,17 @@ module.exports = async function browserSmoke(window) {
     const firstView = pageFor(`${origin}/one`)
     const firstContents = firstView.webContents
     assert(firstView.getVisible())
-    assert.equal(firstView.getBounds().y, 96)
+    assert.equal(require('./native-views.cjs').bounds(window, firstView).y, 96)
     const sidebarWidth = 64
-    assert.equal(firstView.getBounds().x, sidebarWidth)
-    assert.equal(firstView.getBounds().width, window.getContentSize()[0] - sidebarWidth)
+    assert.equal(require('./native-views.cjs').bounds(window, firstView).x, sidebarWidth)
+    assert.equal(require('./native-views.cjs').bounds(window, firstView).width, window.getContentSize()[0] - sidebarWidth)
     const chrome = await evaluate(`(() => {
       const tabs = document.querySelector('.tab-strip').getBoundingClientRect();
       const toolbar = document.querySelector('.browser-controls').getBoundingClientRect();
       return { tabs: tabs.height, toolbar: toolbar.height, bottom: toolbar.bottom };
     })()`)
     assert.deepEqual(chrome, { tabs: 48, toolbar: 48, bottom: 96 })
-    assert.equal(firstView.getBounds().y, chrome.bottom, 'Native view must meet the rendered toolbar')
+    assert.equal(require('./native-views.cjs').bounds(window, firstView).y, chrome.bottom, 'Native view must meet the rendered toolbar')
     assert.equal(await firstView.webContents.executeJavaScript('typeof window.browser + ":" + typeof require'), 'undefined:undefined')
     await firstView.webContents.executeJavaScript('document.querySelector("#draft").value = "Keep this draft"')
     await call('navigate', `${origin}/two`)
@@ -145,7 +145,7 @@ module.exports = async function browserSmoke(window) {
     const secondView = pageFor(`${origin}/other`)
     const secondContents = secondView.webContents
     await secondView.webContents.executeJavaScript('document.querySelector("#draft").value = "Keep this draft"')
-    assert.equal(active(await read()).canGoBack, true)
+    assert.equal(active(await read()).canGoBack, false)
     await evaluate('document.querySelectorAll("[role=tab]")[0].click()')
     await waitState((state) => state.activeTabId === firstId, 'tab button switch')
     assert(firstView.getVisible())
@@ -161,12 +161,9 @@ module.exports = async function browserSmoke(window) {
     await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === 'Browser').click()")
     await waitFor(() => evaluate('!!document.querySelector(".address-form")'), 'reopen Browser')
     assert.equal((await read()).activeTabId, secondId)
-    assert(!secondView.getVisible())
-    assert.equal(active(await read()).url, '')
-    await call('back')
-    await call('back')
-    await waitState((state) => active(state).url === `${origin}/other`, 'return across Home and blank Browser')
-    await waitFor(() => secondView.getVisible(), 'restore preserved native page')
+    await waitFor(() => secondView.getVisible(), 'restore retained native page')
+    assert.equal(active(await read()).url, `${origin}/other`)
+    assert.equal(active(await read()).canGoBack, false)
     assert.equal(await secondView.webContents.executeJavaScript('document.querySelector("#draft").value'), 'Keep this draft')
 
     await submit('javascript:alert("blocked")')
@@ -232,6 +229,7 @@ module.exports = async function browserSmoke(window) {
     assert(secondContents.isDestroyed())
     assert(views().every((view) => !view.getVisible()))
     assert.equal(views().length, 0)
+    await require('./history-gesture-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin })
     await require('./navigation-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut })
     await require('./sidebar-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut })
     await require('./ai-smoke.cjs')({ window, call, evaluate, waitFor })

@@ -398,6 +398,8 @@ export const en = {
     }
   },
   browser: {
+    refresh: 'Refresh',
+    back: 'Go back', forward: 'Go forward',
     tabs: 'Browser tabs', closeTab: 'Close tab', closeNamedTab: 'Close {{title}}', newTab: 'New tab',
     addressLabel: 'Search or enter URL', addressPlaceholder: 'Search or enter URL...',
     emptyHeading: 'Start exploring', emptyDescription: 'Search for anything or enter a web address above.'
