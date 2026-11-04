@@ -4,11 +4,13 @@ import { Button, FormField, PageHeading, SectionCard, StatusMessage, TextInput, 
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { useUnsavedGuard } from '../../app/navigation/useUnsavedGuard'
-import { jobDetails, sourceDetails } from '../../domain/job/job.validation'
+import { jobDetails } from '../../domain/job/job.validation'
 import type { SourceDetails } from '../../domain/job/job.types'
 import { en } from '../../shared/i18n/locales/en'
 import { JobFields } from './JobFields'
-import { emptyJob, fillEmptyJob } from './job-form'
+import { emptyJob, fillEmptyJob, jobFormSource } from './job-form'
+import { useWebSelection } from '../../app/navigation/useWebSelection'
+import type { WebSelection } from '../../shared/browser-selection'
 import { ImportModeField, ImportProgress } from '../../app/ai/ImportControls'
 import { useJobImport } from './useJobImport'
 import './job.css'
@@ -18,6 +20,10 @@ export function AddJobPage() {
   const [details, setDetails] = useState(emptyJob), [url, setUrl] = useState(''), [source, setSource] = useState<SourceDetails | null>(null)
   const [sourceKind, setSourceKind] = useState<'url' | 'text' | 'pdf'>('url'), [text, setText] = useState(''), [pdf, setPdf] = useState<{ fileId: string; bytes: number } | null>(null)
   const [saving, setSaving] = useState(false), [saved, setSaved] = useState(false), [notice, setNotice] = useState(false), [error, setError] = useState('')
+  const [webSource, setWebSource] = useState<WebSelection['source'] | null>(null)
+  const selection = useWebSelection('job-import', selected => {
+    setSourceKind('text'); setText(selected.text); setWebSource(selected.source)
+  })
   const lock = useRef(false), alive = useRef(true)
   const importer = useJobImport(draft => { setDetails(current => fillEmptyJob(current, draft.details)); setSource(draft.source); setNotice(true) })
   const busy = importer.phase !== 'idle', dirty = !saved && (busy || Boolean(url) || Boolean(text) || Boolean(pdf) || JSON.stringify(details) !== JSON.stringify(emptyJob()))
@@ -29,7 +35,7 @@ export function AddJobPage() {
     let input
     try {
       input = { details: jobDetails({ ...details, title: details.title.trim(), companyNameRaw: details.companyNameRaw.trim() }),
-        source: sourceKind === 'url' && url.trim() ? sourceDetails(source?.url === url.trim() ? source : { url: url.trim() }) : null }
+        source: jobFormSource(sourceKind, url, source, webSource, text) }
       if (input.details.salary && input.details.salary.min !== null && input.details.salary.max !== null && input.details.salary.min > input.details.salary.max) throw new Error('INVALID_INPUT')
     } catch { setError('INVALID_INPUT'); return }
     lock.current = true; setSaving(true); setError('')
@@ -49,7 +55,9 @@ export function AddJobPage() {
     <div className="page-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
     <PageHeading title={t($ => $.navigation.pages.find)} description={t($ => $.jobs.subtitle)} />
     <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
-      <FormField label={t($ => $.jobs.inputKind)}>{props => <Select {...props} name="captureSource" value={sourceKind} disabled={busy || saving || saved} onChange={event => { setSourceKind(event.target.value as typeof sourceKind); setSource(null); importer.clearError() }}>
+      {selection.error && <div><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></div>}
+      {webSource && <StatusMessage>{t($ => $.selection.source)}: {webSource.title} · {webSource.url}</StatusMessage>}
+      <FormField label={t($ => $.jobs.inputKind)}>{props => <Select {...props} name="captureSource" value={sourceKind} disabled={busy || saving || saved} onChange={event => { setSourceKind(event.target.value as typeof sourceKind); setSource(null); setWebSource(null); importer.clearError() }}>
         <option value="url">{t($ => $.jobs.url)}</option><option value="text">{t($ => $.jobs.pastedJD)}</option><option value="pdf">{t($ => $.jobs.pdf)}</option>
       </Select>}</FormField>
       {sourceKind === 'url' && <FormField label={t($ => $.jobs.url)}>{props => <TextInput {...props} name="jobUrl" type="url" value={url} maxLength={4096} disabled={saving || busy || saved} onChange={event => { setUrl(event.target.value); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}</FormField>}

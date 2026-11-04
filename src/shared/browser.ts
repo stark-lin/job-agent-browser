@@ -1,5 +1,6 @@
 import type { Destination } from './navigation'
 import type { ResolvedTheme } from './settings'
+import type { WebSelection } from './browser-selection'
 
 export interface Presentation {
   tabId: string
@@ -27,6 +28,8 @@ export interface BrowserState {
 }
 
 export interface BrowserAPI {
+  peekSelection(presentation: Presentation): Promise<WebSelection | null>
+  ackSelection(input: Presentation & { id: string }): Promise<void>
   setUnsaved(unsaved: boolean, presentation: Presentation): Promise<void>
   setVisible(visible: boolean, presentation: Presentation): Promise<void>
   navigate(input: string): Promise<void>
@@ -41,6 +44,8 @@ export interface BrowserAPI {
 }
 
 export const BROWSER_STATE_CHANGED = 'browser:state-changed'
+export const BROWSER_PEEK_SELECTION = 'browser:peek-selection'
+export const BROWSER_ACK_SELECTION = 'browser:ack-selection'
 export const BROWSER_NAVIGATE = 'browser:navigate'
 export const BROWSER_BACK = 'browser:back'
 export const BROWSER_FORWARD = 'browser:forward'

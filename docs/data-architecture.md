@@ -29,7 +29,7 @@ The [shared ER diagram](diagrams/data-model.md) describes the implemented model.
 
 [Job use cases](../src/domain/job/job.service.ts) accept allowlisted details. Sources normalize URL fragments/query order and hash cleaned content; public-URL extraction is implemented; duplicate matching/merging remain planned. Archiving is independent of application status. Deleting a Company detaches Jobs and preserves their raw company names.
 
-[Add Job](../src/pages/find-jobs/AddJobPage.tsx) uses typed IPC for manual saves and MCP job.import for reviewed Agent drafts; both reuse jobs.saveJob atomically. Title/company are required, new jobs are NOT_STARTED with null application/closure dates and no event. URL/text/PDF parsing does not write business tables; optional genuine web source is retained only on Save. Text/PDF without a URL uses source:null. Durable receipts are described below.
+[Add Job](../src/pages/find-jobs/AddJobPage.tsx) uses typed IPC for manual saves and MCP job.import for reviewed Agent drafts; both reuse jobs.saveJob atomically. Title/company are required, new jobs are NOT_STARTED with null application/closure dates and no event. URL/text/PDF parsing does not write business tables; optional genuine web source is retained only on Save. Manual text/PDF uses source:null. Browser-prefilled Text retains its sanitized top-level URL, title, hostname and final edited text as the existing SourceDetails on Save, even when parsing returns source:null; changing source mode clears that binding. Durable receipts are described below.
 
 [Application use cases](../src/domain/application/application.service.ts) write status changes and timeline events atomically. Allowed transitions are:
 

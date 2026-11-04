@@ -32,6 +32,14 @@ React App → Page → Preload → IPC → Main
 
 [网页输入解析](../src/platform/browser/navigationManager.ts) 保留 HTTP(S)，识别域名/IP/localhost，其他输入使用 Google 搜索。裸地址默认 HTTPS，localhost 和回环地址默认 HTTP。空输入、无效显式网址及其他协议被拒绝。[测试](../tests/navigation.test.ts) 保留这些规则；[混合历史测试](../tests/mixed-history.test.ts) 覆盖内部路由与段间回放/分叉。
 
+### 网页选区交接
+
+**已实现：**[WebSegment](../src/platform/browser/webSegment.ts) 为普通 Browser 选区（包括 Frame）提供原生右键菜单，并保留原生编辑操作。Inbox、表单控件和可编辑区域不显示业务入口。点击时重新校验活动标签页/目标、源文档导航代次和存活 Frame；重载、导航或切换标签页会使旧菜单失效。[选区校验](../src/shared/browser-selection.ts) 保留最多 60,000 个 UTF-16 单元的原文，限制网址/标题长度，并净化来源网址的凭据、片段及已知认证查询参数。来源统一使用顶层网址和标题。
+
+[BrowserManager](../src/platform/browser/browserManager.ts) 在发布当前标签页的内部目标前，写入 UUID 绑定的[内存交接](../src/platform/browser/selectionHandoff.ts)。可信主 Frame IPC 按标签页/目标/页面读取，输入状态提交后 ACK。五分钟内可重试；离开目标、关闭标签页及退出时清理。内容不进入网址、BrowserState、日志或审计。[消费逻辑](../src/app/navigation/useWebSelection.ts) 忽略过期/卸载后的返回并防止重复填入。Ask 追加到未发送的新对话草稿，不覆盖会话草稿或启动 Run；进行中的发送不会抢回该草稿。Add Job 切至文本，等待用户解析/保存。交接等同用户输入，后续沿用普通持久化和导出规则。来源保存由[数据架构](data-architecture.zh-CN.md#二业务规则)说明。
+
+现有 `persist:job-agent-browser` Session 继续在原生视图间共享。[选区 Smoke](../scripts/browser-selection-smoke.cjs) 覆盖真实右键事件、Frame、来源保存、显式 AI 操作、登录复用/过期/退出；[重启 Smoke](../scripts/settings-restart-smoke.cjs) 在新的生产进程中通过同一本地来源验证持久 Cookie 和 localStorage。JAB 不续期已过期的网站会话；真实提供方的登录兼容性仍未经验证。
+
 ## 三、展示与交互
 
 [WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 常驻每个页面左侧，提供主页、九个功能、翻译后的无障碍分组及唯一当前状态，统一使用图标栏。原有 Home / Job search / Manage / Tools / Settings 分区及顺序保持不变，按照[设计规范](design-system.zh-CN.md#五交互与无障碍)用短横线分隔。悬停提示显示翻译后的目标名称；已移除侧栏品牌头部及 Home 标题上方的品牌文字。共享[功能元数据](../src/app/navigation/features.ts)管理侧栏及 Home 的图标/顺序。切换功能使用相同导航 API 和未保存设置保护；点击当前功能不新增历史。[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮（Ask AI V2 使用常驻侧栏的主页入口），不显示跨页面 Back/Next/Forward 控件。占位页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back 和 Forward。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。

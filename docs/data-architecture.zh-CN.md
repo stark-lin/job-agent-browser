@@ -29,7 +29,7 @@
 
 [职位用例](../src/domain/job/job.service.ts) 接收白名单详情。来源 URL 移除片段并排序查询参数，清洗内容计算哈希；公开 URL 提取已实现，重复匹配/合并仍为规划。归档独立于申请状态。删除 Company 会解除 Job 关联并保留原始公司名称。
 
-[新增工作](../src/pages/find-jobs/AddJobPage.tsx)的手工保存使用 typed IPC，经审核的 Agent 草稿使用 MCP job.import，二者均原子复用 jobs.saveJob。名称和公司必填，新职位为 NOT_STARTED，申请/关闭时间为空且不创建事件。URL/文本/PDF 解析不写业务表，保存时才保留可选真实网页来源；无 URL 的文本/PDF 使用 source:null。持久化 receipt 见下文。
+[新增工作](../src/pages/find-jobs/AddJobPage.tsx)的手工保存使用 typed IPC，经审核的 Agent 草稿使用 MCP job.import，二者均原子复用 jobs.saveJob。名称和公司必填，新职位为 NOT_STARTED，申请/关闭时间为空且不创建事件。URL/文本/PDF 解析不写业务表，保存时才保留可选真实网页来源；手工文本/PDF 使用 source:null。浏览器预填文本在保存时使用现有 SourceDetails 保留净化后的顶层网址、标题、主机名和最终编辑文本，即使解析返回 source:null 也不会丢失；切换来源模式会清除该绑定。持久化 receipt 见下文。
 
 [申请用例](../src/domain/application/application.service.ts) 原子写入状态变化及时间线事件。允许的状态转换如下：
 

@@ -32,11 +32,15 @@ import {
   BROWSER_STATE_CHANGED,
   BROWSER_SET_VISIBLE,
   BROWSER_SET_UNSAVED,
+  BROWSER_PEEK_SELECTION,
+  BROWSER_ACK_SELECTION,
   type BrowserAPI,
   type BrowserState
 } from '../../../shared/browser'
 
 const browserAPI: BrowserAPI = {
+  peekSelection: presentation => ipcRenderer.invoke(BROWSER_PEEK_SELECTION, presentation),
+  ackSelection: input => ipcRenderer.invoke(BROWSER_ACK_SELECTION, input),
   setUnsaved: (unsaved, presentation) => ipcRenderer.invoke(BROWSER_SET_UNSAVED, unsaved, presentation),
   setVisible: (visible, presentation) => ipcRenderer.invoke(BROWSER_SET_VISIBLE, visible, presentation),
   navigate: (input) => ipcRenderer.invoke(BROWSER_NAVIGATE, input),

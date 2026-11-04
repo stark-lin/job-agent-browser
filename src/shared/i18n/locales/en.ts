@@ -1,5 +1,12 @@
 /** Application-owned copy. Keep complete sentences so translations can reorder words. */
 export const en = {
+  selection: {
+    ask: 'Send to Ask AI', job: 'Import job', ok: 'OK',
+    invalid: 'Select between 1 and 60,000 characters from an HTTP(S) page. The source URL must fit 4,096 characters and the title 1,000 characters.',
+    failed: 'The selected content could not be transferred. Retry while this page is open.',
+    tooLarge: 'The selection and existing draft exceed 128,000 characters. Shorten the new chat draft, then retry.',
+    retry: 'Retry transfer', source: 'Source page', content: 'Selected page content'
+  },
   knowledge: {
     indexSpace: 'Index to rebuild',
     memory: 'Memory', knowledgeSpace: 'Knowledge', syncConsentTitle: 'Upload Memory and its history?', syncConsentHelp: 'Sync uploads both Knowledge and Memory, including their Git history, to this remote. Cancel keeps local notes and backups available.', syncConsentRequired: 'Remote sync needs your consent.',

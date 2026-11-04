@@ -232,6 +232,16 @@
         </div>
 
         <div class="demo">
+          <div class="demo-label">Browser selection · ordinary user input</div>
+          <div class="demo-stage vstack">
+            <div class="notice"><div class="notice-mark">i</div><div>Source page: Engineer · https://example.com/jobs/123</div></div>
+            <label class="field"><span class="field-label">Pasted job description</span><textarea class="control" maxlength="60000">Build TypeScript services.</textarea><span class="field-help">Edit the selection, then explicitly parse or save. Changing source mode clears the website binding.</span></label>
+            <div class="notice"><div class="notice-mark">i</div><div>The selected content could not be transferred. Retry while this page is open.</div></div>
+            <button class="btn">Retry transfer</button>
+          </div>
+        </div>
+
+        <div class="demo">
           <div class="demo-label">ListInput · comma-separated values</div>
           <div class="demo-stage">
             <label class="field"><span class="field-label">Tags (comma separated)</span><input class="control" value="SQL, TypeScript, " aria-describedby="list-input-help" /><span id="list-input-help" class="field-help">The application retains a trailing delimiter while you enter the next value.</span></label>
