@@ -136,18 +136,18 @@ test('profile receipts and revisions roll back together; a new Run can explicitl
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
 })
 
-test('MCP edits affect future resume snapshots while prior snapshots remain immutable', async t => {
-  const f = await firstPartyFixture(t), tools = await f.askRun(signal())
-  const first = await tools.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: randomUUID() }, signal()) as { runId: string }
+test('Ask profile edits affect dedicated Resume snapshots while prior snapshots remain immutable', async t => {
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal()), resume = await f.mcp.session('resume', signal())
+  const first = await resume.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: randomUUID() }, signal()) as { runId: string }
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const updated = await tools.call('profile.update', { id: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), changes: { name: 'Updated name' } }, signal()) as Profile
   await tools.call('profile.update_fact', { id: f.fact.id, profileId: profile.id, expectedRevision: updated.revision, requestId: randomUUID(), changes: { content: 'Updated source claim' } }, signal())
-  const second = await tools.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: randomUUID() }, signal()) as { runId: string }
-  const oldContext = await tools.call('resume.get_context', { runId: first.runId }, signal()) as { profile: Profile }
-  const newContext = await tools.call('resume.get_context', { runId: second.runId }, signal()) as { profile: Profile }
+  const second = await resume.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: randomUUID() }, signal()) as { runId: string }
+  const oldContext = await resume.call('resume.get_context', { runId: first.runId }, signal()) as { profile: Profile }
+  const newContext = await resume.call('resume.get_context', { runId: second.runId }, signal()) as { profile: Profile }
   assert.equal(oldContext.profile.name, f.profile.name); assert.equal(newContext.profile.name, 'Updated name')
-  const oldFacts = await tools.call('resume.list_facts', { runId: first.runId }, signal()) as PageResult<Fact>
-  const newFacts = await tools.call('resume.list_facts', { runId: second.runId }, signal()) as PageResult<Fact>
+  const oldFacts = await resume.call('resume.list_facts', { runId: first.runId }, signal()) as PageResult<Fact>
+  const newFacts = await resume.call('resume.list_facts', { runId: second.runId }, signal()) as PageResult<Fact>
   assert.equal(oldFacts.items[0].content, f.fact.content); assert.equal(newFacts.items[0].content, 'Updated source claim')
   assert([...oldFacts.items, ...newFacts.items].every(fact => !('evidence' in fact)))
 })

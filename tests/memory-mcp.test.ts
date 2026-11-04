@@ -8,6 +8,8 @@ import { createMCPClient } from '../src/platform/mcp/client'
 import { createMemoryAuthority } from '../src/platform/mcp/memory-authority'
 import { approximateTokens } from '../src/platform/knowledge/rag/chunker'
 import { validateDescriptor } from '../src/shared/tools/policy'
+import { askToolAllowlist } from '../src/shared/agent/ask-policy'
+import { jobAgentAllowlist } from '../src/platform/tools'
 const signal = new AbortController().signal
 const names = ['memory.list', 'memory.recall', 'memory.read', 'memory.write', 'memory.mkdir']
 function external(f: Awaited<ReturnType<typeof firstPartyFixture>>, launch?: string, caller = 'internal.ask-ai') {
@@ -112,4 +114,27 @@ test('reused Ask transport has distinct immutable per-turn grants; cancellation 
   await assert.rejects(unbound.call('memory.write', { path: 'unbound.md', content: 'Missing source', expectedRevision: null }, signal), { code: 'TOOL_FORBIDDEN' })
   assert.equal((await second.call('memory.read', { path: 'second-turn.md' }, signal) as { content: string }).content, 'Second')
   await assert.rejects(second.call('memory.read', { path: 'missing.md' }, signal), { code: 'TOOL_NOT_FOUND' })
+})
+
+test('trusted Ask policy denies every resume/build tool even with valid Run grants and a spoofed Resume label', async t => {
+  const f = await firstPartyFixture(t), resume = await f.mcp.session('resume', signal)
+  assert.deepEqual((await resume.list()).map(t => t.name).sort(), [...jobAgentAllowlist].sort())
+  const foreign = await resume.call('resume.start', { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id }, signal) as { runId: string }
+  const authority = createMemoryAuthority(f.directory); f.cleanup(() => authority.close())
+  const ask = external(f, await authority.issue('restricted-ask'), 'internal.resume')
+  await ask.connect()
+  assert.deepEqual((await ask.listTools()).map(t => t.name).sort(), [...askToolAllowlist].sort())
+  const run = authority.registerRun('restricted-ask', randomUUID(), 'chat')
+  const forbidden = [...jobAgentAllowlist.filter(name => name.startsWith('resume.')), 'artifact.build']
+  for (const name of forbidden) {
+    const args = { runId: foreign.runId }
+    const result = await ask.callTool(name, args, signal, { jabRunGrant: run.grant(name, args) }) as { isError: boolean; content: { text: string }[] }
+    assert.equal(result.isError, true, name); assert.equal(result.content[0].text, 'TOOL_FORBIDDEN', name)
+  }
+  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.status, 'RUNNING')
+  assert.equal(f.outputs(), 0)
+  assert(!f.backend.toolAudit.list().some(row => row.agent_id === 'internal.resume' && row.tool_name !== 'resume.start'))
+  await run.close()
+  await resume.call('resume.cancel', { runId: foreign.runId }, signal)
+  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.status, 'CANCELLED')
 })

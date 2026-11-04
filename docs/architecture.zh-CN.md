@@ -72,7 +72,7 @@ React App → Page → Preload → IPC → Main
 
 [上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts)优先使用 LM Studio 已加载实例限制；未知或低于 64K 的窗口不能运行 Ask AI。Settings 支持填写部署限制。
 
-[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策，包括明确记忆请求与有价值的主动保存。普通对话没有宿主 Memory 模型任务；工具依次返回后才恢复推理，压缩是唯一的上下文模型任务。不再存在 Blocking/Parallel Memory 模式、维护 Agent 或 Memory 重试屏障。导入并行许可及原 Resume/Capture/Application 引擎保持原行为；[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责 Memory 权限与写入一致性。
+[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。导入并行许可及独立 Resume/Capture/Application 引擎保持原行为。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
 
 **已实现模型发现：**[Main 检测服务](../src/platform/ai/models.ts)按用户操作向已保存 Provider 的 `models` 资源发起 `GET`，使用已保存密钥；无需密钥的服务不发送身份验证。不要求已有模型/默认值。服务拒绝重定向，限制 JSON 为 1 MB/10,000 条，校验、去重并排序 ID，使用已保存的模型检测超时，每个窗口最多一个请求、全局最多 16 个。窗口释放/导航或应用退出会中止检测。
 

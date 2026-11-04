@@ -1,6 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core' with { 'resolution-mode': 'import' }
 import { AgentError, abortable, type AgentToolDescriptor, type AgentTools, type StreamingAgentModel } from '../../../shared/agent'
 import { modelToolResult } from '../../../shared/agent/tool-result'
+import { guardNextAction, type RunGuardSnapshot } from '../../../shared/agent/run-guard'
 import { ToolError } from '../../../shared/tools/errors'
 import type { AskRuntimeStatus } from '../../../shared/ask'
 import type { ContextBudget } from '../context/budget'
@@ -16,7 +17,9 @@ export async function runPiAsk(deps: {
   status(value: AskRuntimeStatus): void; protect(name: string, args: unknown, result: unknown, uncertain: boolean): void
 }) {
   const { Agent } = await import('@earendil-works/pi-agent-core')
-  let failure: unknown, serial = 0
+  let failure: unknown, serial = 0, recoverBatch = false
+  const guidance = (guard?: RunGuardSnapshot) => guard?.level ? [{ type: 'text' as const,
+    text: `\nRunGuard guidance: ${JSON.stringify({ level: guard.level, nextAction: guard.nextAction })}` }] : []
   const failed = (error: unknown) => { failure ??= error }
   const registry = new ToolDiscovery(deps.tools, deps.budget, activation => {
     try { deps.emit({ type: 'model.request.activation', activation }) }
@@ -35,7 +38,8 @@ export async function runPiAsk(deps: {
         const guard = descriptor.name.startsWith('tool.') ? undefined : deps.tools.getRunGuardSnapshot?.()
         deps.emit({ type: 'tool.completed', id, name: descriptor.name, result, durationMs: Date.now() - began, guard })
         if (guard?.status === 'BLOCKED') { failed(new ToolError('TOOL_GUARD_TERMINATED')); agent.abort() }
-        return { content: [{ type: 'text', text: JSON.stringify(modelToolResult(descriptor.name, result)) }], details: {} }
+        if (guard?.level === 'recovery') recoverBatch = true
+        return { content: [{ type: 'text', text: JSON.stringify(modelToolResult(descriptor.name, result)) }, ...guidance(guard)], details: {} }
       } catch (error) {
         const code = error instanceof ToolError || error instanceof AgentError ? error.code : 'TOOL_EXECUTION_FAILED'
         const guard = descriptor.name.startsWith('tool.') ? undefined : deps.tools.getRunGuardSnapshot?.()
@@ -45,10 +49,18 @@ export async function runPiAsk(deps: {
         if (!rejected) deps.protect(descriptor.name, args, null, uncertain)
         deps.emit({ type: 'tool.failed', id, name: descriptor.name, error: code, durationMs: Date.now() - began, uncertain, guard })
         if (fatal) { failed(guard?.status === 'BLOCKED' && !uncertain ? new ToolError('TOOL_GUARD_TERMINATED') : error); agent.abort() }
-        return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(guard ? { reason: guard.reason, executed: guard.executed, effectAlreadyConfirmed: guard.effectAlreadyConfirmed } : {}) }) }], details: {}, isError: true }
+        if (guard?.level === 'recovery') recoverBatch = true
+        return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(guard ? { reason: guard.reason, executed: guard.executed, effectAlreadyConfirmed: guard.effectAlreadyConfirmed } : {}) }) }, ...guidance(guard)], details: {}, isError: true }
       }
     } })
-  const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, prepare: async (m, t, s) => { const messages = await deps.context.prepare(m, t, s); s.throwIfAborted(); deps.status('idle'); return messages }, failed,
+  const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, prepare: async (m, t, s) => {
+    const messages = await deps.context.prepare(m, t, s)
+    s.throwIfAborted(); deps.status('idle')
+    const guard = deps.tools.getRunGuardSnapshot?.()
+    // Keep authoritative control advice even when earlier tool exchanges were compacted.
+    return guard?.level ? messages.map(message => message.role === 'system'
+      ? { ...message, content: `${message.content}\nRuntime RunGuard ${guard.level}: ${guardNextAction}` } : message) : messages
+  }, failed,
     loadout: () => registry.snapshot(), advertised: names => registry.confirmRequest(names),
     completed: response => deps.emit({ type: 'model.completed', response }) })
   const agent = new Agent({ streamFn, toolExecution: 'sequential', initialState: {
@@ -56,11 +68,13 @@ export async function runPiAsk(deps: {
     model: { id: 'jab-model', name: 'JAB model', api: 'openai-completions', provider: 'jab', baseUrl: '', input: ['text'], reasoning: false,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: deps.budget.capabilities.contextWindow, maxTokens: deps.budget.output }
   }, prepareNextTurnWithContext: async ({ context }) => {
+    recoverBatch = false
     await registry.refresh()
     const tools = registry.loadout().map(tool); agent.state.tools = tools
     return { context: { ...context, tools } }
   }, beforeToolCall: async () => {
     if (failure || deps.signal.aborted) { agent.abort(); return { block: true, reason: 'AGENT_CANCELLED', terminate: true } }
+    if (recoverBatch) return { block: true, reason: `Not executed: RunGuard requires a new decision. ${guardNextAction}` }
     return undefined
   } })
   let segment: string | undefined

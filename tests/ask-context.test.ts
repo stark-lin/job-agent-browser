@@ -34,12 +34,18 @@ test('incremental compaction persists a monotonic boundary only after successful
   await assert.rejects(failing.prepare(live, [], new AbortController().signal), /fixture/)
 })
 test('disclosure starts with two tools and refuses forbidden capabilities without changing MCP permissions', async () => {
-  const descriptors: AgentToolDescriptor[] = ['job.list', 'profile.get', 'knowledge.delete', 'memory.write'].map(name => ({ name, description: name, inputSchema: { type: 'object' } }))
+  const forbidden = ['knowledge.delete', 'resume.start', 'resume.get_context', 'resume.cancel', 'resume.fail', 'artifact.build', 'job.future']
+  const descriptors: AgentToolDescriptor[] = ['job.list', 'profile.get', 'memory.write', ...forbidden].map(name => ({ name, description: name, inputSchema: { type: 'object' } }))
   const calls: string[] = [], discovery = new ToolDiscovery({ list: async () => descriptors, call: async name => { calls.push(name); return {} } }, new ContextBudget(capability(), 'unknown'))
   const signal = new AbortController().signal
   await discovery.refresh(); assert.deepEqual(discovery.loadout().map(t => t.name), ['tool.search', 'tool.activate'])
   const result = await discovery.call('tool.search', { query: 'memory' }, signal) as { name: string }[]; assert.deepEqual(result.map(t => t.name), ['memory.write'])
-  await assert.rejects(discovery.call('tool.activate', { names: ['knowledge.delete'] }, signal))
+  for (const name of forbidden) {
+    const search = await discovery.call('tool.search', { query: name }, signal) as { name: string }[]
+    assert(!search.some(t => t.name === name))
+    await assert.rejects(discovery.call('tool.activate', { names: [name] }, signal), /AGENT_PROTOCOL_ERROR/)
+    await assert.rejects(discovery.call(name, {}, signal), /AGENT_PROTOCOL_ERROR/)
+  }
   await assert.rejects(discovery.call('job.list', {}, signal))
   await discovery.call('tool.activate', { names: ['job.list'] }, signal); discovery.loadout(); await discovery.call('job.list', {}, signal)
   assert.deepEqual(calls, ['job.list'])

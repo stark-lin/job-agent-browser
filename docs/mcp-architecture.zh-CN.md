@@ -25,17 +25,21 @@ UI    → typed IPC → Domain
 
 [Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
 
-[Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)，保留共享 Resume 证据策略。初始仅暴露 tool.search/tool.activate，[目录](../src/platform/agent/tools/discovery.ts)索引已授权 MCP 描述及风险元数据，包含全部五个 Memory 工具。搜索最多返回八条摘要，激活默认八个工具，Schema 软预算为输入的 8%、最高 8,192 Tokens，仍受总上下文硬限制。工具集合只在请求边界变化，执行调用 MCPAgentTools.call。Ask 排除 Delete 工具。完整批次校验后顺序执行，等待每个结果后才进入下一次推理，每 Run 的主循环及上下文摘要合计最多 64 次 Provider 请求；取消、审计失败或不确定写入终止执行。
+[Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)。初始 loadout 只有 tool.search/tool.activate；[目录](../src/platform/agent/tools/discovery.ts)索引获授权的 MCP 描述及风险，包括五个 Memory 工具。搜索最多返回八个摘要；激活默认最多八个工具、Schema 软预算为 8%/8,192 Tokens，同时受硬上下文预算约束。Loadout 在请求边界切换，执行使用 MCPAgentTools.call。整批校验后串行执行，等待每个结果后才进入下一次推理，每 Run 的主循环及上下文摘要合计最多 64 次 Provider 请求；取消、审计失败或不确定写入终止执行。
 
 **已实现激活保护：**激活保留 activeOnNextRequest，增加 alreadyActive/changed/nextAction。仅仍获授权且已在组装请求中通过校验的工具计为已激活；名称换序/重复不构成进展。同一规范化工具组容忍一次冗余激活，第二次以 AGENT_STEP_LIMIT 结束 Run，阻止同批后续工具和推理。搜索不清除计数；业务调用成功、有效 loadout 变化或目录变化会清除。同批尚未生效的激活及淘汰后重激活不算冗余。[运行时架构](architecture.zh-CN.md)管理请求校验，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理独立于审计的可删除诊断。[回归测试](../tests/agent-disclosure.test.ts)覆盖保护及同步失败。
+
+[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 非删除操作、五个 Memory 工具及 artifact.get 保持可用；独立 Resume 会话与外部 MCP 保留公开工作流能力。
 
 ### Ask Run 保护
 
 **已实现：**[openAskRun](../src/platform/mcp/first-party-client.ts)为每个准入 Chat Run 创建可取消工具视图，复用 Session 连接。Main 注册身份，签发有效期 30 秒、一次性的 `_meta.jabRunGrant`，绑定实例、认证连接、Run、操作和规范化参数摘要。Memory 写入仍需原有来源授权。已认证 Ask 连接没有 Run 时只能发现工具，不能调用；调用者标签不能开启保护或权限。Chat 身份不覆盖 Resume 的业务 runId。
 
-[Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在审计和 Domain 之前拒绝。显式稳定读取、修订及 Resume 阶段策略追踪进展，未知输出保持中性。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次、连续三次无进展或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。
+[Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在审计和 Domain 之前拒绝。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。
 
-[Pi 适配器](../src/platform/agent/pi/runtime.ts)在执行后检测阻断 Run 时保留本次成功，再停止批次余项和推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止排队/活动调用、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 保持原有未启用 Guard 的行为；外部 Run 边界/模式及第三方出站保护仍为规划。[回归测试](../tests/mcp-run-guard.test.ts)覆盖授权、并发、有界循环和真实结果。诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
+[读取进展](../src/platform/mcp-server/run-guard/read-progress.ts)累计实体/字段证据及各空间文件版本与覆盖行范围。旧结果换序、重组或取子集，以及查询、分数、展示变化不算进展；新分页、Facts、片段和版本算进展。空结果按数据集只计一次。未知 READ 使用规范化结构结果或文本，保留未知字段和数组顺序。读取失败计为无进展；已确认的已知业务修改也贡献进展。连续两次无进展告警，三次进入恢复，之后首个仍无进展的业务结果以 NO_PROGRESS_LOOP 熔断；新证据清零连续计数。发现和激活工具不重置该状态。
+
+[Pi 适配器](../src/platform/agent/pi/runtime.ts)将固定告警/恢复提示与原始业务结果分开传递，压缩后也在模型系统上下文更新提示。恢复时 beforeToolCall 在 tool.started 前非致命地跳过旧批次余项，让模型重新决策；跳过调用不产生执行审计或不确定写入。Run 熔断时保留触发检测的成功结果，再停止后续调用/推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止工作、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 保持未启用 Guard 的行为；外部 Run 边界和第三方出站保护仍为规划。[Guard 测试](../tests/mcp-run-guard.test.ts)与[进展测试](../tests/mcp-run-progress.test.ts)覆盖这些契约，诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
 
 ## 三、内部与第三方 Client
 
@@ -86,7 +90,7 @@ JOB_BROWSER_USER_DATA = "/absolute/path/existing-user-data"
 JOB_BROWSER_MCP_CALLER = "codex"
 ```
 
-内部工作流与外部宿主共享以下公共契约；只有已认证的 Ask AI 额外发现 Memory：
+以下公开契约面向独立流程与外部宿主；已认证 Ask AI 仅获得上文显式子集及 Memory：
 
 | 公共能力 | 契约 |
 | --- | --- |

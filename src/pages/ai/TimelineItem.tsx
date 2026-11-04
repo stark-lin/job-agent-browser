@@ -42,6 +42,8 @@ function TimelineItemView({ item, run }: { item: ChatItem; run?: ChatRun }) {
         { label: t($ => $.ask.guard.executedCalls), value: String(content.guard.executedCalls) },
         { label: t($ => $.ask.guard.rejections), value: String(content.guard.rejections) },
         { label: t($ => $.ask.guard.noProgress), value: String(content.guard.noProgress) },
+        ...(content.guard.level ? [{ label: t($ => $.ask.guard.level), value: t($ => $.ask.guard[content.guard!.level!]) },
+          { label: t($ => $.ask.guard.nextAction), value: t($ => $.ask.guard.changeStrategy) }] : []),
         ...(content.guard.reason ? [{ label: t($ => $.ask.guard.reason), value: t($ => $.ask.guard.reasons[content.guard!.reason!]) }] : []),
         ...content.guard.effects.map(effect => ({ label: t($ => $.ask.guard.confirmedEffect), value: `${effect.id} · ${t($ => $.ask.guard[effect.archived ? 'archived' : 'restored'])}` }))
       ]} />}

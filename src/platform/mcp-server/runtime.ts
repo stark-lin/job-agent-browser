@@ -1,4 +1,5 @@
 import type { MemoryAuthorization } from '../mcp/memory-authority'
+import { askToolAllowlist } from '../../shared/agent/ask-policy'
 import { SmartNoteWorkspace } from '../knowledge/workspace'
 import { createPreferences } from '../storage/preferences'
 import { defaultKnowledgePreferences } from '../../shared/knowledge-settings'
@@ -20,8 +21,7 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const preferences = createPreferences(join(directory,'settings.json'))
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
   const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge, memoryAuthorization ? knowledge.spaces.memory : undefined)
-  const memoryTools = ['memory.list', 'memory.recall', 'memory.read', 'memory.write', 'memory.mkdir']
-  const allow = [...jobAgentAllowlist.filter(name => !memoryAuthorization || name !== 'knowledge.delete'), ...(memoryAuthorization ? memoryTools : [])]
+  const allow = memoryAuthorization ? askToolAllowlist : jobAgentAllowlist
   const mcp = createMCPServer(tooling.registry, { allow, maxRisk: 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
     async (name, args, metadata) => {
       if (!['memory.write', 'memory.mkdir'].includes(name)) return true

@@ -123,7 +123,7 @@ Enter sends, Shift+Enter inserts a line break and IME composition never sends. B
 
 Existing StatusMessage primitives show Pending, synchronous context compaction and discovery/activation. Memory reads/writes use ordinary tool timeline rows, with no background Memory status or retry action. A Session stays busy only while a Run is running. Settings per-model parallel opt-ins apply to imports; effective context/output controls remain available to Ask. There is no Ask Memory mode toggle or Memory console.
 
-[Tool details](../src/pages/ai/TimelineItem.tsx) compose existing DetailsList and Collapsible for Chat Run ID/final state, Guard calls/dispatches/rejections, confirmed effects and localized stop reasons. Pre-execution rejection is labelled “Not executed”; completed and uncertain results retain their own states. The Feedback gallery includes this distinction; tokens and geometry remain unchanged.
+[Tool details](../src/pages/ai/TimelineItem.tsx) compose existing DetailsList and Collapsible for Chat Run ID/final state, Guard calls/dispatches/rejections, confirmed effects and localized stop reasons. Optional Warning/Recovery and Next action rows explain a strategy change without changing the successful tool state. Pre-execution rejection is labelled “Not executed”; completed and uncertain results retain their own states. The Feedback gallery includes these distinctions; tokens and geometry remain unchanged.
 
 ## 6. Maintenance and verification
 

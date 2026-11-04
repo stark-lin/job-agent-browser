@@ -77,9 +77,9 @@ test('Run grants reject missing, forged, expired, changed, borrowed, replayed an
 
 test('A/B read loops and repeated failures terminate, while unknown success is neutral and budgets reject call 257', async () => {
   const guard = freshGuard(), tool = descriptor('job.get')
-  for (const id of ['a', 'b', 'a', 'b', 'a']) {
+  for (const [index, id] of ['a', 'b', 'a', 'b', 'a', 'b'].entries()) {
     const result = await guard.execute(tool, { id }, signal(), async () => output({ job: { id }, sources: [] }))
-    if (id === 'b') assert.equal(result.guard.status, 'ACTIVE')
+    assert.equal(result.guard.status, index === 5 ? 'BLOCKED' : 'ACTIVE')
   }
   const stopped = await guard.execute(tool, { id: 'c' }, signal(), async () => assert.fail('blocked'))
   assert.equal(stopped.error?.code, 'TOOL_GUARD_TERMINATED')
@@ -108,13 +108,16 @@ for (const mode of ['archive', 'read'] as const) test(`Pi ${mode} circuit break 
     : Array.from({ length: 4 }, (_, i) => ({ id: `read-${i}`, name: 'job.list', arguments: {} }))
   calls.push({ id: 'never', name: 'job.set_archived', arguments: { id: f.job.id, archived: false } })
   const tasks = createFixtureAskTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => ({ complete: async () => assert.fail('no summary'), async *stream() {
-    requests++; if (requests > 1) assert.fail('no next inference'); yield* batch(calls)
+    requests++
+    if (requests === 1) yield* batch(calls)
+    else if (mode === 'read' && requests === 2) yield* batch([calls[0], calls.at(-1)!].map((call, i) => ({ ...call, id: `retry-${i}` })))
+    else assert.fail('no inference after termination')
   } }) }); t.after(() => tasks.dispose())
   const input = { requestId: randomUUID(), message: 'Run guard regression', choice: { providerId: 'fixture', modelId: 'test' } }, ids = tasks.start(1, input, () => {})
   assert.deepEqual(tasks.start(1, input, () => {}), ids)
   for (let i = 0; i < 500 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; i++) await new Promise(r => setTimeout(r, 10))
   const snapshot = f.backend.chats.snapshot(ids.runId), tools = snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.'))
-  assert.equal(snapshot.run.error, 'TOOL_GUARD_TERMINATED'); assert.equal(requests, 1); assert.equal(tools.length, 4)
+  assert.equal(snapshot.run.error, 'TOOL_GUARD_TERMINATED'); assert.equal(requests, mode === 'read' ? 2 : 1); assert.equal(tools.length, mode === 'read' ? 5 : 4)
   assert(tools.every(i => i.state !== 'uncertain'))
   const last = tools.at(-1)!
   assert(last.content.type === 'tool_call' && last.content.guard?.status === 'BLOCKED')
@@ -124,6 +127,58 @@ for (const mode of ['archive', 'read'] as const) test(`Pi ${mode} circuit break 
   assert(!JSON.stringify(snapshot).includes('jabRunGrant'))
   f.backend.chats.deleteSession(ids.sessionId)
   assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM chat_items WHERE run_id=?').get(ids.runId)?.n, 0)
+})
+
+for (const recovery of ['warning-answer', 'answer', 'source', 'discovery'] as const) test(`Pi no-progress ${recovery} preserves results and skips the old batch without writes`, async t => {
+  const f = await firstPartyFixture(t); let requests = 0
+  const reads = Array.from({ length: recovery === 'warning-answer' ? 3 : 4 }, (_, n) => ({ id: `read-${n}`, name: 'job.list', arguments: {} }))
+  const tasks = createFixtureAskTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => ({ complete: async () => assert.fail('no summary'), async *stream(input) {
+    requests++
+    if (requests === 1) {
+      const calls: AgentToolCall[] = [...reads, ...(recovery === 'warning-answer' ? [] : [
+        { id: 'skip-write', name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Never execute this note' } },
+        { id: 'skip-search', name: 'tool.search', arguments: { query: 'notes' } }
+      ])]
+      yield* batch(calls); return
+    }
+    assert(input.messages.some(m => m.role === 'tool' && m.content.includes('RunGuard guidance:')))
+    if (requests === 2 && recovery === 'source') { yield* batch([{ id: 'fresh-source', name: 'profile.list', arguments: {} }]); return }
+    if (requests === 2 && recovery === 'discovery') { yield* batch([{ id: 'discover-source', name: 'tool.search', arguments: { query: 'profile' } }]); return }
+    if (requests === 3 && recovery === 'discovery') { yield* batch([{ id: 'fresh-source', name: 'profile.list', arguments: {} }]); return }
+    yield { type: 'content.delta', text: 'Confirmed information is sufficient.' }
+    yield { type: 'completed', response: { content: 'Confirmed information is sufficient.', toolCalls: [] } }
+  } }) }); t.after(() => tasks.dispose())
+  const ids = tasks.start(1, { requestId: randomUUID(), message: 'Inspect saved data', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
+  for (let n = 0; n < 500 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; n++) await new Promise(r => setTimeout(r, 10))
+  const snapshot = f.backend.chats.snapshot(ids.runId)
+  assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
+  assert.equal(snapshot.run.writeStarted, false)
+  assert(!snapshot.items.some(i => i.content.type === 'tool_call' && ['application.add_note'].includes(i.content.toolName)))
+  assert(!f.backend.toolAudit.list().some(row => row.phase === 'START' && row.tool_name === 'application.add_note'))
+  const completed = snapshot.items.filter(i => i.content.type === 'tool_call' && i.content.toolName === 'job.list')
+  assert.equal(completed.length, reads.length)
+  assert(completed.every(i => i.content.type === 'tool_call' && i.state === 'completed' && i.content.result && i.content.guard?.executed))
+  const last = completed.at(-1)!
+  assert(last.content.type === 'tool_call'); assert.equal(last.content.guard?.level, recovery === 'warning-answer' ? 'warning' : 'recovery')
+  if (recovery === 'source' || recovery === 'discovery') {
+    const source = snapshot.items.find(i => i.content.type === 'tool_call' && i.content.toolName === 'profile.list')
+    assert(source?.content.type === 'tool_call'); assert.equal(source.content.guard?.noProgress, 0)
+  }
+})
+
+test('real stdio stops a 62-call Recall loop with changing queries after five executed reads', async t => {
+  const f = await firstPartyFixture(t)
+  await f.workspace.spaces.memory.files.write('loop.md', '# Projects\n\nProjects use TypeScript and reliable tooling.', null)
+  const tools = await f.askRun(signal(), 'recall-loop')
+  for (let n = 0; n < 62; n++) {
+    const attempt = () => tools.call('memory.recall', { query: `projects ${n}` }, signal())
+    if (n < 5) {
+      const result = await attempt() as { sources: { path: string }[] }
+      assert(result.sources.some(s => s.path === 'loop.md'))
+    } else await assert.rejects(attempt(), { code: 'TOOL_GUARD_TERMINATED' })
+  }
+  assert.equal(tools.getRunGuardSnapshot()?.executedCalls, 5)
+  assert.equal(f.backend.toolAudit.list().filter(r => r.phase === 'START' && r.tool_name === 'memory.recall').length, 5)
 })
 
 test('schema failures do not consume Guard state; tool-specific large inputs and bound child views retain their contracts', async t => {

@@ -123,7 +123,7 @@ Enter 发送、Shift+Enter 换行，输入法组合期间不发送。运行中�
 
 沿用 StatusMessage 展示 Pending、同步上下文压缩及工具搜索/激活。Memory 读写使用普通工具时间线行，不显示后台 Memory 状态或重试操作。仅有 Run 运行时 Session 才繁忙。Settings 每模型并行许可仅用于导入，实际上下文/输出控件仍供 Ask 使用。不提供 Ask Memory 模式开关或 Memory 控制台。
 
-[工具详情](../src/pages/ai/TimelineItem.tsx)组合现有 DetailsList 和 Collapsible，显示 Chat Run ID/最终状态、Guard 调用/派发/拦截计数、已确认操作及本地化停止原因。执行前拒绝标为“未执行”，成功及不确定结果保留各自状态。Feedback 图库包含此区别，Token 和几何保持不变。
+[工具详情](../src/pages/ai/TimelineItem.tsx)组合现有 DetailsList 和 Collapsible，显示 Chat Run ID/最终状态、Guard 调用/派发/拦截计数、已确认操作及本地化停止原因。可选告警/恢复和下一步行说明策略切换，不改变工具成功状态。执行前拒绝标为“未执行”，成功及不确定结果保留各自状态。Feedback 图库包含这些区别，Token 和几何保持不变。
 
 ## 六、维护与验证
 

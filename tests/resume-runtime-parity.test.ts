@@ -47,12 +47,26 @@ test('internal and external MCP sessions expose identical contracts and produce 
   assert.deepEqual(normalized(f.backend.resumes.getRun({ id: other.runId }).run), normalized(f.backend.resumes.getRun({ id: runId }).run))
   const a = f.backend.resumes.getArtifact({ id: artifact.id }), b = f.backend.resumes.getArtifact({ id: otherArtifact.id })
   assert.deepEqual(a.artifact.content, b.artifact.content); assert.deepEqual(a.provenance, b.provenance)
+  const ask = await f.askRun(signal, 'artifact-reader')
+  const saved = await ask.call('artifact.get', { id: artifact.id }, signal) as { artifact: Artifact }
+  assert.deepEqual(saved.artifact, a.artifact)
+  await assert.rejects(ask.call('artifact.build', { artifactId: artifact.id }, signal), { code: 'TOOL_FORBIDDEN' })
   const html = (item: Artifact) => readFileSync(join(f.outputDirectory, item.outputFiles.find(file => file.format === 'HTML')!.relativePath), 'utf8')
   assert.equal(html(a.artifact), html(b.artifact))
   const audit = f.backend.toolAudit.list()
   assert(audit.some(row => row.agent_id === 'internal.resume')); assert(audit.some(row => row.agent_id === 'codex'))
   await assert.rejects(read.call('resume.get_context', { runId: other.runId }, signal), { code: 'TOOL_FORBIDDEN' })
   await assert.rejects(internal.call('resume.fail', { runId: other.runId, error: 'VALIDATION_FAILED' }, signal), { code: 'TOOL_FORBIDDEN' })
+})
+
+test('dedicated Resume retains same-session failure and cancellation over real MCP', async t => {
+  const f = await firstPartyFixture(t), signal = new AbortController().signal, tools = await f.mcp.session('resume', signal)
+  for (const operation of ['resume.fail', 'resume.cancel']) {
+    const { runId } = await tools.call('resume.start', { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id }, signal) as { runId: string }
+    const result = await tools.call(operation, { runId, ...(operation === 'resume.fail' ? { error: 'VALIDATION_FAILED' } : {}) }, signal) as { status: string }
+    assert.equal(result.status, operation === 'resume.fail' ? 'FAILED' : 'CANCELLED')
+    assert.equal(f.backend.resumes.getRun({ id: runId }).run.status, result.status)
+  }
 })
 
 test('resume skill editions use public names and preserve the five submission stages in order', () => {

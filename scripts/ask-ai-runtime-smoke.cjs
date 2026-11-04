@@ -41,6 +41,7 @@ app.on('browser-window-created', (_event, window) => {
         const metadata = stage === 'restart' ? JSON.parse(readFileSync(metadataPath, 'utf8')) : {}
         let jobId = metadata.jobId, releases = {}, failCount = 0
         const sse = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason }] })}\n\n`
+        const toolResult = content => { try { return JSON.parse(content.split('\nRunGuard guidance:')[0]) } catch { return { notExecuted: true } } }
         const finish = (response, text) => response.end(sse({ content: text }, 'stop') + 'data: [DONE]\n\n')
         server = createServer((request, response) => {
           if (request.method === 'GET') { response.writeHead(404).end(); return }
@@ -52,7 +53,8 @@ app.on('browser-window-created', (_event, window) => {
               assert.equal(previous.reasoning_content, 'Full provider reasoning 中文')
               assert.equal(previous.reasoning_details.find(d => d.type === 'reasoning.encrypted').data, 'OPAQUE_PROVIDER_STATE')
             }
-            const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool' && !JSON.parse(m.content).activeOnNextRequest).length
+            const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool' && !toolResult(m.content).activeOnNextRequest).length
+            assert(!body.tools.some(t => /^\[(resume\.|artifact\.build)/.test(t.function.description)), 'Ask never advertises generation tools')
             response.writeHead(200, { 'Content-Type': 'text/event-stream' })
             response.write(sse({ reasoning_content: 'Full provider reasoning 中文', reasoning: 'Full provider reasoning 中文' }))
             response.write(sse({ reasoning_summary: 'Comparing saved job information 中文', reasoning_details: [
@@ -69,7 +71,17 @@ app.on('browser-window-created', (_event, window) => {
               const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
               const calls = archive ? [true, false, true, false].map((archived, i) => ({ index: i, id: `archive-loop-${i}`, type: 'function', function: { name: archive.function.name, arguments: JSON.stringify({ id: jobId, archived }) } }))
                 : [{ index: 0, id: 'activate-archive', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.set_archived'] }) } }]
-              assert(!body.messages.slice(lastUser).some(m => m.role === 'tool' && JSON.parse(m.content).error === 'TOOL_GUARD_TERMINATED'), 'No model request after guard termination')
+              assert(!body.messages.slice(lastUser).some(m => m.role === 'tool' && toolResult(m.content).error === 'TOOL_GUARD_TERMINATED'), 'No model request after guard termination')
+              response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
+            }
+            if (user === 'read recovery') {
+              if (body.messages.some(m => m.role === 'system' && m.content.includes('Runtime RunGuard recovery:'))) { finish(response, 'Answered from confirmed information after recovery.'); return }
+              const read = body.tools.find(t => t.function.description.startsWith('[job.list] '))
+              const note = body.tools.find(t => t.function.description.startsWith('[application.add_note] '))
+              const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
+              const calls = read && note ? [...Array.from({ length: 4 }, (_, i) => ({ index: i, id: `read-${i}`, type: 'function', function: { name: read.function.name, arguments: '{}' } })),
+                { index: 4, id: 'skip-note', type: 'function', function: { name: note.function.name, arguments: JSON.stringify({ jobId, requestId: randomUUID(), text: 'Must never execute' }) } }]
+                : [{ index: 0, id: 'activate-read', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.list', 'application.add_note'] }) } }]
               response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
             if (user !== 'workflow') { finish(response, 'Recovered answer'); return }
@@ -170,6 +182,24 @@ app.on('browser-window-created', (_event, window) => {
         mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
         writeFileSync(resolve(__dirname, '../.cache/ask-ai-guard-narrow.png'), (await window.capturePage()).toPNG())
         window.setContentSize(1200, 820); await waitFor(() => evaluate('innerWidth===1200'), 'restore guard width'); await frame()
+        await click('New chat'); await send('read recovery')
+        await waitFor(() => evaluate('document.body.innerText.includes("Answered from confirmed information after recovery.")'), 'recovery answer')
+        const recovered = (await data('chats', 'listSessions', {})).value.items.find(s => s.title === 'read recovery')
+        const recoveredRun = (await data('chats', 'listRuns', { sessionId: recovered.id })).value.items[0]
+        const recoveredSnapshot = (await api('getRun', { runId: recoveredRun.id })).value
+        assert.equal(recoveredRun.state, 'completed'); assert.equal(recoveredRun.writeStarted, false)
+        assert.equal(recoveredSnapshot.items.filter(i => i.content.toolName === 'job.list').length, 4)
+        assert(!recoveredSnapshot.items.some(i => i.content.toolName === 'application.add_note'))
+        await evaluate(`document.querySelectorAll('[data-item-type=tool_call] .ui-collapsible > button').forEach(b=>b.click())`); await frame()
+        assert(await evaluate('document.body.innerText.includes("Warning") && document.body.innerText.includes("Recovery") && document.body.innerText.includes("Next action")'))
+        for (const language of ['zh-CN', 'en']) {
+          assert((await data('settings', 'savePreferences', { language })).ok)
+          await waitFor(() => evaluate(`document.body.innerText.includes(${JSON.stringify(language === 'zh-CN' ? '下一步' : 'Next action')})`), 'localized recovery guidance')
+          window.setContentSize(320, 820); await waitFor(() => evaluate('innerWidth===320'), 'recovery narrow resize'); await frame()
+          assert.equal(await evaluate('document.documentElement.scrollWidth>innerWidth'), false)
+        }
+        writeFileSync(resolve(__dirname, '../.cache/ask-ai-recovery-narrow.png'), (await window.capturePage()).toPNG())
+        window.setContentSize(1200, 820); await waitFor(() => evaluate('innerWidth===1200'), 'restore recovery width'); await frame()
         await click('New chat'); await send('hold reasoning')
         await waitFor(() => evaluate('!!document.querySelector("[data-item-type=reasoning][data-item-state=streaming] .ui-code-block")'), 'live readable reasoning')
         assert.equal(await evaluate('document.querySelector("[data-item-state=streaming] .ui-collapsible > button").getAttribute("aria-expanded")'), 'true')

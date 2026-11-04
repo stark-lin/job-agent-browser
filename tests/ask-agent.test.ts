@@ -71,86 +71,33 @@ test('uncertain write audits stop execution without offering a replay and retain
   assert(events.some(event => event.type === 'run.failed'))
 })
 
-test('Ask AI imports a job and completes the entire resume and output workflow beyond eight turns', async t => {
-  const f = await firstPartyFixture(t), events: AgentRunEvent[] = []
-  let jobId = '', runId = '', artifactId = '', step = 0
-  const writing = { summary: { id: randomUUID(), text: f.fact.content, factIds: [f.fact.id] }, experience: [], projects: [], education: [], skills: [] }
-  const requestId = randomUUID()
-  const plan: (() => [string, unknown])[] = [
-    () => ['job.import', { requestId, details: { title: 'PRIVATE_IMPORTED_JOB', companyNameRaw: 'PRIVATE_IMPORTED_COMPANY' } }],
-    () => ['resume.start', { requestId: randomUUID(), jobId, profileId: f.profile.id }],
-    () => ['resume.get_context', { runId }],
-    () => ['resume.list_facts', { runId }],
-    () => ['resume.submit_scores', { runId, language: 'en', scores: [{ factId: f.fact.id, score: 95, reason: 'PRIVATE_SCORE_REASON' }] }],
-    () => ['resume.submit_gate', { runId, gate: { passed: true, reason: 'Supported', missingRequirements: [] } }],
-    () => ['resume.submit_selection', { runId, selection: { factIds: [f.fact.id], itemIds: [f.item.id], wordBudget: 500 } }],
-    () => ['resume.submit_draft', { runId, writing }],
-    () => ['resume.submit_polished', { runId, writing }],
-    () => ['resume.publish', { runId }],
-    () => ['artifact.get', { id: artifactId }],
-    () => ['artifact.build', { artifactId }]
-  ]
+test('Ask AI imports ordinary job data and directs resume generation to its dedicated interface', async t => {
+  const f = await firstPartyFixture(t); let step = 0
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
-    const previous = input.messages.at(-1)
-    if (previous?.role === 'tool') {
-      const result = JSON.parse(previous.content)
-      assert.equal(result.error ?? null, null)
-      if (step === 1) jobId = result.id
-      if (step === 2) runId = result.runId
-      if (step === 10) artifactId = result.artifact.id
-      if (step === 12) {
-        assert.equal(result.output.status, 'READY')
-        assert.deepEqual(result.files.map((file: { format: string }) => file.format).sort(), ['HTML', 'PDF'])
-      }
-    }
-    if (step === plan.length) { yield* answer('Resume ready'); return }
-    const [name, args] = plan[step++]()
-    yield* batch({ id: `step-${step}`, name, arguments: args })
+    const system = input.messages.find(m => m.role === 'system')?.content ?? ''
+    assert(system.includes('dedicated Tailor Resume interface'))
+    assert(!system.includes('complete resume workflow'))
+    if (step++ === 0) yield* batch({ id: 'import', name: 'job.import', arguments: { requestId: randomUUID(), details: { title: 'PRIVATE_IMPORTED_JOB', companyNameRaw: 'Fixture' } } })
+    else yield* answer('Saved the job. Use the Tailor Resume interface to generate your resume.')
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
-  const ids = tasks.start(1, start('Save this job and create a tailored resume with HTML/PDF'), e => events.push(e))
-  const snapshot = await wait(tasks, ids.runId)
+  const ids = tasks.start(1, start('Save this job and create a tailored resume'), () => {}), snapshot = await wait(tasks, ids.runId)
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
-  assert.equal(step, plan.length); assert(snapshot.run.writeStarted)
-  assert.equal(f.backend.jobs.getJob({ id: jobId }).title, 'PRIVATE_IMPORTED_JOB')
-  assert.equal(f.backend.resumes.getRun({ id: runId }).run.status, 'SUCCEEDED')
-  const artifact = f.backend.resumes.getArtifact({ id: artifactId })
-  assert.equal(artifact.artifact.output.status, 'READY'); assert.equal(f.outputs(), 1)
-  assert.equal(artifact.artifact.content.summary?.text, f.fact.content)
-  assert.deepEqual(artifact.provenance[0].factIds, [f.fact.id])
-  const calls = snapshot.items.filter(item => item.content.type === 'tool_call' && !item.content.toolName.startsWith('tool.'))
-  assert.equal(calls.length, plan.length)
-  for (const item of calls) { assert.equal(item.state, 'completed'); if (item.content.type === 'tool_call') assert.notEqual(item.content.display.key, 'tool') }
-  for (const privateText of ['PRIVATE_IMPORTED_JOB', 'PRIVATE_IMPORTED_COMPANY', f.fact.content, 'PRIVATE_SCORE_REASON', f.outputDirectory]) assert(JSON.stringify(snapshot).includes(privateText))
-  assert(events.every((event, index) => event.eventSequence === index + 1))
+  assert.equal(f.backend.jobs.listJobs({ search: 'PRIVATE_IMPORTED_JOB' }).total, 1)
+  assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.outputs(), 0)
 })
 
-test('Ask AI can cancel and fail its own resume runs without gaining another MCP session\'s lease', async t => {
-  const f = await firstPartyFixture(t), signal = new AbortController().signal
-  const other = await f.mcp.session('resume', signal)
-  const foreign = await other.call('resume.start', { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id }, signal) as { runId: string }
-  for (const operation of ['resume.cancel', 'resume.fail']) {
-    let step = 0, runId = ''
-    const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
-      const previous = input.messages.at(-1)
-      if (previous?.role === 'tool') {
-        const result = JSON.parse(previous.content)
-        if (step === 1) assert.equal(result.error, 'TOOL_FORBIDDEN')
-        if (step === 2) { assert.equal(result.error ?? null, null); runId = result.runId }
-        if (step === 3) assert.equal(result.status, operation === 'resume.cancel' ? 'CANCELLED' : 'FAILED')
-      }
-      const extra = operation === 'resume.fail' ? { error: 'VALIDATION_FAILED' } : {}
-      if (step++ === 0) yield* batch({ id: 'foreign', name: operation, arguments: { runId: foreign.runId, ...extra } })
-      else if (step === 2) yield* batch({ id: 'start', name: 'resume.start', arguments: { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id } })
-      else if (step === 3) yield* batch({ id: 'finish', name: operation, arguments: { runId, ...extra } })
-      else yield* answer('Done')
-    } }
-    const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
-    const ids = tasks.start(1, start('Stop this resume'), () => {}), snapshot = await wait(tasks, ids.runId)
-    assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
-    assert.equal(f.backend.resumes.getRun({ id: runId }).run.status, operation === 'resume.cancel' ? 'CANCELLED' : 'FAILED')
-  }
-  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.status, 'RUNNING')
+for (const name of ['resume.start', 'resume.cancel', 'resume.fail', 'artifact.build']) test(`Ask AI refuses activation of ${name} without a business call`, async t => {
+  const f = await firstPartyFixture(t)
+  const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream() {
+    yield* batch({ id: 'forbidden', name: 'tool.activate', arguments: { names: [name] } })
+  } }
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
+  const ids = tasks.start(1, start('Create or control a resume'), () => {}), snapshot = await wait(tasks, ids.runId)
+  assert.equal(snapshot.run.error, 'AGENT_PROTOCOL_ERROR')
+  assert.equal(snapshot.run.writeStarted, false)
+  assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.outputs(), 0)
+  assert(!f.backend.toolAudit.list().some(row => row.tool_name === name))
 })
 
 test('uncertain job import marks the new write and never replays it', async t => {

@@ -24,7 +24,8 @@ function call(id: string, name: string, args: unknown): AgentModelEvent[] {
 }
 function result(input: AgentModelInput): Record<string, string> {
   const last = input.messages.at(-1); assert.equal(last?.role, 'tool')
-  return JSON.parse(last!.content)
+  // Runtime guidance follows the unchanged business JSON in a separate text block.
+  return JSON.parse(last!.content.split('\nRunGuard guidance:')[0])
 }
 function setup(f: Awaited<ReturnType<typeof firstPartyFixture>>, model: () => StreamingAgentModel) {
   return createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model, capabilities: async () => fixtureCapabilities })

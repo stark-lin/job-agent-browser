@@ -95,7 +95,7 @@ export const zhCN = {
   "thought": "思考了 {{seconds}} 秒",
   copyContent: '复制', reasoning: '推理内容', encryptedReasoning: '加密推理', encryptedUnavailable: '提供商返回了加密推理，没有可读文本。',
   source: '来源', elapsed: '耗时', toolName: '工具', callId: '调用 ID', executionState: '状态', arguments: '参数 · JSON', result: '结果 · JSON', toolError: '错误',
-  guard: { runId: 'Chat Run ID', runState: '运行状态', status: '运行保护', active: '生效中', blocked: '已停止', calls: '调用次数', executedCalls: '已派发调用', rejections: '拦截次数', noProgress: '连续无进展次数', reason: '保护原因', confirmedEffect: '已确认操作', archived: '已归档', restored: '已恢复', notExecuted: '未执行',
+  guard: { level: '进展保护', warning: '告警', recovery: '恢复', nextAction: '下一步', changeStrategy: '切换其他已授权数据源，或根据已确认的信息回答。', runId: 'Chat Run ID', runState: '运行状态', status: '运行保护', active: '生效中', blocked: '已停止', calls: '调用次数', executedCalls: '已派发调用', rejections: '拦截次数', noProgress: '连续无进展次数', reason: '保护原因', confirmedEffect: '已确认操作', archived: '已归档', restored: '已恢复', notExecuted: '未执行',
     reasons: { DUPLICATE_WRITE: '此前已确认该操作成功。', REVERSED_WRITE: '此操作会反转本轮已确认的结果。', NO_PROGRESS_LOOP: '重复调用未取得进展。', CALL_BUDGET_EXCEEDED: '已达到本轮调用上限。', REPEATED_VIOLATION: '再次尝试了相同的被拦截操作。', WRITE_OUTCOME_UNKNOWN: '无法确认写入结果，请核对当前状态后继续。' } },
   itemStates: { streaming: '正在思考', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已停止', uncertain: '结果不确定', interrupted: '已中断' },
   "summary": "思考摘要",

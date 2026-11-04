@@ -1,8 +1,10 @@
 import type { RunGuardSnapshot, GuardReason } from '../../../shared/agent/run-guard'
+import { guardNextAction } from '../../../shared/agent/run-guard'
 import { ToolError, toolError, toolFail } from '../../../shared/tools/errors'
 import type { JsonValue, ToolDescriptor, ToolOutput } from '../../../shared/tools/tool.types'
 import { callDigest } from '../../mcp/call-fingerprint'
 import { confirmedArchive, progressKey } from './policies'
+import { ReadProgress } from './read-progress'
 
 export interface TrustedRunContext { chatRunId: string; sessionId: string; signal: AbortSignal }
 export interface GuardedResult { output?: ToolOutput; error?: ToolError; guard: RunGuardSnapshot }
@@ -10,6 +12,7 @@ const preflightErrors = new Set(['TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_N
 class RunGuard {
   private state: RunGuardSnapshot
   private seen = new Set<string>()
+  private reads = new ReadProgress()
   private violations = new Map<string, number>()
   private closed = false
   private tail: Promise<unknown> = Promise.resolve()
@@ -18,11 +21,18 @@ class RunGuard {
       progress: 0, executed: false, effectAlreadyConfirmed: false, effects: [] }
   }
   snapshot() { return structuredClone(this.state) }
-  private block(reason: GuardReason) { this.state.status = 'BLOCKED'; this.state.reason = reason }
-  private unchanged() { if (++this.state.noProgress >= 3) this.block('NO_PROGRESS_LOOP') }
+  private block(reason: GuardReason) { this.state.status = 'BLOCKED'; this.state.reason = reason; this.state.level = undefined; this.state.nextAction = undefined }
+  private unchanged() {
+    if (++this.state.noProgress >= 4) this.block('NO_PROGRESS_LOOP')
+    else if (this.state.noProgress >= 2) {
+      this.state.level = this.state.noProgress === 2 ? 'warning' : 'recovery'
+      this.state.nextAction = guardNextAction
+    }
+  }
+  private advanced() { this.state.progress++; this.state.noProgress = 0; this.state.level = undefined; this.state.nextAction = undefined }
   private progress(key: string) {
     if (this.seen.has(key)) this.unchanged()
-    else { this.seen.add(key); this.state.progress++; this.state.noProgress = 0 }
+    else { this.seen.add(key); this.advanced() }
   }
   private reject(key: string, reason: 'DUPLICATE_WRITE' | 'REVERSED_WRITE'): ToolError {
     this.state.reason = reason; this.state.rejections++; this.state.effectAlreadyConfirmed = true
@@ -52,13 +62,19 @@ class RunGuard {
         const effect = tool.name === 'job.set_archived' ? confirmedArchive(args, output.structuredContent) : undefined
         if (effect) { this.state.effects.push(effect); this.progress(`effect:${effect.id}:${effect.archived}`) }
         else {
-          const progress = progressKey(tool, args, output.structuredContent)
-          if (progress) this.progress(progress)
+          if (tool.mode === 'read') {
+            if (this.reads.observe(tool, args, output)) this.advanced(); else this.unchanged()
+          } else {
+            const progress = progressKey(tool, args, output.structuredContent)
+            if (progress) this.progress(progress)
+            else if (this.state.level === 'recovery') this.unchanged()
+          }
         }
         return { output, guard: this.snapshot() }
       } catch (error) {
         const failure = toolError(error)
         if (tool.mode === 'write' && !preflightErrors.has(failure.code)) this.block('WRITE_OUTCOME_UNKNOWN')
+        else if (tool.mode === 'read' || this.state.level === 'recovery') this.unchanged()
         else {
           const failureKey = `failure:${key}:${failure.code}`
           if (this.seen.has(failureKey)) this.unchanged(); else this.seen.add(failureKey)
@@ -69,7 +85,7 @@ class RunGuard {
     this.tail = pending.catch(() => {})
     return pending
   }
-  async close() { this.closed = true; await this.tail; this.seen.clear(); this.violations.clear(); this.state.effects = [] }
+  async close() { this.closed = true; await this.tail; this.seen.clear(); this.reads.clear(); this.violations.clear(); this.state.effects = [] }
 }
 export function createRunGuardManager() {
   const runs = new Map<string, RunGuard>()
