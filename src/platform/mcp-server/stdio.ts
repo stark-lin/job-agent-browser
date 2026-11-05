@@ -7,7 +7,7 @@ async function main() {
   if (!directory) throw new Error('MCP_DATA_REQUIRED')
   const authorized = await redeemMemoryLaunch(process.env.JOB_BROWSER_MEMORY_LAUNCH, directory)
   delete process.env.JOB_BROWSER_MEMORY_LAUNCH
-  const runtime = createServerRuntime(directory, __dirname, undefined, process.env.JOB_BROWSER_MCP_CALLER, authorized)
+  const runtime = createServerRuntime(directory, __dirname, undefined, process.env.JOB_BROWSER_MCP_CALLER, authorized, process.env.JOB_BROWSER_ASK_READ_ONLY === '1')
   let closing: Promise<void> | undefined
   const close = () => closing ??= runtime.dispose().finally(() => { process.exitCode = 0 })
   authorized?.signal.addEventListener('abort', () => { void close() }, { once: true })

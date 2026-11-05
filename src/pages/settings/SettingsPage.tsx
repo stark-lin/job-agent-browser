@@ -8,6 +8,7 @@ import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
 import { AuditViewerSection } from './AuditViewerSection'
 import { ExternalMCPSettings } from './ExternalMCPSettings'
+import { SmartPasteSettings } from './SmartPasteSettings'
 import './settings.css'
 
 export function SettingsPage() {
@@ -48,6 +49,7 @@ export function SettingsPage() {
           </form>
         </SectionCard>
         <AISettingsSection settings={settings} />
+        <SmartPasteSettings settings={settings} />
         <SectionCard data-settings-mailbox title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
           <form data-settings-mailbox-form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>
             <FormField label={t($ => $.settings.mailProvider)}>{props => <Select {...props} value={draft.mailbox.provider} disabled={Boolean(saving)} onChange={event => {

@@ -12,7 +12,7 @@ import { createResumeOutput, type ResumeRenderer } from '../resume-output/servic
 import { electronRenderer } from '../resume-output/worker-client'
 import { createMCPServer } from './server'
 
-export function createServerRuntime(directory: string, bundleDirectory: string, render?: ResumeRenderer, caller?: string, memoryAuthorization?: MemoryAuthorization) {
+export function createServerRuntime(directory: string, bundleDirectory: string, render?: ResumeRenderer, caller?: string, memoryAuthorization?: MemoryAuthorization, askReadOnly = false) {
   if (!isAbsolute(directory) || !statSync(join(directory, 'database.sqlite')).isFile()) throw new Error('MCP_DATA_REQUIRED')
   if (typeof DatabaseSync.prototype.setAuthorizer !== 'function') throw new Error('MCP_NODE_UNSUPPORTED')
   const backend = createBackend(join(directory, 'database.sqlite'), undefined, 'external')
@@ -22,7 +22,7 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
   const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge, memoryAuthorization ? knowledge.spaces.memory : undefined)
   const allow = memoryAuthorization ? askToolAllowlist : jobAgentAllowlist
-  const mcp = createMCPServer(tooling.registry, { allow, maxRisk: 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
+  const mcp = createMCPServer(tooling.registry, { allow, maxRisk: askReadOnly && memoryAuthorization ? 'COMPUTE' : 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
     async (name, args, metadata) => {
       if (!['memory.write', 'memory.mkdir'].includes(name)) return true
       const token = metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabMemoryGrant : undefined

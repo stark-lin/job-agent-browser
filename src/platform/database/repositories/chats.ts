@@ -75,7 +75,7 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
       return read(() => ({ items: db.prepare('SELECT * FROM chat_runs WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?').all(sessionId, limit, offset).map(run),
         total: Number(db.prepare('SELECT COUNT(*) n FROM chat_runs WHERE session_id=?').get(sessionId)!.n) }))
     },
-    start(input: ChatStart, queued = false) {
+    start(input: ChatStart, queued = false, source?: 'smart-paste') {
       return transaction(() => {
         lease.ensure()
         const previous = lookup(input); if (previous) return previous
@@ -85,7 +85,7 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
         db.prepare('INSERT INTO chat_runs(id,session_id,provider_id,model_id,state,request_id,request_hash,owner_runtime_id,created_at,admission) VALUES(?,?,?,?,?,?,?,?,?,?)')
           .run(runId, sessionId, input.choice.providerId, input.choice.modelId, 'running', input.requestId, hash(input), lease.id, now, queued ? 'pending' : 'admitted')
         const sequence = Number(db.prepare('SELECT COALESCE(MAX(sequence),0)+1 n FROM chat_items WHERE session_id=?').get(sessionId)!.n)
-        db.prepare('INSERT INTO chat_items VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), sessionId, runId, sequence, 'completed', JSON.stringify({ type: 'user_message', text: input.message.trim() }), now, now)
+        db.prepare('INSERT INTO chat_items VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), sessionId, runId, sequence, 'completed', JSON.stringify({ type: 'user_message', text: input.message.trim(), ...(source ? { source } : {}) }), now, now)
         db.prepare('UPDATE chat_sessions SET provider_id=?,model_id=?,updated_at=? WHERE id=?').run(input.choice.providerId, input.choice.modelId, now, sessionId)
         return { sessionId, runId }
       })

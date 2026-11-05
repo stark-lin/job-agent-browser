@@ -15,7 +15,8 @@ export type ToolSummaryKey = 'memoryRead' | 'memoryWrite' | 'knowledgeRead' | 'k
   | 'importJob' | 'startResume' | 'resumeContext' | 'resumeFacts' | 'scoreResume' | 'checkResume' | 'selectResume' | 'draftResume' | 'polishResume' | 'publishResume' | 'failResume' | 'cancelResume' | 'buildArtifact' | 'searchTools' | 'activateTools'
 export interface ToolDisplay { key: ToolSummaryKey; count?: number; status?: string; startsAt?: string }
 export interface ChatReasoning { source: string; kind: 'text' | 'summary' | 'encrypted'; blockId?: string }
-export type ChatContent = { type: 'user_message' | 'assistant_message' | 'reasoning'; text: string; reasoning?: ChatReasoning }
+export type ChatContent = { type: 'user_message'; text: string; source?: 'smart-paste' }
+  | { type: 'assistant_message' | 'reasoning'; text: string; reasoning?: ChatReasoning }
   | { type: 'tool_call'; toolName: string; display: ToolDisplay; durationMs?: number; error?: string; callId?: string; arguments?: unknown; result?: unknown; guard?: RunGuardSnapshot }
 export interface ChatItem {
   id: string; sessionId: string; runId: string; sequence: number; state: ChatItemState; content: ChatContent

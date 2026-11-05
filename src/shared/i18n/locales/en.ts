@@ -499,7 +499,24 @@ export const en = {
       "COPY_FAILED": "Unable to copy the configuration. Try again."
     }
   },
+  "smartPaste": {
+    "title": "Smart Paste",
+    "description": "When you choose Smart Paste, clipboard and field context are sent to your default Ask AI model and saved in its chat.",
+    "configTitle": "Title",
+    "prompt": "Prompt",
+    "add": "Add configuration",
+    "remove": "Remove configuration",
+    "closeBanner": "Close notification",
+    "preparing": "Preparing {{title}}",
+    "reading": "Reading context for {{title}}",
+    "filling": "Filling {{title}}",
+    "done": "Finished {{title}}",
+    "stopped": "Stopped filling {{title}}",
+    "failed": "Could not finish {{title}}",
+    "noModel": "Choose a default Ask AI model in Settings."
+  },
   settings: {
+    "invalidSmartPaste": "Enter a valid title and prompt for every configuration.",
     contextWindow: 'Effective context window (tokens)', contextWindowHelp: 'Ask AI needs at least 65,536. Enter actual deployment limits; detected runtime limits take precedence.', maxOutputTokens: 'Model maximum output tokens',
 
     "aiDescription": "Configure OpenAI-compatible Chat Completions services. Keys are stored separately for each provider.",

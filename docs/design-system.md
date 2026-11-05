@@ -131,6 +131,10 @@ Existing StatusMessage primitives show Pending, synchronous context compaction a
 
 Browser business actions use Electron native menus; no app-styled context menu or new token is introduced. Ask and Add Job compose existing StatusMessage/Button for transfer failures and retry. Add Job shows the source title/URL with StatusMessage beside its ordinary Text input; content remains editable and Parse/Save stay explicit. Ask preserves existing drafts and appends source/quoted text to its new-chat composer. The Forms gallery includes the source/input/retry reference. Source text wraps within the page at narrow widths; native menu labels follow application language. Transfer creates no extra confirmation or permission flow.
 
+### Global Banner
+
+The [native Banner primitive](../src/shared/ui/Banner.ts) uses the shared 368px width, 80px height and 16px window inset. Title and detail use one line each with end truncation. The action and dismiss control are separate targets. Showing the Banner preserves field focus. Each accepted update starts a five-second dismissal timer. A dismissed event can reappear only as a newer event.
+
 ## 6. Maintenance and verification
 
 1. Confirm the component exists in the public entry. Extend its implementation and `components.css` centrally if needed; keep page behavior and layout at the call site.

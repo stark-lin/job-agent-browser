@@ -44,6 +44,12 @@ React App → Page → Preload → IPC → Main
 
 现有 `persist:job-agent-browser` Session 继续在原生视图间共享。[选区 Smoke](../scripts/browser-selection-smoke.cjs) 覆盖真实右键事件、Frame、来源保存、显式 AI 操作、登录复用/过期/退出；[重启 Smoke](../scripts/settings-restart-smoke.cjs) 在新的生产进程中通过同一本地来源验证持久 Cookie 和 localStorage。JAB 不续期已过期的网站会话；真实提供方的登录兼容性仍未经验证。
 
+### 智能粘贴与全局通知
+
+**已实现：** Browser 和 Inbox 的原生右键菜单可在受支持的文本字段中选择已保存的智能粘贴提示词，覆盖同源和跨源 HTTP(S) frame。[隔离 preload](../src/platform/electron/preload/web-field.ts) 锁定实际元素与选区。[宿主任务](../src/platform/smart-paste/service.ts) 使用已保存的默认模型创建后台 Ask AI 会话，并将助手文本流式写入该范围。工具轮的临时文本会撤回。失败和取消保留已写入的部分回答。用户编辑、字段被替换或 frame 导航时停止写入。切换工作区页面时，仍存活的目标可继续写入。网页接收 input 事件并自行管理表单。[智能粘贴 smoke](../scripts/smart-paste-smoke.cjs)可通过 `npm run test:smoke -- --smart-paste` 单独运行。
+
+[Main 通知](../src/platform/banner/bannerView.ts) 使用一个 View，置于原生网页视图上方，并经导航守卫打开关联的 Ask AI 会话。[数据架构](data-architecture.zh-CN.md) 说明设置与会话留存。[MCP 架构](mcp-architecture.zh-CN.md) 说明智能粘贴工具权限。
+
 ## 三、展示与交互
 
 [WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 常驻每个页面左侧，提供主页、九个功能、翻译后的无障碍分组及唯一当前状态，统一使用图标栏。原有 Home / Job search / Manage / Tools / Settings 分区及顺序保持不变，按照[设计规范](design-system.zh-CN.md#五交互与无障碍)用短横线分隔。悬停提示显示翻译后的目标名称；已移除侧栏品牌头部及 Home 标题上方的品牌文字。共享[功能元数据](../src/app/navigation/features.ts)管理侧栏及 Home 的图标/顺序。切换功能使用相同导航 API 和未保存设置保护；点击当前功能不新增历史。[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮（Ask AI V2 使用常驻侧栏的主页入口），不显示跨页面 Back/Next/Forward 控件。占位页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back、Forward 和 Refresh。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。

@@ -1,3 +1,4 @@
+import type { SmartPasteService } from '../smart-paste/service'
 import { flushKnowledge } from '../electron/main/knowledge-flush'
 import { t, i18n } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
@@ -25,7 +26,8 @@ export class BrowserManager {
   private rendererLoading = false
   private readonly selections = new SelectionHandoff()
 
-  constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null) {
+  constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null,
+    private readonly smartPaste?: SmartPasteService, private readonly raiseBanner?: () => void) {
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     this.addTab('home')
     const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
@@ -97,19 +99,19 @@ export class BrowserManager {
       buttons: [t($ => $.settings.stay), t($ => $.settings.discard)], defaultId: 0, cancelId: 0, noLink: true }
   }
 
-  private async confirmLeave(): Promise<boolean> {
+  private async confirmLeave(isCurrent: () => boolean = () => true): Promise<boolean> {
     if (this.confirming) return false
     this.confirming = true
     const tab = this.requireTab(this.activeTabId), targetId = this.targetId(tab)
     try {
       if (this.isKnowledge()) {
         const saved = await flushKnowledge(this.window)
-        if (!saved || this.window.isDestroyed() || this.activeTabId !== tab.id || targetId !== this.targetId(tab)) return false
+        if (!saved || !isCurrent() || this.window.isDestroyed() || this.activeTabId !== tab.id || targetId !== this.targetId(tab)) return false
         this.unsaved = false; return true
       }
       const result = await dialog.showMessageBox(this.window, this.leaveDialog())
       // Theme/other background snapshots must not invalidate an otherwise current confirmation.
-      if (result.response !== 1 || this.window.isDestroyed() || this.activeTabId !== tab.id ||
+      if (result.response !== 1 || !isCurrent() || this.window.isDestroyed() || this.activeTabId !== tab.id ||
         !this.tabs.has(tab.id) || targetId !== this.targetId(tab)) return false
       this.unsaved = false
       return true
@@ -176,6 +178,17 @@ export class BrowserManager {
     } else this.publishState()
   }
 
+  async openAskSession(isCurrent: () => boolean): Promise<boolean> {
+    if (!isCurrent() || this.window.isDestroyed()) return false
+    const tab = this.requireTab(this.activeTabId), destination = this.tabState(tab).destination
+    if (destination.kind === 'internal' && destination.page === 'ai') return true
+    if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave(isCurrent))) return false
+    if (!isCurrent() || this.window.isDestroyed() || this.activeTabId !== tab.id) return false
+    tab.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'ai' } })
+    this.transition(tab)
+    return true
+  }
+
   async navigate(input: string, surface: 'browser' | 'inbox' = 'browser'): Promise<void> {
     let destination = resolveDestination(input) // Reject invalid input before mutating either history.
     const tab = this.requireTab(this.activeTabId)
@@ -209,7 +222,8 @@ export class BrowserManager {
         accept: (target, content) => this.handoff(tab, created, target, content),
         travel: direction => { if (this.activeBrowserTarget(tab, created)) void this.travel(direction) },
         requestCopy: () => { void this.copyFromMenu() }
-      })
+      }, this.smartPaste)
+      this.raiseBanner?.()
       segment = created
       this.shortcuts(created.view.webContents)
     }

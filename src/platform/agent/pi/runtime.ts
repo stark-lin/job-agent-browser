@@ -15,6 +15,7 @@ import { createPiStream, piReasoning } from './model-adapter'
 export async function runPiAsk(deps: {
   model: StreamingAgentModel; tools: AgentTools; system: string; message: string; signal: AbortSignal; userSignal?: AbortSignal
   budget: ContextBudget; context: ContextManager; emit(event: AgentRuntimeEvent): void
+  onToolTurn?(): void
   status(value: AskRuntimeStatus): void; protect(name: string, args: unknown, result: unknown, uncertain: boolean): void
 }) {
   const { Agent } = await import('@earendil-works/pi-agent-core')
@@ -138,6 +139,8 @@ export async function runPiAsk(deps: {
           deps.emit({ type: 'cycle.settled', index, status: settled, reason: settled === 'CONTINUE' ? null : guard?.reason ?? 'NO_PROGRESS_LOOP', finishedAt: new Date().toISOString() })
         }
         cycle = settled
+      } else if (event.type === 'message_end' && event.message.role === 'assistant' && event.message.stopReason === 'toolUse') {
+        deps.onToolTurn?.()
       } else if (event.type === 'message_update' && cycle === 'RUNNING' && !outcome && !failure && !deps.signal.aborted) {
         const update = event.assistantMessageEvent
         if (update.type === 'text_start' || update.type === 'thinking_start') {

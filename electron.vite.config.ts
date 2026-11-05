@@ -39,6 +39,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/platform/electron/preload/index.ts'),
+          'banner': resolve(__dirname, 'src/platform/electron/preload/banner.ts'),
           'browser-gestures': resolve(__dirname, 'src/platform/electron/preload/browser-gestures.ts') },
         output: { format: 'cjs', entryFileNames: '[name].js' }
       }

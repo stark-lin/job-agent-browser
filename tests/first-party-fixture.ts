@@ -40,7 +40,7 @@ const renderer = async document => {
 const { redeemMemoryLaunch } = require(${JSON.stringify(authorityPath)});
 void (async () => {
 const authorized = await redeemMemoryLaunch(process.env.JOB_BROWSER_MEMORY_LAUNCH, directory);
-const runtime = createServerRuntime(directory, __dirname, renderer, process.env.JOB_BROWSER_MCP_CALLER, authorized);
+const runtime = createServerRuntime(directory, __dirname, renderer, process.env.JOB_BROWSER_MCP_CALLER, authorized, process.env.JOB_BROWSER_ASK_READ_ONLY === '1');
 await runtime.ready;
 const sink = runtime.backend.toolAudit.sink;
 const start = sink.start.bind(sink), finish = sink.finish.bind(sink);

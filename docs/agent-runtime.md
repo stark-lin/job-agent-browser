@@ -57,6 +57,8 @@ Pi `turn_start` opens the Cycle before model preparation. `finishTurn` resolves 
 
 RunGuard owns progress detection and hard blocks. Runtime uses the latest trusted Guard snapshot. Discovery or activation preserves an outstanding warning or recovery. A fresh business result can clear it within the same batch. Recovery stops dispatch of the remaining batch, retains the observations already received, and injects guidance into the next request after compaction. The next decision may use another authorized source or answer from confirmed evidence. Normal tool errors become observations. A known fatal cause takes precedence over generic cancellation. [MCP policy](mcp-architecture.md#ask-run-protection)
 
+[Smart Paste](architecture.md#smart-paste-and-global-banner) observes the existing assistant deltas and a host-only tool-turn result from Pi. The host can retract that turn's temporary field text without altering the recorded conversation or Cycle transitions.
+
 ## 4. Finalization and trace
 
 Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/ask-agent-recorder.ts)

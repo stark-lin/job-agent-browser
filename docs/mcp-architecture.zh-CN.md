@@ -31,6 +31,8 @@ UI    → typed IPC → Domain
 
 [显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 非删除操作、五个 Memory 工具及 artifact.get 保持可用；独立 Resume 会话与外部 MCP 保留公开工作流能力。
 
+智能粘贴复用 Ask Run 和 RunGuard，并建立独立的认证连接。[服务端](../src/platform/mcp-server/runtime.ts) 在现有 Ask 允许列表内将发现和执行的风险上限设为 COMPUTE。智能粘贴 Run 收尾时关闭该连接。之后在同一会话中发出的普通 Ask 请求使用常规 Ask 连接。[客户端](../src/platform/mcp/first-party-client.ts) · [集成测试](../tests/smart-paste.test.ts)
+
 ### Ask Run 保护
 
 **已实现：**[openAskRun](../src/platform/mcp/first-party-client.ts)为每个准入 Chat Run 创建可取消工具视图，复用 Session 连接。Main 注册身份，签发有效期 30 秒、一次性的 `_meta.jabRunGrant`，绑定实例、认证连接、Run、操作和规范化参数摘要。Memory 写入仍需原有来源授权。已认证 Ask 连接没有 Run 时只能发现工具，不能调用；调用者标签不能开启保护或权限。Chat 身份不覆盖 Resume 的业务 runId。

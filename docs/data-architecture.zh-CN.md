@@ -121,7 +121,7 @@
 
 ### Ask AI 会话存储
 
-[Chat Repository](../src/platform/database/repositories/chats.ts)以输入哈希和请求 UUID 回执原子保存 Session/Run/User Item。迁移 11 增加 Pending/admitted 状态，部分唯一索引保证同一 Session 只有一个已放行的活动 Run；组合外键绑定 Item 与 Run/Session。模型选择按 Session 保存并复制到 Run。删除要求没有活动 Run，级联清理私有检查点，不撤销业务变更或审计。
+[Chat Repository](../src/platform/database/repositories/chats.ts)以输入哈希和请求 UUID 回执原子保存 Session/Run/User Item。迁移 11 增加 Pending/admitted 状态，部分唯一索引保证同一 Session 只有一个已放行的活动 Run；组合外键绑定 Item 与 Run/Session。模型选择按 Session 保存并复制到 Run。删除要求没有活动 Run，级联清理私有检查点，不撤销业务变更或审计。智能粘贴的 User Item 保存发送给模型的提示词与限长上下文，并以可选来源标记禁用通用重试。
 
 只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。 工具条目还保存经白名单解析的 Guard 计数、原因、执行标记、已确认归档效果，以及可选告警/恢复级别与固定 nextAction，不含凭证或证据指纹；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/pages/ai/TimelineItem.tsx)展示这些字段。复用现有 JSON 存储，无需迁移，历史快照可缺少新增字段。派发前跳过的调用不创建工具 Item 或不确定写入。
 
@@ -173,7 +173,7 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#三内部与第三方-client)管理配置示例和限制。
 
-[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
+[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。智能粘贴配置保存 ID、标题和提示词。缺少配置时使用本地化默认项，保存的空列表保持为空。
 
 [AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。每个 Provider 可选的 `parallelModels` 只能包含其 `models` 内不重复的 ID；缺省/空列表表示关闭，无效写入原子拒绝。保存其他偏好保留该列表；在设置中移除模型 ID 时同步移除其许可。Endpoint 保留路径前缀，拒绝凭据、查询参数和片段。旧版本 1 文件在内存中补齐缺少的 AI/超时默认值，保存前不改写。移除 Provider 前须先删除其密钥。模型检测、导入模式选择及任务生命周期归属[当前架构](architecture.zh-CN.md)。
 

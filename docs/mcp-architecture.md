@@ -31,6 +31,8 @@ The sole public composition is [createJobAgentTooling](../src/platform/tools/ind
 
 The [explicit Ask allowlist](../src/shared/agent/ask-policy.ts) is shared by discovery and the [Server runtime](../src/platform/mcp-server/runtime.ts). Only a redeemed Main-issued Ask launch selects it; caller labels never select permissions. Both tools/list and tools/call exclude all resume.* tools, artifact.build and Delete tools; new tools default to denied. Ordinary Job/Profile/Application and non-delete Knowledge management, five Memory tools and artifact.get remain available. Dedicated Resume sessions and external MCP retain the public workflow surface.
 
+Smart Paste uses the same Ask Run and RunGuard with a dedicated authenticated connection. [The Server](../src/platform/mcp-server/runtime.ts) caps both discovery and execution at COMPUTE within the existing Ask allowlist. The scoped connection closes with the Smart Paste Run. A later ordinary Ask request in that Session uses the regular Ask connection. [Client](../src/platform/mcp/first-party-client.ts) · [Integration test](../tests/smart-paste.test.ts)
+
 ### Ask Run protection
 
 **Implemented:** [openAskRun](../src/platform/mcp/first-party-client.ts) binds each admitted Chat Run to a cancellable view over the reused Session connection. Main registers its identity and issues 30-second one-use `_meta.jabRunGrant` tokens bound to instance, authenticated connection, Run, operation and canonical argument digest. Memory writes also require the existing source grant. Authenticated Ask connections can discover tools without a Run but cannot call them; caller labels never enable protection or permissions. Chat identity never replaces Resume's business runId.

@@ -9,9 +9,12 @@ delete env.ELECTRON_RENDERER_URL
 env.JOB_BROWSER_SMOKE_DATA = mkdtempSync(resolve(tmpdir(), 'job-browser-smoke-'))
 env.JAB_MODEL_STORE = resolve(env.JOB_BROWSER_SMOKE_DATA, 'managed-models')
 const jobs = process.argv.includes('--jobs')
+const smartPaste = process.argv.includes('--smart-paste')
+if (smartPaste) env.JOB_BROWSER_SMART_PASTE_SMOKE = '1'
+else delete env.JOB_BROWSER_SMART_PASTE_SMOKE
 const suite = jobs ? 'job-runtime-smoke.cjs' : process.argv.includes('--theme') ? 'theme-runtime-smoke.cjs' : 'smoke.cjs'
 let child = spawnSync(require('electron'), [resolve(__dirname, suite)], { env, stdio: 'inherit', timeout: 180_000, killSignal: 'SIGKILL' })
-if (child.status === 0) child = spawnSync(require('electron'), [resolve(__dirname, jobs ? 'job-runtime-smoke.cjs' : 'settings-restart-smoke.cjs')], {
+if (child.status === 0 && !smartPaste) child = spawnSync(require('electron'), [resolve(__dirname, jobs ? 'job-runtime-smoke.cjs' : 'settings-restart-smoke.cjs')], {
   env: jobs ? { ...env, JOB_BROWSER_VERIFY_RESTART: '1' } : env, stdio: 'inherit', timeout: 15_000, killSignal: 'SIGKILL'
 })
 rmSync(env.JOB_BROWSER_SMOKE_DATA, { recursive: true, force: true })
