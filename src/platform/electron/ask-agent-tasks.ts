@@ -1,4 +1,4 @@
-import { AgentError, abortable, type StreamingAgentModel } from '../../shared/agent'
+import { AgentError, abortable, isAgentCancellation, type AgentRuntimeEvent, type StreamingAgentModel } from '../../shared/agent'
 import type { ModelCapabilities } from '../../shared/ai'
 import type { AskRuntimeStatus } from '../../shared/ask'
 import type { ChatSnapshot, AgentRunEvent } from '../../domain/chat/chat.types'
@@ -45,6 +45,10 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
       const snapshot = deps.chats.snapshot(result.runId), controller = new AbortController()
       const task: Task = { owner, controller, snapshot }; tasks.set(result.runId, task)
       const recorder = createAskRecorder(deps.chats, snapshot, event => { try { send(event) } catch { /* Renderer loss has owner disposal. */ } }, error => { task.failure = error; controller.abort() })
+      function receive(event: AgentRuntimeEvent) {
+        try { recorder.receive(event) }
+        catch (error) { task.failure ??= error; throw error }
+      }
       function status(value: AskRuntimeStatus) {
         snapshot.run.runtimeStatus = value; snapshot.run.eventSequence++
         deps.chats.runtimeStatus(result.runId, value, snapshot.run.eventSequence)
@@ -53,12 +57,13 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
       const prior = tails.get(result.sessionId) ?? Promise.resolve()
       task.done = new Promise<void>(resolve => setImmediate(resolve)).then(async () => {
         let run: Awaited<ReturnType<FirstPartyRuntime['openAskRun']>> | undefined
+        let state: 'completed' | 'cancelled' | 'failed' = 'completed', reason: string | null = null
         try {
           recorder.started(); status('pending')
           await abortable(prior, controller.signal); controller.signal.throwIfAborted()
           const budget = new ContextBudget(await deps.capabilities(args.choice, controller.signal), args.choice.modelId)
           controller.signal.throwIfAborted()
-          const model = observeAskModel(deps.model(args.choice), recorder.receive)
+          const model = observeAskModel(deps.model(args.choice), receive)
           budget.assert([{ role: 'system', content: askSystem }, { role: 'user', content: args.message.trim() }], discoveryTools)
           const user = snapshot.items[0], sessionId = result.sessionId
           deps.chats.admit(result.runId); snapshot.run.admission = 'admitted'
@@ -70,25 +75,29 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
             memory, protectedState: deps.chats.protectedState(sessionId),
             save: (value, revision) => deps.chats.saveContext(sessionId, value, revision), compacting: () => status('context.compacting') })
           status('idle')
-          await runAskAgent({ model, tools, message: args.message.trim(), signal, budget, context, emit: recorder.receive, status,
+          await runAskAgent({ model, tools, message: args.message.trim(), signal, userSignal: controller.signal, budget, context, emit: receive, status,
             protect(name, input, output, uncertain) {
               const record = resourceRecord(name, input, output, uncertain)
               if (record) { deps.chats.saveProtected(sessionId, updateResourceRecords(deps.chats.protectedState(sessionId), record)); context.protect(record) }
             } })
-          signal.throwIfAborted(); await run.close(); snapshot.run.runtimeStatus = 'idle'; recorder.finish('completed', null)
+          signal.throwIfAborted()
+          await run.close()
+          controller.signal.throwIfAborted()
         } catch (error) {
-          await run?.close().catch(() => {})
-          const cancelled = controller.signal.aborted && !task.failure
-          snapshot.run.runtimeStatus = 'idle'
-          try { recorder.finish(cancelled ? 'cancelled' : 'failed', cancelled ? null : askError(task.failure ?? error)) }
-          catch (failure) {
-            task.undurable = true; snapshot.run.state = 'failed'; snapshot.run.error = askError(failure); snapshot.run.finishedAt = new Date().toISOString(); snapshot.run.eventSequence++
-            // Hold this Session's tail until terminal persistence succeeds. Never replay a tool.
-            while (task.undurable) {
-              try { deps.chats.finish(snapshot); task.undurable = false }
-              catch { if (disposed) break; await new Promise(resolve => setTimeout(resolve, 100)) }
-            }
-            try { send({ type: 'run.failed', run: structuredClone(snapshot.run), sessionId: snapshot.run.sessionId, runId: snapshot.run.id, eventSequence: snapshot.run.eventSequence }) } catch { /* Window unavailable. */ }
+          let cleanupFailure: unknown
+          try { await run?.close() } catch (failure) { cleanupFailure = failure }
+          const userCancelled = isAgentCancellation(error, controller.signal)
+          const fatal = task.failure ?? (userCancelled ? cleanupFailure : error)
+          state = userCancelled && fatal === undefined ? 'cancelled' : 'failed'
+          reason = state === 'cancelled' ? null : askError(fatal)
+        }
+        try { recorder.finish(state, reason) }
+        catch (failure) {
+          task.undurable = true
+          // Hold this Session's tail until terminal persistence succeeds. Never replay a tool.
+          while (task.undurable) {
+            try { recorder.finish('failed', state === 'failed' ? reason : askError(failure)); task.undurable = false }
+            catch { if (disposed) break; await new Promise(resolve => setTimeout(resolve, 100)) }
           }
         } finally {
           controller.abort(); await run?.close().catch(() => {}); task.settled = true

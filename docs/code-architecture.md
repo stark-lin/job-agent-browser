@@ -94,6 +94,8 @@ Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailo
 
 Renderer workflows call typed bridge operations; Main composes Domain services with Platform repositories and transactions. Domain depends on interfaces, with concrete adapters injected by [backend composition](../src/platform/database/backend.ts). The conceptual Page → Domain → Platform flow does not permit importing server services into UI.
 
+The [pure Ask AI Cycle state machine](../src/platform/agent/react-cycle/machine.ts) owns transitions and execution decisions. The [Pi adapter](../src/platform/agent/pi/runtime.ts) applies them before model and tool dispatch. Main persists trusted events. See the [Agent runtime contract](agent-runtime.md).
+
 Database access remains inside controlled Main/Node runtimes. Settings, secrets, AI requests and compilation are reserved for Main or controlled services. Preserve sandboxing, context isolation, third-party page separation and exact trusted-document/top-frame IPC validation.
 
 The [shared i18n module](../src/shared/i18n/) owns framework-independent resources, configuration, selector types and translation initialization; it imports neither React nor Electron. [App](../src/app/i18n.tsx) owns React provider integration and document metadata. Pages translate at render time; Platform translates application-owned native copy. Keep new visible text in the catalog, including complete interpolated sentences, and use typed selectors. Runtime behavior and remaining language support are owned by [current architecture](architecture.md#5-internationalization).

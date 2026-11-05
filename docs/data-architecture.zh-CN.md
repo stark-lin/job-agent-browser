@@ -24,6 +24,7 @@
 | `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
 | `chat_context_checkpoints`, `chat_memory_progress` | 私有上下文检查点及停用的旧 Memory 进度；[版本 11](../src/platform/database/migrations/ask-runtime.ts)，由[版本 13](../src/platform/database/migrations/ask-serial.ts)停用 |
 | `chat_provider_responses`, `chat_model_requests` | Host 专属续传数据（[版本 12](../src/platform/database/migrations/chat-protocol.ts)）及可删除请求诊断（[版本 14](../src/platform/database/migrations/chat-model-requests.ts)） |
+| `chat_react_cycles` | Run 下按序保存的执行状态和诊断关联，随 Run 级联删除 |
 
 ## 二、业务规则
 
@@ -128,19 +129,17 @@
 
 **已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 chat_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
 
-Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。
+Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。 [迁移 16 和 17](../src/platform/database/migrations/chat-react-cycles.ts)保存以 `(run_id, cycle_index)` 标识的 Cycle，约束单个活动 Cycle、连续编号和已结算记录不可变。模型请求 ordinal 和工具 ID 在派发前分别随其诊断和响应保存。最终 Cycle、Run 和会话内容原子结算。历史 Run 不补造记录，恢复保留最后已保存的 Cycle。
 
-[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。
-
-[迁移 13](../src/platform/database/migrations/ask-serial.ts)停用 Memory 生命周期状态，将旧 memory.updating/memory.failed Run 归一化为 idle 并递增事件序号。版本 11 的 chat_memory_progress 表及待写入正文均作为停用历史保留，下述调试快照会读取这些记录，Agent 执行仍不读取、恢复或写入。完整回答保持原样；失效 owner 的运行中 Run 使用普通中断恢复。迁移还为审计错误增加 TOOL_NOT_FOUND，保留全部审计行/序号及此前迁移校验和。[资源检查点](../src/platform/agent/context/resources.ts)增加不含正文的 Memory 路径、Revision 和不确定结果；Memory 写入并发由 [MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)管理。
+[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。 [迁移 13](../src/platform/database/migrations/ask-serial.ts)保留旧 Memory 进度供导出，并停用其执行生命周期。
 
 ### Copy Debug JSON
 
-**已实现：**`data.chats.copyDebugJson({ sessionId })` 经现有白名单 [Data Bridge](../src/platform/electron/preload/data-bridge.ts)、可信 `DATA_CALL` Handler 及 backend dispatcher 返回 `Result<null, ErrorCode>`。独立 [Domain 用例](../src/domain/chat/chat-debug.service.ts)先校验参数再读取；缺少可选宿主输出时返回 `NOT_IMPLEMENTED`，不读取数据。Ask Agent IPC 与 Agent Runtime 不变。
+**已实现：**`data.chats.copyDebugJson({ sessionId })` 经现有白名单 [Data Bridge](../src/platform/electron/preload/data-bridge.ts)、可信 `DATA_CALL` Handler 及 backend dispatcher 返回 `Result<null, ErrorCode>`。独立 [Domain 用例](../src/domain/chat/chat-debug.service.ts)先校验参数再读取；缺少可选宿主输出时返回 `NOT_IMPLEMENTED`，不读取数据。
 
-[Repository](../src/platform/database/repositories/chat-debug-export.ts)在一个显式快照事务中读取当前 Session 的全部七张聊天表，不分页、不截断。Run 按 `created_at,id`、Item 按 `sequence`、请求/响应按 `ordinal`、Memory Progress 按 `sequence,message_id` 升序排列。保留原始列名、ID、数值标记、null 和 `*_json` 字符串；缺少检查点输出 `null`，空集合输出 `[]`。运行中/Pending 及终态 Run 均只包含持久化记录：不刷新流缓存、不恢复任务、不调用 MCP、不写业务/审计、不重建内容，也不二次脱敏。
+[Repository](../src/platform/database/repositories/chat-debug-export.ts)在一个显式快照事务中读取当前 Session 的全部八张聊天表，不分页、不截断。Run 按 `created_at,id`、Item 按 `sequence`、请求/响应按 `ordinal`、Memory Progress 按 `sequence,message_id` 升序排列。保留原始列名、ID、数值标记、null 和 `*_json` 字符串；缺少检查点输出 `null`，空集合输出 `[]`。运行中/Pending 及终态 Run 均只包含持久化记录：不刷新流缓存、不恢复任务、不调用 MCP、不写业务/审计、不重建内容，也不二次脱敏。
 
-[版本 1 Schema](../src/domain/chat/chat-debug.v1.schema.json)定义 `{ format: "jab-debug", schemaVersion: 1, exportedAt, app: { version, commit, platform }, session, runs: [{ run, items, modelRequests, providerResponses }], context: { checkpoint, memoryProgress } }`。[Main 输出](../src/platform/electron/main/chat-debug-output.ts)使用 `JSON.stringify(bundle, null, 2)`，等待剪贴板写入并回读核对全文。版本取 Electron，平台取 `process.platform`，commit 取[构建时](../electron.vite.config.ts)有效 CI SHA/本地 HEAD，否则为 `null`；运行时不执行 Git。Renderer 只接收成功/null 或固定错误，包括 `DEBUG_SERIALIZATION_FAILED`、`CLIPBOARD_FAILED`。[导出测试](../tests/chat-debug-export.test.ts)、[分派测试](../tests/chat-debug-ipc.test.ts)及 [Electron smoke](../scripts/chat-debug-smoke.cjs)验证完整性、WAL 隔离、只读失败路径与确认流程。不新增 migration、文件导出或上传。
+[v2 Schema](../src/domain/chat/chat-debug.v2.schema.json)在每个 Run 条目加入按 `cycle_index` 升序排列的 `cycles` 和最新状态 `cycleStatus`。零 Cycle 输出 `[]` 和 `null`。[v1 Schema](../src/domain/chat/chat-debug.v1.schema.json)继续描述旧导出，读取端通过 `schemaVersion` 识别版本。[Main 输出](../src/platform/electron/main/chat-debug-output.ts)等待剪贴板写入并精确回读。导出包含 Electron 版本、平台及可空的构建时 commit。Renderer 只接收成功/null 或固定错误。导出包含私有会话与 Provider 数据，继续显示分享前隐私提醒。验证见[导出测试](../tests/chat-debug-export.test.ts)及 [Electron smoke](../scripts/chat-debug-smoke.cjs)。
 
 ## 五、API 契约与访问
 

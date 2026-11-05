@@ -6,7 +6,7 @@ import type { AgentResponse } from '../../../shared/agent'
 import type { ChatChoice, ChatContent } from '../../../domain/chat/chat.types'
 
 /** Private host persistence, injected by Main; Agent code never imports this module. */
-export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () => T) => T) {
+export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () => T) => T, recordCalls: (runId: string, index: number, ids: string[]) => void) {
   function context(sessionId: string): ContextCheckpoint {
     const row = db.prepare('SELECT * FROM chat_context_checkpoints WHERE session_id=?').get(sessionId)
     return row ? { summary: String(row.summary), compactedThroughSequence: Number(row.compacted_through_sequence), revision: Number(row.revision) }
@@ -14,11 +14,12 @@ export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () =
   }
   return {
     context,
-    saveProviderResponse(runId: string, response: AgentResponse, throughSequence: number) {
+    saveProviderResponse(runId: string, response: AgentResponse, throughSequence: number, cycleIndex?: number) {
       transaction(() => {
         if (db.prepare('SELECT state FROM chat_runs WHERE id=?').get(runId)?.state !== 'running') fail('INVALID_STATE')
         db.prepare(`INSERT INTO chat_provider_responses SELECT ?,COALESCE(MAX(ordinal),0)+1,?,? FROM chat_provider_responses WHERE run_id=?`)
           .run(runId, throughSequence, JSON.stringify(response), runId)
+        if (cycleIndex !== undefined) recordCalls(runId, cycleIndex, response.toolCalls.map(call => call.id))
       })
     },
     saveContext(sessionId: string, value: ContextCheckpoint, expectedRevision: number) {

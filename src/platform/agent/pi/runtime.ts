@@ -24,8 +24,11 @@ export async function runPiAsk(deps: {
   let action: ReturnType<typeof nextAction> = 'CONTINUE'
   const guidance = (snapshot?: RunGuardSnapshot) => snapshot?.level ? [{ type: 'text' as const,
     text: `\nRunGuard guidance: ${JSON.stringify({ level: snapshot.level, nextAction: snapshot.nextAction })}` }] : []
-  function failed(error: unknown) { failure ??= error }
-  function observeFailure(error: unknown) { if (!isAgentCancellation(error, userSignal)) failed(error) }
+  function failed(error: unknown) { failure ??= error ?? new AgentError('AGENT_PROTOCOL_ERROR') }
+  function observeFailure(error: unknown) {
+    if (!isAgentCancellation(error, userSignal)
+      && !(userSignal.aborted && error instanceof ToolError && error.code === 'TOOL_CANCELLED')) failed(error)
+  }
   function activeCycle() {
     if (failure) throw failure
     deps.signal.throwIfAborted()
@@ -63,17 +66,17 @@ export async function runPiAsk(deps: {
           const rejected = code.startsWith('TOOL_GUARD_') && snapshot?.executed === false
           const uncertain = !rejected && isAskWrite(name) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
           const blocked = snapshot?.status === 'BLOCKED' || code === 'TOOL_GUARD_TERMINATED'
-          if (uncertain) failed(error)
+          if (uncertain) failed(isAgentCancellation(error, userSignal) ? new ToolError('TOOL_EXECUTION_FAILED') : error)
           else if (blocked) failed(new ToolError('TOOL_GUARD_TERMINATED'))
           else if (combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE', 'MCP_INVALID_RESPONSE'].includes(code)) observeFailure(error)
-          if (!rejected) deps.protect(name, args, null, uncertain)
-          deps.emit({ type: 'tool.failed', id, name, error: code, durationMs: Date.now() - began, uncertain, guard: snapshot })
+          try { if (!rejected) deps.protect(name, args, null, uncertain) }
+          finally { deps.emit({ type: 'tool.failed', id, name, error: code, durationMs: Date.now() - began, uncertain, guard: snapshot }) }
           return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(snapshot ? { reason: snapshot.reason, executed: snapshot.executed, effectAlreadyConfirmed: snapshot.effectAlreadyConfirmed } : {}) }) }, ...guidance(snapshot)], details: {}, isError: true }
         }
         const snapshot = observeGuard(name)
         if (snapshot?.status === 'BLOCKED') failed(new ToolError('TOOL_GUARD_TERMINATED'))
-        deps.emit({ type: 'tool.completed', id, name, result, durationMs: Date.now() - began, guard: snapshot })
-        deps.protect(name, args, result, false)
+        try { deps.protect(name, args, result, false) }
+        finally { deps.emit({ type: 'tool.completed', id, name, result, durationMs: Date.now() - began, guard: snapshot }) }
         return { content: [{ type: 'text', text: JSON.stringify(modelToolResult(name, result)) }, ...guidance(snapshot)], details: {} }
       } catch (error) {
         observeFailure(error)
@@ -98,8 +101,7 @@ export async function runPiAsk(deps: {
     if (cycle !== 'RUNNING') return { action: 'end' }
     const cancelled = userSignal.aborted
     if (deps.signal.aborted && !cancelled) failed(deps.signal.reason)
-    if (message.stopReason === 'error' && !cancelled) failed(new AgentError('AI_PROVIDER_FAILED'))
-    if (message.stopReason === 'aborted' && !cancelled) failed(new AgentError('AI_PROVIDER_FAILED'))
+    if (!cancelled && (message.stopReason === 'error' || message.stopReason === 'aborted')) failed(new AgentError('AI_PROVIDER_FAILED'))
     outcome = resolveCycle({ fatal: Boolean(failure), cancelled, finalAnswer: message.stopReason === 'stop', guard })
     return nextAction(outcome) === 'STOP' ? { action: 'end' } : undefined
   }, prepareNextTurnWithContext: async ({ context }) => {
@@ -130,7 +132,8 @@ export async function runPiAsk(deps: {
         deps.emit({ type: 'cycle.started', index: index + 1, startedAt: new Date().toISOString() })
         index++; cycle = running; recoverBatch = false; outcome = undefined
       } else if (event.type === 'turn_end' && cycle === 'RUNNING' && outcome) {
-        const settled = settleCycle(cycle, outcome)
+        if (deps.signal.aborted && !userSignal.aborted) failed(deps.signal.reason)
+        const settled = settleCycle(cycle, failure ? 'FAILED' : userSignal.aborted ? 'CANCELLED' : outcome)
         if (settled === 'CONTINUE' || settled === 'WARNING' || settled === 'RECOVERING') {
           deps.emit({ type: 'cycle.settled', index, status: settled, reason: settled === 'CONTINUE' ? null : guard?.reason ?? 'NO_PROGRESS_LOOP', finishedAt: new Date().toISOString() })
         }
@@ -150,7 +153,7 @@ export async function runPiAsk(deps: {
   deps.signal.addEventListener('abort', cancel, { once: true })
   try {
     deps.signal.throwIfAborted()
-    await agent.prompt(deps.message)
+    try { await agent.prompt(deps.message) } catch (error) { observeFailure(error); if (!failure) throw error }
     if (failure) throw failure
     deps.signal.throwIfAborted()
     if (agent.state.errorMessage || cycle !== 'SUCCESS') throw new AgentError('AI_PROVIDER_FAILED')
