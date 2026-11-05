@@ -80,7 +80,7 @@ src/
     └── tools/
 ```
 
-Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior.
+Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior. Browser extension management composes [Settings](../src/pages/settings/BrowserExtensionsSettings.tsx) with a typed bridge. The [Node-only installer](../src/platform/browser/extension-installer.ts) is shared with stdio. [Electron activation and tab access](../src/platform/browser/extensions.ts) stay in Main.
 
 ## 3. Dependencies and process composition
 

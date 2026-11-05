@@ -1,3 +1,7 @@
+import { BrowserExtensionInstaller } from '../../browser/extension-installer'
+import { BrowserExtensionRuntime } from '../../browser/extensions'
+import { BrowserExtensionStore } from '../../storage/browser-extensions'
+import { publishExtensionChange, registerExtensionIPC } from './extension-ipc'
 import { createChatDebugOutput } from './chat-debug-output'
 import { buildCommit } from './build-info'
 import { npmMCPLaunch } from '../../npm/distribution'
@@ -62,6 +66,7 @@ let externalMCP: ExternalMCPInstaller | undefined
 let knowledge: SmartNoteWorkspace | undefined
 let localModels: LocalModelManager | undefined
 let stopKnowledgeBroker: (()=>Promise<void>) | undefined
+let extensions: BrowserExtensionRuntime | undefined
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -71,7 +76,17 @@ if (process.env.JAB_DISTRIBUTION === 'npm') {
 }
 if (process.env.JOB_BROWSER_USER_DATA) app.setPath('userData', process.env.JOB_BROWSER_USER_DATA)
 
+const verification = process.argv.includes('--verify-package')
+const primary = verification || app.requestSingleInstanceLock()
+if (!primary) app.quit()
+app.on('second-instance', () => {
+  const window = BrowserWindow.getAllWindows()[0]
+  if (window?.isMinimized()) window.restore()
+  window?.focus()
+})
+
 app.whenReady().then(async () => {
+  if (!primary) return
   if (process.argv.includes('--verify-package')) { await verifyPackageRuntime(); app.exit(0); return }
   const directory = app.getPath('userData')
   preferences = createPreferences(join(directory, 'settings.json'), value => {
@@ -134,6 +149,10 @@ app.whenReady().then(async () => {
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
   })
+  extensions = new BrowserExtensionRuntime(new BrowserExtensionInstaller(new BrowserExtensionStore(directory)),
+    publishExtensionChange, id => browser?.closeExtensionOptions(id))
+  await extensions.start(app.getPath('sessionData'))
+  registerExtensionIPC(extensions, requireBrowser, assertTrustedRenderer)
   const created = createMainWindow(getInboxURL)
   browser = created.browser
 
@@ -156,7 +175,7 @@ app.on('will-quit', event => {
   if (shuttingDown) return
   if (!knowledge && !ai && !tools && !resumes && !externalMCP) { backend?.close(); backend = undefined; return }
   event.preventDefault(); shuttingDown = true
-  void Promise.allSettled([localModels?.close(), knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
+  void Promise.allSettled([extensions?.close(), localModels?.close(), knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
 registerBrowserIPC(requireBrowser, assertTrustedRenderer)

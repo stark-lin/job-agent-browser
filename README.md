@@ -39,6 +39,7 @@ Commands are defined in [package.json](package.json):
 ```sh
 npm run check
 npm run test:smoke
+npm run test:extensions
 npm run test:theme
 npm run test:jobs
 npm run test:mcp
@@ -49,7 +50,7 @@ npm run test:profile
 npm run test:ask-ai
 ```
 
-The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, browser history isolation, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL/text/PDF capture, application Agent actions, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform packaging is configured in [electron-builder.yml](electron-builder.yml); verification and release prerequisites are tracked in [CI/CD](docs/ci-cd.md).
+The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, browser history isolation, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. Settings imports unpacked MV3 extensions and manages per-extension enablement, Options and cleanup after a full restart. `test:extensions` exercises the production lifecycle with disposable profiles. [Browser extensions](docs/architecture.md#browser-extensions). `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL/text/PDF capture, application Agent actions, both parallel imports and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform packaging is configured in [electron-builder.yml](electron-builder.yml); verification and release prerequisites are tracked in [CI/CD](docs/ci-cd.md).
 
 `test:mcp` checks the existing MCP Client runtime. `test:mcp-server` checks the public Job/Application/Resume surface, runtime parity and a built Node stdio Server with real Electron HTML/PDF output and disposable storage. Both runtime smokes also run in `check`; Server PDF checks require a graphical desktop. See [MCP architecture](docs/mcp-architecture.md).
 

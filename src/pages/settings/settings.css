@@ -14,3 +14,14 @@
   .settings-page { padding: var(--space-3) var(--space-2) var(--space-6); }
   .settings-fields { grid-template-columns: 1fr; gap: var(--space-2); }
 }
+
+.settings-extension {
+  padding-block: var(--space-2);
+  border-top: var(--border-width) solid var(--line);
+  overflow-wrap: anywhere;
+}
+.settings-extension-row, .settings-extension-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1);
+}
+.settings-extension-row > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.settings-extension-controls { margin-inline-start: auto; }

@@ -19,7 +19,7 @@ UI    → typed IPC → Domain
 
 The sole public composition is [createJobAgentTooling](../src/platform/tools/index.ts). The [Server](../src/platform/mcp-server/server.ts) lists scoped descriptors and delegates calls to server-side ToolScope; registry/policy logic is never an Agent API. [Capabilities](../src/platform/tools/capabilities.ts) own access/execution audit, bounded JSON/schema validation and cancellation. Domain owns business validation and state transitions.
 
-[Registry policies](../src/shared/tools/policy.ts) require an allowlist; deny takes priority, and wildcard syntax is limited to trailing namespace patterns. The public surface caps risk at WRITE. Company writes, SQL, settings, secrets, provider configuration, browser control, email and external actions are absent. New descriptors never silently appear in an existing scope; removed/replaced entries are revoked.
+[Registry policies](../src/shared/tools/policy.ts) require an allowlist; deny takes priority, and wildcard syntax is limited to trailing namespace patterns. The public surface caps risk at WRITE. Company writes, SQL, settings, secrets, provider configuration, browser navigation, email and external actions are absent. New descriptors never silently appear in an existing scope; removed/replaced entries are revoked.
 
 [AgentLoop](../src/platform/agent/loop.ts) permits eight sequential model turns per stage, checks complete assistant call batches, and preserves fixed errors. Cancellation/audit failure terminate immediately. [AgentModel adaptation](../src/platform/ai/agent-model.ts) supports both complete and streaming compatible Chat Completions, maps dotted tool names injectively, and records content-free request outcomes. Model settings and credentials stay in Main.
 
@@ -29,7 +29,7 @@ The sole public composition is [createJobAgentTooling](../src/platform/tools/ind
 
 **Implemented activation guard:** activation preserves activeOnNextRequest and adds alreadyActive/changed/nextAction. Only still-authorized tools verified in the prepared request count as already active; name order/duplicates do not create progress. One redundant activation per normalized group is tolerated; the second ends the Run with AGENT_STEP_LIMIT, stopping later batch tools and inference. Search does not clear counts; successful business calls, effective loadout changes or catalog changes do. Pending same-batch activations and eviction/reactivation are not redundant. [Runtime architecture](architecture.md) owns request verification; [data architecture](data-architecture.md#ask-ai-transcript-storage) owns deletable diagnostics, independently of audit. [Regression tests](../tests/agent-disclosure.test.ts) cover guard and synchronization failures.
 
-The [explicit Ask allowlist](../src/shared/agent/ask-policy.ts) is shared by discovery and the [Server runtime](../src/platform/mcp-server/runtime.ts). Only a redeemed Main-issued Ask launch selects it; caller labels never select permissions. Both tools/list and tools/call exclude all resume.* tools, artifact.build and Delete tools; new tools default to denied. Ordinary Job/Profile/Application and non-delete Knowledge management, five Memory tools and artifact.get remain available. Dedicated Resume sessions and external MCP retain the public workflow surface.
+The [explicit Ask allowlist](../src/shared/agent/ask-policy.ts) is shared by discovery and the [Server runtime](../src/platform/mcp-server/runtime.ts). Only a redeemed Main-issued Ask launch selects it; caller labels never select permissions. Both tools/list and tools/call exclude all resume.* tools, artifact.build and Delete tools; new tools default to denied. Ordinary Job/Profile/Application and non-delete Knowledge management, five Memory tools, browser extension import/list and artifact.get remain available. Dedicated Resume sessions and external MCP retain the public workflow surface.
 
 ### Ask Run protection
 
@@ -94,6 +94,7 @@ The following public contracts are available to dedicated workflows and external
 
 | Public capability | Contract |
 | --- | --- |
+| browser.extension.install, browser.extension.list | Import an unpacked local MV3 directory disabled and list metadata, enablement and pending removal |
 | job.list, job.get, profile.list, profile.get, profile.list_facts, profile.list_items | Saved records, filters and pagination; existing result shapes retained |
 | profile.create, profile.update | Structured creation/partial updates with requestId receipts; updates require expectedRevision |
 | profile.add_item, profile.update_item, profile.add_fact, profile.update_fact | Same-profile ownership, acyclic parents, partial updates and expectedRevision; all writes have receipts |
@@ -118,6 +119,8 @@ Resume snapshot bounds remain 1000 facts, 200 items, 256 KiB context and 8 KiB p
 Bilingual [distill-resume](../skills/distill-resume/SKILL.md) extracts profile details, items and sourced facts from resumes; [distill-project](../skills/distill-project/SKILL.md) extracts project/repository evidence, separating documentation, code, observed verification and personal contribution. Both match existing records before using the same MCP writes and ask about material conflicts; a multi-call import is sequential, not atomic as a whole.
 
 Bilingual [capture-job](../skills/capture-job/SKILL.md), [manage-applications](../skills/manage-applications/SKILL.md) and [tailor-resume](../skills/tailor-resume/SKILL.md) are canonical reasoning guides. [skill:link](../scripts/install-skills.cjs) installs all six repository links idempotently and refuses unrelated destinations. Runtime prompts implement the same workflows without loading Skill text as business rules.
+
+**Browser extension tools.** [Install](../src/platform/tools/browser-extension.ts) accepts the server host’s absolute unpacked directory and a UUID v4 `requestId`. The Agent prepares or transfers the files. `INSTALLED_DISABLED` directs the user to enable the extension in Settings. A fresh duplicate returns `ALREADY_INSTALLED` and current enablement. An identical request replays its receipt until pending removal or deletion. The list reports metadata without paths. [RunGuard](../src/platform/mcp-server/run-guard/policies.ts) counts a new install once per Run. The server process manages imports and listings, while desktop IPC owns activation and removal.
 
 ## 6. Verification and remaining delivery
 

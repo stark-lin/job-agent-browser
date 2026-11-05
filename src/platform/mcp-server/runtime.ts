@@ -1,3 +1,5 @@
+import { BrowserExtensionInstaller } from '../browser/extension-installer'
+import { BrowserExtensionStore } from '../storage/browser-extensions'
 import type { MemoryAuthorization } from '../mcp/memory-authority'
 import { askToolAllowlist } from '../../shared/agent/ask-policy'
 import { SmartNoteWorkspace } from '../knowledge/workspace'
@@ -20,7 +22,8 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const output = createResumeOutput(backend, join(directory, 'artifacts'), join(bundleDirectory, 'fonts'), render ?? electronRenderer(join(bundleDirectory, 'resume-output-worker.js')))
   const preferences = createPreferences(join(directory,'settings.json'))
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
-  const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge, memoryAuthorization ? knowledge.spaces.memory : undefined)
+  const extensions = new BrowserExtensionInstaller(new BrowserExtensionStore(directory))
+  const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge, memoryAuthorization ? knowledge.spaces.memory : undefined, extensions)
   const allow = memoryAuthorization ? askToolAllowlist : jobAgentAllowlist
   const mcp = createMCPServer(tooling.registry, { allow, maxRisk: 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
     async (name, args, metadata) => {

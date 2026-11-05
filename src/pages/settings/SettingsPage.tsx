@@ -1,3 +1,4 @@
+import { BrowserExtensionsSettings } from './BrowserExtensionsSettings'
 import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,6 +59,7 @@ export function SettingsPage() {
             <div className="settings-actions">{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" disabled={!settings.mailDirty || Boolean(saving)}>{saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
           </form>
         </SectionCard>
+        <BrowserExtensionsSettings />
         <KnowledgeSettings onDirty={settings.setKnowledgeDirty} />
         <ExternalMCPSettings />
         <div className="settings-stack"><StatusMessage>{t($ => $.settings.local)}</StatusMessage><StatusMessage>{t($ => $.settings.localDescription)}</StatusMessage></div>

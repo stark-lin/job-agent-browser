@@ -36,6 +36,14 @@ export class TabNavigation<S extends HistorySegment> {
     this.current = item
   }
 
+  removeSegment(surface: S['surface'], replacement: InternalItem): void {
+    const item = this.surfaces.get(surface)
+    if (!item) return
+    this.surfaces.delete(surface)
+    if (this.current === item) this.current = replacement
+    item.segment.dispose()
+  }
+
   private get browser(): S | undefined {
     return this.current.kind === 'web' && this.current.segment.surface === 'browser' ? this.current.segment : undefined
   }

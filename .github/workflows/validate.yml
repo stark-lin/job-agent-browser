@@ -29,4 +29,4 @@ jobs:
       - name: Validate model-free npm packaging
         run: node scripts/prepare-npm-package.cjs && npm run package:npm:verify
       - name: Electron and Knowledge runtime
-        run: node scripts/run-smoke.cjs && node scripts/run-knowledge-smoke.cjs
+        run: node scripts/run-smoke.cjs && node scripts/run-knowledge-smoke.cjs && node scripts/extensions-smoke.cjs

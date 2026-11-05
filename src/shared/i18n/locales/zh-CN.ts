@@ -2,6 +2,24 @@ import type { en } from './en'
 type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translation<T[K]> }
 
 export const zhCN = {
+  extensions: {
+    title: '浏览器扩展', scope: '已启用的扩展可以访问 Browser 和 Inbox 中匹配的网站。',
+    importTitle: '导入浏览器扩展', import: '导入目录', importAndEnable: '导入并启用',
+    confirmImport: '导入并启用 {{name}}（{{version}}）？',
+    permissions: '声明的权限：{{values}}', sites: '匹配的网站：{{values}}', none: '无',
+    empty: '尚未安装浏览器扩展。', source: { manual: '手动导入', mcp: 'MCP 导入' },
+    status: { DISABLED: '已禁用', LOADING: '正在加载', RUNNING: '运行中', FAILED: '加载失败', PENDING_REMOVAL: '待清理' },
+    openOptions: '打开 {{name}} 的设置', enable: '启用 {{name}}', delete: '删除', deleteNamed: '删除 {{name}}',
+    confirmDelete: '删除 {{name}}？', deleteHelp: '扩展将立即卸载。完全退出并重新打开 JAB，即可清理扩展的本地数据和导入副本。',
+    pending: '完全退出并重新打开 JAB 即可完成清理。', cleanupFailed: '清理未能完成。JAB 将在下次完整重启时重试。',
+    errors: {
+      INVALID_PATH: '请选择包含已解包扩展的可读本地目录。',
+      INVALID_MANIFEST: '该目录不包含有效且受支持的 Manifest V3 扩展。',
+      INSTALL_FAILED: '无法安装扩展。', ALREADY_INSTALLED: '该扩展已安装。',
+      PENDING_REMOVAL: '该扩展正在等待清理。', SOURCE_CHANGED: '扩展文件已变化，请核对新的扩展包。',
+      UNAVAILABLE: '浏览器扩展管理暂不可用。'
+    }
+  },
   selection: {
     ask: '发送给 Ask AI', job: '职位导入', ok: '确定',
     invalid: '请在 HTTP(S) 网页中选择 1 至 60,000 个字符。来源网址不能超过 4,096 个字符，标题不能超过 1,000 个字符。',

@@ -1,5 +1,6 @@
 /** Ask capabilities are opt-in. Shared with the Server; discovery never grants authority. */
 export const askToolAllowlist = [
+  'browser.extension.list', 'browser.extension.install',
   'job.list', 'job.get', 'job.import', 'job.update', 'job.set_archived',
   'profile.list', 'profile.get', 'profile.list_items', 'profile.list_facts', 'profile.create', 'profile.update',
   'profile.add_item', 'profile.update_item', 'profile.add_fact', 'profile.update_fact',

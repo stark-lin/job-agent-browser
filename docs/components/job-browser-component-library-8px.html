@@ -264,9 +264,14 @@
             <label class="check-row"><input type="checkbox" checked /><span>Ignore entry and its facts</span></label>
             <label class="check-row"><input type="checkbox" /><span>Ignore this fact</span></label>
             <label class="check-row"><input type="checkbox" disabled /><span>Parent entry is ignored.</span></label>
-            <button class="check-row" style="border:0;background:transparent;padding:0" role="switch" aria-checked="true" onclick="const s=this.querySelector('.switch');s.classList.toggle('on');this.setAttribute('aria-checked',s.classList.contains('on'))">
-              <span class="switch on"></span> AI suggestions
-            </button>
+            <div class="check-row">
+              <button type="button" class="ui-switch" role="switch" aria-label="Enable Page Reader" aria-checked="true" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') === 'false')"><span aria-hidden="true"></span></button>
+              <span>Page Reader · browser extension</span>
+            </div>
+            <div class="check-row">
+              <button type="button" class="ui-switch" role="switch" aria-label="Enable Copy Helper" aria-checked="false" disabled><span aria-hidden="true"></span></button>
+              <span>Copy Helper · pending cleanup</span>
+            </div>
           </div>
         </div>
       </section>

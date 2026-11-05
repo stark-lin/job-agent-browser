@@ -11,7 +11,7 @@ import { HistoryDrag } from './historyDrag'
 import { HistoryIndicator } from './historyIndicator'
 import { NativeHistoryIdentity } from './nativeHistory'
 
-export const SESSION_PARTITION = 'persist:job-agent-browser'
+import { SESSION_PARTITION } from './sessionManager'
 
 export function isWebURL(value: string): boolean {
   try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
@@ -45,11 +45,12 @@ export class WebSegment implements HistorySegment {
     private readonly changed: (newEntry: boolean) => void,
     openPopup: (url: string) => void,
     readonly surface: 'browser' | 'inbox' = 'browser',
-    private readonly selection?: { identity(): string | null; accept(target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void; travel(direction: -1 | 1): void }
+    private readonly selection?: { identity(): string | null; accept(target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void; travel(direction: -1 | 1): void },
+    private readonly extensionURL?: (url: string) => boolean
   ) {
     this.view = new WebContentsView({ webPreferences: {
       session: session.fromPartition(SESSION_PARTITION), nodeIntegration: false,
-      preload: surface === 'browser' ? join(__dirname, '../preload/browser-gestures.js') : undefined,
+      preload: surface === 'browser' && !extensionURL ? join(__dirname, '../preload/browser-gestures.js') : undefined,
       contextIsolation: true, sandbox: true, webSecurity: true
     } })
     this.surfaceView.addChildView(this.view)
@@ -100,11 +101,15 @@ export class WebSegment implements HistorySegment {
     contents.on('blur', () => this.drag.cancel())
     contents.on('context-menu', (_event, params) => this.contextMenu(params))
     contents.setWindowOpenHandler(({ url }) => {
-      if (!this.disposed && isWebURL(url)) openPopup(url)
+      if (!this.disposed && !extensionURL && isWebURL(url)) openPopup(url)
       return { action: 'deny' }
     })
-    contents.on('will-navigate', (event, url) => { if (!isWebURL(url)) event.preventDefault() })
-    contents.on('will-redirect', (event, url) => { if (!isWebURL(url)) event.preventDefault() })
+    contents.on('will-frame-navigate', event => {
+      if (extensionURL ? !extensionURL(event.url) : event.isMainFrame ? !isWebURL(event.url) : /^chrome-extension:/i.test(event.url)) {
+        event.preventDefault()
+      }
+    })
+    contents.on('will-redirect', (event, url) => { if (!(extensionURL ?? isWebURL)(url)) event.preventDefault() })
     contents.on('did-start-loading', () => {
       this.isLoading = true; this.error = ''; this.notify()
     })
@@ -161,6 +166,7 @@ export class WebSegment implements HistorySegment {
   get index(): number { return this.pendingIndex ?? Math.max(0, this.view.webContents.navigationHistory.getActiveIndex()) }
 
   async navigate(url: string): Promise<void> {
+    if (!(this.extensionURL ?? isWebURL)(url)) throw new Error(t($ => $.errors.unsupportedProtocol))
     const generation = ++this.generation
     this.pendingIndex = undefined
     this.entryURL = url
@@ -176,14 +182,16 @@ export class WebSegment implements HistorySegment {
   }
 
   move(index: number): void {
-    if (index === this.index || this.view.webContents.navigationHistory.length() === 0) return
+    const history = this.view.webContents.navigationHistory
+    if (index === this.index || history.length() === 0) return
+    if (this.extensionURL && !this.extensionURL(history.getEntryAtIndex(index)?.url ?? '')) return
     if (this.surface === 'browser') this.presentation.begin()
     this.pendingIndex = index
     this.view.webContents.navigationHistory.goToIndex(index)
   }
 
   reload(): void {
-    if (this.disposed || !this.url || this.isLoading) return
+    if (this.disposed || !this.url || this.isLoading || this.extensionURL && !this.extensionURL(this.url)) return
     this.drag.cancel()
     this.presentation.begin()
     this.view.webContents.reload()

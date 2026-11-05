@@ -1,3 +1,4 @@
+import type { BrowserExtensionsAPI } from '../shared/browser-extensions'
 import type { KnowledgeAPI } from '../platform/electron/knowledge-contract'
 import type { AskAgentAPI } from '../platform/electron/ask-agent-contract'
 import type { ExternalMCPAPI } from '../shared/external-mcp'
@@ -19,6 +20,7 @@ declare global {
     applicationAgent: ApplicationAgentAPI
     resume: ResumeAPI
     browser: BrowserAPI
+    browserExtensions: BrowserExtensionsAPI
     data: DataAPI
     ai: AIAPI
     profileImport: ProfileImportAPI

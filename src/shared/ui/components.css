@@ -247,3 +247,25 @@ button, input, select, textarea { font: inherit; color: inherit; }
   height: var(--space-2);
   accent-color: var(--primary);
 }
+
+.ui-switch {
+  display: inline-grid; place-items: center;
+  min-width: var(--control-lg); min-height: var(--control-md);
+  padding: 0; border: 0; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer;
+}
+.ui-switch > span {
+  display: flex; align-items: center;
+  width: var(--control-lg); height: var(--control-sm);
+  padding: 0 var(--space-1); border-radius: var(--radius-sm);
+  background: var(--toggle-track); transition: background var(--ease);
+}
+.ui-switch > span::before {
+  content: ''; width: var(--icon-size); height: var(--icon-size);
+  border-radius: 50%; background: var(--on-toggle); box-shadow: var(--shadow-toggle);
+  transition: transform var(--ease);
+}
+.ui-switch[aria-checked="true"] > span { background: var(--primary); }
+.ui-switch[aria-checked="true"] > span::before { transform: translateX(var(--space-2)); }
+.ui-switch:focus-visible { outline: var(--focus-width) solid var(--primary); }
+.ui-switch:disabled { cursor: default; opacity: .55; }

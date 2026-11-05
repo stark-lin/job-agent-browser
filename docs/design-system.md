@@ -30,6 +30,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | `CopyButton` | Async copy action with duplicate-submit prevention; success changes the same disabled button to the supplied copied label with polite live feedback; failures remain retryable | [CopyButton.tsx](../src/shared/ui/CopyButton.tsx) |
 | `TextArea` | Multiline model IDs, chat input and personal introduction; 96px token minimum, resize/focus/disabled/error states | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
 | `Checkbox` | Native keyboard/focus/disabled behavior, associated wrapping label, 40px minimum target and 16px check control; independent ignore controls and per-model parallel import opt-in | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
+| `Switch` | Accessible checked/disabled states, native keyboard activation and a 40px minimum target. Browser Extensions uses it beside separate Options and Delete actions. | [Switch.tsx](../src/shared/ui/Switch.tsx) |
 | `TextInput` | Text, URL, password and numeric fields, or bare input inside a styled wrapper | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | Comma-separated lists using `TextInput` presentation; retains trailing delimiters while typing and resets on external value changes | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | Business source HTTP(S) links; reject credentials/other schemes and open externally | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |

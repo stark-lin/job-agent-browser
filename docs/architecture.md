@@ -138,16 +138,24 @@ Every group receives the full input, so input tokens/cost can increase. Smaller 
 
 ## 4. Session, security and storage
 
-Remote views share `persist:job-agent-browser`, retaining website storage across restarts. Permission requests are denied; there is no multi-profile selector.
+Browser and Inbox views share `persist:job-agent-browser` and retain website storage across restarts. Main denies website permission requests and checks.
 
 - [Trusted window](../src/platform/electron/main/window.ts) and [remote views](../src/platform/browser/webSegment.ts) disable Node integration and enable context isolation and sandboxing; remote web security remains enabled.
 - Business browser, data and AI IPC require the owning trusted document and top frame, and validate inputs. [Preload](../src/platform/electron/preload/index.ts) exposes named operations, never raw `ipcRenderer`.
-- Remote main-frame navigation/redirects permit HTTP(S) only. HTTP(S) pop-ups create an app tab; native pop-ups and other schemes are denied. Remote pages cannot enter internal routes or access browser/data bridges.
+- Ordinary Browser and Inbox main-frame navigation and redirects permit HTTP(S) only. HTTP(S) pop-ups create an app tab; native pop-ups and other schemes are denied. Remote pages cannot enter internal routes or access browser/data bridges.
 - [Trusted HTML](../src/renderer/index.html) retains its CSP. Trusted UI external links use the operating-system browser through window creation.
 
 Main opens storage and registers data handlers before creating the window, closes storage on quit and reports startup failure without resetting data. [Backend composition](../src/platform/database/backend.ts) injects repositories/transactions and recovers interrupted generation attempts. The [data architecture](data-architecture.md) owns implemented SQLite, business validation, persistence and content-free audit.
 
 **Implemented tools/MCP:** [Main](../src/platform/electron/main/index.ts) separately owns optional third-party consumption and [first-party sessions](../src/platform/mcp/first-party-client.ts). Internal workflows and external hosts share scoped business capabilities through the [Node Server](../src/platform/mcp-server/runtime.ts); caller labels affect audit only. Renderer exposes named workflow IPC, never generic tool execution. [MCP architecture](mcp-architecture.md) owns registration, bounds and shutdown; data architecture owns multi-process recovery.
+
+### Browser extensions
+
+**Implemented** local unpacked Manifest V3 import. [Settings](../src/pages/settings/BrowserExtensionsSettings.tsx) confirms permissions and site matches for manual import and shows declared access for every entry. A manual import attempts to load immediately. An [MCP import](mcp-architecture.md#5-job-agent-browser-mcp) starts disabled and the user enables it with the Settings switch. Both Browser and Inbox can run extensions on matching sites.
+
+[Main runtime](../src/platform/browser/extensions.ts) installs the permission policy and restores enabled entries on the shared partition before opening the window. Load failures remain individually retryable. [BrowserManager](../src/platform/browser/browserManager.ts) opens valid Options pages in restricted Browser tabs using the active Electron extension ID. Only same-extension package resources are allowed in those tabs. Disable and delete close the affected Options tabs. Internal application views and PDF export use separate Sessions. A full quit and reopen finalizes pending deletion. [Extension storage](data-architecture.md#6-settings-secrets-and-remaining-work).
+
+The [extension smoke](../scripts/extensions-smoke.cjs) verifies content scripts, MV3 workers, both Options declarations, local storage and restart cleanup on Electron 44.9.3. The tested macOS build reports `chrome.storage.sync` as unavailable. Compatibility is limited to the Electron APIs verified for a given extension. [Electron extension API](https://www.electronjs.org/docs/latest/api/extensions).
 
 ## 5. Internationalization
 

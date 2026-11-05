@@ -1,19 +1,20 @@
 import { flushKnowledge } from '../electron/main/knowledge-flush'
 import { t, i18n } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
-import { app, session, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
+import { app, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
 import { resolvedTheme, themeBackground } from '../electron/main/theme'
 import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
 import { isBrowserDestination } from '../../shared/navigation'
 import { resolveDestination } from './navigationManager'
 import { TabNavigation } from './tabNavigation'
-import { SESSION_PARTITION, WebSegment } from './webSegment'
+import { WebSegment } from './webSegment'
+import type { ExtensionOptionsTarget } from './extensions'
 import { installShortcuts } from './shortcuts'
 import { SelectionHandoff } from './selectionHandoff'
 import type { SelectionTarget, WebSelection } from '../../shared/browser-selection'
 
-interface Tab { id: string; version: number; history: TabNavigation<WebSegment> }
+interface Tab { id: string; version: number; history: TabNavigation<WebSegment>; options?: { extensionId: string; returnTo: string } }
 
 export class BrowserManager {
   private readonly tabs = new Map<string, Tab>()
@@ -26,7 +27,6 @@ export class BrowserManager {
   private readonly selections = new SelectionHandoff()
 
   constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null) {
-    session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     this.addTab('home')
     const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
     i18n.on('languageChanged', languageChanged)
@@ -144,18 +144,50 @@ export class BrowserManager {
     this.addTab('browser')
   }
 
-  private addTab(page: 'home' | 'browser'): void {
+  private addTab(page: 'home' | 'browser'): Tab {
     const tab: Tab = { id: randomUUID(), version: 0, history: new TabNavigation({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page } }) }
     this.tabs.set(tab.id, tab)
     this.activeTabId = tab.id
     this.transition(tab)
+    return tab
+  }
+
+  async openExtensionOptions(target: ExtensionOptionsTarget): Promise<void> {
+    if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
+    if (this.window.isDestroyed() || !target.allows(target.url)) return
+    const returnTo = this.activeTabId
+    const tab = this.addTab('browser')
+    tab.options = { extensionId: target.id, returnTo }
+    const segment = this.createSegment(tab, 'browser', target.allows)
+    tab.history.showWeb(segment)
+    segment.url = target.url
+    this.transition(tab)
+    try { await segment.navigate(target.url) }
+    catch (error) { this.closeOptionsTab(tab); throw error }
+  }
+
+  closeExtensionOptions(extensionId: string): void {
+    for (const tab of this.tabs.values()) {
+      if (tab.options?.extensionId === extensionId) this.closeOptionsTab(tab)
+    }
+  }
+
+  private closeOptionsTab(tab: Tab): void {
+    if (!this.tabs.delete(tab.id)) return
+    tab.history.dispose()
+    if (this.activeTabId !== tab.id) { this.publishState(); return }
+    const previous = tab.options && this.tabs.get(tab.options.returnTo)
+    const next = previous || this.tabs.values().next().value
+    if (!next) { this.addTab('home'); return }
+    this.activeTabId = next.id
+    this.transition(next)
   }
 
   async activateTab(id: string): Promise<void> {
     const tab = this.requireTab(id)
     if (this.activeTabId === id) return
     if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
-    if (this.isBrowser()) tab.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'browser' } })
+    if (this.isBrowser() && !this.tabs.get(this.activeTabId)?.options) tab.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'browser' } })
     this.activeTabId = id
     this.transition(tab)
   }
@@ -163,6 +195,7 @@ export class BrowserManager {
   async closeTab(id: string): Promise<void> {
     const tab = this.requireTab(id), ids = [...this.tabs.keys()], index = ids.indexOf(id)
     if (this.activeTabId === id && (this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
+    if (tab.options) { this.closeOptionsTab(tab); return }
     const browser = this.isBrowser()
     this.tabs.delete(id)
     this.selections.clear(id)
@@ -185,6 +218,10 @@ export class BrowserManager {
       if (inboxURL) { destination = resolveDestination(inboxURL); surface = 'inbox' }
     }
     if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
+    if (tab.options && !(destination.kind === 'internal' && destination.page === 'browser')) {
+      tab.history.removeSegment('browser', { kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: 'browser' } })
+      tab.options = undefined
+    }
     if (destination.kind === 'internal') {
       tab.history.showPage({ kind: 'internal', id: randomUUID(), destination })
       this.transition(tab)
@@ -195,29 +232,31 @@ export class BrowserManager {
     if (inbox && segment && !segment.error && segment.entryURL === destination.url) {
       tab.history.showWeb(segment); this.transition(tab); return
     }
-    if (!segment) {
-      const created: WebSegment = new WebSegment(this.window, () => {
-        if (!this.tabs.has(tab.id)) return
-        this.updateVisibility(); this.publishState()
-      }, (url) => {
-        void (async () => {
-          if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
-          await this.createTab(); await this.navigate(url, created.surface)
-        })().catch(() => { /* The popup's load error belongs to its own tab. */ })
-      }, surface, {
-        identity: () => this.selectionIdentity(tab, created),
-        accept: (target, content) => this.handoff(tab, created, target, content),
-        travel: direction => { if (this.selectionIdentity(tab, created)) void this.travel(direction) }
-      })
-      segment = created
-      this.shortcuts(created.view.webContents)
-    }
+    segment ??= this.createSegment(tab, surface)
     tab.history.showWeb(segment)
     segment.trimForward()
     // Establish a web destination before publishing or asking React to present it.
     segment.url = destination.url
     this.transition(tab)
     await segment.navigate(destination.url)
+  }
+
+  private createSegment(tab: Tab, surface: 'browser' | 'inbox', extensionURL?: ExtensionOptionsTarget['allows']): WebSegment {
+    const created: WebSegment = new WebSegment(this.window, () => {
+      if (!this.tabs.has(tab.id)) return
+      this.updateVisibility(); this.publishState()
+    }, url => {
+      void (async () => {
+        if ((this.unsaved || this.isKnowledge()) && !(await this.confirmLeave())) return
+        await this.createTab(); await this.navigate(url, surface)
+      })().catch(() => { /* The popup's load error belongs to its own tab. */ })
+    }, surface, extensionURL ? undefined : {
+      identity: () => this.selectionIdentity(tab, created),
+      accept: (target, content) => this.handoff(tab, created, target, content),
+      travel: direction => { if (this.selectionIdentity(tab, created)) void this.travel(direction) }
+    }, extensionURL)
+    this.shortcuts(created.view.webContents)
+    return created
   }
 
   back(): Promise<void> { return this.travel(-1) }

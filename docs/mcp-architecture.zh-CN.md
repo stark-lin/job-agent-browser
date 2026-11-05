@@ -19,7 +19,7 @@ UI    → typed IPC → Domain
 
 唯一公共组合入口是 [createJobAgentTooling](../src/platform/tools/index.ts)。[Server](../src/platform/mcp-server/server.ts)列出受限描述符，并交由服务端 ToolScope 执行；Registry/Policy 不再是 Agent API。[能力层](../src/platform/tools/capabilities.ts)管理访问/执行审计、受限 JSON/schema 校验和取消，Domain 管理业务校验与状态转换。
 
-[Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含公司写入、SQL、设置、密钥、Provider 配置、浏览器控制、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
+[Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含公司写入、SQL、设置、密钥、Provider 配置、浏览器导航、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
 
 [AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)支持普通及流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
 
@@ -29,7 +29,7 @@ UI    → typed IPC → Domain
 
 **已实现激活保护：**激活保留 activeOnNextRequest，增加 alreadyActive/changed/nextAction。仅仍获授权且已在组装请求中通过校验的工具计为已激活；名称换序/重复不构成进展。同一规范化工具组容忍一次冗余激活，第二次以 AGENT_STEP_LIMIT 结束 Run，阻止同批后续工具和推理。搜索不清除计数；业务调用成功、有效 loadout 变化或目录变化会清除。同批尚未生效的激活及淘汰后重激活不算冗余。[运行时架构](architecture.zh-CN.md)管理请求校验，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理独立于审计的可删除诊断。[回归测试](../tests/agent-disclosure.test.ts)覆盖保护及同步失败。
 
-[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 非删除操作、五个 Memory 工具及 artifact.get 保持可用；独立 Resume 会话与外部 MCP 保留公开工作流能力。
+[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 非删除操作、五个 Memory 工具、浏览器扩展导入/查询及 artifact.get 保持可用；独立 Resume 会话与外部 MCP 保留公开工作流能力。
 
 ### Ask Run 保护
 
@@ -94,6 +94,7 @@ JOB_BROWSER_MCP_CALLER = "codex"
 
 | 公共能力 | 契约 |
 | --- | --- |
+| browser.extension.install, browser.extension.list | 从本地已解包的 MV3 目录导入为禁用状态，查询元数据、启用意图与待清理状态 |
 | job.list, job.get, profile.list, profile.get, profile.list_facts, profile.list_items | 已保存记录、筛选和分页，保留现有结果形状 |
 | profile.create, profile.update | 结构化资料创建/部分更新，requestId receipt；更新需 expectedRevision |
 | profile.add_item, profile.update_item, profile.add_fact, profile.update_fact | 同资料归属、无环父级、部分更新及 expectedRevision，全部写入有 receipt |
@@ -118,6 +119,8 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 双语 [distill-resume](../skills/distill-resume/SKILL.zh-CN.md)从简历提取资料、条目和有来源事实；[distill-project](../skills/distill-project/SKILL.zh-CN.md)从项目/仓库提取实现证据，区分文档、代码、实测和用户贡献。两者均先匹配既有记录，通过相同 MCP 写入，遇到实质冲突再追问；批量导入由多次顺序调用组成，不保证整体原子性。
 
 双语 [capture-job](../skills/capture-job/SKILL.zh-CN.md)、[manage-applications](../skills/manage-applications/SKILL.zh-CN.md)、[tailor-resume](../skills/tailor-resume/SKILL.zh-CN.md)是标准推理指南。[skill:link](../scripts/install-skills.cjs)幂等安装六个仓库链接，拒绝覆盖无关目标。运行时 Prompt 实现相同流程，不把 Skill 文本作为业务规则加载。
+
+**浏览器扩展工具。** [导入工具](../src/platform/tools/browser-extension.ts)接收 Server 主机上的绝对解包目录和 UUID v4 `requestId`，由 Agent 准备或传输文件。`INSTALLED_DISABLED` 提示用户到 Settings 启用。重复包的新请求返回 `ALREADY_INSTALLED` 和当前启用意图。相同请求重放回执，直至安装进入待清理或已删除。列表仅返回元数据，不包含路径。[RunGuard](../src/platform/mcp-server/run-guard/policies.ts)每个 Run 对新安装只计一次进展。Server 负责导入和查询，桌面 IPC 负责启停和删除。
 
 ## 六、验证与待交付内容
 

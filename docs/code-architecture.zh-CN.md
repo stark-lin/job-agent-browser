@@ -80,7 +80,7 @@ src/
     └── tools/
 ```
 
-Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。
+Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。浏览器扩展管理由[设置页面](../src/pages/settings/BrowserExtensionsSettings.tsx)通过类型化桥接调用。[仅依赖 Node 的安装器](../src/platform/browser/extension-installer.ts)由 Main 与 stdio 共用，[Electron 启用和标签页访问](../src/platform/browser/extensions.ts)归属 Main。
 
 ## 三、依赖与进程组装
 

@@ -1,5 +1,23 @@
 /** Application-owned copy. Keep complete sentences so translations can reorder words. */
 export const en = {
+  extensions: {
+    title: 'Browser extensions', scope: 'Enabled extensions can access matching sites in Browser and Inbox.',
+    importTitle: 'Import browser extension', import: 'Import directory', importAndEnable: 'Import and enable',
+    confirmImport: 'Import and enable {{name}} ({{version}})?',
+    permissions: 'Declared permissions: {{values}}', sites: 'Matching sites: {{values}}', none: 'None',
+    empty: 'No browser extensions installed.', source: { manual: 'Manual import', mcp: 'MCP import' },
+    status: { DISABLED: 'Disabled', LOADING: 'Loading', RUNNING: 'Running', FAILED: 'Could not load', PENDING_REMOVAL: 'Pending cleanup' },
+    openOptions: 'Open settings for {{name}}', enable: 'Enable {{name}}', delete: 'Delete', deleteNamed: 'Delete {{name}}',
+    confirmDelete: 'Delete {{name}}?', deleteHelp: 'The extension unloads now. Fully quit and reopen JAB to finish removing its local data and the imported copy.',
+    pending: 'Fully quit and reopen JAB to finish cleanup.', cleanupFailed: 'Cleanup could not finish. JAB will retry on the next full restart.',
+    errors: {
+      INVALID_PATH: 'Choose a readable local directory containing the unpacked extension.',
+      INVALID_MANIFEST: 'The directory does not contain a valid, supported Manifest V3 extension.',
+      INSTALL_FAILED: 'The extension could not be installed.', ALREADY_INSTALLED: 'This extension is already installed.',
+      PENDING_REMOVAL: 'This extension is pending cleanup.', SOURCE_CHANGED: 'The extension files changed. Review the new package.',
+      UNAVAILABLE: 'Browser extension management is unavailable.'
+    }
+  },
   selection: {
     ask: 'Send to Ask AI', job: 'Import job', ok: 'OK',
     invalid: 'Select between 1 and 60,000 characters from an HTTP(S) page. The source URL must fit 4,096 characters and the title 1,000 characters.',

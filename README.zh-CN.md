@@ -39,6 +39,7 @@ JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 ```sh
 npm run check
 npm run test:smoke
+npm run test:extensions
 npm run test:theme
 npm run test:jobs
 npm run test:mcp
@@ -49,7 +50,7 @@ npm run test:profile
 npm run test:ask-ai
 ```
 
-构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、浏览器历史隔离、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及两种并行导入及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台打包已配置于 [electron-builder.yml](electron-builder.yml)，验收及发布前置条件见 [CI/CD](docs/ci-cd.zh-CN.md)。
+构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、浏览器历史隔离、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。Settings 支持导入已解包的 MV3 扩展、逐个启停、打开扩展设置，以及在完整重启后完成删除。`test:extensions` 使用临时资料目录验证生产应用中的扩展生命周期。[浏览器扩展](docs/architecture.zh-CN.md#浏览器扩展)。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及两种并行导入及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台打包已配置于 [electron-builder.yml](electron-builder.yml)，验收及发布前置条件见 [CI/CD](docs/ci-cd.zh-CN.md)。
 
 `test:mcp` 验证现有 MCP Client 运行时。`test:mcp-server` 验证 Job/Application/Resume 公共能力、运行时一致性及构建后的 Node stdio Server，使用临时存储和真实 Electron HTML/PDF 输出。两种运行时 smoke 均纳入 `check`；Server PDF 验证需要图形桌面。见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
 

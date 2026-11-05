@@ -169,19 +169,19 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 ## 六、配置、密钥与待完成工作
 
-受控运行时共享 `database.sqlite`、SQLite 辅助文件及 `userData/artifacts/`。Main 管理 `userData/settings.json` 和 `userData/secrets.enc`；MCP Server 不加载应用凭据。Electron Session 单独拥有网站 Cookie/存储。普通业务审计不可禁用。
+**已实现扩展存储。** `userData/extensions/index.json` 中的[版本化索引](../src/platform/storage/browser-extensions.ts)保存 JAB ID、扩展包指纹、启用意图、Electron 身份、待清理记录和带输入路径摘要的 MCP 回执。Main 与 stdio 使用跨进程锁和原子索引写入。[安装器](../src/platform/browser/extension-installer.ts)暂存本地扩展包，再发布到 `packages/<id>/`。启动时回收未提交的扩展包，保留无法读取的索引以便恢复。桌面单实例锁保护定向清理，初始化 Session 前清理目标 ID 的 local/sync 目录，初始化后按 origin 清理 Web 数据。清理及托管副本删除成功后移除待清理记录。
 
 可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#三内部与第三方-client)管理配置示例和限制。
 
-[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
+[偏好配置](../src/platform/storage/preferences.ts) 使用版本 1 的 `userData/settings.json` 保存英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
 
 [AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。每个 Provider 可选的 `parallelModels` 只能包含其 `models` 内不重复的 ID；缺省/空列表表示关闭，无效写入原子拒绝。保存其他偏好保留该列表；在设置中移除模型 ID 时同步移除其许可。Endpoint 保留路径前缀，拒绝凭据、查询参数和片段。旧版本 1 文件在内存中补齐缺少的 AI/超时默认值，保存前不改写。移除 Provider 前须先删除其密钥。模型检测、导入模式选择及任务生命周期归属[当前架构](architecture.zh-CN.md)。
 
 [超时设置](../src/shared/ai.ts)保存全局 `ai.timeouts.requestSeconds`、`pageSeconds` 和 `modelsSeconds`，默认分别为 120、20 和 15 秒。每项允许 1–3600 的整数秒数；无效写入保留原文件。AI 超时覆盖对话、职位/资料解析和 Resume Agent 的每次调用；网页读取及模型检测各自独立。编辑/移除 Provider 或保存其他偏好均保留这些值。[设置测试](../tests/settings.test.ts)验证旧配置读取、持久化及无效写入的原子拒绝。
 
-[密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
+[密钥](../src/platform/storage/secrets.ts)保存于 `userData/secrets.enc`，使用以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 缺少文件服务时返回 `NOT_IMPLEMENTED`；调试复制另需宿主输出。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。严格结构化输出协商、登录态网页提取/查重、其余业务 UI 和完整隐私清除尚未实现。简历 Provider 兼容性通过本地样本验证，真实 Provider 仍未验证。
+[回退适配器](../src/platform/storage/index.ts)在缺少文件服务时返回 `NOT_IMPLEMENTED`。AI 对话和简历 Provider 兼容性通过本地样本验证，见[当前运行时限制](architecture.zh-CN.md#六验证与限制)。
 
 ## 智能笔记存储与 Memory v1
 

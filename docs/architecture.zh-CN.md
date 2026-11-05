@@ -138,16 +138,24 @@ AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位�
 
 ## 四、会话、安全与存储
 
-远程视图共享 `persist:job-agent-browser`，网站存储跨重启保留。权限请求被拒绝；没有多资料选择器。
+Browser 和 Inbox 视图共享 `persist:job-agent-browser`，网站存储跨重启保留。Main 拒绝网站权限请求及权限检查。
 
 - [可信窗口](../src/platform/electron/main/window.ts)和[远程视图](../src/platform/browser/webSegment.ts)禁用 Node 集成，启用上下文隔离和沙盒；远程网页安全检查保持启用。
 - 业务浏览器、数据及 AI IPC 要求自有可信文档及顶层 frame，并校验输入。[Preload](../src/platform/electron/preload/index.ts) 只暴露命名操作，不暴露原始 `ipcRenderer`。
-- 远程主 frame 导航/重定向只允许 HTTP(S)。HTTP(S) 弹窗新建应用标签；原生弹窗和其他协议被拒绝。远程页面不能进入内部路由或访问浏览器/数据桥接。
+- 普通 Browser 和 Inbox 的主 frame 导航及重定向只允许 HTTP(S)。HTTP(S) 弹窗新建应用标签；原生弹窗和其他协议被拒绝。远程页面不能进入内部路由或访问浏览器/数据桥接。
 - [可信 HTML](../src/renderer/index.html) 保持 CSP。可信 UI 外部链接通过窗口创建逻辑使用操作系统浏览器。
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
 **已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)分别管理可选第三方能力消费与 [first-party 会话](../src/platform/mcp/first-party-client.ts)。内部流程与外部宿主通过限定 Scope 共用业务能力，使用同一 [Node Server](../src/platform/mcp-server/runtime.ts)，Caller 标识仅影响审计。Renderer 只暴露命名流程 IPC，不开放通用工具执行。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、上限和退出，数据架构管理多进程恢复。
+
+### 浏览器扩展
+
+**已实现**从本地导入已解包的 Manifest V3 扩展。[设置](../src/pages/settings/BrowserExtensionsSettings.tsx)在手动导入前确认权限与匹配站点，并在每个条目展示声明的访问范围。手动导入后立即尝试加载。[MCP 导入](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)默认为禁用，由用户打开 Settings 中的开关启用。扩展可在 Browser 和 Inbox 的匹配站点运行。
+
+[Main 运行时](../src/platform/browser/extensions.ts)在创建窗口前设置共享分区的权限策略并恢复已启用项，加载失败的扩展可单独重试。[BrowserManager](../src/platform/browser/browserManager.ts)使用运行中的 Electron 扩展 ID，在受控的 Browser 标签页中打开有效 Options 页面，只允许访问同一扩展的包内资源。禁用和删除会关闭该扩展的 Options 标签页。内部应用视图及 PDF 导出使用独立 Session。完全退出并重新打开应用后完成待清理的删除。[扩展存储](data-architecture.zh-CN.md#六配置密钥与待完成工作)。
+
+[扩展 smoke](../scripts/extensions-smoke.cjs)在 Electron 44.9.3 验证内容脚本、MV3 worker、两种 Options 声明、本地存储及重启清理。经测试的 macOS 构建报告 `chrome.storage.sync` 不可用。扩展兼容性以其实际使用的 Electron API 为准。[Electron 扩展 API](https://www.electronjs.org/docs/latest/api/extensions)。
 
 ## 五、国际化
 

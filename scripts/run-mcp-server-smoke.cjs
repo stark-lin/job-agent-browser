@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict')
-const { mkdtempSync, rmSync, readFileSync, existsSync } = require('node:fs')
+const { mkdtempSync, rmSync, readFileSync, existsSync, mkdirSync, writeFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 const { tmpdir } = require('node:os')
 const { randomUUID } = require('node:crypto')
@@ -37,6 +37,24 @@ async function main() {
     await client.connect(transport)
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist].sort())
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING', 'MCP startup must preserve another process task')
+    const extensionPath = join(directory, 'local-mv3-fixture')
+    mkdirSync(extensionPath)
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ name: 'Stdio Fixture', version: '1', manifest_version: 3 }))
+    const extensionInput = { path: extensionPath, requestId: randomUUID() }
+    const extension = await call('browser.extension.install', extensionInput)
+    assert.deepEqual(extension, { status: 'INSTALLED_DISABLED', extensionId: extension.extensionId,
+      name: 'Stdio Fixture', version: '1', enabled: false, requiresUserAction: true, nextAction: 'ENABLE_IN_SETTINGS' })
+    assert.deepEqual(await call('browser.extension.install', extensionInput), extension)
+    assert.deepEqual(await call('browser.extension.install', { ...extensionInput, requestId: randomUUID() }),
+      { status: 'ALREADY_INSTALLED', extensionId: extension.extensionId, name: extension.name, version: extension.version, enabled: false })
+    assert.deepEqual(await call('browser.extension.list', {}), { extensions: [{ id: extension.extensionId,
+      name: extension.name, version: extension.version, source: 'mcp', enabled: false }] })
+    for (const path of ['https://example.invalid/extension.zip', './unpacked', join(extensionPath, 'manifest.json')]) {
+      assert.deepEqual(await call('browser.extension.install', { path, requestId: randomUUID() }), { status: 'INVALID_PATH' })
+    }
+    for (const method of ['enable', 'disable', 'delete', 'openOptions']) {
+      assert.equal((await client.callTool({ name: `browser.extension.${method}`, arguments: { id: extension.extensionId } })).isError, true)
+    }
     assert.equal((await call('job.list', {})).items[0].id, job.id)
     assert.equal((await call('profile.list', {})).items[0].id, profile.id)
     // Exercise the built profile surface, not only the compiled test runtime.

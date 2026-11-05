@@ -63,6 +63,8 @@ export class ReadProgress {
     const row = object(output.structuredContent), input = object(args) ?? {}
     const fallback = () => this.add(['result', tool.name, output.structuredContent === undefined ? output.content : output.structuredContent])
     if (!row) return fallback()
+    if (tool.name === 'browser.extension.list' && Array.isArray(row.extensions))
+      return row.extensions.length ? this.collection('browser-extension', row.extensions) : this.add(['empty', 'browser-extension'])
     const space = tool.name.split('.')[0]
     if (['memory.recall', 'knowledge.search', 'knowledge.retrieve'].includes(tool.name)) {
       const values = row.sources ?? row.items

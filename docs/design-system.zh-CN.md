@@ -30,6 +30,7 @@
 | `CopyButton` | 异步复制并防止重复提交；成功后原按钮禁用并切换为传入的已复制文案，以礼貌实时反馈播报；失败仍可重试 | [CopyButton.tsx](../src/shared/ui/CopyButton.tsx) |
 | `TextArea` | 多行模型 ID、聊天输入和个人简介；最小高度使用 96px Token，支持缩放/焦点/禁用/错误状态 | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
 | `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立忽略控件及按模型开启并行导入 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
+| `Switch` | 提供可访问的开关与禁用状态、原生键盘激活及至少 40px 的点击目标。浏览器扩展将其与独立的 Options 和删除操作并列。 | [Switch.tsx](../src/shared/ui/Switch.tsx) |
 | `TextInput` | 文本、URL、密码和数字字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |

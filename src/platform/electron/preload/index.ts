@@ -1,3 +1,4 @@
+import { createExtensionBridge } from './extension-bridge'
 import { createKnowledgeBridge } from './knowledge-bridge'
 import { KNOWLEDGE_CALL, KNOWLEDGE_CHANGED, KNOWLEDGE_FLUSH, KNOWLEDGE_FLUSHED } from '../knowledge-contract'
 import { createAskAgentBridge } from './ask-agent-bridge'
@@ -65,6 +66,7 @@ const browserAPI: BrowserAPI = {
 }
 
 contextBridge.exposeInMainWorld('browser', browserAPI)
+contextBridge.exposeInMainWorld('browserExtensions', createExtensionBridge())
 contextBridge.exposeInMainWorld('externalMCP', createExternalMCPBridge((method, input) => ipcRenderer.invoke(EXTERNAL_MCP_CALL, method, input)))
 contextBridge.exposeInMainWorld('externalSkills', createExternalSkillsBridge((method, input) => ipcRenderer.invoke(EXTERNAL_SKILLS_CALL, method, input)))
 const jobImport: JobImportAPI = {
