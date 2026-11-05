@@ -20,6 +20,7 @@ export async function createPiStream(deps: {
   model: StreamingAgentModel; budget: ContextBudget; signal: AbortSignal
   prepare(messages: AgentMessage[], tools: AgentToolDescriptor[], signal: AbortSignal): Promise<AgentMessage[]>
   failed(error: unknown): void
+  cycleIndex?(): number
   completed?(response: AgentResponse): void
   loadout?(): { version: number; tools: AgentToolDescriptor[] }
   advertised?(names: string[]): void
@@ -33,6 +34,7 @@ export async function createPiStream(deps: {
     void (async () => {
       try {
         const signal = options?.signal ? AbortSignal.any([options.signal, deps.signal]) : deps.signal
+        const cycleIndex = deps.cycleIndex?.()
         if (++requests > 64) throw new AgentError('AGENT_STEP_LIMIT')
         signal.throwIfAborted()
         const tools: AgentToolDescriptor[] = getCurrentTools(context.messages).map(t => ({ name: t.name, description: t.description, inputSchema: t.parameters as Record<string, unknown> }))
@@ -48,7 +50,7 @@ export async function createPiStream(deps: {
           current = undefined
         }
         const loadout = deps.loadout?.() ?? { version: 0, tools }
-        const requestContext = { purpose: 'agent-turn' as const, loadoutVersion: loadout.version, expectedTools: toolSnapshot(loadout.tools), piTools: toolSnapshot(tools) }
+        const requestContext = { purpose: 'agent-turn' as const, cycleIndex, loadoutVersion: loadout.version, expectedTools: toolSnapshot(loadout.tools), piTools: toolSnapshot(tools) }
         const iterator = deps.model.stream({ messages, tools, signal, maxOutputTokens: deps.budget.output, stableToolNames: true, requestContext,
           onRequestPrepared(request) { verifyRequest(request, requestContext); deps.advertised?.(request.tools.map(t => t.name)) }, validateRequest(payload) {
           if (deps.budget.tokens.count(payload) > deps.budget.input) throw new AgentError('ASK_CONTEXT_OVERFLOW')

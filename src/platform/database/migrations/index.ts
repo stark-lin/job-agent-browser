@@ -16,11 +16,12 @@ import { askRuntimeMigration } from './ask-runtime'
 import { askSerialMigration } from './ask-serial'
 import { chatModelRequestsMigration } from './chat-model-requests'
 import { chatProtocolMigration } from './chat-protocol'
+import { chatReactCyclesMigration } from './chat-react-cycles'
 
 export interface Migration { version: number; sql: string }
 export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration },
   { version: 3, sql: capabilityAuditMigration }, { version: 4, sql: runtimeLeaseMigration }, { version: 5, sql: operationReceiptMigration }, { version: 6, sql: chatMigration },
-  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }, { version: 10, sql: memoryAuditMigration }, { version: 11, sql: askRuntimeMigration }, { version: 12, sql: chatProtocolMigration }, { version: 13, sql: askSerialMigration }, { version: 14, sql: chatModelRequestsMigration }, { version: 15, sql: removeFactEvidenceMigration }]
+  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }, { version: 10, sql: memoryAuditMigration }, { version: 11, sql: askRuntimeMigration }, { version: 12, sql: chatProtocolMigration }, { version: 13, sql: askSerialMigration }, { version: 14, sql: chatModelRequestsMigration }, { version: 15, sql: removeFactEvidenceMigration }, { version: 16, sql: chatReactCyclesMigration }]
 
 // A new incompatible schema generation. Inspect before any journal/schema writes.
 export const DATABASE_GENERATION = 0x4a415632
