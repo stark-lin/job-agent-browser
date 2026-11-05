@@ -3,6 +3,7 @@ export interface PreparedTool { name: string; providerName: string; schemaHash: 
 export interface PreparedRequest { providerId: string; modelId: string; preparedAt: string; tools: PreparedTool[] }
 export interface RequestContext {
   purpose: 'agent-turn' | 'context-summary'
+  cycleIndex?: number
   loadoutVersion: number
   expectedTools: PreparedTool[]
   piTools: PreparedTool[]
