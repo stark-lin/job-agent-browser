@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import Ajv from 'ajv'
-import schema from '../src/domain/chat/chat-debug.v1.schema.json'
+import schemaV1 from '../src/domain/chat/chat-debug.v1.schema.json'
+import schemaV2 from '../src/domain/chat/chat-debug.v2.schema.json'
 import { fixture } from './helpers'
 import { chatDebugExportRepository } from '../src/platform/database/repositories/chat-debug-export'
 
@@ -35,6 +36,10 @@ test('raw export includes every column, all states and Pending, long JSON, over-
     db.prepare('INSERT INTO chat_model_requests VALUES(?,?,?,?)').run(current.runId, 125 - i, '{ "ordinal": 0 }', '[  ]')
     db.prepare('INSERT INTO chat_provider_responses VALUES(?,?,?,?)').run(current.runId, 125 - i, item.sequence, '{ "capsule": "private" }')
   }
+  f.backend.chats.startCycle(current.runId, 1, 'start-1')
+  f.backend.chats.settleCycle(current.runId, 1, 'WARNING', 'NO_PROGRESS_LOOP', 'end-1')
+  f.backend.chats.startCycle(current.runId, 2, 'start-2')
+  f.backend.chats.saveProviderResponse(current.runId, { content: '', toolCalls: [{ id: 'call', name: 'job.list', arguments: {} }] }, 1, 2)
   db.prepare('INSERT INTO chat_context_checkpoints VALUES(?,?,?,?,?)').run(ids.sessionId, 'PRIVATE_SUMMARY', 9, 2, '[ "protected" ]')
   // Tie timestamps to verify the id tiebreaker rather than relying on insertion order.
   db.prepare('UPDATE chat_runs SET created_at=? WHERE session_id=?').run('2026-01-01T00:00:00.000Z', ids.sessionId)
@@ -61,8 +66,24 @@ test('raw export includes every column, all states and Pending, long JSON, over-
   assert.equal(flatItems.at(-1)!.content_json, raw)
   assert(bundle.runs.some(r => r.run.state === 'running' && r.run.admission === 'pending'))
   for (const state of [...states, 'running']) assert(bundle.runs.some(r => r.run.state === state))
-  const validate = new Ajv().compile(schema)
-  assert(validate({ format: 'jab-debug', schemaVersion: 1, exportedAt: new Date().toISOString(), app: { version: '1', commit: null, platform: 'test' }, ...bundle }), JSON.stringify(validate.errors))
+  const active = bundle.runs.find(run => run.run.id === current.runId)!
+  assert.equal(active.cycleStatus, 'RUNNING')
+  assert.deepEqual(active.cycles, [
+    { index: 1, status: 'WARNING', reason: 'NO_PROGRESS_LOOP', modelRequestOrdinal: null, toolCallIds: [], startedAt: 'start-1', finishedAt: 'end-1' },
+    { index: 2, status: 'RUNNING', reason: null, modelRequestOrdinal: null, toolCallIds: ['call'], startedAt: 'start-2', finishedAt: null }
+  ])
+  assert(bundle.runs.filter(run => run !== active).every(run => run.cycleStatus === null && run.cycles.length === 0))
+  const envelope = { format: 'jab-debug', exportedAt: new Date().toISOString(), app: { version: '1', commit: null, platform: 'test' } }
+  const ajv = new Ajv()
+  const validators = { 1: ajv.compile(schemaV1), 2: ajv.compile(schemaV2) }
+  const v1 = { ...envelope, schemaVersion: 1 as const, ...bundle, runs: bundle.runs.map(({ cycles, cycleStatus, ...run }) => run) }
+  const v2 = { ...envelope, schemaVersion: 2 as const, ...bundle }
+  for (const version of [v1, v2]) {
+    const validate = validators[version.schemaVersion]
+    assert(validate(version), JSON.stringify(validate.errors))
+  }
+  assert(!validators[1](v2))
+  assert(!validators[2](v1))
   assert(bundle.runs.length > 100)
 })
 
@@ -82,7 +103,7 @@ test('empty collections, absent checkpoint, missing session and read failure are
   db.exec('ROLLBACK')
 })
 
-test('second WAL connection commits during export while all seven tables retain the first SELECT snapshot', t => {
+test('second WAL connection commits during export while all chat tables retain the first SELECT snapshot', t => {
   const directory = mkdtempSync(join(tmpdir(), 'debug-snapshot-')), path = join(directory, 'db.sqlite')
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const f = fixture(t, path), db = f.database.connection
@@ -98,11 +119,14 @@ test('second WAL connection commits during export while all seven tables retain 
       writer.prepare('UPDATE chat_sessions SET title=? WHERE id=?').run('after', ids.sessionId)
       writer.prepare('UPDATE chat_items SET content_json=? WHERE session_id=?').run('{"type":"user_message","text":"after"}', ids.sessionId)
       writer.prepare('INSERT INTO chat_context_checkpoints(session_id,summary) VALUES(?,?)').run(ids.sessionId, 'after')
+      writer.prepare("INSERT INTO chat_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,1,'RUNNING','after')").run(ids.runId)
       writer.exec('COMMIT')
     }
     return prepare(sql)
   }) as typeof db.prepare)
   assert.deepEqual(repo.getDebugBundle(ids.sessionId), before); assert(committed)
   t.mock.restoreAll()
-  assert.equal(repo.getDebugBundle(ids.sessionId).session.title, 'after')
+  const after = repo.getDebugBundle(ids.sessionId)
+  assert.equal(after.session.title, 'after')
+  assert.equal(after.runs[0].cycleStatus, 'RUNNING')
 })

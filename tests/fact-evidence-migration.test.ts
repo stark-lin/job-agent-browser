@@ -43,7 +43,7 @@ test('V15 removes attachments from facts, snapshots and receipts, preserving all
   const f = legacyFixture(t), { db, backend } = f
   const before = Object.fromEntries(['profiles', 'profile_items', 'jobs', 'audit_logs', 'schema_migrations', 'operation_receipts', 'generation_runs'].map(table => [table, f.rows(table)]))
   const triggerNames = f.triggers().map(row => row.name)
-  migrate(db)
+  migrate(db, migrations.slice(0, 15))
   assert(!db.prepare('PRAGMA table_info(facts)').all().some(column => column.name === 'evidence'))
   const expectedFacts = f.facts.map(({ evidence: _removed, ...fact }) => fact).sort((a, b) => a.id.localeCompare(b.id))
   assert.deepEqual(backend.profiles.listFacts({ profileId: f.profile.id }).items, expectedFacts)
@@ -73,7 +73,7 @@ test('V15 removes attachments from facts, snapshots and receipts, preserving all
   backend.generation.start({ id: f.run.id })
   assert(db.prepare("SELECT * FROM audit_logs WHERE target_id=? AND event_type='GENERATION_START'").get(f.run.id))
   const stored = f.rows('generation_runs'), receipts = f.rows('operation_receipts'), audits = f.rows('audit_logs')
-  migrate(db)
+  migrate(db, migrations.slice(0, 15))
   assert.deepEqual(f.rows('generation_runs'), stored); assert.deepEqual(f.rows('operation_receipts'), receipts)
   assert.deepEqual(f.rows('audit_logs'), audits)
   const { evidence: _removed, ...details } = f.request.details

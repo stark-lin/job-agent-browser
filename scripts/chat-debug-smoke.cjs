@@ -46,11 +46,17 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
     await click('Copied to clipboard'); assert.equal(calls, 1, 'success cannot copy again without confirmation')
     await click('Cancel'); await frame()
     const text = await clipboard.readText(), bundle = JSON.parse(text)
-    assert.equal(text, JSON.stringify(bundle, null, 2)); assert.equal(bundle.format, 'jab-debug'); assert.equal(bundle.schemaVersion, 1)
+    assert.equal(text, JSON.stringify(bundle, null, 2)); assert.equal(bundle.format, 'jab-debug'); assert.equal(bundle.schemaVersion, 2)
     assert.equal(bundle.session.id, session.id); assert.equal(bundle.app.version, require('electron').app.getVersion()); assert.equal(bundle.app.platform, process.platform)
     assert(bundle.app.commit === null || /^[0-9a-f]{40}$/.test(bundle.app.commit)); assert(Number.isFinite(Date.parse(bundle.exportedAt)))
     assert.deepEqual(bundle.session, plain(db.prepare('SELECT * FROM chat_sessions WHERE id=?').get(session.id)))
     const rows = (table, suffix = '') => plain(db.prepare(`SELECT * FROM ${table} WHERE session_id=? ${suffix}`).all(session.id))
+    for (const entry of bundle.runs) {
+      const cycles = db.prepare('SELECT * FROM chat_react_cycles WHERE run_id=? ORDER BY cycle_index').all(entry.run.id)
+      assert.deepEqual(entry.cycles, cycles.map(c => ({ index: c.cycle_index, status: c.status, reason: c.reason,
+        modelRequestOrdinal: c.model_request_ordinal, toolCallIds: JSON.parse(c.tool_call_ids_json), startedAt: c.started_at, finishedAt: c.finished_at })))
+      assert.equal(entry.cycleStatus, cycles.at(-1)?.status ?? null)
+    }
     if (running) assert(bundle.runs.some(r => r.run.state === 'running'))
     else {
       assert.deepEqual(bundle.runs.map(r => r.run), rows('chat_runs', 'ORDER BY created_at,id'))

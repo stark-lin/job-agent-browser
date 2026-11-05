@@ -6,6 +6,7 @@ erDiagram
     CHAT_RUN ||--o{ CHAT_ITEM : records
     CHAT_RUN ||--o{ CHAT_PROVIDER_RESPONSE : continues
     CHAT_RUN ||--o{ CHAT_MODEL_REQUEST : diagnoses
+    CHAT_RUN ||--o{ CHAT_REACT_CYCLE : executes
     CHAT_SESSION ||--o| CHAT_CONTEXT_CHECKPOINT : projects
     CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : retains_legacy
     CHAT_ITEM ||--o| CHAT_MEMORY_PROGRESS : retains_legacy
@@ -72,6 +73,16 @@ erDiagram
         int ordinal PK
         json metadata_json
         json activations_json
+    }
+    CHAT_REACT_CYCLE {
+        string run_id PK,FK
+        int cycle_index PK
+        string status
+        string reason
+        int model_request_ordinal
+        json tool_call_ids_json
+        datetime started_at
+        datetime finished_at
     }
     CHAT_CONTEXT_CHECKPOINT {
         string session_id PK,FK

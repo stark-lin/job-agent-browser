@@ -35,7 +35,7 @@ UI    → typed IPC → Domain
 
 **已实现：**[openAskRun](../src/platform/mcp/first-party-client.ts)为每个准入 Chat Run 创建可取消工具视图，复用 Session 连接。Main 注册身份，签发有效期 30 秒、一次性的 `_meta.jabRunGrant`，绑定实例、认证连接、Run、操作和规范化参数摘要。Memory 写入仍需原有来源授权。已认证 Ask 连接没有 Run 时只能发现工具，不能调用；调用者标签不能开启保护或权限。Chat 身份不覆盖 Resume 的业务 runId。
 
-[Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在审计和 Domain 之前拒绝。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。
+[Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在审计和 Domain 之前拒绝。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。 [Ask AI Cycle 状态机](agent-runtime.zh-CN.md)根据可信快照控制后续 Pi 请求，进展判定与能力安全仍由 MCP Server 负责。
 
 [读取进展](../src/platform/mcp-server/run-guard/read-progress.ts)累计实体/字段证据及各空间文件版本与覆盖行范围。旧结果换序、重组或取子集，以及查询、分数、展示变化不算进展；新分页、Facts、片段和版本算进展。空结果按数据集只计一次。未知 READ 使用规范化结构结果或文本，保留未知字段和数组顺序。读取失败计为无进展；已确认的已知业务修改也贡献进展。连续两次无进展告警，三次进入恢复，之后首个仍无进展的业务结果以 NO_PROGRESS_LOOP 熔断；新证据清零连续计数。发现和激活工具不重置该状态。
 

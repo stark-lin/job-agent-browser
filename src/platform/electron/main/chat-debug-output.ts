@@ -8,7 +8,7 @@ export function createChatDebugOutput(clipboard: Clipboard, app: ChatDebugBundle
     async copy(data) {
       let text: string
       try {
-        const bundle: ChatDebugBundle = { format: 'jab-debug', schemaVersion: 1, exportedAt: now(), app, ...data }
+        const bundle: ChatDebugBundle = { format: 'jab-debug', schemaVersion: 2, exportedAt: now(), app, ...data }
         text = JSON.stringify(bundle, null, 2)
       } catch { fail('DEBUG_SERIALIZATION_FAILED') }
       try {

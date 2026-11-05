@@ -94,12 +94,13 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 | [Product architecture](docs/product-architecture.md) · [简体中文](docs/product-architecture.zh-CN.md) | Planned scope, entry points, and delivery order |
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
 | [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, audit privacy, deletion rules and business API |
+| [Ask AI Agent runtime](docs/agent-runtime.md) · [简体中文](docs/agent-runtime.zh-CN.md) | Single-prompt execution, Cycle states and finalization |
 | [Tools and MCP runtime](docs/mcp-architecture.md) · [简体中文](docs/mcp-architecture.zh-CN.md) | Scoped tools, audited capability bindings, stdio integration and lifecycle |
 | [Capture Job Skill](skills/capture-job/SKILL.md) · [简体中文](skills/capture-job/SKILL.zh-CN.md) | Host source understanding followed by structured MCP persistence |
 | [Manage Applications Skill](skills/manage-applications/SKILL.md) · [简体中文](skills/manage-applications/SKILL.zh-CN.md) | State, notes, local events, details and archive workflow |
 | [Resume Skill](skills/tailor-resume/SKILL.md) · [简体中文](skills/tailor-resume/SKILL.zh-CN.md) | Codex reasoning workflow over shared Resume tools; setup belongs to MCP architecture |
 | [npm user guide](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | Published-package commands and user-data behavior |
-| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented 20-table model; shared by both data architecture editions |
+| [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented model shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
 | [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |
 

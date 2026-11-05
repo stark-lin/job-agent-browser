@@ -3,7 +3,10 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { firstPartyFixture } from './first-party-fixture'
-import { createFixtureAskTasks } from './ask-fixture'
+import { createFixtureAskTasks, fixtureCapabilities } from './ask-fixture'
+import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
+import { chatDebugExportRepository } from '../src/platform/database/repositories/chat-debug-export'
+import { toolSnapshot } from '../src/platform/ai/agent-request'
 import { createRunGuardManager } from '../src/platform/mcp-server/run-guard'
 import { createMemoryAuthority } from '../src/platform/mcp/memory-authority'
 import { createMCPClient } from '../src/platform/mcp/client'
@@ -212,4 +215,66 @@ test('Run cancellation fences queued dispatch and session retirement cannot revi
   await next.call('job.list', {}, signal())
   assert.equal(next.getRunGuardSnapshot()?.calls, 1)
   await assert.rejects(run.tools.call('job.list', {}, signal()))
+})
+
+for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(`JAB-2026-004: profile.list repetition is governed by Cycle state (${ending})`, async t => {
+  const f = await firstPartyFixture(t)
+  let requests = 0
+  const read = (id: string, name = 'profile.list') => ({ id, name, arguments: {} })
+  const skip = { id: 'skip-write', name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Never execute' } }
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => fixtureCapabilities, model: () => ({ complete: async () => assert.fail('no summary'), async *stream(input) {
+    input.onRequestPrepared?.({ providerId: 'fixture', modelId: 'test', preparedAt: 'now', tools: toolSnapshot(input.tools) })
+    const system = input.messages.find(message => message.role === 'system')?.content ?? ''
+    switch (++requests) {
+      case 1: yield* batch([{ id: 'discover-1', name: 'tool.activate', arguments: { names: ['profile.list', 'job.list', 'application.add_note'] } }]); return
+      case 2: yield* batch([read('first'), read('repeat-1'), read('repeat-2'), ...(ending === 'same-batch' ? [read('fresh', 'job.list')] : [])]); return
+      case 3:
+        if (ending === 'same-batch') {
+          assert.doesNotMatch(system, /Runtime RunGuard warning:/)
+          yield { type: 'content.delta', text: 'Fresh evidence in this batch.' }
+          yield { type: 'completed', response: { content: 'Fresh evidence in this batch.', toolCalls: [] } }; return
+        }
+        assert.match(system, /Runtime RunGuard warning:/)
+        yield* batch([{ id: 'reactivate', name: 'tool.activate', arguments: { names: ['profile.list'] } }]); return
+      case 4:
+        assert.match(system, /Runtime RunGuard warning:/)
+        yield* batch([read('repeat-3'), skip]); return
+      case 5:
+        assert.match(system, /Runtime RunGuard recovery:/)
+        yield* batch([read('after-recovery', ending === 'blocked' ? 'profile.list' : 'job.list'), ...(ending === 'blocked' ? [{ ...skip, id: 'skip-after-block' }] : [])]); return
+      case 6:
+        assert.equal(ending, 'fresh-evidence')
+        assert.doesNotMatch(system, /Runtime RunGuard (warning|recovery):/)
+        yield { type: 'content.delta', text: 'New evidence confirmed.' }
+        yield { type: 'completed', response: { content: 'New evidence confirmed.', toolCalls: [] } }; return
+      default: assert.fail('no inference after terminal state')
+    }
+  } }) })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, { requestId: randomUUID(), message: 'Inspect profiles', choice: { providerId: 'fixture', modelId: 'test' } }, event => {
+    if (event.type === 'item.completed' && event.item.content.type === 'tool_call' && event.item.content.guard?.status === 'BLOCKED') tasks.cancel(1, { runId: event.runId })
+  })
+  for (let n = 0; n < 500 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; n++) await new Promise(resolve => setTimeout(resolve, 10))
+  const snapshot = tasks.getRun(1, { runId: ids.runId })
+  const { cycles, cycleStatus } = chatDebugExportRepository(f.database.connection).getDebugBundle(ids.sessionId).runs.find(entry => entry.run.id === ids.runId)!
+  assert.equal(snapshot.run.state, ending === 'blocked' ? 'failed' : 'completed', snapshot.run.error ?? '')
+  assert.equal(cycleStatus, ending === 'blocked' ? 'FAILED' : 'SUCCESS')
+  const businessCycles = cycles.filter(c => !c.toolCallIds.some(id => id.startsWith('discover-')))
+  if (ending === 'same-batch') {
+    assert.deepEqual(businessCycles.map(c => c.status), ['CONTINUE', 'SUCCESS'])
+    assert(snapshot.items.some(item => item.content.type === 'tool_call' && item.content.guard?.level === 'warning'))
+    assert.equal(requests, 3)
+    return
+  }
+  assert.deepEqual(businessCycles.map(c => c.status), ['WARNING', 'WARNING', 'RECOVERING', ...(ending === 'blocked' ? ['FAILED'] : ['CONTINUE', 'SUCCESS'])])
+  assert.deepEqual(businessCycles[0].toolCallIds, ['first', 'repeat-1', 'repeat-2'])
+  assert.deepEqual(businessCycles[2].toolCallIds, ['repeat-3', 'skip-write'])
+  assert.deepEqual(cycles.map(c => c.modelRequestOrdinal), cycles.map(c => c.index))
+  assert.equal(requests, ending === 'blocked' ? 5 : 6)
+  assert.equal(snapshot.run.writeStarted, false)
+  assert(!f.backend.toolAudit.list().some(row => row.phase === 'START' && row.tool_name === 'application.add_note'))
+  if (ending === 'blocked') {
+    assert.equal(snapshot.run.error, 'TOOL_GUARD_TERMINATED')
+    assert.equal(cycles.at(-1)?.reason, 'NO_PROGRESS_LOOP')
+  }
 })

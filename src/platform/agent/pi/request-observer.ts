@@ -6,6 +6,7 @@ export function observeAskModel(model: StreamingAgentModel, emit: (event: AgentR
   let ordinal = 0, requests = 0
   const reserve = () => { if (++requests > 64) throw new AgentError('AGENT_STEP_LIMIT') }
   const observe = (input: AgentModelInput): AgentModelInput => ({ ...input, onRequestPrepared(request) {
+    input.signal.throwIfAborted()
     const context = input.requestContext ?? { purpose: 'context-summary' as const, loadoutVersion: 0,
       expectedTools: toolSnapshot(input.tools, input.stableToolNames ?? false), piTools: toolSnapshot(input.tools, input.stableToolNames ?? false) }
     const { cycleIndex, ...diagnostic } = context

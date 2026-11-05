@@ -4,12 +4,14 @@ import type { ActivationDiagnostic, RequestDiagnostic } from '../../../shared/ag
 import { fail } from '../../../domain/common/errors'
 
 /** Main-owned private diagnostics, intentionally independent of audit writers. */
-export function chatModelRequestsRepository(db: DatabaseSync, transaction: <T>(op: () => T) => T, assertRunning: (id: string) => void, read: <T>(op: () => T) => T) {
+export function chatModelRequestsRepository(db: DatabaseSync, transaction: <T>(op: () => T) => T, assertRunning: (id: string) => void, read: <T>(op: () => T) => T, linkRequest: (runId: string, index: number, ordinal: number) => void) {
   return {
-    saveModelRequest(runId: string, request: RequestDiagnostic) {
+    saveModelRequest(runId: string, request: RequestDiagnostic, cycleIndex?: number) {
       transaction(() => {
         assertRunning(runId)
+        if (cycleIndex !== undefined && request.purpose !== 'agent-turn') fail('INVALID_STATE')
         db.prepare('INSERT INTO chat_model_requests(run_id,ordinal,metadata_json) VALUES(?,?,?)').run(runId, request.ordinal, JSON.stringify(request))
+        if (cycleIndex !== undefined) linkRequest(runId, cycleIndex, request.ordinal)
       })
     },
     saveActivationDiagnostic(runId: string, activation: ActivationDiagnostic) {

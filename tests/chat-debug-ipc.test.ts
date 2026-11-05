@@ -25,7 +25,7 @@ test('Data allowlist and generic dispatcher await host copy and return only null
   const result = await f.api.chats.copyDebugJson({ sessionId: f.ids.sessionId })
   assert.deepEqual(result, { ok: true, value: null }); assert.equal(reads, 1)
   const bundle = JSON.parse(text)
-  assert.equal(bundle.format, 'jab-debug'); assert.equal(bundle.schemaVersion, 1); assert.equal(bundle.exportedAt, now); assert.deepEqual(bundle.app, app)
+  assert.equal(bundle.format, 'jab-debug'); assert.equal(bundle.schemaVersion, 2); assert.equal(bundle.exportedAt, now); assert.deepEqual(bundle.app, app)
   assert.equal(bundle.session.id, f.ids.sessionId); assert.equal(bundle.runs[0].run.id, f.ids.runId)
   assert.equal(JSON.parse(bundle.runs[0].items[0].content_json).text, 'PRIVATE_DEBUG_CONTENT')
   assert.equal(text, JSON.stringify(bundle, null, 2)); assert.equal(f.unchanged(), before)

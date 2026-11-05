@@ -32,8 +32,9 @@ export async function createPiStream(deps: {
     const stream = createAssistantMessageEventStream()
     const partial: HostAssistant = { role: 'assistant', content: [], api: model.api, model: model.id, provider: model.provider, timestamp: Date.now(), usage: emptyUsage(), stopReason: 'pending' }
     void (async () => {
+      const request = new AbortController()
       try {
-        const signal = options?.signal ? AbortSignal.any([options.signal, deps.signal]) : deps.signal
+        const signal = AbortSignal.any([request.signal, deps.signal, ...(options?.signal ? [options.signal] : [])])
         const cycleIndex = deps.cycleIndex?.()
         if (++requests > 64) throw new AgentError('AGENT_STEP_LIMIT')
         signal.throwIfAborted()
@@ -104,7 +105,7 @@ export async function createPiStream(deps: {
         deps.failed(error)
         partial.stopReason = deps.signal.aborted ? 'aborted' : 'error'; partial.errorMessage = error instanceof AgentError ? error.code : 'AI_PROVIDER_FAILED'
         stream.push({ type: 'error', reason: partial.stopReason, error: partial }); stream.end(partial)
-      }
+      } finally { request.abort() }
     })()
     return stream
   }

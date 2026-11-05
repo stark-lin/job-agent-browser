@@ -6,6 +6,8 @@ import { storageError } from '../errors'
 import type { RuntimeLease } from '../runtime-leases'
 import { askContextRepository } from './ask-context'
 import { chatModelRequestsRepository } from './chat-model-requests'
+import { chatReactCycleWrites } from './chat-react-cycles'
+import type { SettledCycleStatus, TerminalCycleStatus } from '../../../shared/agent/react-cycle'
 
 type Row = Record<string, SQLOutputValue>
 const session = (r: Row): ChatSession => ({ id: String(r.id), title: String(r.title), providerId: String(r.provider_id), modelId: String(r.model_id), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
@@ -39,9 +41,16 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
     if (row.request_hash !== hash(input)) fail('CONFLICT')
     return { sessionId: String(row.session_id), runId: String(row.id) }
   }
+  const cycles = chatReactCycleWrites(db)
   return {
-    transaction, getSession, getRun, lookup, ...askContextRepository(db, transaction),
-    ...chatModelRequestsRepository(db, transaction, assertRunning, read),
+    transaction, getSession, getRun, lookup, ...askContextRepository(db, transaction, cycles.recordCalls),
+    ...chatModelRequestsRepository(db, transaction, assertRunning, read, cycles.linkRequest),
+    startCycle(id: string, index: number, startedAt: string) {
+      transaction(() => { assertRunning(id); cycles.start(id, index, startedAt) })
+    },
+    settleCycle(id: string, index: number, status: Exclude<SettledCycleStatus, TerminalCycleStatus>, reason: string | null, finishedAt: string) {
+      transaction(() => { assertRunning(id); cycles.settle(id, index, status, reason, finishedAt) })
+    },
     admit(id: string) { transaction(() => { assertRunning(id); db.prepare("UPDATE chat_runs SET admission='admitted' WHERE id=?").run(id) }) },
     runtimeStatus(id: string, status: NonNullable<ChatRun['runtimeStatus']>, sequence: number) {
       transaction(() => { lease.ensure(); const row = db.prepare('SELECT owner_runtime_id,state FROM chat_runs WHERE id=?').get(id)
@@ -99,10 +108,16 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
         db.prepare('UPDATE chat_runs SET event_sequence=?,write_started=? WHERE id=?').run(snapshot.run.eventSequence, Number(snapshot.run.writeStarted), snapshot.run.id)
       })
     },
-    finish(snapshot: ChatSnapshot) {
+    finish(snapshot: ChatSnapshot, cycleReason?: string | null) {
       transaction(() => {
         assertRunning(snapshot.run.id)
         for (const value of snapshot.items) db.prepare('UPDATE chat_items SET state=?,content_json=?,updated_at=? WHERE id=? AND run_id=?').run(value.state, JSON.stringify(value.content), value.updatedAt, value.id, snapshot.run.id)
+        const terminal = { completed: 'SUCCESS', cancelled: 'CANCELLED', failed: 'FAILED' } as const
+        const state = snapshot.run.state
+        if (cycleReason !== undefined && (state === 'completed' || state === 'cancelled' || state === 'failed')) {
+          const active = db.prepare("SELECT cycle_index FROM chat_react_cycles WHERE run_id=? AND status='RUNNING'").get(snapshot.run.id)
+          if (active) cycles.settle(snapshot.run.id, Number(active.cycle_index), terminal[state], cycleReason, snapshot.run.finishedAt!)
+        }
         db.prepare('UPDATE chat_runs SET state=?,error=?,event_sequence=?,write_started=?,finished_at=?,runtime_status=? WHERE id=?').run(snapshot.run.state, snapshot.run.error, snapshot.run.eventSequence, Number(snapshot.run.writeStarted), snapshot.run.finishedAt, snapshot.run.runtimeStatus ?? 'idle', snapshot.run.id)
         db.prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?').run(snapshot.run.finishedAt!, snapshot.run.sessionId)
       })

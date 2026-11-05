@@ -1,3 +1,4 @@
+import { chatDebugExportRepository } from '../src/platform/database/repositories/chat-debug-export'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -148,7 +149,10 @@ for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory 
   if (failure === 'stop') { await entered.ready; tasks.cancel(1, { runId: ids.runId }); blocked.release() }
   await until(() => tasks.getRun(1, { runId: ids.runId }).run.state !== 'running')
   const snapshot = tasks.getRun(1, { runId: ids.runId })
-  assert.equal(writes, 1); assert.equal(snapshot.run.state, failure === 'stop' ? 'cancelled' : 'failed')
+  assert.equal(writes, 1); assert.equal(snapshot.run.state, 'failed')
+  const run = chatDebugExportRepository(f.database.connection).getDebugBundle(ids.sessionId).runs[0]
+  assert.equal(run.cycleStatus, 'FAILED')
+  assert.equal(run.cycles.at(-1)?.reason, 'WRITE_OUTCOME_UNKNOWN')
   assert(snapshot.items.some(i => i.state === 'uncertain' && i.content.type === 'tool_call' && i.content.toolName === 'memory.write'))
   assert.equal((await f.workspace.spaces.memory.files.read('uncertain.md')).content, 'Committed once')
   const state = f.backend.chats.protectedState(ids.sessionId).join('\n'); assert(state.includes('uncertain.md')); assert(state.includes('uncertain')); assert(!state.includes('Committed once'))

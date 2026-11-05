@@ -94,6 +94,8 @@ Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications �
 
 Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Repository/事务。Domain 依赖接口，由[后端组装](../src/platform/database/backend.ts)注入具体适配器。概念上的 Page → Domain → Platform 流程不允许 UI 导入服务端业务服务。
 
+Ask AI 的[纯 Cycle 状态机](../src/platform/agent/react-cycle/machine.ts)负责状态转换和执行决策。[Pi 适配器](../src/platform/agent/pi/runtime.ts)将决策应用于模型和工具派发；Main 通过可信事件负责持久化。执行契约见 [Agent 运行时](agent-runtime.zh-CN.md)。
+
 数据库访问仅在受控 Main/Node 运行时。配置、密钥、AI 请求和编译由 Main 或受控服务执行。保留沙盒、上下文隔离、第三方页面分离，以及精确可信文档/顶层 frame 的 IPC 校验。
 
 [共享 i18n 模块](../src/shared/i18n/)管理无框架的资源、配置、selector 类型和翻译初始化，不导入 React 或 Electron。[App](../src/app/i18n.tsx)管理 React Provider 集成和文档元数据。Pages 在渲染时取词，Platform 为应用自有的原生文案取词。新增可见文字放入文案资源，包括完整的插值句子，并使用类型化 selector。运行行为及后续语言支持由[当前架构](architecture.zh-CN.md#五国际化)管理。

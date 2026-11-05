@@ -94,12 +94,13 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 | [产品架构](docs/product-architecture.zh-CN.md) · [English](docs/product-architecture.md) | 规划范围、入口与交付顺序 |
 | [代码架构](docs/code-architecture.zh-CN.md) · [English](docs/code-architecture.md) | 目标组织、依赖边界与迁移约束 |
 | [V1 数据架构与 API](docs/data-architecture.zh-CN.md) · [English](docs/data-architecture.md) | 已实现实体、事务、审计隐私、删除规则及业务 API |
+| [Ask AI Agent 运行时](docs/agent-runtime.zh-CN.md) · [English](docs/agent-runtime.md) | 单 Prompt 执行、Cycle 状态与收尾规则 |
 | [工具与 MCP 运行时](docs/mcp-architecture.zh-CN.md) · [English](docs/mcp-architecture.md) | 受限工具、带审计能力绑定、stdio 接入及生命周期 |
 | [职位采集 Skill](skills/capture-job/SKILL.zh-CN.md) · [English](skills/capture-job/SKILL.md) | 宿主理解资料后通过 MCP 保存结构化结果 |
 | [申请管理 Skill](skills/manage-applications/SKILL.zh-CN.md) · [English](skills/manage-applications/SKILL.md) | 状态、备注、本地事件、详情及归档流程 |
 | [Resume Skill](skills/tailor-resume/SKILL.zh-CN.md) · [English](skills/tailor-resume/SKILL.md) | Codex 使用共享 Resume 工具的推理流程；接入配置归属 MCP 架构 |
 | [npm 用户指南](packages/npm/README.zh-CN.md) · [English](packages/npm/README.md) | 已发布包的命令与用户数据行为 |
-| [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的 20 表模型，由中英文数据架构共用 |
+| [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的模型，由中英文数据架构共用 |
 | [设计纲要](DESIGN.zh-CN.md) · [English](DESIGN.md) | 视觉方向、交互原则与 UI 设计入口 |
 | [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |
 
