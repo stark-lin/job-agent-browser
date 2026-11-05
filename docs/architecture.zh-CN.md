@@ -32,6 +32,10 @@ React App → Page → Preload → IPC → Main
 
 [网页输入解析](../src/platform/browser/navigationManager.ts) 保留 HTTP(S)，识别域名/IP/localhost，其他输入使用 Google 搜索。裸地址默认 HTTPS，localhost 和回环地址默认 HTTP。空输入、无效显式网址及其他协议被拒绝。[测试](../tests/navigation.test.ts) 保留这些规则；[标签导航测试](../tests/tab-navigation.test.ts) 覆盖工作区隔离、前进历史保留、Inbox 分离及原生历史边界。
 
+### 复制网页文本
+
+**已实现。** Browser 工具栏和原生右键菜单在触发时复制当前活动 Browser 网页。工具栏调用通过[可信 Renderer IPC](../src/platform/electron/main/browser-ipc.ts)。[WebSegment](../src/platform/browser/webSegment.ts) 在隔离环境解析主文档的实时 HTML 快照，将整理后的 `<body>` 文本写入系统剪贴板。保留隐藏文本，排除脚本、样式、嵌入 Frame 和 Shadow DOM 的内容。空白标签页、加载失败和空结果均保留原剪贴板。[Electron Smoke](../scripts/browser-copy-smoke.cjs) 覆盖两个入口、标签切换、网页复制限制、动态文本和空结果。
+
 ### 网页选区交接
 
 **已实现：**[WebSegment](../src/platform/browser/webSegment.ts) 为普通 Browser 选区（包括 Frame）提供原生右键菜单，并保留原生编辑操作。Inbox、表单控件和可编辑区域不显示业务入口。点击时重新校验活动标签页/目标、源文档导航代次和存活 Frame；重载、导航或切换标签页会使旧菜单失效。[选区校验](../src/shared/browser-selection.ts) 保留最多 60,000 个 UTF-16 单元的原文，限制网址/标题长度，并净化来源网址的凭据、片段及已知认证查询参数。来源统一使用顶层网址和标题。

@@ -378,6 +378,7 @@ export const zhCN = {
   },
   browser: {
     refresh: '刷新',
+    copyWebpage: '复制网页文本', copied: '已复制', copyFailed: '无法复制网页文本。',
     back: '后退', forward: '前进',
     tabs: '浏览器标签页', closeTab: '关闭标签页', closeNamedTab: '关闭 {{title}}', newTab: '新建标签页', addressLabel: '搜索或输入网址', addressPlaceholder: '搜索或输入网址…', emptyHeading: '开始探索', emptyDescription: '在上方搜索内容或输入网址。'
   },

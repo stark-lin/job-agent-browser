@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { t } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
-import { dialog, Menu, session, View, WebContentsView, type BrowserWindow, type ContextMenuParams, type MouseInputEvent, type Rectangle, type MenuItemConstructorOptions } from 'electron'
+import { clipboard, dialog, Menu, session, View, WebContentsView, type BrowserWindow, type ContextMenuParams, type MouseInputEvent, type Rectangle, type MenuItemConstructorOptions } from 'electron'
 import { selectionContent, type SelectionTarget, type WebSelection } from '../../shared/browser-selection'
 import { themeBackground, browserTransitionBackground, browserCanvasBackground } from '../electron/main/theme'
 import type { HistorySegment } from './tabNavigation'
@@ -12,6 +12,28 @@ import { HistoryIndicator } from './historyIndicator'
 import { NativeHistoryIdentity } from './nativeHistory'
 
 export const SESSION_PARTITION = 'persist:job-agent-browser'
+
+const COPY_WEBPAGE_TEXT = String.raw`(() => {
+  const html = document.documentElement.outerHTML;
+  const { body } = new DOMParser().parseFromString(html, 'text/html');
+  if (!body) return '';
+
+  body.querySelectorAll('script, style, noscript, template, svg, canvas, iframe').forEach(node => node.remove());
+  // Collapse source formatting before adding line breaks for HTML structure.
+  const texts = body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  for (let node = texts.nextNode(); node; node = texts.nextNode()) {
+    if (!node.parentElement?.closest('pre, textarea')) node.data = node.data.replace(/[\t\n\f\r ]+/g, ' ');
+  }
+  body.querySelectorAll('br, hr').forEach(node => node.replaceWith('\n'));
+  body.querySelectorAll('address, article, aside, blockquote, caption, dd, details, dialog, div, dl, dt, fieldset, figcaption, figure, footer, form, h1, h2, h3, h4, h5, h6, header, hgroup, li, main, menu, nav, ol, p, pre, section, summary, table, tr, ul').forEach(node => {
+    node.before('\n');
+    node.after('\n');
+  });
+  body.querySelectorAll('td, th').forEach(node => node.after(' '));
+
+  return body.textContent.replace(/\u00a0/g, ' ').split('\n')
+    .map(line => line.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n');
+})()`
 
 export function isWebURL(value: string): boolean {
   try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
@@ -45,7 +67,12 @@ export class WebSegment implements HistorySegment {
     private readonly changed: (newEntry: boolean) => void,
     openPopup: (url: string) => void,
     readonly surface: 'browser' | 'inbox' = 'browser',
-    private readonly selection?: { identity(): string | null; accept(target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void; travel(direction: -1 | 1): void }
+    private readonly browserActions?: {
+      identity(): string | null
+      accept(target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void
+      travel(direction: -1 | 1): void
+      requestCopy(): void
+    }
   ) {
     this.view = new WebContentsView({ webPreferences: {
       session: session.fromPartition(SESSION_PARTITION), nodeIntegration: false,
@@ -73,11 +100,11 @@ export class WebSegment implements HistorySegment {
       await contents.capturePage(undefined, { stayHidden: true, stayAwake: true })
     })
     this.drag = new HistoryDrag({
-      identity: () => this.surface === 'browser' && !this.disposed ? this.selection?.identity() ?? null : null,
+      identity: () => this.surface === 'browser' && !this.disposed ? this.browserActions?.identity() ?? null : null,
       canTravel: direction => direction === -1 ? this.index > 0 : this.index < this.length - 1,
       width: () => this.surfaceView.getBounds().width,
       draw: feedback => this.indicator?.draw(feedback),
-      travel: direction => { this.resumeFocus = true; this.selection?.travel(direction) },
+      travel: direction => { this.resumeFocus = true; this.browserActions?.travel(direction) },
       click: () => { const context = this.pendingContext; this.pendingContext = undefined; if (context) this.showContextMenu(context) },
       dismiss: () => { this.pendingContext = undefined }
     })
@@ -90,7 +117,7 @@ export class WebSegment implements HistorySegment {
     const contents = this.view.webContents
     this.identity = new NativeHistoryIdentity(contents)
     if (surface === 'browser') {
-      const active = () => !!this.selection?.identity(), epoch = () => this.navigationGeneration
+      const active = () => !!this.browserActions?.identity(), epoch = () => this.navigationGeneration
       const sync = installHistoryWheel(contents, this.drag, active, epoch)
       const syncIndicator = installHistoryWheel(this.indicator!.view.webContents, this.drag, active, epoch)
       this.syncWheel = () => { sync(); syncIndicator() }
@@ -189,6 +216,26 @@ export class WebSegment implements HistorySegment {
     this.view.webContents.reload()
   }
 
+  private canCopyWebpage(): boolean {
+    const contents = this.view.webContents
+    return this.surface === 'browser' && !this.disposed && !contents.isDestroyed() && !contents.isCrashed() &&
+      !this.isLoading && !this.error && this.pendingIndex === undefined && !contents.isLoadingMainFrame() &&
+      isWebURL(this.url) && contents.getURL() === this.url
+  }
+
+  async copyWebpage(isCurrent: () => boolean): Promise<void> {
+    const contents = this.view.webContents, generation = this.navigationGeneration
+    try {
+      if (!this.canCopyWebpage() || !isCurrent()) throw new Error()
+      const text: unknown = await contents.executeJavaScriptInIsolatedWorld(999, [{ code: COPY_WEBPAGE_TEXT }])
+      if (typeof text !== 'string' || !text || generation !== this.navigationGeneration ||
+        !this.canCopyWebpage() || !isCurrent()) throw new Error()
+      await clipboard.writeText(text)
+    } catch {
+      throw new Error(t($ => $.browser.copyFailed))
+    }
+  }
+
   trimForward(): void {
     const history = this.view.webContents.navigationHistory
     for (let index = history.length() - 1; index > this.index; index--) history.removeEntryAtIndex(index)
@@ -232,9 +279,9 @@ export class WebSegment implements HistorySegment {
     if (this.disposed || this.window.isDestroyed()) return
     const contents = this.view.webContents, frame = params.frame
     if (!frame || frame.detached) return
-    const generation = this.navigationGeneration, identity = this.selection?.identity()
+    const generation = this.navigationGeneration, identity = this.browserActions?.identity()
     const current = () => !this.disposed && !this.window.isDestroyed() && !contents.isDestroyed() && !frame.detached &&
-      generation === this.navigationGeneration && identity != null && identity === this.selection?.identity()
+      generation === this.navigationGeneration && identity != null && identity === this.browserActions?.identity()
     const template: MenuItemConstructorOptions[] = []
     const flags = params.editFlags
     if (params.isEditable) template.push({ role: 'undo', enabled: flags.canUndo }, { role: 'redo', enabled: flags.canRedo }, { type: 'separator' }, { role: 'cut', enabled: flags.canCut })
@@ -244,6 +291,10 @@ export class WebSegment implements HistorySegment {
       { id: 'browser-refresh', label: t($ => $.browser.refresh), enabled: !this.isLoading, click: () => {
         if (!this.disposed && this.surfaceView.getVisible() && generation === this.navigationGeneration) this.reload()
       } })
+    if (this.surface === 'browser') {
+      template.push({ id: 'browser-copy-webpage', label: t($ => $.browser.copyWebpage),
+        enabled: identity != null && this.canCopyWebpage(), click: () => this.browserActions?.requestCopy() })
+    }
     if (this.surface === 'browser' && !params.isEditable && params.formControlType === 'none' && params.selectionText.trim() && identity != null) {
       const text = params.selectionText, url = contents.getURL(), title = contents.getTitle()
       const accept = (target: SelectionTarget) => {
@@ -253,7 +304,7 @@ export class WebSegment implements HistorySegment {
           void dialog.showMessageBox(this.window, { type: 'warning', message: t($ => $.selection.invalid), buttons: [t($ => $.selection.ok)] })
           return
         }
-        this.selection?.accept(target, content)
+        this.browserActions?.accept(target, content)
       }
       template.push({ type: 'separator' }, { id: 'selection-ask-ai', label: t($ => $.selection.ask), click: () => accept('ask-ai') },
         { id: 'selection-job-import', label: t($ => $.selection.job), click: () => accept('job-import') })

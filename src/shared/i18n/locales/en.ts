@@ -399,6 +399,7 @@ export const en = {
   },
   browser: {
     refresh: 'Refresh',
+    copyWebpage: 'Copy Webpage', copied: 'Copied', copyFailed: 'Could not copy webpage text.',
     back: 'Go back', forward: 'Go forward',
     tabs: 'Browser tabs', closeTab: 'Close tab', closeNamedTab: 'Close {{title}}', newTab: 'New tab',
     addressLabel: 'Search or enter URL', addressPlaceholder: 'Search or enter URL...',

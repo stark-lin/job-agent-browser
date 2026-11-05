@@ -23,6 +23,9 @@ import { PROFILE_IMPORT_RETRY, PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROF
 import {
   BROWSER_BACK,
   BROWSER_RELOAD,
+  BROWSER_COPY_WEBPAGE,
+  BROWSER_COPY_WEBPAGE_RESULT,
+  type Presentation,
   BROWSER_CREATE_TAB,
   BROWSER_ACTIVATE_TAB,
   BROWSER_CLOSE_TAB,
@@ -48,6 +51,7 @@ const browserAPI: BrowserAPI = {
   back: () => ipcRenderer.invoke(BROWSER_BACK),
   forward: () => ipcRenderer.invoke(BROWSER_FORWARD),
   reload: () => ipcRenderer.invoke(BROWSER_RELOAD),
+  copyWebpage: () => ipcRenderer.invoke(BROWSER_COPY_WEBPAGE),
   createTab: () => ipcRenderer.invoke(BROWSER_CREATE_TAB),
   activateTab: (id) => ipcRenderer.invoke(BROWSER_ACTIVATE_TAB, id),
   closeTab: (id) => ipcRenderer.invoke(BROWSER_CLOSE_TAB, id),
@@ -61,6 +65,11 @@ const browserAPI: BrowserAPI = {
     const listener = (): void => callback()
     ipcRenderer.on(BROWSER_FOCUS_ADDRESS, listener)
     return () => ipcRenderer.removeListener(BROWSER_FOCUS_ADDRESS, listener)
+  },
+  onCopyWebpageResult: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, presentation: Presentation, copied: boolean): void => callback(presentation, copied)
+    ipcRenderer.on(BROWSER_COPY_WEBPAGE_RESULT, listener)
+    return () => ipcRenderer.removeListener(BROWSER_COPY_WEBPAGE_RESULT, listener)
   }
 }
 

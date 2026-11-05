@@ -32,6 +32,10 @@ Opening a new web address after Back trims that surface's native forward entries
 
 [Web input parsing](../src/platform/browser/navigationManager.ts) preserves HTTP(S), recognizes domains/IPs/localhost and searches other terms on Google. Bare addresses default to HTTPS; localhost and loopback default to HTTP. Empty input, invalid explicit web addresses and other schemes are rejected. [Tests](../tests/navigation.test.ts) retain those rules; [tab-navigation tests](../tests/tab-navigation.test.ts) cover workspace isolation, retained forward history, Inbox separation and native traversal boundaries.
 
+### Copy Webpage
+
+**Implemented.** The Browser toolbar and native context menu copy the active Browser page at the time of the action. Toolbar calls pass through [trusted Renderer IPC](../src/platform/electron/main/browser-ipc.ts). [WebSegment](../src/platform/browser/webSegment.ts) parses a live main-document HTML snapshot in an isolated world and writes normalized body text to the system clipboard. Hidden body text is included, with script, style, embedded frame and shadow tree content excluded. Blank tabs, failed loads, and empty results leave the clipboard intact. The [Electron smoke](../scripts/browser-copy-smoke.cjs) covers both entries, tab changes, page copy restrictions, dynamic text and empty results.
+
 ### Web selection transfer
 
 **Implemented:** [WebSegment](../src/platform/browser/webSegment.ts) handles native context menus for ordinary Browser selections, including Frames, and retains native editing actions. Inbox, form controls and editable regions have no business entries. Clicks recheck the active tab/target, source document generation and live Frame; reload/navigation or tab changes invalidate old menus. [Selection validation](../src/shared/browser-selection.ts) preserves up to 60,000 UTF-16 units, limits URL/title lengths and sanitizes source URL credentials, fragments and known authentication query parameters. Source attribution uses the top-level URL/title.

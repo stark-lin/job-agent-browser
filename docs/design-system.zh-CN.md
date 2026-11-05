@@ -105,6 +105,7 @@
 - Tailor Resume 组合中央选择字段、操作、阶段进度、来源详情和文档预览。页面 CSS 只管理布局，输出重试、取消及系统保存明确显示状态。Feedback 图库包含这两个原语，PDF 排版由固定输出模板管理。
 - 保留原生键盘激活、禁用行为和可见焦点。裸 `TextInput` 必须位于提供可见焦点反馈的容器中，参见 [AddressBar](../src/pages/browser/AddressBar.tsx)；其自身描边按设计被移除。
 - Browser 的 Back/Forward、Alt 历史快捷键、右键拖动和触控板横向滑动仅操作网页历史；工作区导航保留浏览器状态及前进项。手势中内容和工具栏固定；中央 `historyIndicatorDocument` 组件在对应边缘的 64px 透明原生浮层中显示 48px 圆形箭头，边距为 8px。可用箭头使用 text/surface Token，达到触发距离后使用 primary/on-primary，不可用方向使用 muted/panel-solid；短距离或取消手势立即隐藏箭头，无位移或动画；成功的历史导航和刷新使用纯中性的 `--browser-transition-bg`（亮色和暗色均为 #303030）遮罩，目标帧就绪后直接显示。Browser 工作区/底层画布使用独立的 `--browser-canvas-bg`（亮色 #e5e5e5 / 暗色 #303030）。刷新位于 Forward 右侧，也出现在 Browser/Inbox 原生菜单；普通右键点击保留原生菜单，网页滚动优先。箭头和手势尺寸由现有尺寸/间距 Token 生成。新标签打开空白 Browser 工作区，标签名称使用浏览器标题。标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
+- Browser 在地址输入框右侧放置共享复制图标按钮。空白、加载中或加载失败的网页禁用“复制网页文本”。工具栏和原生右键菜单均在成功时于工具栏显示“已复制”，失败时显示错误提示。[Browser 控件](../src/pages/browser/BrowserControls.tsx)
 - 区分加载、空状态、成功与错误。不得让参考示例看起来像已实现操作；页面文案归属 [i18n 资源](../src/shared/i18n/locales/en.ts)。
 - 遵循减少动态效果偏好，检查窄屏换行、裁剪和滚动。运行时动效规则位于[中央样式](../src/shared/ui/components.css)和[浏览器样式](../src/renderer/styles/global.css)。
 

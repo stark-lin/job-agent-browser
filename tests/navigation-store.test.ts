@@ -12,6 +12,7 @@ function fixture() {
   const reads: Array<(state: BrowserState) => void> = []
   const api: BrowserAPI = {
     peekSelection: async () => null, ackSelection: async () => {},
+    copyWebpage: async () => {}, onCopyWebpageResult: () => () => {},
     getState: () => new Promise((resolve) => reads.push(resolve)),
     onStateChange: (callback) => { callbacks.add(callback); return () => { callbacks.delete(callback) } },
     onFocusAddress: () => () => {}, setVisible: async () => {}, setUnsaved: async () => {}, navigate: async () => {},

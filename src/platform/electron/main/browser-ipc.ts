@@ -5,6 +5,7 @@ import { registerSelectionIPC } from './browser-selection-ipc'
 import {
   BROWSER_BACK,
   BROWSER_RELOAD,
+  BROWSER_COPY_WEBPAGE,
   BROWSER_CREATE_TAB,
   BROWSER_ACTIVATE_TAB,
   BROWSER_CLOSE_TAB,
@@ -32,6 +33,10 @@ export function registerBrowserIPC(requireBrowser: () => BrowserManager, assertT
   ipcMain.handle(BROWSER_RELOAD, (event) => {
     assertTrustedRenderer(event)
     return requireBrowser().reload()
+  })
+  ipcMain.handle(BROWSER_COPY_WEBPAGE, (event) => {
+    assertTrustedRenderer(event)
+    return requireBrowser().copyWebpage()
   })
   ipcMain.handle(BROWSER_GET_STATE, (event) => {
     assertTrustedRenderer(event)

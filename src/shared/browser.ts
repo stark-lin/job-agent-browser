@@ -37,12 +37,14 @@ export interface BrowserAPI {
   back(): Promise<void>
   forward(): Promise<void>
   reload(): Promise<void>
+  copyWebpage(): Promise<void>
   createTab(): Promise<void>
   activateTab(id: string): Promise<void>
   closeTab(id: string): Promise<void>
   getState(): Promise<BrowserState>
   onStateChange(callback: (state: BrowserState) => void): () => void
   onFocusAddress(callback: () => void): () => void
+  onCopyWebpageResult(callback: (presentation: Presentation, copied: boolean) => void): () => void
 }
 
 export const BROWSER_STATE_CHANGED = 'browser:state-changed'
@@ -52,6 +54,8 @@ export const BROWSER_NAVIGATE = 'browser:navigate'
 export const BROWSER_BACK = 'browser:back'
 export const BROWSER_FORWARD = 'browser:forward'
 export const BROWSER_RELOAD = 'browser:reload'
+export const BROWSER_COPY_WEBPAGE = 'browser:copy-webpage'
+export const BROWSER_COPY_WEBPAGE_RESULT = 'browser:copy-webpage-result'
 export const BROWSER_GET_STATE = 'browser:get-state'
 export const BROWSER_SET_VISIBLE = 'browser:set-visible'
 export const BROWSER_SET_UNSAVED = 'browser:set-unsaved'

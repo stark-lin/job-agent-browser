@@ -7,6 +7,32 @@ module.exports = async function browserSmoke(window) {
   const server = createServer((request, response) => {
     if (request.url === '/redirect') { response.writeHead(302, { Location: '/redirect-final' }); response.end(); return }
     if (request.url === '/failure') { response.destroy(); return }
+    if (request.url === '/copy-fixture' || request.url === '/copy-empty') {
+      response.setHeader('Content-Type', 'text/html; charset=utf-8')
+      response.end(request.url === '/copy-empty' ? '<title>Empty copy fixture</title>' : `
+        <title>Copy fixture</title>
+        <style>* { user-select: none }</style>
+        <nav>Menu</nav>
+        <main>Lead<div><h1>Copy test</h1>Between<p>First&nbsp;  line<br>Second
+          <strong>line</strong></p><ul><li>Item</li></ul></div>Tail
+          <table><tr><th>Role</th><td>Engineer</td></tr></table>
+          <span hidden>Hidden text</span>
+          <style>.excluded-body-style { display: none }</style>
+          <noscript>No-script text</noscript><template>Template text</template>
+          <svg><text>SVG text</text></svg><canvas>Canvas fallback</canvas>
+          <iframe srcdoc="<p>Frame text</p>" hidden></iframe>
+          <div id="shadow"></div>
+        </main>
+        <footer>Footer</footer>
+        <script>
+          document.addEventListener('copy', event => event.preventDefault());
+          document.getElementById('shadow').attachShadow({ mode: 'open' }).textContent = 'Shadow text';
+          window.DOMParser = class { constructor() { throw new Error('Page override') } };
+          setTimeout(() => document.querySelector('main').append(Object.assign(document.createElement('p'), { id: 'dynamic-copy', textContent: 'Dynamic text' })), 20);
+        </script>
+      `)
+      return
+    }
     const respond = () => {
       response.setHeader('Content-Type', 'text/html; charset=utf-8')
       response.end(`<title>${request.url}</title><h1>${request.url}</h1><input id="draft" placeholder="Page draft">`)
@@ -229,6 +255,7 @@ module.exports = async function browserSmoke(window) {
     assert(secondContents.isDestroyed())
     assert(views().every((view) => !view.getVisible()))
     assert.equal(views().length, 0)
+    await require('./browser-copy-smoke.cjs')({ window, call, read, evaluate, waitFor, pageFor, origin })
     await require('./history-gesture-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin })
     await require('./navigation-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut })
     await require('./sidebar-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut })

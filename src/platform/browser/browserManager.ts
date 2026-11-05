@@ -3,7 +3,7 @@ import { t, i18n } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
 import { app, session, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
 import { resolvedTheme, themeBackground } from '../electron/main/theme'
-import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
+import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_COPY_WEBPAGE_RESULT, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
   type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
 import { isBrowserDestination } from '../../shared/navigation'
 import { resolveDestination } from './navigationManager'
@@ -205,9 +205,10 @@ export class BrowserManager {
           await this.createTab(); await this.navigate(url, created.surface)
         })().catch(() => { /* The popup's load error belongs to its own tab. */ })
       }, surface, {
-        identity: () => this.selectionIdentity(tab, created),
+        identity: () => this.activeBrowserTarget(tab, created),
         accept: (target, content) => this.handoff(tab, created, target, content),
-        travel: direction => { if (this.selectionIdentity(tab, created)) void this.travel(direction) }
+        travel: direction => { if (this.activeBrowserTarget(tab, created)) void this.travel(direction) },
+        requestCopy: () => { void this.copyFromMenu() }
       })
       segment = created
       this.shortcuts(created.view.webContents)
@@ -225,6 +226,23 @@ export class BrowserManager {
   async reload(): Promise<void> {
     const item = this.requireTab(this.activeTabId).history.current
     if (item.kind === 'web' && item.segment.surface === 'browser') item.segment.reload()
+  }
+
+  async copyWebpage(): Promise<void> {
+    const tab = this.tabs.get(this.activeTabId), item = tab?.history.current
+    if (!tab || item?.kind !== 'web' || !this.activeBrowserTarget(tab, item.segment)) {
+      throw new Error(t($ => $.browser.copyFailed))
+    }
+    const targetId = this.targetId(tab)
+    await item.segment.copyWebpage(() => this.activeBrowserTarget(tab, item.segment) === targetId)
+  }
+
+  private async copyFromMenu(): Promise<void> {
+    const tab = this.tabs.get(this.activeTabId)
+    if (!tab) return
+    const presentation = { tabId: tab.id, targetId: this.targetId(tab) }
+    const copied = await this.copyWebpage().then(() => true, () => false)
+    if (!this.window.isDestroyed()) this.window.webContents.send(BROWSER_COPY_WEBPAGE_RESULT, presentation, copied)
   }
 
   getState(): BrowserState {
@@ -270,13 +288,13 @@ export class BrowserManager {
     this.updateVisibility(); this.publishState()
   }
 
-  private selectionIdentity(tab: Tab, segment: WebSegment): string | null {
+  private activeBrowserTarget(tab: Tab, segment: WebSegment): string | null {
     return !this.window.isDestroyed() && !this.rendererLoading && this.visible && this.activeTabId === tab.id && this.tabs.has(tab.id) &&
       tab.history.current.kind === 'web' && tab.history.current.segment === segment && segment.surface === 'browser' ? this.targetId(tab) : null
   }
 
   private handoff(tab: Tab, segment: WebSegment, target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void {
-    if (!this.selectionIdentity(tab, segment)) return
+    if (!this.activeBrowserTarget(tab, segment)) return
     this.selections.dispose()
     tab.history.showPage({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page: target === 'ask-ai' ? 'ai' : 'find' } })
     tab.version++; this.unsaved = false; this.visible = false

@@ -27,6 +27,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 }
 .history-controls { display: flex; gap: var(--space-1); -webkit-app-region: no-drag; }
 .address-controls { display: flex; align-items: center; gap: var(--space-1); flex: 1; min-width: 0; }
+.address-controls > .icon-button { flex: 0 0 auto; -webkit-app-region: no-drag; }
 .address-form {
   display: flex;
   align-items: center;
