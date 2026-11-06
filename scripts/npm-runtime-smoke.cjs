@@ -103,6 +103,7 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     if (existsSync(join(modelSeed, 'onnx/model_int8.onnx'))) {
       const fixture = join(scratch, 'model-ui-smoke.cjs')
       cpSync(join(root, 'scripts/model-runtime-smoke.cjs'), fixture)
+      cpSync(join(root, 'scripts/open-section-cards.cjs'), join(scratch, 'open-section-cards.cjs'))
       mkdirSync(env.JAB_MODEL_STORE, { recursive: true })
       writeFileSync(join(env.JAB_MODEL_STORE, 'seed-preferences.json'), JSON.stringify({ autoImportSeed: false, seedInitializedRevisions: [] }))
       const modelData = join(scratch, 'model-ui-data'); mkdirSync(modelData)
