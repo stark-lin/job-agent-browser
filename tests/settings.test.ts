@@ -56,7 +56,7 @@ test('unknown fields, unsupported preferences and unsafe mailbox URLs leave save
   service.savePreferences({ language: 'en' })
   const before = readFileSync(path, 'utf8')
   for (const input of [null, [], { autoSave: true }, { theme: 'sepia' }, { theme: undefined }, { theme: null }, { theme: {} }, { language: 'fr' }, { language: undefined },
-    ...['http://example.com', 'javascript:alert(1)', 'app://home', 'https://user:password@example.com', '', 'https://'].map(url => ({ mailbox: { provider: 'custom', url } })),
+    ...['http://example.com', 'javascript:alert(1)', 'app://ai', 'https://user:password@example.com', '', 'https://'].map(url => ({ mailbox: { provider: 'custom', url } })),
     { mailbox: { provider: 'other', url: 'https://example.com' } }, { mailbox: { provider: 'none', url: 'https://example.com' } }]) {
     assert.throws(() => service.savePreferences(input), { code: 'INVALID_INPUT' })
     assert.equal(readFileSync(path, 'utf8'), before)

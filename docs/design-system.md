@@ -1,6 +1,6 @@
 # Component Library and Design System
 
-Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and placeholder pages. Remaining business feature pages are **Scaffolded**; remaining business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
+Purpose: define enforceable component rules and the maintenance process. Status: **Implemented** light/dark color themes, tokens, CSS reference gallery, central React primitives and their use by Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and placeholder pages. Remaining business feature pages are **Scaffolded**; remaining business workflows and React equivalents for the remaining gallery examples are **Planned**. Visual direction belongs to [DESIGN.md](../DESIGN.md).
 
 Language: English · [简体中文](design-system.zh-CN.md)
 
@@ -33,7 +33,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | `TextInput` | Text, URL, password and numeric fields, or bare input inside a styled wrapper | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | Comma-separated lists using `TextInput` presentation; retains trailing delimiters while typing and resets on external value changes | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | Business source HTTP(S) links; reject credentials/other schemes and open externally | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
-| `Glyph` | Shared named SVG symbols used by Home and workspace navigation | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
+| `Glyph` | Shared named SVG symbols used by workspace navigation | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `historyIndicatorDocument` | Scriptless native history arrow; fixed position, ready and unavailable states | [HistoryIndicator.ts](../src/shared/ui/HistoryIndicator.ts), [history-indicator.css](../src/shared/ui/history-indicator.css) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | Icon rail, accessible navigation groups and named native buttons with hover tooltips and current-page state | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG glyph and neutral/primary icon container | [Icon.tsx](../src/shared/ui/Icon.tsx) |
@@ -50,7 +50,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 - Keep reusable appearance, sizes, visual states and accessibility defaults in the central library. Page CSS may arrange components with shared tokens; it must not duplicate control styles, redefine `.ui-*` selectors or bypass the library with inline styles.
 - Pages own placement, business data, enabled/loading state, navigation and event handlers. Shared UI accepts props and composition slots; it must not import App/Page/Domain/Platform behavior. A `className` is for composition, not a second component skin.
 
-[HomeTile](../src/pages/home/HomeTile.tsx), [Browser controls](../src/pages/browser/BrowserControls.tsx), [AddressBar](../src/pages/browser/AddressBar.tsx), [Add Job](../src/pages/find-jobs/AddJobPage.tsx) and [Settings](../src/pages/settings/SettingsPage.tsx) consume these primitives. Capture source selection and the [Application Agent panel](../src/pages/applications/ApplicationAgentPanel.tsx) compose existing Select/TextArea/Button/SectionCard/StatusMessage; event history uses DetailsList. No new control skin or token is introduced. Do not copy gallery markup into a page or import private implementations.
+[Browser controls](../src/pages/browser/BrowserControls.tsx), [AddressBar](../src/pages/browser/AddressBar.tsx), [Add Job](../src/pages/find-jobs/AddJobPage.tsx) and [Settings](../src/pages/settings/SettingsPage.tsx) consume these primitives. Capture source selection and the [Application Agent panel](../src/pages/applications/ApplicationAgentPanel.tsx) compose existing Select/TextArea/Button/SectionCard/StatusMessage; event history uses DetailsList. No new control skin or token is introduced. Do not copy gallery markup into a page or import private implementations.
 
 ## 3. Layout, geometry and typography
 
@@ -62,7 +62,7 @@ All application UI components must use `src/shared/ui/index.ts` (or its director
 | Browser tab strip / total chrome | 48px / 96px | `--tab-strip-height`, `--browser-chrome-height` |
 | Workspace sidebar | 64px icon rail at every viewport width; 48px navigation items with 24px icons | `--sidebar-width`, `--control-lg`, `--space-3` |
 | List row | 64px minimum; grow for content when necessary | `--list-row-height` |
-| Home card | 144px minimum at every viewport size | `--feature-card-height` |
+| Feature card | 144px minimum at every viewport size | `--feature-card-height` |
 | Icon / container | 16px / 32px or 40px | `--icon-size`, `--icon-box`, `--icon-box-lg` |
 | Corners | 8 / 16 / 24px | `--radius-*` |
 | Font sizes | 12 / 14 / 16 / 20 / 32 / 40px | `--font-*` |
@@ -73,7 +73,7 @@ All nonzero padding, gap and margin must use spacing tokens. Zero and automatic 
 
 Font sizes and stroke widths are grid exceptions. Circular dots and loading indicators use `50%` rounding; rectangular controls, chips and badges use the corner scale. SVG paths and glyph strokes are not layout measurements. Fluid rendered widths need not be divisible by eight.
 
-Use grid/flex alignment to center icons, fixed token line heights for text, and `box-sizing: border-box` for borders. Let labels/descriptions wrap and retain minimum card height at narrow widths. [Home layout](../src/pages/home/home.css) switches between three, two and one columns; [browser layout](../src/renderer/styles/global.css) keeps its fixed chrome height. Page widths and breakpoints are layout decisions, not new spacing primitives.
+Use grid/flex alignment to center icons, fixed token line heights for text, and `box-sizing: border-box` for borders. Let labels/descriptions wrap and retain minimum card height at narrow widths. [Browser layout](../src/renderer/styles/global.css) keeps its fixed chrome height. Page widths and breakpoints are layout decisions, not new spacing primitives.
 
 ## 4. Semantic color rules
 
@@ -94,7 +94,7 @@ Generated CSS supports `data-theme="light"` / `data-theme="dark"`; without an ex
 
 These are requirements for UI additions and changes; they do not establish full accessibility certification:
 
-- The sidebar has no brand header or visible text labels. Preserve the original order: Home, Job search, Manage, Tools, then fixed-footer Settings. Centered 24px horizontal rules using `--line` and `--border-width` separate these sections; rules are decorative, while groups retain translated accessible names. Items retain their complete translated accessible name and native hover tooltip; use `aria-current="page"` for the active destination. Settings remains reachable while the middle groups scroll.
+- The sidebar has no brand header or visible text labels. Place Ask AI first, followed by Job search, Manage, Tools and fixed-footer Settings. Centered 24px horizontal rules using `--line` and `--border-width` separate these sections; rules are decorative, while groups retain translated accessible names. Items retain their complete translated accessible name and native hover tooltip; use `aria-current="page"` for the active destination. Settings remains reachable while the middle groups scroll.
 - Give every control an accessible name. `IconButton` requires `aria-label`; inputs need an associated label or accessible name. `Icon` is decorative by default, so communicate meaning through the owning control or explicitly configure its accessible semantics.
 - External Agent setup in Settings composes central SectionCard, DetailsList, Badge, Button, Dialog and read-only TextArea. MCP configuration, connection results and per-Skill installation states remain separate. Skill install/update actions show paths and completed/pending results; differing folders require a confirmation listing conflicts with Cancel initially focused and explicit replacement without backups. MCP reconnect republishes configuration and verifies a fresh connection; Skills reconnect reinstalls the bundled folders. MCP and per-Skill/all-Skills deletion use confirmation dialogs with paths, affected names and Cancel initially focused; outcomes distinguish completed and pending removal. Host reload guidance stays explicit. Other Agents can open the bundled Skills folder. MCP replacement retains its separate backup behavior. Paths wrap, busy actions are disabled and the static Settings gallery illustrates the controls.
 
@@ -115,7 +115,7 @@ Contrast, screen-reader behavior, enlarged text and complete keyboard coverage r
 
 [Conversation primitives](../src/shared/ui/Conversation.tsx) own ChatMessage, Collapsible, ActivityRow, SessionEntry, Drawer and ComposerSurface; [Markdown](../src/shared/ui/Markdown.tsx) renders a safe subset with escaped HTML, HTTP(S)-only links, code copying and locally scrollable code/tables. All are exported centrally. The Feedback gallery includes static conversation references.
 
-The persistent application icon rail stays 64px. The chat session list uses `--chat-sidebar-width` (256px), becoming a modal drawer below 960px; the content column uses `--chat-content-width` (768px). Ask AI has no top bar, role/model message cards or duplicate Home button. User messages have a subtle bubble; assistant output uses direct typography. The bottom composer contains a compact model selector beside Send/Stop on one row, shrinking the selector on narrow screens. Empty chats center the introduction/composer. ComposerSurface keeps its neutral border and shadow on focus; its textarea has no focus outline or glow, while the model selector and action buttons retain their own focus indicators.
+The persistent application icon rail stays 64px. The chat session list uses `--chat-sidebar-width` (256px), becoming a modal drawer below 960px; the content column uses `--chat-content-width` (768px). Ask AI has no top bar or role/model message cards. User messages have a subtle bubble; assistant output uses direct typography. The bottom composer contains a compact model selector beside Send/Stop on one row, shrinking the selector on narrow screens. Empty chats center the introduction/composer. ComposerSurface keeps its neutral border and shadow on focus; its textarea has no focus outline or glow, while the model selector and action buttons retain their own focus indicators.
 
 Returned reasoning text and summaries have distinct labels, source/state/elapsed details and full-text copying; encrypted blocks explicitly state that readable text is unavailable. Reasoning expands while streaming and collapses on completion unless the user changed its state. Models without reasoning show Working. Tool rows retain compact summaries and collapsed details containing call ID/name, state, elapsed time, redacted full arguments/results and fixed errors. Shared CodeBlock provides copying and locally scrollable JSON or wrapped reasoning; unknown write outcomes explicitly request state review. Completed writes remain visible after Stop. Delete requires an idle session and confirmation; attempted writes suppress automatic Retry.
 
@@ -158,7 +158,7 @@ npm run quality
 | --- | --- | --- |
 | [Design checker](../scripts/design-system.cjs) | Generated-file consistency, color-only overrides/unchanged shadow geometry, selected dark text contrast ≥4.5:1, approved token values, declared spacing/fixed geometry, token references, gallery links and ten categories; rejects `.ui-*` selectors outside Shared UI | Does not prove every computed layout, state or accessibility property |
 | [Quality checker](../scripts/quality.cjs) | Native reusable JSX controls/icons and explicit JSX `style` attributes rejected outside central UI; App/Page/Renderer component imports use the public entry; documentation parity, paths and lengths | Different-class duplicates, prop-spread bypasses and dynamically constructed elements still require review |
-| [Browser smoke](../scripts/browser-smoke.cjs) | Home at 320/640/1200px, minimum card height, overflow, central card geometry and rendered chrome meeting native bounds | Not a complete gallery, accessibility or visual-regression suite |
+| [Browser smoke](../scripts/browser-smoke.cjs) | Ask AI startup, sidebar switching and rendered browser chrome meeting native bounds | Not a complete gallery, accessibility or visual-regression suite |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | Full-content native bounds, no app chrome, resizing, redirects, history and load recovery | Uses local fixtures; does not certify provider websites |
 | [Sidebar smoke](../scripts/sidebar-smoke.cjs) | All destinations, active state, keyboard activation, fixed icon-rail width, hover tooltip labels and native-view clearance | Does not certify all assistive technology |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider endpoint/timeout forms, model detection/selection with central controls, real SSE/IPC, cancellation and 320/640/1200px overflow checks | Local fixtures do not certify third-party provider behavior |
@@ -166,7 +166,7 @@ npm run quality
 | [Audit Viewer smoke](../scripts/audit-viewer-smoke.cjs) | Filters, pagination, metadata dialogs, keyboard dismissal, no page overflow at 320/640/1200px and read-only/error/loading states | Does not certify screen readers or a snapshot across pages during concurrent writes |
 | [Profile smoke](../scripts/profile-smoke.cjs) | Manual entries/facts, built PDF Worker/SSE, explicit saves/ignore controls, partial saves, reload/pagination, bilingual light/dark layout at 320/640/1200px and leave guards | Uses generated PDFs/local AI fixtures; does not certify third-party Providers, arbitrary PDF layouts or screen readers |
 | [Settings smoke](../scripts/settings-smoke.cjs) | Real forms, labels, 40px controls, 16px panels, 320/640/1200px layout, language, validation and key lifecycle | Does not certify screen-reader behavior or provider access |
-| [Theme smoke](../scripts/theme-smoke.cjs) and [restart smoke](../scripts/settings-restart-smoke.cjs) | Draft/save/failure/discard, simulated native appearance updates, unchanged navigation/native bounds, Settings/Home geometry at 320/640/1200px, all gallery element geometry and persisted dark startup | Does not automate actual OS settings, certify every visual state or prove every startup frame is flash-free |
+| [Theme smoke](../scripts/theme-smoke.cjs) and [restart smoke](../scripts/settings-restart-smoke.cjs) | Draft/save/failure/discard, simulated native appearance updates, unchanged navigation/native bounds, Settings and Ask AI geometry at 320/640/1200px, all gallery element geometry and persisted dark startup | Does not automate actual OS settings, certify every visual state or prove every startup frame is flash-free |
 
 Native bounds consume [generated geometry](../src/shared/ui/geometry.ts) through the [browser contract](../src/shared/browser.ts). Do not independently change CSS and Main toolbar heights. [Build configuration](../electron.vite.config.ts) selects the Renderer entry; scripts and commands are authoritative in [package.json](../package.json).
 
@@ -181,7 +181,7 @@ Native bounds consume [generated geometry](../src/shared/ui/geometry.ts) through
 
 Central [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx), [ExplorerRow/ResizableExplorer](../src/shared/ui/KnowledgeControls.tsx) and [Markdown](../src/shared/ui/Markdown.tsx) provide CodeMirror controls, accessible tree rows, resizing and safe AST rendering. HTML stays text; remote images do not load. Existing tokens and themes are reused without new geometry tokens.
 
-Smart Note uses the shared `notebook` [Glyph](../src/shared/ui/Glyph.tsx), combining a notebook with a sparkle in Home and navigation. The Explorer divider uses `--border-width` (1px) and `--line`, with an invisible `--space-1` (8px) drag target; keyboard resizing and focus treatment remain available.
+Smart Note uses the shared `notebook` [Glyph](../src/shared/ui/Glyph.tsx), combining a notebook with a sparkle in workspace navigation. The Explorer divider uses `--border-width` (1px) and `--line`, with an invisible `--space-1` (8px) drag target; keyboard resizing and focus treatment remain available.
 
 Knowledge Settings composes central Checkbox, DetailsList, Progress, Button, Dialog and StatusMessage for optional local semantic retrieval. Installation states, model dimensions/storage, download/repair/verify, progress/cancel and removal remain independent of the saved semantic preference. Removal confirms that notes/backups/indexes remain and automatic Seed import is disabled, with Cancel initially focused. Generative AI configuration remains separate. Tokens/geometry are unchanged; the Settings gallery includes model actions and the shared progress reference.
 

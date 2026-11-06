@@ -83,7 +83,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal(firstProfile.name, '', 'empty imported name saves without a required-field check')
     assert.equal((await data('listFacts', { profileId: firstProfile.id })).value.total, 2)
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
-    await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://home'); await call('navigate', 'app://profile')
+    await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://ai'); await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input") && document.body.innerText.includes("Local profile fixture")'), 'manual creation after deleted context fallback')
     await field('Name', 'Manual candidate'); await field('Email', 'keep@example.com'); await field('Personal introduction', 'Manual introduction.\nSecond sentence.')
     await evaluate('document.querySelector(".profile-page form").requestSubmit()')
@@ -172,7 +172,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     }
     await settings({ language: 'en' }); await frame()
     const profileTabId = active(await read()).id
-    await call('navigate', 'app://home'); await call('navigate', 'app://profile')
+    await call('navigate', 'app://ai'); await call('navigate', 'app://profile')
     await call('createTab'); const otherTabId = active(await read()).id
     await call('activateTab', profileTabId)
     await call('navigate', 'app://profile')
@@ -180,7 +180,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await field('Personal introduction', 'Unsaved introduction')
     let prompts = 0
     dialog.showMessageBox = async () => { prompts++; return { response: 0, checkboxChecked: false } }
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     assert.equal(active(await read()).destination.page, 'profile'); assert.equal(prompts, 1)
     const beforeTabs = (await read()).tabs.length
     await call('createTab'); assert.equal((await read()).tabs.length, beforeTabs)
@@ -208,7 +208,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     dialog.showOpenDialog = oldOpen; dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); dialog.showMessageBoxSync = () => 1
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)
     await settings({ ai: original.ai, language: original.language, theme: original.theme })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
     dialog.showMessageBox = oldMessage; dialog.showMessageBoxSync = oldSync
   }

@@ -260,7 +260,7 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
       pointer(notice.webContents, 335, 40, 'left')
       await waitFor(() => !notice.getVisible(), 'Smart Paste smoke cleanup')
     }
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     window.setContentSize(...previousSize)
     await clipboard.writeText(originalClipboard)
     await data('settings', 'savePreferences', { ai: original.ai, mailbox: original.mailbox, theme: original.theme, smartPaste: original.smartPaste ?? { configs: [] } })

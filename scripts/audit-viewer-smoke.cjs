@@ -109,7 +109,7 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
   dialog.showMessageBox = async () => { confirmations++; return { response: 1 } }
   try {
     await input('targetId', profiles[0])
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     assert.equal(confirmations, 0, 'Audit filters do not create unsaved preferences')
   } finally { dialog.showMessageBox = originalDialog }
   await call('navigate', 'app://settings'); await ready()

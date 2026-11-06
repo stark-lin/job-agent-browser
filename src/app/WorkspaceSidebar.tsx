@@ -11,9 +11,9 @@ export function WorkspaceSidebar() {
   const item = (page: InternalPage) => <NavigationItem key={page} label={t($ => $.navigation.pages[page])} active={page === current}
     icon={<Glyph name={pageIcons[page]} />} onClick={() => { if (current !== page) void openPage(page) }} />
   return <Sidebar label={t($ => $.navigation.workspaceNavigation)} footer={item('settings')}>
-    {item('home')}
+    {item('ai')}
     {featureGroups.map(group => <NavigationGroup key={group.section} label={t($ => $.navigation.sections[group.section])}>
-      {group.pages.filter(page => page !== 'settings').map(item)}
+      {group.pages.map(item)}
     </NavigationGroup>)}
   </Sidebar>
 }

@@ -19,7 +19,6 @@ export function InboxPage() {
         <div className="inbox-message-content">
           <StatusMessage tone={configured ? 'error' : 'neutral'}>{message || t($ => $.inbox.configureHelp)}</StatusMessage>
           <div className="page-actions">
-            <Button onClick={() => void openPage('home')}>{configured ? t($ => $.inbox.exit) : t($ => $.navigation.goHome)}</Button>
             {configured && <Button onClick={() => void openPage('inbox')}>{t($ => $.settings.retry)}</Button>}
             <Button variant="primary" onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>
           </div>

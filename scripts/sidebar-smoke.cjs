@@ -4,12 +4,13 @@ const { resolve } = require('node:path')
 const { app } = require('electron')
 
 module.exports = async function sidebarSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut }) {
-  const pages = [['Home', 'home'], ['Add Job', 'find'], ['Tailor Resume', 'resume'], ['Smart Note', 'knowledge'], ['Applications', 'applications'],
-    ['Inbox', 'inbox'], ['My Profile', 'profile'], ['Browser', 'browser'], ['Ask AI', 'ai'], ['Settings', 'settings']]
+  const pages = [['Ask AI', 'ai'], ['Add Job', 'find'], ['Tailor Resume', 'resume'], ['Smart Note', 'knowledge'], ['Applications', 'applications'],
+    ['Inbox', 'inbox'], ['My Profile', 'profile'], ['Browser', 'browser'], ['Settings', 'settings']]
   const select = label => evaluate(`document.querySelector('.ui-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
   const current = label => waitFor(() => evaluate(`document.querySelector('.ui-sidebar [aria-current=page]')?.getAttribute('aria-label') === ${JSON.stringify(label)}`), 'active sidebar item')
-  await call('navigate', 'app://home')
-  await waitFor(() => evaluate('document.querySelectorAll(".ui-sidebar button").length === 10'), 'all sidebar destinations')
+  await call('navigate', 'app://ai')
+  await current('Ask AI')
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".ui-sidebar button")].map(button => button.getAttribute("aria-label"))'), pages.map(([label]) => label))
   for (const [label, page] of pages) {
     await select(label)
     await waitState(state => active(state).destination.page === page, `sidebar ${label}`)
@@ -18,8 +19,8 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
     assert.equal(await evaluate('!!document.querySelector(".tab-strip")'), page === 'browser')
     assert(views().every(view => !view.getVisible()))
   }
-  await select('Home')
-  await current('Home')
+  await select('Ask AI')
+  await current('Ask AI')
   // Native keyboard activation uses the central navigation control's accessible label.
   window.show()
   if (process.platform === 'darwin') app.focus({ steal: true })
@@ -31,7 +32,7 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
   shortcut(window.webContents, 'Space', [])
   await waitState(state => active(state).destination.page === 'applications', 'keyboard sidebar navigation')
   await current('Applications')
-  await select('Home')
+  await select('Ask AI')
   const originalSize = window.getContentSize(), originalMinimum = window.getMinimumSize()
   const capture = async name => {
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
@@ -54,14 +55,14 @@ module.exports = async function sidebarSmoke({ window, call, read, active, evalu
       })()`)
       assert.deepEqual(geometry, { width: expected, x: expected, iconOnly: true, brandAbsent: true, overflow: false, names: true })
       if (width === 320) await capture('sidebar-compact.png')
-      if (width === 1200) await capture('sidebar-home.png')
+      if (width === 1200) await capture('sidebar-ask-ai.png')
     }
     window.setContentSize(640, 420)
     await waitFor(() => evaluate('innerHeight === 420'), 'short sidebar viewport')
     assert.equal(await evaluate('document.querySelector(".ui-sidebar-footer").getBoundingClientRect().bottom <= innerHeight'), true)
     await select('Settings'); await current('Settings')
     await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings reachable in compact sidebar')
-    await select('Home')
+    await select('Ask AI')
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
   console.log('Sidebar smoke passed: all destinations, active state, keyboard activation, fixed icon-rail geometry, accessible names and short-window reachability.')
 }

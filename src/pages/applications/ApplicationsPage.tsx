@@ -14,7 +14,6 @@ export function ApplicationsPage() {
   const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState<string | null>(() => context.getSnapshot().jobId)
   return <main className="job-page"><div className="job-content">
-    <div className="page-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
     <PageHeading title={t($ => $.navigation.pages.applications)} description={t($ => $.jobs.listHelp)} />
     <SectionCard title={t($ => $.jobs.savedJobs)}><div className="job-stack">
       <form className="job-stack" onSubmit={event => { event.preventDefault(); setSelected(null); viewer.apply(search, status, archived) }}>

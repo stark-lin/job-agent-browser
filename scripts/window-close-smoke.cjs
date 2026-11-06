@@ -16,7 +16,7 @@ module.exports = async function windowCloseSmoke(window) {
   try {
     const url = `http://127.0.0.1:${server.address().port}/retained`
     await window.webContents.executeJavaScript(`window.browser.navigate(${JSON.stringify(url)})`)
-    await window.webContents.executeJavaScript("window.browser.navigate('app://home')")
+    await window.webContents.executeJavaScript("window.browser.navigate('app://ai')")
     const banner = window.contentView.children.find(view => view.webContents?.getTitle() === 'Banner')
     assert(banner, 'The owning window has one native Banner')
     const retained = [...require('./native-views.cjs').views(window), banner].map(view => view.webContents)

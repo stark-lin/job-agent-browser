@@ -80,10 +80,10 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   dialog.showMessageBox = async () => { confirmations++; return { response, checkboxChecked: false } }
   try {
     const before = await read()
-    await evaluate('document.querySelector(".ui-sidebar button[aria-label=Home]").click()')
+    await evaluate(`document.querySelector('.ui-sidebar button[aria-label="Ask AI"]').click()`)
     await waitFor(() => confirmations > 0, 'sidebar honors unsaved settings confirmation')
     assert.equal(active(await read()).targetId, active(before).targetId)
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     assert.equal(active(await read()).targetId, active(before).targetId)
     await call('back')
     await call('createTab')
@@ -97,8 +97,8 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     await waitFor(() => confirmations > closeCount, 'unsaved window close confirmation')
     assert.equal(window.isDestroyed(), false)
     response = 1
-    await evaluate('document.querySelector(".ui-sidebar button[aria-label=Home]").click()')
-    await waitState(state => active(state).destination.page === 'home', 'discard settings')
+    await evaluate(`document.querySelector('.ui-sidebar button[aria-label="Ask AI"]').click()`)
+    await waitState(state => active(state).destination.page === 'ai', 'discard settings')
   } finally { dialog.showMessageBox = originalDialog }
 
   await call('navigate', 'app://settings'); await formsReady()
@@ -138,7 +138,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     await evaluate('document.querySelector("dialog .ui-button--danger").click()')
     await waitFor(async () => !(await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'key deletion')
   }
-  await call('navigate', 'app://home')
+  await call('navigate', 'app://ai')
   // Leave a disposable fixture for the next process's startup-recovery smoke.
   await data('settings', 'savePreferences', { language: 'zh-CN', theme: 'dark', mailbox: { provider: 'custom', url: 'https://example.invalid/mail' } })
   if (status.available) await data('secrets', 'saveProviderKey', { provider: 'openai', apiKey: 'smoke-key-restart' })

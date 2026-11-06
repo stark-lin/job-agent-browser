@@ -10,7 +10,6 @@
 <svg width="0" height="0" style="position:absolute">
   <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></symbol>
   <symbol id="i-forward" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></symbol>
-  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5L12 4l8 6.5"/><path d="M6.5 9.5V20h11V9.5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></symbol>
   <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></symbol>
@@ -28,7 +27,6 @@
     <div class="toolbar-group">
       <button class="tool" aria-label="Back"><svg><use href="#i-back"/></svg></button>
       <button class="tool" aria-label="Forward"><svg><use href="#i-forward"/></svg></button>
-      <button class="tool" aria-label="Home"><svg><use href="#i-home"/></svg></button>
     </div>
     <div class="toolbar-group">
       <button class="agent"><span class="spark">✦</span><span>Ask AI</span></button>
@@ -55,7 +53,7 @@
         <div class="eyebrow">Job Browser</div>
         <h1>Component Library</h1>
         <div class="lead">
-          An 8px-grid interface system built from the existing Job Browser home.
+          An 8px-grid interface system for Job Agent Browser.
           All component spacing and major dimensions share one rhythm; blue is for actions,
           green for success, amber for warnings and red for errors.
         </div>
@@ -131,7 +129,7 @@
               <div class="size-spec"><div class="size-block" style="--block-height:var(--control-lg)">48</div><span class="size-caption">Large / toolbar</span></div>
               <div class="size-spec"><div class="size-block" style="--block-height:var(--list-row-height)">64</div><span class="size-caption">List row</span></div>
             </div>
-            <p class="rule-note">Icons: 16px inside 32px/40px containers. Home cards: 144px minimum. Corners: 8px / 16px / 24px.</p>
+            <p class="rule-note">Icons: 16px inside 32px/40px containers. Feature cards: 144px minimum. Corners: 8px / 16px / 24px.</p>
             <p class="rule-note">Type is a separate scale (12 / 14 / 16 / 20 / 32 / 40px); line-heights snap to 16 / 24 / 32 / 40 / 48px. Strokes are 1px and focus outlines 2px.</p>
           </div>
         </div>
@@ -310,7 +308,7 @@
           <div class="demo-label">Workspace sidebar — shared navigation</div>
           <div class="demo-stage">
             <nav class="workspace-sidebar-example" aria-label="Workspace navigation example">
-              <button class="workspace-navigation-item" aria-label="Home" title="Home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3z"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Ask AI" title="Ask AI" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14z"/></svg></button>
               <section class="workspace-navigation-group" aria-label="Job search">
               <button class="workspace-navigation-item" aria-label="Add Job" title="Add Job"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
               <button class="workspace-navigation-item" aria-label="Tailor Resume" title="Tailor Resume"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></svg></button>
@@ -323,7 +321,6 @@
               </section>
               <section class="workspace-navigation-group" aria-label="Tools">
               <button class="workspace-navigation-item" aria-label="Browser" title="Browser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg></button>
-              <button class="workspace-navigation-item" aria-label="Ask AI" title="Ask AI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14z"/></svg></button>
               </section>
               <div class="workspace-navigation-footer">
               <button class="workspace-navigation-item" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21h-4v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H3v-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 001.9.3A1.7 1.7 0 0010 3V3h4v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1H21v4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
@@ -372,7 +369,7 @@
       <section class="section" id="cards">
         <div class="section-head">
           <h2>Cards</h2>
-          <div class="section-note">The home-card primitive becomes the main feature-entry component.</div>
+          <div class="section-note">Feature cards pair a short label and description with an icon.</div>
         </div>
 
         <div class="demo">

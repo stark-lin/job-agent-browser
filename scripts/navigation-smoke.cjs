@@ -25,36 +25,27 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     assert(views().every((view) => !view.getVisible()))
     assert.equal(await evaluate('document.body.innerText.includes("app://")'), false)
   }
-  const home = async () => {
-    await waitFor(() => evaluate('!!document.querySelector(".home-grid")'), 'Home grid')
-    assert.equal(await evaluate('document.querySelectorAll(".home-page button").length'), 9)
-    assert.equal(await evaluate('!!document.querySelector(".home-back")'), false)
-  }
-  await call('navigate', 'app://home')
-  assert.equal(active(await read()).destination.page, 'home')
-  await home()
+  const select = label => evaluate(`document.querySelector('.ui-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
+  await call('navigate', 'app://ai')
+  await internal('ai')
   for (const [title, page] of routes) {
-    await evaluate(`(() => { [...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === ${JSON.stringify(title)}).click() })()`)
+    await select(title)
     await internal(page)
     if (page === 'ai') await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI conversation surface')
     else await waitFor(() => evaluate(`document.querySelector('h1')?.textContent === ${JSON.stringify(title)}`), 'feature title')
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume', 'knowledge'].includes(page))
     if (page === 'settings') await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms')
-    else if (!['ai','knowledge'].includes(page)) assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), page === 'inbox' ? ['Go home', 'Open Settings'] : ['Go home'])
+    assert.equal(await evaluate('[...document.querySelectorAll("button")].some(button => ["Go home", "Home"].includes(button.getAttribute("aria-label") || button.textContent.trim()))'), false)
+    if (page === 'inbox') assert.deepEqual(await evaluate('[...document.querySelectorAll(".page-actions button")].map(button => button.textContent)'), ['Open Settings'])
     if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {
       await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent === 'Open Settings').click()")
       await internal('settings')
     }
-    if (['ai','knowledge'].includes(page)) await evaluate('document.querySelector(".ui-sidebar button[aria-label=Home]").click()')
-    else {
-      await waitFor(() => evaluate('!!document.querySelector(".settings-navigation button, .page-actions button")'), 'Go home button')
-      await evaluate('document.querySelector(".settings-navigation button, .page-actions button").click()')
-    }
-    await internal('home')
-    await home()
   }
-  await capture('react-home.png')
+  await select('Ask AI')
+  await internal('ai')
+  await capture('react-ask-ai.png')
   // Workspace navigation never becomes part of a Browser tab's native history.
   await call('createTab')
   const journeyId = (await read()).activeTabId
@@ -62,7 +53,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   assert.equal(active(await read()).destination.page, 'browser')
   assert.equal(active(await read()).canGoBack, false)
   await call('navigate', `${origin}/one`)
-  assert.equal(active(await read()).canGoBack, false, 'First webpage cannot go back to Home or a blank tab')
+  assert.equal(active(await read()).canGoBack, false, 'First webpage cannot go back to a workspace page or a blank tab')
   await call('navigate', `${origin}/two`)
   const a = pageFor(`${origin}/two`), aContents = a.webContents
   await aContents.executeJavaScript('document.querySelector("#draft").value = "Retained browser draft"')
@@ -88,7 +79,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   await call('back')
   assert.equal(active(await read()).url, `${origin}/one`)
   // Visiting multiple features after Back preserves the native forward stack.
-  for (const page of ['settings', 'profile', 'home']) {
+  for (const page of ['settings', 'profile', 'ai']) {
     await call('navigate', `app://${page}`); await internal(page)
   }
   await call('navigate', 'app://browser')
@@ -130,7 +121,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   await call('setVisible', false, beforeReload)
   assert(a.getVisible())
   const priorURL = active(await read()).url
-  await aContents.executeJavaScript("location.href = 'app://home'")
+  await aContents.executeJavaScript("location.href = 'app://ai'")
   assert.equal(active(await read()).url, priorURL)
   assert.equal(active(await read()).destination.kind, 'web')
   await call('navigate', `${origin}/redirect`)
@@ -154,6 +145,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   await closingLoad
   assert.notEqual((await read()).activeTabId, closingId)
   await assert.rejects(call('navigate', 'app://unknown'))
-  await call('navigate', 'app://home')
+  await assert.rejects(call('navigate', 'app://home'))
+  await call('navigate', 'app://ai')
   console.log('Navigation smoke passed: workspace/history separation, retained views/forward history, new tabs, native boundaries, duplicate URLs, SPA, stale visibility, reload and navigation races.')
 }

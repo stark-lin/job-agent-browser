@@ -128,9 +128,9 @@ module.exports = async function gestureSmoke({ window, call, read, active, evalu
 
     await wheel(-120)
     await arrow('back')
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     await pause(400)
-    assert.equal(active(await read()).destination.page, 'home')
+    assert.equal(active(await read()).destination.page, 'ai')
     assert.equal(view.getBounds().x, 0)
     assert.equal(view.getVisible(), false)
     assert.equal(indicator.getVisible(), false, 'Workspace switch cancels arrow feedback')

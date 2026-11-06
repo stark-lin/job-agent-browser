@@ -196,13 +196,13 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     }
     // No cookies are exported: the next process reuses Chromium's actual storage.
     writeFileSync(join(process.env.JOB_BROWSER_SMOKE_DATA, 'browser-session-fixture.json'), JSON.stringify({ port: server.address().port }))
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     console.log('Selection smoke passed: real native events, editing/frame boundaries, stale menus, ordinary user drafts, explicit AI actions, source persistence and shared login Session.')
   } finally {
     Menu.prototype.popup = originalPopup
     webSession.webRequest.onBeforeRequest(null)
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     await evaluate(`window.data.settings.savePreferences(${JSON.stringify({ ai: original.ai, language: original.language, theme: original.theme, mailbox: original.mailbox })})`)
     dialog.showMessageBox = originalMessage
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))

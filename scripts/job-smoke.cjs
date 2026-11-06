@@ -53,7 +53,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     // A cancelled navigation keeps the in-memory job draft.
     let prompts = 0
     dialog.showMessageBox = async () => { prompts++; return { response: 0, checkboxChecked: false } }
-    await call('navigate', 'app://home'); assert.equal(active(await read()).destination.page, 'find'); assert.equal(prompts, 1)
+    await call('navigate', 'app://ai'); assert.equal(active(await read()).destination.page, 'find'); assert.equal(prompts, 1)
     dialog.showMessageBox = oldMessage
     await button('Save job')
     await waitFor(async () => active(await read()).destination.page === 'applications', 'manual job saved and navigated')
@@ -116,7 +116,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     dialog.showMessageBox = oldMessage
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)
     await preferences({ ai: original.ai, language: original.language, theme: original.theme })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
   }
 }

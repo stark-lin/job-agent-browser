@@ -1,6 +1,6 @@
 # 组件库与设计规范
 
-用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；其余业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
+用途：定义可执行的组件规则与维护流程。状态：浅色/暗色配色主题、Tokens、CSS 参考展示库、中央 React 基础组件，以及 Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和占位页对它们的引用均**已实现**。其余业务功能页面为**占位**；其余业务流程及其余展示示例的 React 对应组件仍为**规划**。视觉方向归属 [DESIGN.md](../DESIGN.zh-CN.md)。
 
 语言：简体中文 · [English](design-system.md)
 
@@ -33,7 +33,7 @@
 | `TextInput` | 文本、URL、密码和数字字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
-| `Glyph` | Home 与工作区导航复用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
+| `Glyph` | 工作区导航使用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `historyIndicatorDocument` | 无页面脚本的原生历史箭头；固定位置、触发就绪及不可用状态 | [HistoryIndicator.ts](../src/shared/ui/HistoryIndicator.ts), [history-indicator.css](../src/shared/ui/history-indicator.css) |
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | 图标栏、无障碍导航分组及带悬停提示和当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
@@ -50,7 +50,7 @@
 - 通用外观、尺寸、视觉状态和无障碍默认行为归中央库。页面 CSS 可通过共享 Tokens 安排布局，不得复制控件样式、重写 `.ui-*` 选择器或通过内联样式绕过中央库。
 - 页面管理位置、业务数据、启用/加载状态、导航和事件处理。Shared UI 通过 props 与组合插槽接收配置，不得导入 App/Page/Domain/Platform 行为。`className` 用于组合，不用于另建组件外观。
 
-[HomeTile](../src/pages/home/HomeTile.tsx)、[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx)、[新增工作](../src/pages/find-jobs/AddJobPage.tsx)和[设置](../src/pages/settings/SettingsPage.tsx)使用这些原语。采集来源选择与[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)组合现有 Select/TextArea/Button/SectionCard/StatusMessage，事件历史使用 DetailsList，不引入新控件外观或 Token。不要把图库标记复制到页面或导入私有实现。
+[Browser 控件](../src/pages/browser/BrowserControls.tsx)、[AddressBar](../src/pages/browser/AddressBar.tsx)、[新增工作](../src/pages/find-jobs/AddJobPage.tsx)和[设置](../src/pages/settings/SettingsPage.tsx)使用这些原语。采集来源选择与[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)组合现有 Select/TextArea/Button/SectionCard/StatusMessage，事件历史使用 DetailsList，不引入新控件外观或 Token。不要把图库标记复制到页面或导入私有实现。
 
 ## 三、布局、尺寸与排版
 
@@ -62,7 +62,7 @@
 | Browser 标签栏 / 浏览器栏总高度 | 48px / 96px | `--tab-strip-height`, `--browser-chrome-height` |
 | 工作区侧栏 | 所有窗口宽度下均为 64px 图标栏；导航项高 48px，图标为 24px | `--sidebar-width`, `--control-lg`, `--space-3` |
 | List Row | 最小 64px；必要时随内容增高 | `--list-row-height` |
-| Home Card | 所有视口下最小 144px | `--feature-card-height` |
+| Feature Card | 所有视口下最小 144px | `--feature-card-height` |
 | 图标 / 容器 | 16px / 32px 或 40px | `--icon-size`, `--icon-box`, `--icon-box-lg` |
 | 圆角 | 8 / 16 / 24px | `--radius-*` |
 | 字号 | 12 / 14 / 16 / 20 / 32 / 40px | `--font-*` |
@@ -73,7 +73,7 @@
 
 字号和描边宽度是网格例外。圆形状态点和加载指示器使用 `50%` 圆角，矩形控件、标签与徽章使用圆角尺度。SVG 路径和图形描边不是布局尺寸；流式渲染宽度不必能被八整除。
 
-通过 grid/flex 居中图标，文本使用固定 Token 行高，边框采用 `box-sizing: border-box`。允许标题/描述换行，并在窄屏保留卡片最小高度。[Home 布局](../src/pages/home/home.css)在三列、两列与单列之间切换；[浏览器布局](../src/renderer/styles/global.css)保持固定浏览器栏高度。页面宽度和断点属于布局决策，不是新的间距基础值。
+通过 grid/flex 居中图标，文本使用固定 Token 行高，边框采用 `box-sizing: border-box`。允许标题/描述换行，并在窄屏保留卡片最小高度。[浏览器布局](../src/renderer/styles/global.css)保持固定浏览器栏高度。页面宽度和断点属于布局决策，不是新的间距基础值。
 
 ## 四、语义色规则
 
@@ -94,7 +94,7 @@
 
 以下是 UI 新增和修改的要求，不代表已获得完整无障碍认证：
 
-- 侧栏不显示品牌头部或文字标签，保留原有顺序：Home、Job search、Manage、Tools，最后是固定在底部的 Settings。分区之间用居中的 24px 短横线分隔，颜色和线宽分别使用 `--line` 与 `--border-width`；横线仅作装饰，分组保留翻译后的无障碍名称。导航项保留完整翻译后的无障碍名称及原生悬停提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，Settings 仍可访问。
+- 侧栏不显示品牌头部或文字标签，Ask AI 位于首位，其后依次为求职、管理、工具和固定在底部的设置。分区之间用居中的 24px 短横线分隔，颜色和线宽分别使用 `--line` 与 `--border-width`；横线仅作装饰，分组保留翻译后的无障碍名称。导航项保留完整翻译后的无障碍名称及原生悬停提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
 - 设置页外部 Agent 接入组合中央 SectionCard、DetailsList、Badge、Button、Dialog 和只读 TextArea。MCP 配置、连接结果和逐项 Skill 安装状态分开显示。Skill 安装/更新操作展示目录及已完成/待完成结果；文件夹不同时，确认弹窗列出冲突、默认聚焦取消，并明确无备份替换。其他 Agent 可打开内置 Skills 文件夹；MCP 替换仍采用独立的备份行为。MCP 重新连接会重写配置并验证新连接，Skills 重新连接会重新安装内置文件夹。MCP 和单项/全部 Skills 删除使用列出路径与受影响名称的确认对话框，初始焦点位于取消；结果分别显示已删除与待删除项，并明确提示宿主重新加载。路径可换行，忙碌时禁用操作，静态 Settings 图库展示这些控件。
 
@@ -115,7 +115,7 @@
 
 [对话基础组件](../src/shared/ui/Conversation.tsx)管理 ChatMessage、Collapsible、ActivityRow、SessionEntry、Drawer 和 ComposerSurface；[Markdown](../src/shared/ui/Markdown.tsx)渲染安全子集，HTML 转义、链接仅限 HTTP(S)，支持复制代码及代码/表格局部滚动。全部从中央入口导出，Feedback 图库包含静态对话参考。
 
-常驻应用图标栏保持 64px。会话列表使用 `--chat-sidebar-width`（256px），低于 960px 改为模态抽屉；内容列使用 `--chat-content-width`（768px）。Ask AI 不显示顶部栏、角色/模型消息卡片或重复主页按钮。用户消息使用浅色气泡，助手正文直接排版。底部输入区在发送/停止旁以同一行放置紧凑模型选择器，窄屏时收缩选择器；空会话居中显示介绍和输入区。ComposerSurface 聚焦时保持常态边框与阴影，内部文本框不显示聚焦轮廓或光晕；模型选择器与操作按钮保留各自的焦点提示。
+常驻应用图标栏保持 64px。会话列表使用 `--chat-sidebar-width`（256px），低于 960px 改为模态抽屉；内容列使用 `--chat-content-width`（768px）。Ask AI 不显示顶部栏或角色/模型消息卡片。用户消息使用浅色气泡，助手正文直接排版。底部输入区在发送/停止旁以同一行放置紧凑模型选择器，窄屏时收缩选择器；空会话居中显示介绍和输入区。ComposerSurface 聚焦时保持常态边框与阴影，内部文本框不显示聚焦轮廓或光晕；模型选择器与操作按钮保留各自的焦点提示。
 
 返回的推理正文与摘要分别标注，展示来源/状态/耗时并支持全文复制；加密块明确标记没有可读文本。推理在流式期间展开，完成后折叠，尊重用户手动选择。未返回推理时显示处理中。工具行保留简短摘要，详情默认折叠，包含调用 ID/名称、状态、耗时、脱敏后的完整参数/结果及固定错误码。共享 CodeBlock 支持复制、JSON 局部滚动及推理文本换行；写入结果不确定时明确要求核对当前状态。停止后保留已完成写入；删除要求会话空闲并确认，尝试过写入的 Run 不提供自动重试。
 
@@ -158,7 +158,7 @@ npm run quality
 | --- | --- | --- |
 | [设计检查器](../scripts/design-system.cjs) | 生成文件一致性、仅颜色覆盖/阴影尺寸不变、部分暗色文字对比度 ≥4.5:1、允许的 Token 值、声明间距/固定尺寸、Token 引用、展示库链接及十个分类；拒绝 Shared UI 外的 `.ui-*` 选择器 | 不证明所有计算后的布局、状态或无障碍属性 |
 | [质量检查器](../scripts/quality.cjs) | 中央 UI 外禁止原生通用 JSX 控件/图标及显式 JSX `style` 属性；App/Page/Renderer 组件经公共入口导入；文档双语、路径和篇幅检查 | 不同类名的重复实现、props 展开绕过和动态创建元素仍需审查 |
-| [Browser smoke](../scripts/browser-smoke.cjs) | Home 在 320/640/1200px 下的表现、卡片最小高度、溢出、中央卡片尺寸，以及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
+| [Browser smoke](../scripts/browser-smoke.cjs) | Ask AI 启动、侧栏切换及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
 | [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、固定图标栏宽度、悬停提示名称及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider endpoint/超时表单、复用中央控件的模型检测/选择、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
@@ -166,7 +166,7 @@ npm run quality
 | [审计查看器 smoke](../scripts/audit-viewer-smoke.cjs) | 筛选、分页、元数据弹窗、键盘关闭、320/640/1200px 页面无溢出及只读/错误/加载状态 | 不认证读屏或并发写入时跨页快照一致性 |
 | [个人资料 smoke](../scripts/profile-smoke.cjs) | 手动条目/事实、构建后的 PDF Worker/SSE、显式保存/忽略、分批保存、重载/分页、320/640/1200px 双语浅/暗布局及离开保护 | 使用生成 PDF/本地 AI 样本，不认证第三方 Provider、任意 PDF 排版或读屏器 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
-| [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings/Home 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
+| [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings 与 Ask AI 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
 
 原生边界通过[浏览器契约](../src/shared/browser.ts)使用[生成尺寸](../src/shared/ui/geometry.ts)，不得分别修改 CSS 与 Main 的工具栏高度。[构建配置](../electron.vite.config.ts)选择 Renderer 入口，脚本和命令以 [package.json](../package.json) 为准。
 
@@ -181,7 +181,7 @@ npm run quality
 
 中央 [MarkdownEditor](../src/shared/ui/MarkdownEditor.tsx)、[ExplorerRow/ResizableExplorer](../src/shared/ui/KnowledgeControls.tsx) 与 [Markdown](../src/shared/ui/Markdown.tsx)提供 CodeMirror、可访问树节点、宽度调整和安全 AST 渲染。HTML 保持文本，不加载远程图片。复用现有 Token 和主题，不新增几何 Token。
 
-智能笔记在主页和导航中使用共享的 `notebook` [Glyph](../src/shared/ui/Glyph.tsx)，以笔记本搭配星芒。资源管理器分割线使用 `--border-width`（1px）和 `--line`，并保留不可见的 `--space-1`（8px）拖拽热区；键盘调整宽度和焦点样式仍然可用。
+智能笔记在工作区导航中使用共享的 `notebook` [Glyph](../src/shared/ui/Glyph.tsx)，以笔记本搭配星芒。资源管理器分割线使用 `--border-width`（1px）和 `--line`，并保留不可见的 `--space-1`（8px）拖拽热区；键盘调整宽度和焦点样式仍然可用。
 
 知识库设置组合中央 Checkbox、DetailsList、Progress、Button、Dialog 和 StatusMessage，提供可选本地语义检索。安装状态、模型维度/存储、下载/修复/校验、进度/取消和删除独立于已保存的语义偏好。删除确认说明笔记/备份/索引保留且禁用自动 Seed 导入，默认聚焦取消。生成式 AI 配置保持独立。Token/几何不变；设置图库包含模型操作和共享进度示例。
 

@@ -14,45 +14,31 @@ Job Browser brings existing job sites, AI tools, and email into one cohesive, po
 
 “Package” describes how the product composes capabilities; it does not require an MVP plugin marketplace or extension framework.
 
-## 2. Home: a 3 × 3 launcher
+## 2. Startup and workspace navigation
 
-The app opens to a simple grid of feature entry points, without a complex dashboard.
-
-| | | |
-| --- | --- | --- |
-| Add Job | Tailor Resume | Smart Note |
-| Applications | Inbox | My Profile |
-| Browser | Ask AI | Settings |
-
-The rows represent three groups:
-
-- **Job-seeking actions:** Add Job → Tailor Resume → Smart Note.
-- **Job-seeking management:** Applications → Inbox → My Profile.
-- **Foundational tools:** Browser → Ask AI → Settings.
-
-A persistent left sidebar links Home and all nine features, while the Home grid remains the launcher. All nine entries are accessible; Settings, Inbox webmail, Ask AI V2 and Profile editing/PDF import are implemented; Add Job and the Applications list are implemented; Smart Note is implemented. Add new capabilities within existing entry points whenever possible.
+The app opens to Ask AI. The persistent left sidebar places Ask AI first, followed by the Job search, Manage and Tools groups and the Settings footer. Add capabilities within existing entry points whenever possible.
 
 Initial Add Job supports manual entry or one public-URL AI import, reviewed saving as `NOT_STARTED` and navigation to Applications. Restricted access reports an error; authenticated Browser capture and deduplication remain planned. Runtime details belong to [current architecture](architecture.md).
 
 ### Initial Inbox
 
-Inbox is the entry point for job-seeking email. Its first version reuses user-configured webmail such as Gmail or Outlook. Users select an email provider and configure its web URL in Settings; entering `app://inbox` opens that URL through the unified Navigation API in a dedicated Inbox view beside the workspace sidebar, without Browser tabs, an address bar or an app top bar. The sidebar provides Home and direct access to all features. If no mailbox is configured, guide the user to email settings.
+Inbox is the entry point for job-seeking email. Its first version reuses user-configured webmail such as Gmail or Outlook. Users select an email provider and configure its web URL in Settings; entering `app://inbox` opens that URL through the unified Navigation API in a dedicated Inbox view beside the workspace sidebar, without Browser tabs, an address bar or an app top bar. If no mailbox is configured, guide the user to email settings.
 
 Users sign in directly on the email website, with Electron Session maintaining the login session. The first version stores only the mailbox entry configuration, not email passwords, and does not require email APIs, message synchronization, an aggregated inbox, or local message entities. Reading and replying use the email website’s existing features.
 
 ## 3. Browser Shell
 
-Internal features, external websites and AI pages share one navigation environment. Browser is a React page whose tab strip, address bar and controls belong to that page. Home and other internal pages hide the entire browser bar; internal URLs remain hidden from users.
+Internal features, external websites and AI pages share one navigation environment. Browser is a React page whose tab strip, address bar and controls belong to that page. Other internal pages hide the entire browser bar; internal URLs remain hidden from users.
 
 The shell provides these global capabilities:
 
 | Capability | Responsibilities |
 | --- | --- |
-| Navigation | Back, Forward, Home, and a page history stack |
+| Navigation | Webpage history with Back and Forward controls |
 | Browser | Open URLs; maintain web sessions and cookies; upload and download files; retrieve page content; accept pasted URLs or page content |
 | Agent | Keep an Agent button available; send the current page, current job, or selected text to AI |
 
-The global Agent button offers help from the current page. The Ask AI Home entry opens the dedicated AI page. Both are planned to use shared context and the configured AI capability. Ask AI V2 supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each persistent conversation can override it. Its current scope is saved Job/Profile/Application data and observable local tool actions. Agent-managed cross-session Memory and bounded context are implemented; specialist delegation, uploads, chat search, folders and branching remain planned. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
+The global Agent button offers help from the current page. The first sidebar entry opens Ask AI. Both are planned to use shared context and the configured AI capability. Ask AI V2 supports user-configured OpenAI-compatible providers: Settings owns the global provider/model default, and each persistent conversation can override it. Its current scope is saved Job/Profile/Application data and observable local tool actions. Agent-managed cross-session Memory and bounded context are implemented; specialist delegation, uploads, chat search, folders and branching remain planned. Full context capture and the global Agent entry remain planned; current behavior is owned by [runtime architecture](architecture.md).
 
 ## 4. Anything is URL
 
@@ -60,7 +46,6 @@ Internal features and internet pages are addressed through URLs.
 
 | Internal URL | Destination |
 | --- | --- |
-| `app://home` | Home |
 | `app://find` | Add Job |
 | `app://resume` | Tailor Resume |
 | `app://knowledge` | Smart Note |
@@ -76,10 +61,10 @@ External destinations retain their existing website URLs.
 A single navigation journey can therefore cross internal pages and websites:
 
 ```text
-Home → Add Job → Applications → Tailor Resume → Company Application
+Ask AI → Add Job → Applications → Tailor Resume → Company Application
 ```
 
-Workspace destinations are separate from each tab’s native webpage history. Startup opens Home; new tabs and closing the final tab open an empty Browser workspace. The Browser card resumes the retained webpage or opens an empty workspace. Home has no Back button; other business pages provide Go home as their only page navigation button (Ask AI V2 uses the persistent sidebar Home entry), and browser history shortcuts operate only within Browser. Browser retains its own Home/Back/Forward/Refresh controls and supports content-only history gestures. Button ownership follows [code architecture](code-architecture.md#page-button-ownership). Runtime implementation details belong to the current architecture.
+Workspace destinations are separate from each tab’s native webpage history. Use the sidebar to switch workspace destinations and the Browser toolbar or history gestures to navigate webpages. Startup and restoration rules belong to [current architecture](architecture.md#2-workspace-routes-and-browser-history).
 
 ## 5. Shared Context
 
@@ -102,7 +87,7 @@ The MVP is local first and does not require a complex backend. Local storage is 
 
 The [V1 data architecture](data-architecture.md) owns the implemented data model, ER diagram, application statuses, generation pipeline, provenance, audit, settings, and secrets design.
 
-Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. Each experience, project or education item can contain multiple independent facts; standalone facts belong directly to the Profile. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add Home entries.
+Applications uses Job lifecycle data; its calendar view uses JobEvent. Generated resumes are Artifacts, and personal material is represented by Profile, ProfileItem, and Fact. Each experience, project or education item can contain multiple independent facts; standalone facts belong directly to the Profile. These are shared records, not separate page-owned copies. Calendar and Resume Builder do not add sidebar entries.
 
 SQLite stores business records, local files store configuration and outputs, and Electron Session manages website sessions. API keys belong in encrypted secrets storage. Business persistence, Electron Session, settings and encrypted secrets are implemented; Resume V1 HTML/PDF outputs are implemented, as recorded in the [current architecture](architecture.md).
 
@@ -128,7 +113,7 @@ Navigation, context, AI access, and file handling should be reusable across thes
 The four logical layers are Electron App → Browser Shell → Services → Data. Process responsibilities are:
 
 - **Electron Main** owns system capabilities: windows, WebContents, sessions, and file-system access.
-- **Renderer** owns the Home grid, internal pages, Browser Shell UI, and other presentation logic.
+- **Renderer** owns the workspace sidebar, internal pages, Browser Shell UI, and other presentation logic.
 - **Services and IPC** separate UI workflows from privileged system operations.
 
 These are logical layers, not four independent applications or a requirement to put every service in the Renderer. The current process isolation and security boundaries remain the starting point for implementation.
@@ -153,8 +138,8 @@ The first phase does not need to implement all nine features in full.
 
 | Stage | Focus | Intended outcome |
 | --- | --- | --- |
-| 1 | Browser Shell | Electron browser with internal and external pages, plus Back, Forward, and Home |
-| 2 | Nine-entry Home | All nine destinations exist; unfinished features can begin as placeholder pages |
+| 1 | Browser Shell | Electron browser with internal and external pages, plus Back and Forward |
+| 2 | Workspace navigation | All nine destinations exist; unfinished features can begin as placeholder pages |
 | 3 | Anything is URL | Internal pages and external websites participate in one navigation stack |
 | 4 | Profile + Resume | Establish the user's job-seeking context |
 | 5 | Job Context | Save or extract the current job from a webpage |
@@ -170,7 +155,7 @@ This is the order for expanding the full features. Basic provider configuration 
 
 The foundation milestone is:
 
-> Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. The Home grid is the product entry point, and job-seeking capabilities are added incrementally as the package.
+> Build a polished, stable, URL-addressable Electron Browser Shell with Shared Context. Ask AI is the startup page, and job-seeking capabilities are added incrementally as the package.
 
 Current delivery includes stages 1–3, Profile editing/reviewed PDF import, manual and URL/text/PDF Job capture, application management within the existing details page, Resume V1 HTML/PDF and reference-only App Context. All four internal Agents use MCP. External calendar/email actions and full page-context capture remain planned; accessible skeletons do not complete the MVP.
 

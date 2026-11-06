@@ -21,7 +21,7 @@ for (const page of Object.keys(internalPages) as InternalPage[]) {
     assert.equal(isBrowserDestination(resolveDestination(`app://${page}`)), page === 'browser')
   })
 }
-for (const input of ['app://missing', 'app://home/other', 'app://home?x=1', 'app://home#fragment', 'app://user@home', 'app://home:80']) {
+for (const input of ['app://missing', 'app://home', 'app://ai/other', 'app://ai?x=1', 'app://ai#fragment', 'app://user@ai', 'app://ai:80']) {
   test(`unknown internal target is rejected: ${input}`, () => assert.throws(() => resolveDestination(input)))
 }
 
@@ -34,11 +34,11 @@ test('webmail surface stays distinct from the Browser even at the same URL', () 
 })
 
 test('workspace navigation preserves the browser position and forward history', () => {
-  const navigation = new TabNavigation<FakeSegment>(internal('home')), browser = new FakeSegment('browser', 3)
+  const navigation = new TabNavigation<FakeSegment>(internal('ai')), browser = new FakeSegment('browser', 3)
   navigation.showWeb(browser)
   navigation.travel(-1)
   assert.equal(browser.index, 1)
-  for (const page of ['home', 'find', 'resume', 'ai', 'settings'] as const) {
+  for (const page of ['ai', 'find', 'resume', 'profile', 'settings'] as const) {
     navigation.showPage(internal(page))
     assert.equal(navigation.canGoBack, false)
     assert.equal(navigation.canGoForward, false)
@@ -81,13 +81,13 @@ test('Inbox retains a separate surface and cannot be traversed by Browser contro
 
 test('empty, first-load and independent tabs never travel into workspace pages', () => {
   const first = new TabNavigation<FakeSegment>(internal('browser'))
-  const second = new TabNavigation<FakeSegment>(internal('home'))
+  const second = new TabNavigation<FakeSegment>(internal('ai'))
   first.travel(-1); first.travel(1)
   assert.equal(first.current.id, 'browser')
   first.showWeb(new FakeSegment('first-page', 1))
   first.travel(-1)
   assert.equal(first.current.id, 'first-page')
   assert.equal(first.canGoBack, false)
-  assert.equal(second.current.id, 'home')
+  assert.equal(second.current.id, 'ai')
   assert.equal(second.items.length, 0)
 })

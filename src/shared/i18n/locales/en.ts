@@ -224,27 +224,14 @@ export const en = {
   },
   navigation: {
     pages: {
-      home: 'Home', find: 'Add Job', resume: 'Tailor Resume', knowledge: 'Smart Note',
+      find: 'Add Job', resume: 'Tailor Resume', knowledge: 'Smart Note',
       applications: 'Applications', inbox: 'Inbox', profile: 'My Profile',
       browser: 'Browser', ai: 'Ask AI', settings: 'Settings'
     },
-    back: 'Back', home: 'Home', forward: 'Forward',
-    goHome: 'Go home', goBack: 'Go back', goForward: 'Go forward',
+    back: 'Back', forward: 'Forward',
+    goBack: 'Go back', goForward: 'Go forward',
     pageNavigation: 'Page navigation', openSettings: 'Open Settings', workspaceNavigation: 'Workspace navigation',
     sections: { search: 'Job search', manage: 'Manage', tools: 'Tools' }
-  },
-  home: {
-    heading: 'What do you want to do?',
-    subtitle: 'Everything you need for your job search, in one place.',
-    footer: 'A focused workspace for the whole job search.',
-    comingSoon: '{{label}} — Coming soon',
-    cards: { knowledge: "Build and maintain your job-search knowledge with AI.",
-      find: 'Add manually or import from a job URL', resume: 'Adapt your resume to a role',
-      applications: 'Review saved jobs and application status',
-      inbox: 'Hiring emails and application updates', profile: 'Resume, experience and preferences',
-      browser: 'Open the web freely', ai: 'Work with your job-search context',
-      settings: 'AI, browser and app preferences'
-    }
   },
   features: {
     comingSoon: 'Coming soon', notImplemented: 'This feature is not implemented yet.',
@@ -406,7 +393,6 @@ export const en = {
     emptyHeading: 'Start exploring', emptyDescription: 'Search for anything or enter a web address above.'
   },
   inbox: {
-    exit: 'Exit',
     configure: 'Connect your mailbox', configureHelp: 'Choose your webmail provider and address in Settings to open your mailbox here.',
     loadFailed: 'Unable to open your mailbox'
   },

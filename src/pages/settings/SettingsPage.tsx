@@ -2,7 +2,6 @@ import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
-import { useNavigation } from '../../app/navigation/navigate'
 import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
@@ -12,7 +11,7 @@ import { SmartPasteSettings } from './SmartPasteSettings'
 import './settings.css'
 
 export function SettingsPage() {
-  const { t } = useTranslation(), { openPage } = useNavigation(), settings = useSettings()
+  const { t } = useTranslation(), settings = useSettings()
   const [mailError, setMailError] = useState(false)
   const { draft, saving, notices } = settings
   const feedback = (notice: Notice, dirty: boolean) => notice
@@ -30,7 +29,6 @@ export function SettingsPage() {
   }
   return <main className="settings-page">
     <div className="settings-content">
-      <div className="settings-navigation"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
       <PageHeading title={t($ => $.navigation.pages.settings)} description={t($ => $.settings.subtitle)} />
       {settings.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : settings.loadFailed || !draft ? <div className="settings-stack">
         <StatusMessage tone="error">{t($ => $.settings.loadFailed)}</StatusMessage><Button onClick={settings.retry}>{t($ => $.settings.retry)}</Button>

@@ -24,7 +24,7 @@ app.once('browser-window-created', (_event, window) => {
       await wait(() => evaluate('document.body.innerText.includes("Choose a model") || document.body.innerText.includes("Configure") || document.querySelector("[role=alert]")'), 'missing settings error')
       await data('settings', 'savePreferences', { ai: { providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }], default: { providerId: 'fixture', modelId: 'fixture' } } })
       await click('Tailor Resume')
-      await evaluate('window.browser.navigate("app://home")')
+      await evaluate('window.browser.navigate("app://ai")')
       await evaluate('window.browser.navigate("app://resume")')
       await wait(() => evaluate('!!document.querySelector(".ui-document-preview")'), 'automatic HTML and PDF output')
       const task = (await evaluate('window.resume.getTask({})')).value

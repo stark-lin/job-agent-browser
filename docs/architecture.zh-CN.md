@@ -18,13 +18,13 @@ React App → Page → Preload → IPC → Main
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据/AI 桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现持久化多会话流式 Agent。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；智能笔记已实现。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。其他工作区页面隐藏浏览器栏和内部 URL。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现持久化多会话流式 Agent。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；智能笔记已实现。
 
 ## 二、工作区路由与浏览器历史
 
-[目标契约](../src/shared/navigation.ts) 白名单包含 `app://home`、`app://find`、`app://resume`、`app://knowledge`、`app://applications`、`app://inbox`、`app://profile`、`app://browser`、`app://ai` 和 `app://settings`。内部 URL 是导航标识，不是已注册的操作系统协议或 Chromium 加载的文档。未知内部目标在修改历史前拒绝。公开 URL 由[产品架构](product-architecture.zh-CN.md)管理。
+[目标契约](../src/shared/navigation.ts) 白名单包含 `app://find`、`app://resume`、`app://knowledge`、`app://applications`、`app://inbox`、`app://profile`、`app://browser`、`app://ai` 和 `app://settings`。内部 URL 是导航标识，不是已注册的操作系统协议或 Chromium 加载的文档。未知内部目标在修改历史前拒绝。公开 URL 由[产品架构](product-architecture.zh-CN.md)管理。
 
-[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。启动时打开 Home；新建或关闭最后一个标签后打开空白 Browser 工作区。选择 Browser 恢复保留的网页或空白工作区。在 Browser 切换标签始终停留在 Browser，即使目标标签上次显示业务页面。关闭活动标签选择右侧邻居，无右侧时选择左侧。
+[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。启动时打开 Ask AI（`app://ai`）；新建或关闭最后一个标签后打开空白 Browser 工作区。选择 Browser 恢复保留的网页或空白工作区。在 Browser 切换标签始终停留在 Browser，即使目标标签上次显示业务页面。关闭活动标签选择右侧邻居，无右侧时选择左侧。
 
 [TabNavigation](../src/platform/browser/tabNavigation.ts) 将当前工作区目标与保留的 Browser、Inbox 视图分离。每个 [WebSegment](../src/platform/browser/webSegment.ts) 保留原生视图与 Chromium 历史。Back/Forward 只操作当前 Browser 视图，在首项/末项停止。工作区页面和 Inbox 将两个控件标记为不可用并忽略历史请求。访问工作区页面保留浏览器位置、前进项及当前网页状态；Chromium 历史回放可能重新加载较早文档。
 
@@ -52,11 +52,11 @@ React App → Page → Preload → IPC → Main
 
 ## 三、展示与交互
 
-[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 常驻每个页面左侧，提供主页、九个功能、翻译后的无障碍分组及唯一当前状态，统一使用图标栏。原有 Home / Job search / Manage / Tools / Settings 分区及顺序保持不变，按照[设计规范](design-system.zh-CN.md#五交互与无障碍)用短横线分隔。悬停提示显示翻译后的目标名称；已移除侧栏品牌头部及 Home 标题上方的品牌文字。共享[功能元数据](../src/app/navigation/features.ts)管理侧栏及 Home 的图标/顺序。切换功能使用相同导航 API 和未保存设置保护；点击当前功能不新增历史。[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮（Ask AI V2 使用常驻侧栏的主页入口），不显示跨页面 Back/Next/Forward 控件。占位页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back、Forward 和 Refresh。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。
+[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 将 Ask AI 放在常驻图标栏首位，之后是求职、管理、工具分组及底部的设置。各组以短横线分隔，悬停时显示翻译后的名称。切换目标使用共享导航 API 和离开保护。在任意工作区页面均可从侧栏打开 Ask AI。[Browser 控件](../src/pages/browser/BrowserControls.tsx)提供后退、前进和刷新。参见[设计规范](design-system.zh-CN.md#五交互与无障碍)及[页面按钮归属](code-architecture.zh-CN.md#页面按钮归属)。
 
-**已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为 [Home](../src/pages/home/home.css) 和[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
+**已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
 
-只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[生成尺寸](../src/shared/ui/geometry.ts)：所有窗口宽度下均为 64px。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。侧栏主页入口替代邮箱退出区域。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
+只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[生成尺寸](../src/shared/ui/geometry.ts)：所有窗口宽度下均为 64px。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标及历史。
 
 [TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。标签名称使用保留的浏览器标题或翻译后的“新建标签页”，包括上次显示业务页面的后台标签；不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 

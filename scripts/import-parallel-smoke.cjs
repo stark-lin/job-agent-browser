@@ -118,7 +118,7 @@ module.exports = async function parallelImportSmoke({ window, call, evaluate, wa
     await waitFor(() => evaluate('!document.querySelector("[data-import-id]")'), 'import discarded')
     console.log('Parallel import smoke passed: real model opt-in, independent modes, job/PDF groups, part retry, single page read, compact facts, ticking running/queued timers, frozen completed timers, cancellation and bilingual light/dark layouts at 320/640/1200px.')
   } finally {
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     dialog.showOpenDialog = previousOpen; dialog.showMessageBox = previousMessage
     window.setMinimumSize(...minimum); window.setContentSize(...size)
     await preferences({ ai: original.ai, language: original.language, theme: original.theme })

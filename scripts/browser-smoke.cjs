@@ -91,38 +91,10 @@ module.exports = async function browserSmoke(window) {
     const firstId = state.activeTabId
     assert.equal(active(state).url, '')
     assert(views().every((view) => !view.getVisible()))
-    await waitFor(() => evaluate('document.querySelectorAll(".home-card").length === 9'), 'Home grid')
-    const homeGeometry = await evaluate(`(() => {
-      const card = document.querySelector('.home-card');
-      const style = getComputedStyle(card);
-      return { padding: style.padding, radius: style.borderRadius,
-        gap: getComputedStyle(document.querySelector('.home-grid')).gap,
-        icon: document.querySelector('.ui-icon-box svg').getBoundingClientRect().width,
-        iconBox: document.querySelector('.ui-icon-box').getBoundingClientRect().width };
-    })()`)
-    assert.deepEqual(homeGeometry, { padding: '16px', radius: '16px', gap: '16px', icon: 16, iconBox: 32 })
-    const originalSize = window.getContentSize(), originalMinimum = window.getMinimumSize()
-    window.setMinimumSize(320, 320)
-    try {
-      for (const width of [320, 640, 1200]) {
-        window.setContentSize(width, 820)
-        await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Home viewport ${width}`)
-        const layout = await evaluate(`(() => {
-          const grid = document.querySelector('.home-grid');
-          const page = document.querySelector('.home-page');
-          return { columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
-            heights: [...document.querySelectorAll('.home-card')].map(card => card.getBoundingClientRect().height),
-            overflow: page.scrollWidth > page.clientWidth };
-        })()`)
-        assert.equal(layout.columns, width === 320 ? 1 : width === 640 ? 2 : 3)
-        assert(layout.heights.every((height) => height >= 144), 'Home cards must remain at least 144px')
-        assert.equal(layout.overflow, false, `Home must fit viewport ${width}`)
-      }
-    } finally {
-      window.setContentSize(...originalSize)
-      window.setMinimumSize(...originalMinimum)
-    }
-    await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === 'Browser').click()")
+    assert.deepEqual(active(state).destination, { kind: 'internal', page: 'ai' })
+    await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI at startup')
+    const sidebar = label => evaluate(`document.querySelector('.ui-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
+    await sidebar('Browser')
     await waitFor(() => evaluate('!!document.querySelector(".new-tab-page")'), 'blank tab UI')
     await submit(`${origin.replace('http://', '')}/one`)
     await waitState((state) => active(state).title === '/one' && !active(state).isLoading, 'bare loopback address navigation')
@@ -185,10 +157,11 @@ module.exports = async function browserSmoke(window) {
     await call('activateTab', secondId)
     assert.equal(await secondView.webContents.executeJavaScript('document.querySelector("#draft").value'), 'Keep this draft')
 
-    await evaluate('document.querySelector(".history-controls button").click()')
-    await waitFor(() => evaluate('!!document.querySelector(".home-grid")'), 'Home')
+    assert.deepEqual(await evaluate('[...document.querySelectorAll(".history-controls button")].map(button => button.getAttribute("aria-label"))'), ['Go back', 'Go forward', 'Refresh'])
+    await sidebar('Ask AI')
+    await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI')
     assert(views().every((view) => !view.getVisible()))
-    await evaluate("[...document.querySelectorAll('.home-card')].find(card => card.querySelector('.ui-card-label').textContent === 'Browser').click()")
+    await sidebar('Browser')
     await waitFor(() => evaluate('!!document.querySelector(".address-form")'), 'reopen Browser')
     assert.equal((await read()).activeTabId, secondId)
     await waitFor(() => secondView.getVisible(), 'restore retained native page')
@@ -268,7 +241,7 @@ module.exports = async function browserSmoke(window) {
     await require('./job-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
     await require('./browser-selection-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
     await require('./settings-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin })
-    console.log('Browser smoke passed: tab UI/lifecycle, independent histories and page state, Home visibility, native bounds, shortcuts, URL input, pop-ups, isolation and load errors.')
+    console.log('Browser smoke passed: tab UI/lifecycle, independent histories and page state, Ask AI startup and visibility, native bounds, shortcuts, URL input, pop-ups, isolation and load errors.')
   } finally {
     server.closeAllConnections()
     await new Promise((resolve) => server.close(resolve))

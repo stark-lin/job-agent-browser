@@ -39,7 +39,7 @@ for (const [input, expected] of addresses) {
   })
 }
 
-for (const input of ['', '  ', 'https://', 'http://bad host/jobs', 'file:///tmp/test', 'javascript:alert(1)', 'javascript:alert("hello world")', 'data:text/html,hello', 'ftp://example.com', 'mailto:person@example.com', 'app://home']) {
+for (const input of ['', '  ', 'https://', 'http://bad host/jobs', 'file:///tmp/test', 'javascript:alert(1)', 'javascript:alert("hello world")', 'data:text/html,hello', 'ftp://example.com', 'mailto:person@example.com', 'app://ai']) {
   test(`rejects ${JSON.stringify(input)}`, () => {
     assert.throws(() => resolveNavigationInput(input))
   })

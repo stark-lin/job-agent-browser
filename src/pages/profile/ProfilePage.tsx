@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, DetailsList, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
-import { useNavigation } from '../../app/navigation/navigate'
 import type { ProfileDetails, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
 import { itemTypes } from '../../domain/candidate/candidate.types'
 import { profileDetails as parseContact, factDetails, itemDetails, validateItemDates } from '../../domain/candidate/candidate.validation'
@@ -14,7 +13,7 @@ import './profile.css'
 import type { en } from '../../shared/i18n/locales/en'
 
 export function ProfilePage() {
-  const { t } = useTranslation(), { data } = useServices(), { openPage } = useNavigation(), state = useProfile()
+  const { t } = useTranslation(), { data } = useServices(), state = useProfile()
   const [contact, setContact] = useState<ProfileDetails>(emptyContact), [invalid, setInvalid] = useState(false), [importDirty, setImportDirty] = useState(false)
   const [item, setItem] = useState<{ id: string | null; details: ItemInput } | null>(null)
   const [fact, setFact] = useState<{ id: string | null; profileItemId: string | null; details: FactInput } | null>(null)
@@ -76,7 +75,6 @@ export function ProfilePage() {
     </div></SectionCard>
   }
   return <main className="profile-page"><div className="profile-content">
-    <div className="page-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
     <PageHeading title={t($ => $.navigation.pages.profile)} description={t($ => $.profile.subtitle)} />
     {state.error && <StatusMessage tone="error">{state.error === 'loadFailed' ? t($ => $.profile.loadFailed) : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })}</StatusMessage>}
     {state.notice && <StatusMessage tone="success">{t($ => $.profile.saved)}</StatusMessage>}

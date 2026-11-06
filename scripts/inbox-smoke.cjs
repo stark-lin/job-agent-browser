@@ -12,7 +12,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
   const saveMailbox = mailbox => evaluate(`window.data.settings.savePreferences(${JSON.stringify({ mailbox })})`)
   const mailbox = async url => {
     await waitState(state => active(state).destination.surface === 'inbox' && active(state).url === url && !active(state).isLoading, 'dedicated Inbox destination')
-    await waitFor(() => evaluate('!!document.querySelector(".inbox-page") && !document.querySelector(".tab-strip, .browser-controls, .address-form, .settings-navigation, .app-error")'), 'Inbox without application top bars')
+    await waitFor(() => evaluate('!!document.querySelector(".inbox-page") && !document.querySelector(".tab-strip, .browser-controls, .address-form, .app-error")'), 'Inbox without application top bars')
     const view = views().find(view => view.webContents.getURL() === url)
     view.webContents.setBackgroundThrottling(false)
     await waitFor(() => view.getVisible(), 'full-page mailbox visible')
@@ -23,7 +23,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
       const nav = document.querySelector('.ui-sidebar'), rect = nav.getBoundingClientRect();
       return { width: rect.width, right: rect.right, current: nav.querySelector('[aria-current=page]').getAttribute('aria-label'), count: nav.querySelectorAll('button').length, footer: !!document.querySelector('.inbox-exit') };
     })()`)
-    assert.deepEqual(sidebar, { width: sidebarWidth, right: sidebarWidth, current: 'Inbox', count: 10, footer: false })
+    assert.deepEqual(sidebar, { width: sidebarWidth, right: sidebarWidth, current: 'Inbox', count: 9, footer: false })
     assert(sidebar.right <= require('./native-views.cjs').bounds(window, view).x, 'The native mailbox must not cover sidebar navigation')
     assert.equal(views().filter(view => view.getVisible()).length, 1)
     assert.equal(active(await read()).title, 'Inbox')
@@ -41,12 +41,12 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
     assert.equal(browserView.getVisible(), false)
     const presentation = { tabId: active(await read()).id, targetId: active(await read()).targetId }
     await view.webContents.executeJavaScript('document.querySelector("#draft").value = "Retained mailbox draft"')
-    await evaluate('document.querySelector(".ui-sidebar button[aria-label=Home]").click()')
-    await waitState(state => active(state).destination.page === 'home', 'sidebar Home leaves Inbox')
+    await evaluate(`document.querySelector('.ui-sidebar button[aria-label="Ask AI"]').click()`)
+    await waitState(state => active(state).destination.page === 'ai', 'sidebar Ask AI leaves Inbox')
     await call('setVisible', true, presentation)
-    assert.equal(view.getVisible(), false, 'Stale mailbox acknowledgments cannot cover Home')
+    assert.equal(view.getVisible(), false, 'Stale mailbox acknowledgments cannot cover Ask AI')
     await call('back')
-    assert.equal(active(await read()).destination.page, 'home')
+    assert.equal(active(await read()).destination.page, 'ai')
     await call('navigate', 'app://inbox')
     assert.equal(await mailbox(`${origin}/mailbox-one`), view)
     assert.equal(await view.webContents.executeJavaScript('document.querySelector("#draft").value'), 'Retained mailbox draft')
@@ -125,7 +125,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
     await waitFor(() => evaluate('document.body.innerText.includes("Connect your mailbox")'), 'unconfigured Inbox')
     assert.equal(views().some(view => view.getVisible()), false)
     assert.equal(await evaluate('!!document.querySelector(".tab-strip, .browser-controls, .address-form")'), false)
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     console.log('Inbox smoke passed: full-content native bounds, no app top bars, redirects/history/reload/popups, retained drafts, responsive resizing, isolation and failure recovery.')
   } finally { webSession.webRequest.onBeforeRequest(null) }
 }

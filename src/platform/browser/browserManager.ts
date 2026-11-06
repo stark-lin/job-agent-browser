@@ -29,7 +29,7 @@ export class BrowserManager {
   constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null,
     private readonly smartPaste?: SmartPasteService, private readonly raiseBanner?: () => void) {
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    this.addTab('home')
+    this.addTab('ai')
     const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
     i18n.on('languageChanged', languageChanged)
     const themeChanged = () => {
@@ -146,7 +146,7 @@ export class BrowserManager {
     this.addTab('browser')
   }
 
-  private addTab(page: 'home' | 'browser'): void {
+  private addTab(page: 'ai' | 'browser'): void {
     const tab: Tab = { id: randomUUID(), version: 0, history: new TabNavigation({ kind: 'internal', id: randomUUID(), destination: { kind: 'internal', page } }) }
     this.tabs.set(tab.id, tab)
     this.activeTabId = tab.id

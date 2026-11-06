@@ -14,45 +14,31 @@ Job Browser 将已有招聘网站、AI 和邮箱整合进统一、精美、连�
 
 这里的 Package 指产品能力的组合方式，不要求 MVP 实现插件市场或扩展框架。
 
-## 二、首页：九宫格
+## 二、启动页与工作区导航
 
-打开 App 后，第一屏直接展示功能入口，不做复杂 Dashboard。
-
-| | | |
-| --- | --- | --- |
-| Add Job（新增工作） | Tailor Resume（定制简历） | Smart Note（智能笔记） |
-| Applications（申请管理） | Inbox（收件箱） | My Profile（个人资料） |
-| Browser（浏览器） | Ask AI（询问 AI） | Settings（设置） |
-
-三行分别对应：
-
-- **求职动作：** Add Job → Tailor Resume → Smart Note。
-- **求职管理：** Applications → Inbox → My Profile。
-- **基础工具：** Browser → Ask AI → Settings。
-
-常驻左侧栏提供主页及全部九个功能入口，Home 九宫格保留为启动页。九个入口均可访问，Settings、Inbox 网页邮箱、Ask AI V2和 Profile 编辑/PDF 导入已实现，新增工作和申请记录基础列表已实现，智能笔记已实现。新增能力优先放进现有入口。
+应用启动时打开 Ask AI。常驻左侧栏将 Ask AI 放在首位，之后是求职、管理、工具分组及底部的设置。新增能力优先放进现有入口。
 
 新增工作初版支持手工录入或单个公开 URL AI 导入，核对后保存为 `NOT_STARTED` 并进入申请记录。访问受限时报错；登录态 Browser 采集及职位去重仍为规划，运行细节见[当前架构](architecture.zh-CN.md)。
 
 ### Inbox 初版
 
-Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等网页邮箱。用户在 Settings 选择邮箱类型并配置网页 URL；进入 `app://inbox` 后，通过统一 Navigation API 在工作区侧栏旁的独立 Inbox 视图中打开该 URL，不显示 Browser 标签栏、地址栏或应用顶部条。侧栏提供主页和全部功能入口。未配置时，引导用户完成邮箱设置。
+Inbox 作为求职邮件入口，初版复用用户配置的 Gmail、Outlook 等网页邮箱。用户在 Settings 选择邮箱类型并配置网页 URL；进入 `app://inbox` 后，通过统一 Navigation API 在工作区侧栏旁的独立 Inbox 视图中打开该 URL，不显示 Browser 标签栏、地址栏或应用顶部条。未配置时，引导用户完成邮箱设置。
 
 用户直接在邮箱网站登录，登录状态由 Electron Session 管理。初版只保存邮箱入口配置，不保存邮箱密码，不要求邮箱 API 接入、邮件同步、聚合收件箱或本地邮件实体。阅读和回复邮件使用邮箱网站已有功能。
 
 ## 三、Browser Shell
 
-内部功能、外部网页与 AI 页面共享统一导航环境。Browser 是独立 React 页面，标签栏、地址栏及控件属于该页面。Home 和其他内部页面隐藏整个浏览器栏，内部 URL 对用户隐藏。
+内部功能、外部网页与 AI 页面共享统一导航环境。Browser 是独立 React 页面，标签栏、地址栏及控件属于该页面。其他内部页面隐藏整个浏览器栏，内部 URL 对用户隐藏。
 
 Shell 提供以下全局能力：
 
 | 能力 | 职责 |
 | --- | --- |
-| Navigation | Back、Forward、Home，以及页面历史栈 |
+| Navigation | 浏览器网页历史及后退、前进控件 |
 | Browser | 打开 URL；管理网页 Session / Cookie；文件上传下载；获取网页内容；接收粘贴的 URL 或网页内容 |
 | Agent | 提供常驻 Agent 按钮；将当前页面、当前职位或选中文字交给 AI |
 
-全局 Agent 按钮用于在当前页面发起协助；首页 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。Ask AI V2 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每个持久化会话可覆盖。当前范围为已保存的职位/资料/申请数据及可观察的本地工具操作；Agent 自主管理的跨会话 Memory 及受预算约束的上下文已实现，专用 Agent 委派、上传、会话搜索、文件夹及分支仍为规划。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
+全局 Agent 按钮用于在当前页面发起协助；侧栏首位的 Ask AI 入口打开专门的 AI 页面。两者规划复用共享上下文和已配置的 AI 能力。Ask AI V2 已支持用户配置兼容 OpenAI 的 Provider：Settings 管理全局 Provider/模型默认值，每个持久化会话可覆盖。当前范围为已保存的职位/资料/申请数据及可观察的本地工具操作；Agent 自主管理的跨会话 Memory 及受预算约束的上下文已实现，专用 Agent 委派、上传、会话搜索、文件夹及分支仍为规划。完整上下文捕获和全局 Agent 入口仍为规划；当前行为归属[运行架构](architecture.zh-CN.md)。
 
 ## 四、Anything is URL
 
@@ -60,7 +46,6 @@ Shell 提供以下全局能力：
 
 | 内部 URL | 页面 |
 | --- | --- |
-| `app://home` | Home |
 | `app://find` | Add Job |
 | `app://resume` | Tailor Resume |
 | `app://knowledge` | Smart Note |
@@ -76,10 +61,10 @@ Shell 提供以下全局能力：
 一次完整导航可以连续经过内部页面和外部网站：
 
 ```text
-Home → Add Job → Applications → Tailor Resume → Company Application
+Ask AI → Add Job → Applications → Tailor Resume → Company Application
 ```
 
-工作区目标与每个标签的原生网页历史分离。启动时打开 Home；新建或关闭最后一个标签后打开空白 Browser 工作区。Browser 卡片恢复保留的网页或打开空白工作区。Home 不显示 Back 按钮，其他业务页面的页面导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），浏览器历史快捷键仅在 Browser 内生效。Browser 保留自己的 Home/Back/Forward/Refresh 控件，并支持仅移动内容区的历史手势。按钮归属遵循[代码架构](code-architecture.zh-CN.md#页面按钮归属)。运行实现细节归当前架构管理。
+工作区目标与每个标签的原生网页历史分离。通过侧栏切换工作区，使用 Browser 工具栏和历史手势浏览网页。启动和恢复规则详见[当前架构](architecture.zh-CN.md#二工作区路由与浏览器历史)。
 
 ## 五、Shared Context
 
@@ -102,7 +87,7 @@ MVP 采用 Local First，不需要复杂后端。本地存储是起点；外部�
 
 [V1 数据架构](data-architecture.zh-CN.md) 负责已实现的数据模型、ER 图、申请状态、生成流水线、溯源、审计、配置与密钥设计。
 
-Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。每条经历、项目或教育条目可包含多个独立事实，未关联条目的事实直接归属 Profile。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增首页入口。
+Applications 使用 Job 生命周期数据，其日历视图使用 JobEvent。生成简历属于 Artifact，个人材料由 Profile、ProfileItem 和 Fact 表达。每条经历、项目或教育条目可包含多个独立事实，未关联条目的事实直接归属 Profile。这些是共享记录，不是页面各自持有的副本。Calendar 和 Resume Builder 不新增侧栏入口。
 
 SQLite 保存业务记录，本地文件保存配置与输出，Electron Session 管理网站会话。API Key 归入加密密钥存储。业务持久化、Electron Session、配置和加密密钥已实现；编译输出仍为规划，见[当前架构](architecture.zh-CN.md)。
 
@@ -128,7 +113,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 四个逻辑层为 Electron App → Browser Shell → Services → Data。进程职责为：
 
 - **Electron Main** 负责窗口、WebContents、Session、文件系统访问等系统能力。
-- **Renderer** 负责首页九宫格、内部页面、Browser Shell UI 及其他展示逻辑。
+- **Renderer** 负责工作区侧栏、内部页面、Browser Shell UI 及其他展示逻辑。
 - **Services + IPC** 隔离 UI 工作流与需要系统权限的操作。
 
 这里是逻辑分层，不是四个独立应用，也不要求所有 Service 都运行在 Renderer 中。现有进程隔离和安全边界继续作为开发基础。
@@ -153,8 +138,8 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 | 阶段 | 重点 | 预期结果 |
 | --- | --- | --- |
-| 1 | Browser Shell | 支持内部页面、外部网页以及 Back / Forward / Home 的 Electron Browser |
-| 2 | 九宫格 Home | 建立全部九个入口；未完成的功能可以先使用占位页面 |
+| 1 | Browser Shell | 支持内部页面、外部网页以及 Back / Forward 的 Electron Browser |
+| 2 | 工作区导航 | 建立全部九个入口；未完成的功能可以先使用占位页面 |
 | 3 | Anything is URL | 内部页面和外部网页进入统一导航栈 |
 | 4 | Profile + Resume | 建立用户求职上下文 |
 | 5 | Job Context | 从网页保存或提取当前职位 |
@@ -170,7 +155,7 @@ SQLite 保存业务记录，本地文件保存配置与输出，Electron Session
 
 基础里程碑为：
 
-> 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；九宫格是产品入口，求职能力逐个作为 Package 填进去。
+> 先造一个漂亮、稳定、可寻址、带 Shared Context 的 Electron Browser Shell；Ask AI 是启动页，求职能力逐个作为 Package 填进去。
 
 当前交付包括阶段 1–3、Profile 编辑/经核对的 PDF 导入、手工与 URL/文本/PDF 职位采集、现有详情页内的申请管理、Resume V1 HTML/PDF 及引用型 App Context。四个内部 Agent 均使用 MCP。外部日历/邮件动作及完整页面上下文捕获仍为规划，可访问骨架不代表 MVP 完成。
 

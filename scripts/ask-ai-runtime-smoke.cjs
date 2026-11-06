@@ -224,7 +224,7 @@ app.on('browser-window-created', (_event, window) => {
         mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
         writeFileSync(resolve(__dirname, '../.cache/ask-ai-busy-narrow.png'), (await window.capturePage()).toPNG())
         window.setContentSize(1200, 820); await waitFor(() => evaluate('innerWidth===1200'), 'restore busy width'); await frame()
-        await evaluate("window.browser.navigate('app://home')"); assert.equal((await api('listActive', {})).value.length, 2)
+        await evaluate("window.browser.navigate('app://browser')"); assert.equal((await api('listActive', {})).value.length, 2)
         await evaluate("window.browser.navigate('app://ai')"); await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'page return')
         await select('hold A'); assert.equal(await evaluate('document.querySelector(".ai-composer textarea").value'), 'next draft A')
         await evaluate('document.querySelector("button[aria-label=Stop]").click()')

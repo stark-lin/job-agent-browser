@@ -121,7 +121,7 @@ module.exports = async function jobAgentSmoke({ window, call, evaluate, waitFor 
     dialog.showOpenDialog = oldOpen; dialog.showMessageBox = oldMessage
     window.setMinimumSize(...minimum); window.setContentSize(...size)
     await preferences({ ai: previous.ai, language: previous.language, theme: previous.theme })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
   }
 }

@@ -11,7 +11,7 @@
 | 层 | 职责 | 现有依据 |
 | --- | --- | --- |
 | App | React 组装、路由、Provider、导航投影与上下文 | [App](../src/app/App.tsx)、[Provider](../src/app/providers.tsx)、[主题投影](../src/app/theme.tsx) |
-| Pages | UI、局部组件/hooks/状态与页面流程 | [Home](../src/pages/home/HomePage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
+| Pages | UI、局部组件/hooks/状态与页面流程 | [Ask AI](../src/pages/ai/AskAIPage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | 实体、校验、用例与能力/Repository 接口 | [Job 用例](../src/domain/job/job.service.ts) |
 | Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
 | Shared | 无框架契约及不含业务语义的 UI/工具/hooks | [导航契约](../src/shared/navigation.ts)、[占位布局](../src/shared/ui/PlaceholderPage.tsx) |
@@ -31,7 +31,6 @@ src/
 │   ├── navigation/
 │   └── context/
 ├── pages/
-│   ├── home/
 │   ├── find-jobs/
 │   ├── tailor-resume/
 │   ├── knowledge/
@@ -80,7 +79,7 @@ src/
     └── tools/
 ```
 
-Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。
+Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。
 
 ## 三、依赖与进程组装
 
@@ -110,14 +109,14 @@ Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览�
 
 [App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录，通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。Profile 解析并更新当前 Profile ID；新增工作保存及申请记录选择会更新 Job ID；定制简历同步 Artifact ID；自动页面内容/选区捕获仍为规划。
 
-Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
+跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
 
 ### 页面按钮归属
 
 - App 管理常驻工作区侧栏和功能导航元数据；Pages 管理各自流程按钮、位置、启用/加载状态及处理函数。侧栏复用相同导航 API 和离开保护，不提供全局 Back/Next/Forward 栏。
-- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward/Refresh 工具栏。
+- 工作区目标由常驻侧栏提供。Browser 自行管理用于网页导航的后退、前进和刷新工具栏。
 - 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用浏览器历史。业务操作和链接仍由所属页面管理。
-- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作和回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
+- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作，[InboxPage](../src/pages/inbox/InboxPage.tsx) 管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
 ## 五、数据与能力归属
 

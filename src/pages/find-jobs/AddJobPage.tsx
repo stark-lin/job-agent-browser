@@ -52,7 +52,6 @@ export function AddJobPage() {
     finally { lock.current = false; if (alive.current) setSaving(false) }
   }
   return <main className="job-page"><div className="job-content">
-    <div className="page-actions"><Button variant="ghost" onClick={() => void openPage('home')}>{t($ => $.navigation.goHome)}</Button></div>
     <PageHeading title={t($ => $.navigation.pages.find)} description={t($ => $.jobs.subtitle)} />
     <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
       {selection.error && <div><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></div>}

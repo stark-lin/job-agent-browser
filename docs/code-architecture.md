@@ -11,7 +11,7 @@ Organize product code by Page, business rules by Domain and technical adapters b
 | Layer | Ownership | Existing reference |
 | --- | --- | --- |
 | App | React composition, routing, providers, navigation projection and context | [App](../src/app/App.tsx), [providers](../src/app/providers.tsx), [theme projection](../src/app/theme.tsx) |
-| Pages | UI, local components/hooks/state and page workflows | [Home](../src/pages/home/HomePage.tsx), [Browser](../src/pages/browser/BrowserPage.tsx) |
+| Pages | UI, local components/hooks/state and page workflows | [Ask AI](../src/pages/ai/AskAIPage.tsx), [Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | Entities, validation, use cases and capability/repository interfaces | [Job use cases](../src/domain/job/job.service.ts) |
 | Platform | Electron, browser, database, filesystem, AI and settings adapters | [Browser manager](../src/platform/browser/browserManager.ts), [SQLite](../src/platform/database/sqlite.ts) |
 | Shared | Framework-free contracts and business-free UI/utilities/hooks | [Navigation contract](../src/shared/navigation.ts), [placeholder UI](../src/shared/ui/PlaceholderPage.tsx) |
@@ -31,7 +31,6 @@ src/
 │   ├── navigation/
 │   └── context/
 ├── pages/
-│   ├── home/
 │   ├── find-jobs/
 │   ├── tailor-resume/
 │   ├── knowledge/
@@ -80,7 +79,7 @@ src/
     └── tools/
 ```
 
-Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior.
+Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior.
 
 ## 3. Dependencies and process composition
 
@@ -110,14 +109,14 @@ Browser owns its tab strip/address/controls; other internal pages hide the entir
 
 [App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge. Applications uses a Job ID, not a separate persisted Application entity. Profile resolves and updates its current Profile ID; saving Add Job and selecting Applications details update the Job ID. Tailor Resume populates the Artifact ID; automatic page content/selection capture remains planned.
 
-Home invokes navigation only. Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
+Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
 
 ### Page button ownership
 
 - App owns the persistent workspace sidebar and feature navigation metadata; Pages own their workflow buttons, placement, enabled/loading state and handlers. The sidebar uses the same navigation API and leave guard, without a global Back/Next/Forward bar.
-- Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button (Ask AI V2 uses the persistent Home sidebar entry); do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward/Refresh toolbar.
+- Workspace destinations belong to the persistent sidebar. Browser owns the Back, Forward and Refresh toolbar for webpage navigation.
 - Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than browser history. Business actions and links remain page-owned.
-- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
+- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and [InboxPage](../src/pages/inbox/InboxPage.tsx) owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
 
 ## 5. Data and capability placement
 
