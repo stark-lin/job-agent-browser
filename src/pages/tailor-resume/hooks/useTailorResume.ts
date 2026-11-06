@@ -57,7 +57,7 @@ export function useTailorResume() {
       if (selectedRun.current && event.runId !== selectedRun.current || event.sequence <= sequence.current) return
       sequence.current = event.sequence
       void refresh()
-      if (event.stage === 'completed') void refreshHistory()
+      if (event.settled) void refreshHistory()
     })
     return () => { alive.current = false; unsubscribe() }
   }, [data, resume, refresh, refreshHistory])

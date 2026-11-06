@@ -5,6 +5,7 @@ export function createResumeBridge(invoke: (method: string, input: unknown) => P
   return {
     start: input => invoke('start', input) as ReturnType<ResumeAPI['start']>,
     getTask: input => invoke('getTask', input) as ReturnType<ResumeAPI['getTask']>,
+    getTrace: input => invoke('getTrace', input) as ReturnType<ResumeAPI['getTrace']>,
     cancel: input => invoke('cancel', input) as ReturnType<ResumeAPI['cancel']>,
     retryOutput: input => invoke('retryOutput', input) as ReturnType<ResumeAPI['retryOutput']>,
     getPreview: input => invoke('getPreview', input) as ReturnType<ResumeAPI['getPreview']>,

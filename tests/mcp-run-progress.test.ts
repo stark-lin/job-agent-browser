@@ -6,7 +6,7 @@ import { guardNextAction, parseRunGuard } from '../src/shared/agent/run-guard'
 import type { JsonValue, ToolDescriptor, ToolOutput } from '../src/shared/tools/tool.types'
 
 const signal = () => new AbortController().signal
-const guard = () => createRunGuardManager().forRun({ chatRunId: randomUUID(), sessionId: 'progress', signal: signal() })
+const guard = () => createRunGuardManager().forRun({ agentRunId: randomUUID(), sessionId: 'progress', signal: signal() })
 const tool = (name: string): ToolDescriptor => ({ name, mode: 'read', risk: 'READ', source: { type: 'native' }, description: name, tags: [], inputSchema: { type: 'object' } })
 const output = (value: unknown): ToolOutput => ({ content: [], structuredContent: value as JsonValue })
 const source = (path = 'CORE.md', startLine = 1, endLine = 3, revision = 'rev-a') => ({ path, startLine, endLine, revision, content: 'Supported evidence' })

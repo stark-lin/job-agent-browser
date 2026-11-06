@@ -1,8 +1,8 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ChatItem, ChatRun } from '../../domain/chat/chat.types'
+import type { AgentItem, AgentRun } from '../../domain/chat/chat.types'
 import { ActivityRow, ChatMessage, CodeBlock, Collapsible, DetailsList, Markdown, StatusMessage } from '../../shared/ui'
-function TimelineItemView({ item, run }: { item: ChatItem; run?: ChatRun }) {
+function AgentTimelineItemView({ item, run }: { item: AgentItem; run?: AgentRun }) {
   const { t, i18n } = useTranslation(), content = item.content
   const copy = { copyLabel: t($ => $.ask.copyContent), copiedLabel: t($ => $.ask.copied) }
   if (content.type === 'user_message') return <ChatMessage user>{content.text}</ChatMessage>
@@ -54,4 +54,4 @@ function TimelineItemView({ item, run }: { item: ChatItem; run?: ChatRun }) {
   </ActivityRow>
 }
 
-export const TimelineItem = memo(TimelineItemView)
+export const AgentTimelineItem = memo(AgentTimelineItemView)

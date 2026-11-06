@@ -170,6 +170,7 @@ export const zhCN = {
     "selectResume": "选择简历证据",
     "draftResume": "保存简历草稿",
     "polishResume": "保存润色简历",
+    "resumeBullets": "读取简历要点",
     "optimizeResume": "优化简历内容",
     "publishResume": "发布简历",
     "failResume": "记录简历失败",
@@ -570,7 +571,7 @@ export const zhCN = {
   resume: {
     editTitle: '编辑这份简历', addBullet: '添加要点', saveAndBuild: '保存并重新编译 PDF', editSaved: '简历修改已保存', discardEdit: '放弃修改', discardEditHelp: '这份简历中未保存的修改将丢失。',
     "inputs": "职位与个人资料",
-    "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词预算",
+    "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词目标",
     "job": "职位",
     "profile": "个人资料",
     "chooseJob": "选择已保存的职位",
@@ -588,26 +589,9 @@ export const zhCN = {
     "saved": "PDF 已保存。",
     "preview": "简历预览",
     "pages": "页数：{{count}}",
-    "stages": {
-        optimize: "优化内容", assemble: "组装与校验",
-        "score": "事实评分",
-        "gate": "覆盖检查",
-        "select": "证据筛选",
-        "draft": "撰写草稿",
-        "validate-draft": "校验草稿",
-        "polish": "润色",
-        "validate-polish": "校验润色",
-        "publish": "发布",
-        "output": "生成 HTML / PDF"
-    },
-    "statuses": {
-        "PENDING": "待开始",
-        "RUNNING": "正在生成…",
-        "SUCCEEDED": "简历已生成",
-        "FAILED": "生成失败",
-        "CANCELLED": "已取消",
-        "INTERRUPTED": "生成中断，请生成新版本重试。"
-    },
+    stages: { COPYING: "复制个人资料", REWRITING: "改写简历要点", VALIDATING: "校验简历", PUBLISHING: "发布简历", OUTPUT: "生成 HTML / PDF" },
+    statuses: { CREATED: "已创建", COPYING: "正在复制个人资料…", REWRITING: "正在改写简历要点…", VALIDATING: "正在校验…", PUBLISHING: "正在发布…", PUBLISHED: "简历已发布", FAILED: "生成失败", CANCELLED: "已取消", INTERRUPTED: "已中断。请生成新版本以重试。" },
+    trace: "Agent 运行追踪", cycles: "ReAct 循环", requests: "模型请求", traceError: "无法读取运行追踪。",
     "outputs": {
         "PENDING": "等待输出",
         "RUNNING": "正在生成预览和 PDF…",
@@ -616,6 +600,7 @@ export const zhCN = {
         "CANCELLED": "输出已取消，已生成的简历仍然保留。"
     },
     "errors": {
+        MISSING_LEGACY_ARTIFACT: "迁移的任务缺少已发布的简历。",
         "INVALID_INPUT": "请选择有效职位及包含已保存事实的个人资料；保存导入前请修正无效内容。",
         "INVALID_STATE": "另一个任务正在运行，或当前操作不可用。",
         "FORBIDDEN": "该任务属于另一个窗口。",
@@ -625,7 +610,7 @@ export const zhCN = {
         "GATE_REJECTED": "现有证据不足以支持此职位，请检查缺失的证据。",
         "PROCESS_INTERRUPTED": "生成已中断，请生成新版本。",
         "AGENT_PROTOCOL_ERROR": "模型响应或工具协议无效。",
-        "AGENT_STEP_LIMIT": "模型超出每阶段 8 次调用上限。",
+        "AGENT_STEP_LIMIT": "Agent 超出了请求或工具调用次数上限。",
         "AGENT_TIMEOUT": "模型请求超时。",
         "AGENT_CANCELLED": "生成已取消。",
         "PDF_EXPORT_FAILED": "无法另存 PDF，请选择其他位置重试；应用内 PDF 仍然保留。",

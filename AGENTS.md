@@ -53,6 +53,7 @@ Check this table before adding a document; create one only for a distinct topic 
 
 - All Agent-originated business capability calls MUST cross the Job Agent Browser MCP protocol boundary, including workflow submissions, persistence, cancellation, failure and output builds.
 - `ToolScope` is a server-side implementation primitive and MUST NOT be used as an Agent interface. Agent code uses `AgentModel`, `AgentTools` and pure workflow contracts; never import Domain services/repositories, database adapters or tool registries, including through re-exports or dynamic imports.
+- Ask AI, Smart Paste and desktop Resume use the shared Agent Engine. Register trusted definitions centrally. Resume business state and Artifact output state remain separate from Agent Run and Cycle state.
 - Update both Agent Runtime specifications and their state diagrams when Ask AI execution states, transitions, or finalization rules change.
 - Host source reading and model reasoning happen outside the business MCP. `job.import` persists structured data only. Human forms and read-only UI projection may continue using typed IPC and Domain services.
 

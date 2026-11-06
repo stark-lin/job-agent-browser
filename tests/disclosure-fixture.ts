@@ -3,8 +3,8 @@ import { compatibleAgentModel } from '../src/platform/ai/agent-model'
 import { stableName } from '../src/platform/ai/agent-protocol'
 import { ContextBudget } from '../src/platform/agent/context/budget'
 import { ContextManager } from '../src/platform/agent/context/manager'
-import { runPiAsk } from '../src/platform/agent/pi/runtime'
-import { observeAskModel } from '../src/platform/agent/pi/request-observer'
+import { runPiAgent } from '../src/platform/agent/pi/runtime'
+import { observeAgentModel } from '../src/platform/agent/pi/request-observer'
 
 export const descriptor = (name = 'job.list'): AgentToolDescriptor => ({ name, description: `Describe ${name}`, inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1 } }, additionalProperties: false } })
 export const capabilities = { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' as const, verified: true }
@@ -30,8 +30,8 @@ export function scriptedModel(script: (request: WireRequest, ordinal: number) =>
   return { model, requests, audits }
 }
 export async function runDisclosure(model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void = () => {}) {
-  model = observeAskModel(model, emit)
+  model = observeAgentModel(model, emit)
   const budget = new ContextBudget(capabilities, 'fixture')
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: value => value })
-  return runPiAsk({ model, tools, system: 'Test', message: 'List jobs', budget, context, emit, signal: signal(), status() {}, protect() {} })
+  return runPiAgent({ model, tools, system: 'Test', message: 'List jobs', budget, context, emit, signal: signal(), status() {}, protect() {} })
 }

@@ -1,3 +1,4 @@
+import type { AgentToolDescriptor } from '../../shared/agent'
 import type { ToolDisplay, ToolSummaryKey } from '../../domain/chat/chat.types'
 
 const labels: Record<string, ToolSummaryKey> = {
@@ -11,13 +12,13 @@ const labels: Record<string, ToolSummaryKey> = {
   'application.list_events': 'events', 'application.set_status': 'setStatus', 'application.add_note': 'addNote',
   'application.schedule_event': 'schedule', 'application.reschedule_event': 'reschedule', 'artifact.get': 'artifact',
   'job.import': 'importJob', 'resume.start': 'startResume', 'resume.get_context': 'resumeContext', 'resume.list_facts': 'resumeFacts',
-  'resume.submit_optimization': 'optimizeResume', 'resume.publish': 'publishResume',
+  'resume.list_bullets': 'resumeBullets', 'resume.rewrite_bullet': 'optimizeResume', 'resume.publish': 'publishResume',
   'resume.fail': 'failResume', 'resume.cancel': 'cancelResume', 'artifact.build': 'buildArtifact'
 }
 // Treat unknown future capabilities as writes so interruption never suggests a safe replay.
 const readTools = new Set(['tool.search', 'tool.activate', 'memory.list', 'memory.read', 'memory.recall','knowledge.list','knowledge.read','knowledge.search','knowledge.retrieve','job.list', 'job.get', 'profile.list', 'profile.get', 'profile.list_facts', 'profile.list_items',
-  'application.get', 'application.list_events', 'resume.get_context', 'resume.list_facts', 'artifact.get'])
-export const isAskWrite = (name: string) => !readTools.has(name)
+  'application.get', 'application.list_events', 'resume.get_context', 'resume.list_facts', 'resume.list_bullets', 'artifact.get'])
+export const isPotentialWrite = (name: string, risk?: AgentToolDescriptor['risk']) => risk === undefined ? !readTools.has(name) : risk === 'WRITE' || risk === 'EXTERNAL_ACTION'
 /** Compact allowlisted labels; the Host recorder separately stores redacted full details. */
 export function presentTool(name: string, result?: unknown): ToolDisplay {
   const display: ToolDisplay = { key: labels[name] ?? 'tool' }

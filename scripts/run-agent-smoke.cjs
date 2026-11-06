@@ -2,7 +2,7 @@ const { spawnSync } = require('node:child_process')
 const { mkdtempSync, rmSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const { resolve, join } = require('node:path')
-const directory = mkdtempSync(join(tmpdir(), 'resume-v1-smoke-'))
+const directory = mkdtempSync(join(tmpdir(), 'resume-v3-smoke-'))
 const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory, JAB_MODEL_STORE: join(directory, 'managed-models') }
 delete env.JOB_BROWSER_USER_DATA
 delete env.ELECTRON_RUN_AS_NODE; delete env.ELECTRON_RENDERER_URL

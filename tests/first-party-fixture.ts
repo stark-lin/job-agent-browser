@@ -58,7 +58,7 @@ await runtime.server.connect(new StdioServerTransport(process.stdin, process.std
   t.after(async () => { for (const close of runCleanups) await close(); await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
   return { ...f, directory, mcp, workspace,
     async askRun(signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []) {
-      const run = await mcp.openAskRun({ chatRunId: randomUUID(), sessionId, sourceMessageIds, signal })
+      const run = await mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId, sourceMessageIds, signal })
       runCleanups.push(() => run.close().catch(() => {})); return run.tools
     }, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
     flag(name: string, on = true) { if (on) writeFileSync(join(directory, name), '1'); else rmSync(join(directory, name), { force: true }) },

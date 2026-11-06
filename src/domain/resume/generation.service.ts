@@ -1,57 +1,91 @@
 import type { ResumeRepository } from './resume.repository'
 import type { Runtime, UnitOfWork } from '../common/ports'
-import type { Artifact, GenerationRun, ResumeDocument } from './resume.types'
+import type { Artifact, GenerationRun } from './resume.types'
 import { fail } from '../common/errors'
 import * as v from '../common/validation'
 import * as check from './resume.validation'
-import { assembleResume, documentProvenance } from './document'
+import { bulletSections, documentProvenance } from './document'
+import { isGenerating, transition } from './state-machine'
 
 /** Trusted persistence steps. They perform no AI/network work and are never exposed over IPC. */
 export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, runtime: Runtime, fingerprint: (input: string) => string) {
-  function running(id: string): GenerationRun {
-    const run = repo.getRun(id)
-    if (run.status !== 'RUNNING') fail('INVALID_STATE')
+  function advance(run: GenerationRun, state: GenerationRun['state'], error?: string) {
+    transition(run, state, runtime.now(), error)
+    repo.saveRun(run)
     return run
   }
-  function save(run: GenerationRun) { run.updatedAt = runtime.now(); repo.saveRun(run); return run }
+  function owned(id: string) { repo.assertGeneration(id); return repo.getRun(id) }
   return {
-    start(input: unknown) {
-      return tx.write({ event: 'GENERATION_START', action: 'UPDATE', target: 'generation_run' }, () => {
-        const run = repo.getRun(v.byId(input).id)
-        if (run.status !== 'PENDING') fail('INVALID_STATE')
-        run.status = 'RUNNING'; run.stage = 'optimize'
-        return save(run)
+    attachAgent(input: { runId: string; requestId: string; ownerRuntimeId: string }) {
+      return tx.write({ event: 'GENERATION_AGENT_ATTACH', action: 'UPDATE', target: 'generation_run' }, () => {
+        const run = owned(input.runId)
+        if (run.config.runtimeKind !== 'internal' || run.state !== 'REWRITING') fail('INVALID_STATE')
+        if (run.agentRunId) return { agentRunId: run.agentRunId }
+        const agentRunId = runtime.id()
+        repo.attachAgent(run, agentRunId, input.requestId, input.ownerRuntimeId)
+        run.agentRunId = agentRunId
+        run.updatedAt = runtime.now()
+        repo.saveRun(run)
+        return { agentRunId }
       })
     },
-    submitOptimization(input: unknown, checkSize: (document: ResumeDocument) => void) {
-      return tx.write({ event: 'GENERATION_OPTIMIZE', action: 'UPDATE', target: 'generation_run' }, () => {
-        const args = v.object({ id: v.id, optimization: check.optimization })(input)
-        const run = repo.getRun(args.id)
-        const hash = fingerprint(JSON.stringify(args.optimization))
-        if (run.optimizationHash) {
-          if (run.optimizationHash !== hash) fail('CONFLICT')
-          return run
+    rewriteBullet(input: unknown) {
+      return tx.write({ event: 'GENERATION_REWRITE_BULLET', action: 'UPDATE', target: 'generation_run' }, () => {
+        const args = v.object({ runId: v.id, bulletId: v.id, text: check.bulletText,
+          expectedRevision: v.integer(0, Number.MAX_SAFE_INTEGER), requestId: v.id })(input)
+        const run = owned(args.runId)
+        const hash = fingerprint(JSON.stringify([args.bulletId, args.text, args.expectedRevision]))
+        const receipt = repo.rewriteReceipt(run.id, args.requestId)
+        if (receipt) {
+          if (receipt.hash !== hash) fail('CONFLICT')
+          return receipt.result
         }
-        if (run.status !== 'RUNNING' || run.stage !== 'optimize') fail('INVALID_STATE')
-        const document = assembleResume(run.inputSnapshot, args.optimization, () => runtime.id())
-        check.validateGeneratedResume(run, document)
-        checkSize(document)
-        run.assembled = document; run.optimizationHash = hash; run.language = document.language; run.stage = 'publish'
-        return save(run)
+        if (run.state !== 'REWRITING' || !run.assembled || run.rewriteRevision !== args.expectedRevision) fail('CONFLICT')
+        const bullet = bulletSections.flatMap(section => run.assembled![section].flatMap(entry => entry.bullets)).find(value => value.id === args.bulletId)
+        if (!bullet) fail('INVALID_INPUT')
+        const changed = bullet.text !== args.text
+        if (changed) {
+          bullet.text = args.text
+          check.validateGeneratedResume(run, run.assembled)
+          run.rewriteRevision++
+          run.updatedAt = runtime.now()
+          repo.saveRun(run)
+        }
+        const result = { runId: run.id, bulletId: bullet.id, rewriteRevision: run.rewriteRevision, changed }
+        repo.saveRewriteReceipt(args.requestId, hash, result)
+        return result
       })
     },
-    publishArtifact(input: unknown) {
-      return tx.write({ event: 'GENERATION_PUBLISH', action: 'CREATE', target: 'artifact' }, () => {
-        const args = v.object({ id: v.id, title: v.text(500, 1) })(input), run = running(args.id)
-        if (run.stage !== 'publish' || !run.assembled || repo.artifactForRun(run.id)) fail('INVALID_STATE')
+    beginValidation(runId: string) {
+      return tx.write({ event: 'GENERATION_VALIDATE', action: 'UPDATE', target: 'generation_run' }, () => {
+        const run = owned(runId)
+        if (['VALIDATING', 'PUBLISHING', 'PUBLISHED'].includes(run.state)) return run
+        if (run.config.runtimeKind === 'internal' && (!run.agentRunId || !repo.completedAgent(run.agentRunId))) fail('INVALID_STATE')
+        return advance(run, 'VALIDATING')
+      })
+    },
+    preparePublication(runId: string) {
+      return tx.write({ event: 'GENERATION_PREPARE_PUBLICATION', action: 'UPDATE', target: 'generation_run' }, () => {
+        const run = owned(runId)
+        if (run.state === 'PUBLISHING' || run.state === 'PUBLISHED') return run
+        if (run.state !== 'VALIDATING' || !run.assembled) fail('INVALID_STATE')
         check.validateGeneratedResume(run, run.assembled)
-        const now = runtime.now()
-        const artifact: Artifact = { id: runtime.id(), generationRunId: run.id, type: 'RESUME', title: args.title, content: run.assembled, revision: 1,
-          templateId: run.config.templateId, outputFiles: [], output: { status: 'PENDING', error: null, pages: null }, createdAt: now, updatedAt: now }
+        return advance(run, 'PUBLISHING')
+      })
+    },
+    publishArtifact(input: { runId: string }) {
+      return tx.write({ event: 'GENERATION_PUBLISH', action: 'CREATE', target: 'artifact' }, () => {
+        const run = owned(input.runId)
+        const previous = repo.artifactForRun(run.id)
+        if (run.state === 'PUBLISHED' && previous) return previous
+        if (run.state !== 'PUBLISHING' || !run.assembled || previous) fail('INVALID_STATE')
+        const now = runtime.now(), { profile, job } = run.inputSnapshot
+        const artifact: Artifact = { id: runtime.id(), generationRunId: run.id, type: 'RESUME', title: `${profile.name} — ${job.title}`.slice(0, 500),
+          content: run.assembled, revision: 1, templateId: run.config.templateId, outputFiles: [],
+          output: { status: 'PENDING', error: null, pages: null }, createdAt: now, updatedAt: now }
         repo.insertArtifact(artifact)
-        repo.replaceLinks(artifact.id, documentProvenance(run.assembled).flatMap((link) => link.factIds.map((factId) => ({ artifactId: artifact.id, blockId: link.blockId, factId }))))
-        run.status = 'SUCCEEDED'; run.stage = 'output'; run.finishedAt = now
-        save(run)
+        repo.replaceLinks(artifact.id, documentProvenance(run.assembled).flatMap(link => link.factIds.map(factId => ({ artifactId: artifact.id, blockId: link.blockId, factId }))))
+        advance(run, 'PUBLISHED')
         return artifact
       })
     },
@@ -85,18 +119,16 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
         return artifact
       })
     },
-    failRun(input: unknown) {
-      return tx.write({ event: 'GENERATION_FAIL', action: 'UPDATE', target: 'generation_run' }, () => {
-        const args = v.object({ id: v.id, error: v.choice(['PROVIDER_FAILED', 'VALIDATION_FAILED', 'COMPILATION_FAILED', 'AGENT_PROTOCOL_ERROR', 'AGENT_STEP_LIMIT', 'AGENT_TIMEOUT', 'AI_AUTH_FAILED', 'AI_RATE_LIMITED', 'AI_PROVIDER_FAILED', 'AI_CONNECT_FAILED', 'AUDIT_UNAVAILABLE']) })(input), run = repo.getRun(args.id)
-        if (!['PENDING', 'RUNNING'].includes(run.status)) fail('INVALID_STATE')
-        run.status = 'FAILED'; run.error = args.error; run.finishedAt = runtime.now()
-        return save(run)
+    settle(id: string, state: 'FAILED' | 'CANCELLED' | 'INTERRUPTED', error?: string) {
+      return tx.write({ event: state === 'CANCELLED' ? 'GENERATION_CANCEL' : state === 'FAILED' ? 'GENERATION_FAIL' : 'GENERATION_INTERRUPT', action: 'UPDATE', target: 'generation_run' }, () => {
+        const run = owned(id)
+        return isGenerating(run.state) ? advance(run, state, error) : run
       })
     },
     recoverInterrupted() {
       return tx.write({ event: 'GENERATION_RECOVER', action: 'UPDATE', target: 'generation_run' }, () => {
         const runs = repo.running()
-        for (const run of runs) { run.status = 'INTERRUPTED'; run.error = 'PROCESS_INTERRUPTED'; run.finishedAt = runtime.now(); save(run) }
+        for (const run of runs) advance(run, 'INTERRUPTED', 'PROCESS_INTERRUPTED')
         return runs.length
       })
     }

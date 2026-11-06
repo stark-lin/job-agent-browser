@@ -13,13 +13,14 @@ export function chatDebugExportRepository(db: DatabaseSync): ChatDebugRepository
         db.exec('BEGIN')
         const session = db.prepare('SELECT * FROM chat_sessions WHERE id=?').get(sessionId) as unknown as DebugSession | undefined
         if (!session) fail('NOT_FOUND')
-        const runs = db.prepare('SELECT * FROM chat_runs WHERE session_id=? ORDER BY created_at,id').all(sessionId) as unknown as DebugRun[]
-        const items = db.prepare('SELECT * FROM chat_items WHERE session_id=? ORDER BY sequence').all(sessionId) as unknown as DebugItem[]
-        const modelRequests = db.prepare(`SELECT q.* FROM chat_model_requests q JOIN chat_runs r ON r.id=q.run_id
+        const runs = db.prepare(`SELECT id,session_id,provider_id,model_id,state,error,event_sequence,write_started,request_id,request_hash,
+          owner_runtime_id,created_at,finished_at,admission,runtime_status FROM agent_runs WHERE session_id=? ORDER BY created_at,id`).all(sessionId) as unknown as DebugRun[]
+        const items = db.prepare('SELECT * FROM agent_items WHERE session_id=? ORDER BY sequence').all(sessionId) as unknown as DebugItem[]
+        const modelRequests = db.prepare(`SELECT q.* FROM agent_model_requests q JOIN agent_runs r ON r.id=q.run_id
           WHERE r.session_id=? ORDER BY q.ordinal`).all(sessionId) as unknown as DebugModelRequest[]
-        const providerResponses = db.prepare(`SELECT p.* FROM chat_provider_responses p JOIN chat_runs r ON r.id=p.run_id
+        const providerResponses = db.prepare(`SELECT p.* FROM agent_model_responses p JOIN agent_runs r ON r.id=p.run_id
           WHERE r.session_id=? ORDER BY p.ordinal`).all(sessionId) as unknown as DebugProviderResponse[]
-        const cycles = db.prepare(`SELECT c.* FROM chat_react_cycles c JOIN chat_runs r ON r.id=c.run_id
+        const cycles = db.prepare(`SELECT c.* FROM agent_react_cycles c JOIN agent_runs r ON r.id=c.run_id
           WHERE r.session_id=? ORDER BY c.cycle_index`).all(sessionId) as unknown as CycleRow[]
         const checkpoint = db.prepare('SELECT * FROM chat_context_checkpoints WHERE session_id=?').get(sessionId) as unknown as DebugCheckpoint | undefined
         const memoryProgress = db.prepare('SELECT * FROM chat_memory_progress WHERE session_id=? ORDER BY sequence,message_id').all(sessionId) as unknown as DebugMemoryProgress[]

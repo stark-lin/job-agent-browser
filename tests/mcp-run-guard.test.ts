@@ -15,12 +15,12 @@ import type { AgentModelEvent, AgentToolCall } from '../src/shared/agent'
 import type { ToolDescriptor } from '../src/shared/tools/tool.types'
 const signal = () => new AbortController().signal
 const descriptor = (name: string, write = false): ToolDescriptor => ({ name, mode: write ? 'write' : 'read', risk: write ? 'WRITE' : 'READ', source: { type: 'native' }, tags: [], description: name, inputSchema: { type: 'object' } })
-const freshGuard = () => createRunGuardManager().forRun({ chatRunId: randomUUID(), sessionId: 'test', signal: signal() })
+const freshGuard = () => createRunGuardManager().forRun({ agentRunId: randomUUID(), sessionId: 'test', signal: signal() })
 const output = (value: unknown) => ({ content: [], structuredContent: value as Record<string, string> })
 const batch = (calls: AgentToolCall[]): AgentModelEvent[] => [...calls.map(call => ({ type: 'tool_call.ready' as const, call })), { type: 'completed', response: { content: '', toolCalls: calls } }]
 
 test('archive confirmation, canonical arguments, conflict, duplicate and repeated violation preserve the first effect', async t => {
-  const f = await firstPartyFixture(t), run = await f.mcp.openAskRun({ chatRunId: randomUUID(), sessionId: 'archive', sourceMessageIds: [], signal: signal() })
+  const f = await firstPartyFixture(t), run = await f.mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId: 'archive', sourceMessageIds: [], signal: signal() })
   t.after(() => run.close())
   const tools = run.tools, args = { id: f.job.id, archived: true }
   await tools.call('job.set_archived', args, signal())
@@ -129,7 +129,7 @@ for (const mode of ['archive', 'read'] as const) test(`Pi ${mode} circuit break 
   assert.equal(Boolean(f.backend.jobs.getJob({ id: f.job.id }).archivedAt), mode === 'archive')
   assert(!JSON.stringify(snapshot).includes('jabRunGrant'))
   f.backend.chats.deleteSession(ids.sessionId)
-  assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM chat_items WHERE run_id=?').get(ids.runId)?.n, 0)
+  assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_items WHERE run_id=?').get(ids.runId)?.n, 0)
 })
 
 for (const recovery of ['warning-answer', 'answer', 'source', 'discovery'] as const) test(`Pi no-progress ${recovery} preserves results and skips the old batch without writes`, async t => {
@@ -194,12 +194,12 @@ test('schema failures do not consume Guard state; tool-specific large inputs and
   const child = tools.view(['memory.write', 'memory.read'])
   await child.call('memory.write', { path: 'bound.md', content: 'Source-bound child view', expectedRevision: null }, signal())
   assert.equal((await child.call('memory.read', { path: 'bound.md' }, signal()) as { content: string }).content, 'Source-bound child view')
-  assert.equal(child.getRunGuardSnapshot()?.chatRunId, tools.getRunGuardSnapshot()?.chatRunId)
+  assert.equal(child.getRunGuardSnapshot()?.agentRunId, tools.getRunGuardSnapshot()?.agentRunId)
 })
 
 test('Run cancellation fences queued dispatch and session retirement cannot revive an old Run', async t => {
   const controller = new AbortController(), manager = createRunGuardManager(), id = randomUUID()
-  const guard = manager.forRun({ chatRunId: id, sessionId: 'cancel', signal: controller.signal })
+  const guard = manager.forRun({ agentRunId: id, sessionId: 'cancel', signal: controller.signal })
   let release!: () => void, began!: () => void
   const started = new Promise<void>(r => { began = r }), ready = new Promise<void>(r => { release = r })
   const first = guard.execute(descriptor('unknown.read'), {}, signal(), async () => { began(); await ready; return output({}) })
@@ -207,8 +207,8 @@ test('Run cancellation fences queued dispatch and session retirement cannot revi
   const second = guard.execute(descriptor('unknown.read'), {}, signal(), async () => assert.fail('cancelled queued dispatch'))
   const rejected = assert.rejects(second, { code: 'TOOL_CANCELLED' })
   controller.abort(); release(); await first; await rejected; await manager.close(id)
-  assert.throws(() => manager.forRun({ chatRunId: id, sessionId: 'cancel', signal: controller.signal }), { code: 'TOOL_CANCELLED' })
-  const f = await firstPartyFixture(t), run = await f.mcp.openAskRun({ chatRunId: randomUUID(), sessionId: 'retire', sourceMessageIds: [], signal: signal() })
+  assert.throws(() => manager.forRun({ agentRunId: id, sessionId: 'cancel', signal: controller.signal }), { code: 'TOOL_CANCELLED' })
+  const f = await firstPartyFixture(t), run = await f.mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId: 'retire', sourceMessageIds: [], signal: signal() })
   await run.tools.close()
   await assert.rejects(run.close(), { code: 'TOOL_UNAVAILABLE' })
   const next = await f.askRun(signal(), 'retire')

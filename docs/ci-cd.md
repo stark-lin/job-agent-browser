@@ -12,7 +12,7 @@ Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` 
 
 ## Validation and native packaging
 
-[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and Electron/Knowledge smokes. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
+[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and built smokes for Electron, Knowledge, Ask AI, Smart Paste, Resume and external integration. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
 
 The [Electron smoke](../scripts/smoke.cjs) logs uncaught Main exceptions and exits immediately, avoiding a blocking error dialog in unattended runs. Its [AI fixture](../scripts/ai-smoke.cjs) serves model discovery, runtime context metadata and streaming completions; Ask verifies the fixture's deployed context before inference. The dedicated [Smart Paste and Banner smoke](../scripts/smart-paste-smoke.cjs) runs before the general Electron smoke.
 

@@ -127,8 +127,8 @@ test('terminal persistence failure holds the next turn and retries records witho
 for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory ${failure} retains uncertain state and never retries the write`, async t => {
   const f = await firstPartyFixture(t)
   let writes = 0, step = 0
-  const open = f.mcp.openAskRun.bind(f.mcp), blocked = gate(), entered = gate()
-  f.mcp.openAskRun = async (...args) => {
+  const open = f.mcp.openAgentRun.bind(f.mcp), blocked = gate(), entered = gate()
+  f.mcp.openAgentRun = async (...args) => {
     const run = await open(...args), tools = run.tools, original = tools.call.bind(tools)
     tools.call = async (name, input, callSignal) => {
       if (name !== 'memory.write') return original(name, input, callSignal)

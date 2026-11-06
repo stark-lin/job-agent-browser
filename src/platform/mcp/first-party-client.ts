@@ -1,4 +1,5 @@
 import { parseRunGuard, type RunGuardSnapshot } from '../../shared/agent/run-guard'
+import { resumeAgentLifecycle, resumeAgentTools } from '../../shared/agent/resume-policy'
 import { createMemoryAuthority } from './memory-authority'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -8,7 +9,7 @@ import { jsonCopy, toolOutput } from '../tools/schema'
 import { createMCPClient, type MCPClient } from './client'
 
 export type FirstPartyAgent = 'resume' | 'job-capture' | 'application' | 'ask-ai'
-interface RunView { chatRunId: string; metadata(name: string, args: unknown): { jabRunGrant: string; jabMemoryGrant?: string }; snapshot?: RunGuardSnapshot }
+interface RunView { agentRunId: string; metadata(name: string, args: unknown): { jabRunGrant: string; jabMemoryGrant?: string }; snapshot?: RunGuardSnapshot; unguarded?: boolean }
 export interface AgentBinding { runId?: string; jobId?: string }
 
 /** The only production AgentTools implementation: all calls use the stdio Client. */
@@ -31,14 +32,14 @@ export class MCPAgentTools implements AgentTools {
     if (!this.descriptors.some(tool => tool.name === name)) toolFail('TOOL_FORBIDDEN')
     const input = jsonCopy(args, 1048576, 'TOOL_INVALID_INPUT')
     if (!input || typeof input !== 'object' || Array.isArray(input)) toolFail('TOOL_INVALID_INPUT')
-    if (this.binding.runId && input.runId !== this.binding.runId) toolFail('TOOL_FORBIDDEN')
+    if (this.binding.runId && name.startsWith('resume.') && input.runId !== this.binding.runId) toolFail('TOOL_FORBIDDEN')
     if (this.binding.jobId && (name.startsWith('application.') ? input.jobId : input.id) !== this.binding.jobId) toolFail('TOOL_FORBIDDEN')
     const result = jsonCopy(await this.client.callTool(name, input, AbortSignal.any([signal, this.signal]), this.run?.metadata(name, input)), 1048576, 'MCP_INVALID_RESPONSE')
     if (!result || typeof result !== 'object' || Array.isArray(result)) toolFail('MCP_INVALID_RESPONSE')
-    if (this.run) {
+    if (this.run && !this.run.unguarded) {
       const metadata = result._meta
       const snapshot = parseRunGuard(metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata.jabRunGuard : undefined)
-      if (snapshot && snapshot.chatRunId !== this.run.chatRunId) toolFail('MCP_INVALID_RESPONSE')
+      if (snapshot && snapshot.agentRunId !== this.run.agentRunId) toolFail('MCP_INVALID_RESPONSE')
       this.run.snapshot = snapshot
       if (!snapshot && result.isError !== true) toolFail('MCP_INVALID_RESPONSE')
     }
@@ -58,20 +59,20 @@ const askSessionKey = (id: string, readOnly?: boolean) => `ask-ai:${readOnly ? '
 /** One stable server session per workflow; a lost session is never used for run takeover. */
 export function createFirstPartyRuntime(directory: string, bundleDirectory: string) {
   const authority = createMemoryAuthority(directory)
-  const sessions = new Map<string, Promise<{ tools: MCPAgentTools; authSession: string }>>()
+  const sessions = new Map<string, Promise<{ tools: MCPAgentTools; authSession: string; raw?: MCPAgentTools }>>()
   const clients = new Set<MCPClient>(), lifecycle = new AbortController()
   let disposed = false
   const runtime = {
     async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default', readOnly = false): Promise<MCPAgentTools> {
       if (disposed) toolFail('TOOL_UNAVAILABLE')
       signal.throwIfAborted()
-      const sessionKey = agent === 'ask-ai' ? askSessionKey(sessionId, readOnly) : agent
+      const sessionKey = agent === 'ask-ai' ? askSessionKey(sessionId, readOnly) : agent === 'resume' ? `resume:${sessionId}` : agent
       let pending = sessions.get(sessionKey)
       if (!pending) {
         pending = (async () => {
           const closed = new AbortController()
           const authSession = `${sessionId}:${randomUUID()}`
-          const launch = agent === 'ask-ai' ? await authority.issue(authSession) : undefined
+          const launch = agent === 'ask-ai' || agent === 'resume' ? await authority.issue(authSession, agent === 'resume' ? 'resume' : 'ask') : undefined
           if (disposed) toolFail('TOOL_UNAVAILABLE')
           let client: MCPClient
           client = createMCPClient({ id: `internal-${agent}`, enabled: true, transport: 'stdio', command: process.execPath,
@@ -84,7 +85,12 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
             await client.connect(lifecycle.signal)
             const descriptors = await client.listTools(lifecycle.signal)
             if (new Set(descriptors.map(tool => tool.name)).size !== descriptors.length) toolFail('MCP_INVALID_RESPONSE')
-            return { tools: new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal])), authSession }
+            const tools = new MCPAgentTools(client, descriptors, AbortSignal.any([closed.signal, lifecycle.signal]))
+            if (agent !== 'resume') return { tools, authSession }
+            const agentRunId = randomUUID()
+            const controller = authority.registerRun(authSession, agentRunId, sessionId, { kind: 'resume-controller' })
+            return { authSession, tools: tools.withRun(tools.signal, { agentRunId, unguarded: true,
+              metadata: (name, args) => ({ jabRunGrant: controller.grant(name, args) }) }).view(resumeAgentLifecycle), raw: tools }
           } catch (error) { await client.close(); if (sessions.get(sessionKey) === pending) sessions.delete(sessionKey); throw error }
         })()
         sessions.set(sessionKey, pending)
@@ -92,21 +98,23 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
       const { tools } = await abortable(pending, signal)
       return tools
     },
-    async openAskRun(input: { chatRunId: string; sessionId: string; sourceMessageIds: string[]; signal: AbortSignal; readOnly?: boolean }) {
-      const connection = runtime.session('ask-ai', input.signal, input.sessionId, input.readOnly)
-      const pending = sessions.get(askSessionKey(input.sessionId, input.readOnly))
+    async openAgentRun(input: { agent: 'ask' | 'resume'; agentRunId: string; sessionId: string; generationRunId?: string; sourceMessageIds?: string[]; signal: AbortSignal; readOnly?: boolean }) {
+      const ask = input.agent === 'ask'
+      const connection = ask ? runtime.session('ask-ai', input.signal, input.sessionId, input.readOnly) : undefined
+      const pending = sessions.get(ask ? askSessionKey(input.sessionId, input.readOnly) : `resume:${input.sessionId}`)
       let tools: MCPAgentTools, authSession: string, registered: ReturnType<typeof authority.registerRun>
       try {
-        tools = await connection
-        if (!pending) toolFail('TOOL_UNAVAILABLE')
-        authSession = (await pending).authSession
+        if (!pending) { await connection; toolFail('TOOL_UNAVAILABLE') }
+        const [entry] = await Promise.all([abortable(pending, input.signal), connection])
+        authSession = entry.authSession
+        tools = ask ? entry.tools : entry.raw!.view(resumeAgentTools, { runId: input.generationRunId })
         input.signal.throwIfAborted(); tools.signal.throwIfAborted()
-        registered = authority.registerRun(authSession, input.chatRunId, input.sessionId)
+        registered = authority.registerRun(authSession, input.agentRunId, input.sessionId, { kind: input.agent, generationRunId: input.generationRunId })
       } catch (error) {
         if (input.readOnly) void pending?.then(({ tools }) => tools.close()).catch(() => {})
         throw error
       }
-      const stopped = new AbortController(), sources = [...input.sourceMessageIds]
+      const stopped = new AbortController(), sources = [...(input.sourceMessageIds ?? [])]
       let closing: Promise<void> | undefined
       const close = () => {
         stopped.abort()
@@ -120,12 +128,12 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
       const cancel = () => { void close().catch(() => {}) }
       input.signal.addEventListener('abort', cancel, { once: true })
       if (input.signal.aborted) { cancel(); input.signal.throwIfAborted() }
-      const view = tools.withRun(AbortSignal.any([input.signal, stopped.signal]), { chatRunId: input.chatRunId, metadata(name, args) {
+      const view = tools.withRun(AbortSignal.any([input.signal, stopped.signal]), { agentRunId: input.agentRunId, metadata(name, args) {
         input.signal.throwIfAborted()
-        return { jabRunGrant: registered.grant(name, args), ...(!input.readOnly && ['memory.write', 'memory.mkdir'].includes(name) && sources.length
+        return { jabRunGrant: registered.grant(name, args), ...(ask && !input.readOnly && ['memory.write', 'memory.mkdir'].includes(name) && sources.length
           ? { jabMemoryGrant: authority.grant(authSession, name, args, sources) } : {}) }
       } })
-      return { tools: view, close }
+      return { tools: view, signal: view.signal, close }
     },
     async dispose() {
       disposed = true; lifecycle.abort()

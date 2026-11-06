@@ -9,7 +9,7 @@ import { seed, value } from './helpers'
 import { composeBackend } from '../src/platform/database/backend'
 import { openDatabase } from '../src/platform/database/sqlite'
 import { migrate, migrations } from '../src/platform/database/migrations'
-import { createAskRecorder } from '../src/platform/electron/ask-agent-recorder'
+import { createAgentRecorder } from '../src/platform/electron/agent-recorder'
 import { descriptor } from './disclosure-fixture'
 import { toolSnapshot } from '../src/platform/ai/agent-request'
 import type { RequestDiagnostic } from '../src/shared/agent'
@@ -21,7 +21,7 @@ const diagnostic = (ordinal: number): RequestDiagnostic => ({ ordinal, ...choice
 test('Main stores deletable diagnostics with pagination, terminal failure and no transcript or audit changes', async t => {
   const f = await seed(t), repo = f.backend.chats
   const ids = repo.start({ requestId: randomUUID(), message: 'PRIVATE_REQUEST_BODY', choice })
-  const snapshot = repo.snapshot(ids.runId), recorder = createAskRecorder(repo, snapshot, () => {}, () => {})
+  const snapshot = repo.snapshot(ids.runId), recorder = createAgentRecorder(repo, snapshot, () => {}, () => {})
   const audits = f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all()
   const capabilities = f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all()
   recorder.receive({ type: 'model.request.prepared', request: diagnostic(1) })
@@ -40,11 +40,11 @@ test('Main stores deletable diagnostics with pagination, terminal failure and no
   assert.throws(() => recorder.receive({ type: 'model.request.prepared', request: diagnostic(1) }))
   recorder.finish('failed', 'AGENT_STEP_LIMIT')
   assert.throws(() => repo.saveModelRequest(ids.runId, diagnostic(3)), { code: 'CONFLICT' })
-  assert.throws(() => f.database.connection.prepare('INSERT INTO chat_model_requests(run_id,ordinal,metadata_json) VALUES(?,?,?)').run(randomUUID(), 1, '{}'))
+  assert.throws(() => f.database.connection.prepare('INSERT INTO agent_model_requests(run_id,ordinal,metadata_json) VALUES(?,?,?)').run(randomUUID(), 1, '{}'))
   const other = repo.start({ requestId: randomUUID(), message: 'Other', choice })
   repo.saveModelRequest(other.runId, diagnostic(1))
   value(await f.api.chats.deleteSession({ id: ids.sessionId }))
-  assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM chat_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
+  assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
   assert.equal(repo.listModelRequests(other.runId, 100, 0).total, 1)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).id, f.job.id)
   assert.deepEqual(f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all(), audits)

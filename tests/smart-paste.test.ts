@@ -26,7 +26,7 @@ test('only the configured prompt and a bounded data block become the user messag
 test('a Smart Paste connection lists read tools, rejects write calls, and releases its Run', async t => {
   const { mcp } = await firstPartyFixture(t)
   const signal = new AbortController().signal, sessionId = randomUUID()
-  const run = await mcp.openAskRun({ chatRunId: randomUUID(), sessionId, signal, sourceMessageIds: [], readOnly: true })
+  const run = await mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId, signal, sourceMessageIds: [], readOnly: true })
   try {
     const tools = await run.tools.list()
     assert(tools.some(tool => tool.name === 'profile.list'))

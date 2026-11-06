@@ -2,9 +2,9 @@ import { AgentError, type AgentModelInput, type AgentRuntimeEvent, type Streamin
 import { matchesRequest, toolSnapshot } from '../../ai/agent-request'
 
 /** Main supplies the sink; this adapter neither owns storage nor invokes business services. */
-export function observeAskModel(model: StreamingAgentModel, emit: (event: AgentRuntimeEvent) => void): StreamingAgentModel {
+export function observeAgentModel(model: StreamingAgentModel, emit: (event: AgentRuntimeEvent) => void, maxRequests = 64): StreamingAgentModel {
   let ordinal = 0, requests = 0
-  const reserve = () => { if (++requests > 64) throw new AgentError('AGENT_STEP_LIMIT') }
+  const reserve = () => { if (++requests > maxRequests) throw new AgentError('AGENT_STEP_LIMIT') }
   const observe = (input: AgentModelInput): AgentModelInput => ({ ...input, onRequestPrepared(request) {
     input.signal.throwIfAborted()
     const context = input.requestContext ?? { purpose: 'context-summary' as const, loadoutVersion: 0,

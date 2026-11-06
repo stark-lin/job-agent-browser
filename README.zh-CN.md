@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-面向求职的本地优先桌面工作空间。状态：React 导航、Browser/Inbox、设置、流式 AI、SQLite/审计、个人资料编辑/PDF 导入、职位采集/申请及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多产品流程仍为**规划**。
+面向求职的本地优先桌面工作空间。状态：React 导航、Browser/Inbox、设置、流式 AI、SQLite/审计、个人资料编辑/PDF 导入、职位采集/申请及包含 HTML/PDF 的 Resume V3 均**已实现**。智能笔记已实现；更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](README.md)
 
@@ -47,6 +47,8 @@ npm run test:integrations
 npm run test:agent
 npm run test:profile
 npm run test:ask-ai
+npm run design:check
+npm run release:npm:check
 ```
 
 构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、浏览器历史隔离、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及单次采集及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台打包已配置于 [electron-builder.yml](electron-builder.yml)，验收及发布前置条件见 [CI/CD](docs/ci-cd.zh-CN.md)。
@@ -55,7 +57,7 @@ npm run test:ask-ai
 
 `test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
 
-`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V1 需要新数据库世代，旧库明确拒绝，不迁移或删除。
+`test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V3 原地升级 v18，详见[升级与恢复](docs/data-architecture.zh-CN.md#三生成成品与删除)。
 
 `test:ask-ai` 验证 Pi 流式运行、Token 预算/压缩、工具披露、Agent 自主管理 Memory、会话存储、MCP 边界及事件重同步，再通过 Electron 验证并发会话、停止、草稿、Markdown、双语布局及强制结束进程后的恢复。测试使用本地样本与临时 userData；真实 Provider 兼容性仍未认证。迁移 13 保留旧 Memory 进度并停用其运行生命周期。
 

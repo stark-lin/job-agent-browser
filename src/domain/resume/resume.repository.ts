@@ -1,11 +1,16 @@
 import type { PageResult } from '../common/ports'
-import type { Artifact, ArtifactFact, GenerationRun } from './resume.types'
+import type { Artifact, ArtifactFact, GenerationRun, RewriteBulletResult } from './resume.types'
 export interface ResumeRepository {
   getRun(id: string): GenerationRun
   runs(jobId: string | null, limit: number, offset: number): PageResult<GenerationRun>
   insertRun(run: GenerationRun): void
   requestRun(requestId: string, input: string): GenerationRun | null
   recordRequest(requestId: string, input: string, runId: string): void
+  assertGeneration(id: string): void
+  rewriteReceipt(runId: string, requestId: string): { hash: string; result: RewriteBulletResult } | null
+  saveRewriteReceipt(requestId: string, hash: string, result: RewriteBulletResult): void
+  attachAgent(run: GenerationRun, agentRunId: string, requestId: string, ownerRuntimeId: string): void
+  completedAgent(agentRunId: string): boolean
   saveRun(run: GenerationRun): void
   removeRun(id: string): void
   running(): GenerationRun[]

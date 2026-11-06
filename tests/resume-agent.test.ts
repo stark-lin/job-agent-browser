@@ -30,15 +30,24 @@ async function done(tasks: ReturnType<typeof createResumeTasks>, runId: string) 
   }
 }
 test('fixture executes all stages, audits calls, publishes immutable evidence and outputs; retry never calls the model', async t => {
-  const f = await setup(t), { runId } = await f.start()
+  const f = await setup(t)
+  value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Second supported claim' } }))
+  const { runId } = await f.start()
   await assert.rejects(f.start, { code: 'INVALID_STATE' })
   await assert.rejects(f.tasks.cancel(2, { runId }), { code: 'FORBIDDEN' })
   const result = await done(f.tasks, runId)
-  assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.run.language, 'en'); assert.equal(result.artifact?.output.status, 'READY')
+  assert.equal(result.run.state, 'PUBLISHED'); assert.equal(result.artifact?.content.language, 'en'); assert.equal(result.artifact?.output.status, 'READY')
   assert(result.run.assembled)
+  assert.equal(result.run.rewriteRevision, 2)
+  const trace = f.tasks.getTrace(1, { runId })!
+  assert.equal(trace.run.sessionId, null)
+  assert.equal(trace.run.state, 'completed')
+  assert.equal(trace.cycles.length, 4)
+  assert.equal(trace.requests.length, 4)
+  assert(trace.items.some(item => item.content.type === 'tool_call' && item.content.toolName === 'resume.rewrite_bullet'))
   assert.equal(result.artifact?.outputFiles.length, 2)
-  assert.equal(f.server.requests(), 2)
-  assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 2)
+  assert.equal(f.server.requests(), 4)
+  assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 4)
   assert(f.database.connection.prepare("SELECT count(*) n FROM capability_audit WHERE agent_id='internal.resume'").get()!.n as number > 0)
   assert(f.events.every((event, index) => event.sequence === index + 1 && event.runId === runId))
   const before = f.server.requests()
@@ -48,30 +57,31 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
 })
 test('cancellation during a hanging model call and owner disposal cannot publish late results', async t => {
   const f = await setup(t)
-  f.server.hook((stage) => stage === 'optimize')
+  f.server.hook((stage) => stage === 'rewrite')
   const { runId } = await f.start()
-  for (let i = 0; i < 300 && !f.events.some(event => event.stage === 'optimize'); i++) await new Promise(resolve => setTimeout(resolve, 5))
+  for (let i = 0; i < 300 && f.server.requests() === 0; i++) await new Promise(resolve => setTimeout(resolve, 5))
+  assert(f.server.requests() > 0)
   f.tasks.disposeOwner(1)
   const result = await done(f.tasks, runId)
-  assert.equal(result.run.status, 'CANCELLED'); assert.equal(result.artifact, null)
-  assert.equal(value(await f.api.resumes.getRun({ id: runId })).run.status, 'CANCELLED')
+  assert.equal(result.run.state, 'CANCELLED'); assert.equal(result.artifact, null)
+  assert.equal(value(await f.api.resumes.getRun({ id: runId })).run.state, 'CANCELLED')
 })
 test('post-publication output failure preserves SUCCEEDED and supports model-free rebuilding', async t => {
   const f = await setup(t); f.failOutput(true)
   const result = await done(f.tasks, (await f.start()).runId)
-  assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.artifact?.output.status, 'FAILED')
+  assert.equal(result.run.state, 'PUBLISHED'); assert.equal(result.artifact?.output.status, 'FAILED')
   const calls = f.server.requests(); f.failOutput(false)
   await f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, () => {})
   assert.equal((await done(f.tasks, result.run.id)).artifact?.output.status, 'READY'); assert.equal(f.server.requests(), calls)
 })
-test('invalid stage output fails once without an implicit repair loop', async t => {
+test('invalid provider stream fails once without an implicit repair loop', async t => {
   const f = await setup(t)
   f.server.hook((stage, response) => {
-    if (stage !== 'optimize') return false
+    if (stage !== 'rewrite') return false
     response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '{}' } }] })); return true
   })
   const result = await done(f.tasks, (await f.start()).runId)
-  assert.equal(result.run.status, 'FAILED'); assert.equal(result.run.error, 'VALIDATION_FAILED'); assert.equal(f.server.requests(), 1)
+  assert.equal(result.run.state, 'FAILED'); assert.equal(result.run.error, 'AGENT_PROTOCOL_ERROR'); assert.equal(f.server.requests(), 1)
 })
 
 test('live profile changes after start do not alter tool reads or generated basics/evidence', async t => {
@@ -80,17 +90,17 @@ test('live profile changes after start do not alter tool reads or generated basi
   value(await f.api.profiles.editFact({ id: f.fact.id, details: { kind: 'SKILL', content: 'CHANGED LIVE' } }))
   const result = await done(f.tasks, runId)
   assert.equal(result.artifact?.content.basics.name, f.profile.name)
-  assert.equal(result.artifact?.content.summary?.text, f.fact.content)
+  assert.equal(result.artifact?.content.experience[0].bullets[0].text, f.fact.content + '.')
   const audit = value(await f.api.audit.list({ limit: 100 }))
   assert(!JSON.stringify(audit).includes(f.fact.content))
 })
 test('cancelling at publish boundary prevents Artifact creation and terminal state occurs once', async t => {
   const f = await setup(t)
   const { runId } = await f.tasks.start(1, { jobId: f.job.id, profileId: f.profile.id }, event => {
-    if (event.stage === 'publish') void f.tasks.cancel(1, { runId: event.runId })
+    if (event.state === 'VALIDATING') void f.tasks.cancel(1, { runId: event.runId })
   })
   const result = await done(f.tasks, runId)
-  assert.equal(result.run.status, 'CANCELLED'); assert.equal(result.artifact, null)
+  assert.equal(result.run.state, 'CANCELLED'); assert.equal(result.artifact, null)
   const audits = value(await f.api.audit.list({ targetId: runId, limit: 100 }))
   assert.equal(audits.items.filter(row => row.eventType === 'GENERATION_CANCEL' && row.status === 'SUCCESS').length, 1)
 })
@@ -111,7 +121,7 @@ test('post-publication cancellation bounds a late output worker and preserves th
   for (let i = 0; i < 1000 && !f.has('rendering'); i++) await new Promise(resolve => setTimeout(resolve, 5))
   assert(f.has('rendering')); await f.tasks.cancel(1, { runId })
   const result = await done(f.tasks, runId)
-  assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.artifact?.output.status, 'CANCELLED')
+  assert.equal(result.run.state, 'PUBLISHED'); assert.equal(result.artifact?.output.status, 'CANCELLED')
   f.flag('release-output'); await new Promise(resolve => setTimeout(resolve, 30))
   assert.equal(f.tasks.getTask(1, { runId })?.artifact?.outputFiles.length, 0)
 })
@@ -129,7 +139,7 @@ test('uncertain start audit is recovered without an unowned active task', async 
   await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
   f.backend.recover()
   const run = f.backend.resumes.listRuns({}).items[0].run
-  assert.equal(run.status, 'INTERRUPTED'); assert.equal(run.error, 'PROCESS_INTERRUPTED'); assert.equal(f.server.requests(), 0)
+  assert.equal(run.state, 'INTERRUPTED'); assert.equal(run.error, 'PROCESS_INTERRUPTED'); assert.equal(f.server.requests(), 0)
 })
 
 test('maximum-length valid contact and job titles do not fail publication or change copied basics', async t => {
@@ -137,7 +147,7 @@ test('maximum-length valid contact and job titles do not fail publication or cha
   value(await f.api.profiles.editContact({ id: f.profile.id, details: { name } }))
   value(await f.api.jobs.updateDetails({ id: f.job.id, details: { title, companyNameRaw: 'Fixture' } }))
   const result = await done(f.tasks, (await f.start()).runId)
-  assert.equal(result.run.status, 'SUCCEEDED')
+  assert.equal(result.run.state, 'PUBLISHED')
   assert.equal(result.artifact?.title.length, 500)
   assert.equal(result.artifact?.content.basics.name, name)
   assert.equal(result.run.inputSnapshot.job.title, title)

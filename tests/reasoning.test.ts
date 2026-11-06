@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { ReasoningAccumulator } from '../src/platform/ai/reasoning'
 import { parseAgentResponse, providerMessages } from '../src/platform/ai/agent-protocol'
 import { compatibleAgentModel } from '../src/platform/ai/agent-model'
-import { runPiAsk } from '../src/platform/agent/pi/runtime'
+import { runPiAgent } from '../src/platform/agent/pi/runtime'
 import { ContextBudget } from '../src/platform/agent/context/budget'
 import { ContextManager } from '../src/platform/agent/context/manager'
 import { modelTask } from '../src/platform/agent/context/model-task'
@@ -15,7 +15,7 @@ import { migrate, migrations } from '../src/platform/database/migrations'
 import { DatabaseSync } from 'node:sqlite'
 import { openDatabase } from '../src/platform/database/sqlite'
 import { composeBackend } from '../src/platform/database/backend'
-import { createAskRecorder } from '../src/platform/electron/ask-agent-recorder'
+import { createAgentRecorder } from '../src/platform/electron/agent-recorder'
 import { redactTranscript } from '../src/platform/electron/transcript-redaction'
 import type { AgentRunEvent } from '../src/domain/chat/chat.types'
 import type { AgentMessage, AgentModelEvent, AgentRuntimeEvent, StreamingAgentModel } from '../src/shared/agent'
@@ -72,7 +72,7 @@ test('Pi retains provider state across activation/tool turns and segments reason
     yield { type: 'completed', response: { content: turn < 2 ? '' : 'Done', toolCalls: turn < 2 ? [call] : [], providerReasoning: { reasoning_content: `Body-${turn}`, reasoning_details: [{ type: 'reasoning.encrypted', data: `opaque-${turn}` }] } } }
   } }
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: v => v })
-  await runPiAsk({ model, context, budget, signal: new AbortController().signal, system: 'Test', message: 'List jobs',
+  await runPiAgent({ model, context, budget, signal: new AbortController().signal, system: 'Test', message: 'List jobs',
     tools: { list: async () => [{ name: 'job.list', description: 'List', inputSchema: { type: 'object' } }], call: async () => ({ items: [], total: 0 }) }, emit: e => events.push(e), status() {}, protect() {} })
   assert.equal(step, 3)
   const assistants = seen[2].filter(m => m.role === 'assistant')
@@ -107,7 +107,7 @@ test('V12 adds Host continuation storage without rewriting existing migration ch
     const old = db.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
     migrate(db)
     assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=11 ORDER BY version').all(), old)
-    assert(db.prepare("SELECT name FROM sqlite_master WHERE name='chat_provider_responses'").get())
+    assert(db.prepare("SELECT name FROM sqlite_master WHERE name='agent_model_responses'").get())
   } finally { db.close() }
 })
 
@@ -117,7 +117,7 @@ test('recorder persists full redacted details and private continuation state acr
   let backend = composeBackend(openDatabase(path)); t.after(() => backend.close())
   const choice = { providerId: 'fixture', modelId: 'test' }
   const run = backend.chats.start({ requestId: randomUUID(), message: 'Test', choice }), events: AgentRunEvent[] = []
-  const recorder = createAskRecorder(backend.chats, backend.chats.snapshot(run.runId), e => events.push(e), e => { throw e })
+  const recorder = createAgentRecorder(backend.chats, backend.chats.snapshot(run.runId), e => events.push(e), e => { throw e })
   recorder.started()
   recorder.receive({ type: 'segment.started', id: 'r', kind: 'reasoning', reasoning: { source: 'reasoning_content', kind: 'text' } })
   recorder.receive({ type: 'segment.delta', id: 'r', text: '完整推理' }); recorder.receive({ type: 'segment.completed', id: 'r' })

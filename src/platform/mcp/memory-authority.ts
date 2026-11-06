@@ -4,16 +4,27 @@ import { join } from 'node:path'
 import { atomicWrite } from '../knowledge/paths'
 import { randomBytes } from 'node:crypto'
 import { callDigest as digest } from './call-fingerprint'
+import { askToolAllowlist } from '../../shared/agent/ask-policy'
+import { resumeAgentTools, resumeAgentLifecycle } from '../../shared/agent/resume-policy'
 import type { TrustedRunContext } from '../mcp-server/run-guard'
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+type RunPolicy = { kind: 'ask' | 'resume' | 'resume-controller'; generationRunId?: string }
+const toolPolicy: Record<RunPolicy['kind'], readonly string[]> = {
+  ask: askToolAllowlist, resume: resumeAgentTools, 'resume-controller': resumeAgentLifecycle
+}
+function allows(run: RunPolicy, operation: string, args: unknown) {
+  return toolPolicy[run.kind].includes(operation)
+    && (run.kind !== 'resume' || !operation.startsWith('resume.') || (args as { runId?: string } | null)?.runId === run.generationRunId)
+}
+
 /** Main owns random one-use credentials in memory; the disk descriptor contains only public routing data. */
 export function createMemoryAuthority(directory: string) {
   const instance = randomBytes(32).toString('hex')
-  const pending = new Map<string, { session: string; expires: number }>()
+  const pending = new Map<string, { session: string; kind: 'ask' | 'resume'; expires: number }>()
   const grants = new Map<string, { session: string; operation: string; hash: string; expires: number; sources: string[] }>()
-  const runs = new Map<string, { session: string; sessionId: string }>()
-  const runGrants = new Map<string, { chatRunId: string; session: string; operation: string; hash: string; expires: number }>()
-  const channels = new Map<string, ServerResponse>()
+  const runs = new Map<string, { session: string; sessionId: string } & RunPolicy>()
+  const runGrants = new Map<string, { agentRunId: string; session: string; operation: string; hash: string; expires: number }>()
+  const channels = new Map<string, { response: ServerResponse; kind: 'ask' | 'resume' }>()
   const acknowledgements = new Map<string, { session: string; resolve(): void }>()
   const server = createServer(async (req, res) => {
     if (req.method !== 'POST' || !['/redeem', '/grant', '/run-grant', '/run-closed'].includes(req.url ?? '')) { res.writeHead(403).end(); return }
@@ -28,10 +39,10 @@ export function createMemoryAuthority(directory: string) {
       }
       if (req.url === '/run-grant') {
         const grant = runGrants.get(input.token); runGrants.delete(input.token)
-        const run = grant && runs.get(grant.chatRunId)
+        const run = grant && runs.get(grant.agentRunId)
         if (!grant || !run || input.instance !== instance || input.session !== grant.session || run.session !== grant.session
           || input.operation !== grant.operation || input.hash !== grant.hash || grant.expires < Date.now()) { res.writeHead(403).end(); return }
-        res.writeHead(200).end(JSON.stringify({ chatRunId: grant.chatRunId, sessionId: run.sessionId })); return
+        res.writeHead(200).end(JSON.stringify({ agentRunId: grant.agentRunId, sessionId: run.sessionId, kind: run.kind, generationRunId: run.generationRunId })); return
       }
       if (req.url === '/grant') {
         const grant = grants.get(input.token); grants.delete(input.token)
@@ -45,12 +56,12 @@ export function createMemoryAuthority(directory: string) {
       // Keep the authenticated control channel alive; Main shutdown revokes the child session.
       res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
       if (channels.has(credential.session)) { res.end(); return }
-      channels.set(credential.session, res)
+      channels.set(credential.session, { response: res, kind: credential.kind })
       res.on('close', () => {
-        if (channels.get(credential.session) === res) channels.delete(credential.session)
+        if (channels.get(credential.session)?.response === res) channels.delete(credential.session)
         for (const [id, run] of runs) if (run.session === credential.session) runs.delete(id)
       })
-      res.write(JSON.stringify({ instance, session: credential.session }) + '\n')
+      res.write(JSON.stringify({ instance, session: credential.session, kind: credential.kind }) + '\n')
     } catch { res.writeHead(403).end() }
   })
   server.requestTimeout = 5000; server.headersTimeout = 5000
@@ -63,38 +74,40 @@ export function createMemoryAuthority(directory: string) {
   })
   ready.catch(() => {})
   return {
-    async issue(session: string) {
+    async issue(session: string, kind: 'ask' | 'resume' = 'ask') {
       await ready
       for (const [key, value] of pending) if (value.expires < Date.now()) pending.delete(key)
       const address = server.address()
       if (!address || typeof address === 'string' || !session || session.length > 128) throw new Error('MEMORY_AUTH_FAILED')
       const credential = randomBytes(32).toString('hex')
-      pending.set(credential, { session, expires: Date.now() + 30000 })
+      pending.set(credential, { session, kind, expires: Date.now() + 30000 })
       return JSON.stringify({ port: address.port, instance, session, credential })
     },
-    registerRun(session: string, chatRunId: string, sessionId: string) {
-      if (!uuid.test(chatRunId) || !sessionId || sessionId.length > 128 || runs.has(chatRunId) || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
-      runs.set(chatRunId, { session, sessionId })
+    registerRun(session: string, agentRunId: string, sessionId: string, policy: RunPolicy = { kind: 'ask' }) {
+      if (channels.get(session)?.kind !== (policy.kind === 'ask' ? 'ask' : 'resume')) throw new Error('MEMORY_AUTH_FAILED')
+      if (policy.kind === 'resume' && !uuid.test(policy.generationRunId ?? '')) throw new Error('MEMORY_AUTH_FAILED')
+      if (!uuid.test(agentRunId) || !sessionId || sessionId.length > 128 || runs.has(agentRunId) || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
+      runs.set(agentRunId, { session, sessionId, ...policy })
       let closing: Promise<void> | undefined
       return {
         grant(operation: string, args: unknown) {
-          if (runs.get(chatRunId)?.session !== session || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
+          if (runs.get(agentRunId)?.session !== session || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
           for (const [key, value] of runGrants) if (value.expires < Date.now()) runGrants.delete(key)
           const token = randomBytes(32).toString('hex')
-          runGrants.set(token, { chatRunId, session, operation, hash: digest(args), expires: Date.now() + 30000 })
+          runGrants.set(token, { agentRunId, session, operation, hash: digest(args), expires: Date.now() + 30000 })
           return token
         },
         close() {
           return closing ??= (async () => {
-            runs.delete(chatRunId)
-            for (const [key, value] of runGrants) if (value.chatRunId === chatRunId) runGrants.delete(key)
-            const channel = channels.get(session)
+            runs.delete(agentRunId)
+            for (const [key, value] of runGrants) if (value.agentRunId === agentRunId) runGrants.delete(key)
+            const channel = channels.get(session)?.response
             if (!channel || channel.destroyed) throw new Error('MEMORY_AUTH_FAILED')
             const token = randomBytes(32).toString('hex')
             await new Promise<void>((resolve, reject) => {
               const timer = setTimeout(() => { acknowledgements.delete(token); reject(new Error('MEMORY_AUTH_FAILED')) }, 5000)
               acknowledgements.set(token, { session, resolve() { clearTimeout(timer); resolve() } })
-              channel.write(JSON.stringify({ type: 'run.closed', chatRunId, token }) + '\n')
+              channel.write(JSON.stringify({ type: 'run.closed', agentRunId, token }) + '\n')
             })
           })()
         }
@@ -111,6 +124,7 @@ export function createMemoryAuthority(directory: string) {
   }
 }
 export interface MemoryAuthorization {
+  kind: 'ask' | 'resume'
   signal: AbortSignal
   authorize?(token: unknown, operation: string, args: unknown): Promise<boolean>
   authorizeRun(token: unknown, operation: string, args: unknown): Promise<TrustedRunContext | undefined>
@@ -141,7 +155,7 @@ export async function redeemMemoryLaunch(raw: string | undefined, directory: str
       buffer = buffer.slice(end + 1); return line
     }
     const result = JSON.parse(await readLine())
-    if (result.instance !== input.instance || result.session !== input.session) throw new Error()
+    if (result.instance !== input.instance || result.session !== input.session || !['ask', 'resume'].includes(result.kind)) throw new Error()
     clearTimeout(timeout)
     const runControllers = new Map<string, AbortController>(), closed = new Set<string>()
     let runClosed: (id: string) => Promise<void> = async () => {}
@@ -152,26 +166,26 @@ export async function redeemMemoryLaunch(raw: string | undefined, directory: str
       try {
         for (;;) {
           const event = JSON.parse(await readLine())
-          if (event.type !== 'run.closed' || !uuid.test(event.chatRunId) || typeof event.token !== 'string') throw new Error()
-          closed.add(event.chatRunId); runControllers.get(event.chatRunId)?.abort(); runControllers.delete(event.chatRunId)
-          await runClosed(event.chatRunId)
+          if (event.type !== 'run.closed' || !uuid.test(event.agentRunId) || typeof event.token !== 'string') throw new Error()
+          closed.add(event.agentRunId); runControllers.get(event.agentRunId)?.abort(); runControllers.delete(event.agentRunId)
+          await runClosed(event.agentRunId)
           const reply = await post('/run-closed', { token: event.token }); await reply.body?.cancel()
           if (!reply.ok) throw new Error()
         }
       } catch { /* Disconnect revokes every execution context. */ }
       finally { controller.abort(); for (const run of runControllers.values()) run.abort(); runControllers.clear() }
     })()
-    return { signal: controller.signal,
+    return { kind: result.kind, signal: controller.signal,
       onRunClosed(listener) { runClosed = listener },
       async authorizeRun(token, operation, args) {
         if (controller.signal.aborted || typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return
         try {
           const reply = await post('/run-grant', { token, operation, hash: digest(args) })
           if (!reply.ok) { await reply.body?.cancel(); return }
-          const run = await reply.json() as { chatRunId: string; sessionId: string }
-          if (!uuid.test(run.chatRunId) || typeof run.sessionId !== 'string' || !run.sessionId || run.sessionId.length > 128 || closed.has(run.chatRunId) || controller.signal.aborted) return
-          let runController = runControllers.get(run.chatRunId)
-          if (!runController) { runController = new AbortController(); runControllers.set(run.chatRunId, runController) }
+          const run = await reply.json() as { agentRunId: string; sessionId: string } & RunPolicy
+          if (!Object.hasOwn(toolPolicy, run.kind) || !allows(run, operation, args) || !uuid.test(run.agentRunId) || typeof run.sessionId !== 'string' || !run.sessionId || run.sessionId.length > 128 || closed.has(run.agentRunId) || controller.signal.aborted) return
+          let runController = runControllers.get(run.agentRunId)
+          if (!runController) { runController = new AbortController(); runControllers.set(run.agentRunId, runController) }
           return { ...run, signal: AbortSignal.any([controller.signal, runController.signal]) }
         } catch { return }
       }, async authorize(token, operation, args) {

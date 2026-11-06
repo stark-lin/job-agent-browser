@@ -5,22 +5,23 @@ import { guardNextAction, type RunGuardSnapshot } from '../../../shared/agent/ru
 import { ToolError } from '../../../shared/tools/errors'
 import type { AskRuntimeStatus } from '../../../shared/ask'
 import type { ContextBudget } from '../context/budget'
-import type { ContextManager } from '../context/manager'
+import type { AgentContext } from '../context/manager'
+import type { AgentToolset } from '../tools/toolset'
 import { nextAction, resolveCycle, settleCycle, startCycle } from '../react-cycle/machine'
 import { modelToolResult } from '../../../shared/agent/tool-result'
-import { isAskWrite } from '../tool-presentation'
+import { isPotentialWrite } from '../tool-presentation'
 import { ToolDiscovery } from '../tools/discovery'
 import { createPiStream, piReasoning } from './model-adapter'
 
-export async function runPiAsk(deps: {
+export async function runPiAgent(deps: {
   model: StreamingAgentModel; tools: AgentTools; system: string; message: string; signal: AbortSignal; userSignal?: AbortSignal
-  budget: ContextBudget; context: ContextManager; emit(event: AgentRuntimeEvent): void
+  budget: ContextBudget; context: AgentContext; toolset?: AgentToolset; allowsTool?(name: string): boolean; maxToolCalls?: number; emit(event: AgentRuntimeEvent): void
   onToolTurn?(): void
   status(value: AskRuntimeStatus): void; protect(name: string, args: unknown, result: unknown, uncertain: boolean): void
 }) {
   const { Agent } = await import('@earendil-works/pi-agent-core')
   const userSignal = deps.userSignal ?? deps.signal
-  let failure: unknown, serial = 0, recoverBatch = false, index = 0
+  let failure: unknown, serial = 0, calls = 0, finalText = '', recoverBatch = false, index = 0
   let cycle: CycleStatus | null = null, outcome: SettledCycleStatus | undefined, guard: RunGuardSnapshot | undefined
   let action: ReturnType<typeof nextAction> = 'CONTINUE'
   const guidance = (snapshot?: RunGuardSnapshot) => snapshot?.level ? [{ type: 'text' as const,
@@ -36,10 +37,10 @@ export async function runPiAsk(deps: {
     if (cycle !== 'RUNNING' || outcome) throw new AgentError('AGENT_PROTOCOL_ERROR')
     return index
   }
-  const registry = new ToolDiscovery(deps.tools, deps.budget, activation => {
+  const registry = deps.toolset ?? new ToolDiscovery(deps.tools, deps.budget, activation => {
     try { deps.emit({ type: 'model.request.activation', activation }) }
     catch (error) { failed(error); throw error }
-  })
+  }, deps.allowsTool)
   await abortable(registry.refresh(), deps.signal)
   function observeGuard(name: string) {
     const snapshot = name.startsWith('tool.') ? undefined : deps.tools.getRunGuardSnapshot?.()
@@ -55,8 +56,9 @@ export async function runPiAsk(deps: {
       const combined = signal ? AbortSignal.any([signal, deps.signal]) : deps.signal
       try {
         activeCycle(); combined.throwIfAborted()
+        if (++calls > (deps.maxToolCalls ?? 256)) throw new AgentError('AGENT_STEP_LIMIT')
         if (recoverBatch) throw new AgentError('AGENT_PROTOCOL_ERROR')
-        deps.emit({ type: 'tool.started', id, call: { id: callId, name, arguments: args } })
+        deps.emit({ type: 'tool.started', id, risk: descriptor.risk, call: { id: callId, name, arguments: args } })
         if (name === 'tool.search') deps.status('tools.searching')
         if (name === 'tool.activate') deps.status('tools.activating')
         let result: unknown
@@ -65,7 +67,7 @@ export async function runPiAsk(deps: {
           const code = error instanceof ToolError || error instanceof AgentError ? error.code : 'TOOL_EXECUTION_FAILED'
           const snapshot = observeGuard(name)
           const rejected = code.startsWith('TOOL_GUARD_') && snapshot?.executed === false
-          const uncertain = !rejected && isAskWrite(name) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
+          const uncertain = !rejected && isPotentialWrite(name, descriptor.risk) && !['TOOL_CONFLICT', 'TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY'].includes(code)
           const blocked = snapshot?.status === 'BLOCKED' || code === 'TOOL_GUARD_TERMINATED'
           if (uncertain) failed(isAgentCancellation(error, userSignal) ? new ToolError('TOOL_EXECUTION_FAILED') : error)
           else if (blocked) failed(new ToolError('TOOL_GUARD_TERMINATED'))
@@ -93,7 +95,10 @@ export async function runPiAsk(deps: {
       ? { ...message, content: `${message.content}\nRuntime RunGuard ${level}: ${guardNextAction}` } : message) : messages
   }, failed: observeFailure,
     loadout: () => registry.snapshot(), advertised: names => registry.confirmRequest(names),
-    completed: response => deps.emit({ type: 'model.completed', response, cycleIndex: activeCycle() }) })
+    completed: response => {
+      if (!response.toolCalls.length) finalText = response.content
+      deps.emit({ type: 'model.completed', response, cycleIndex: activeCycle() })
+    } })
   const agent = new Agent({ streamFn, toolExecution: 'sequential', initialState: {
     systemPrompt: deps.system, tools: registry.loadout().map(tool), thinkingLevel: 'off',
     model: { id: 'jab-model', name: 'JAB model', api: 'openai-completions', provider: 'jab', baseUrl: '', input: ['text'], reasoning: false,
@@ -160,5 +165,6 @@ export async function runPiAsk(deps: {
     if (failure) throw failure
     deps.signal.throwIfAborted()
     if (agent.state.errorMessage || cycle !== 'SUCCESS') throw new AgentError('AI_PROVIDER_FAILED')
+    return finalText
   } finally { agent.abort(); await agent.waitForIdle(); deps.signal.removeEventListener('abort', cancel) }
 }

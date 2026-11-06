@@ -53,6 +53,7 @@
 
 - 所有由 Agent 发起的业务能力调用必须跨越 Job Agent Browser MCP 协议边界，包括流程提交、持久化、取消、失败收尾和产物构建。
 - `ToolScope` 是服务端实现细节，不得作为 Agent 接口。Agent 代码使用 `AgentModel`、`AgentTools` 和纯流程契约；禁止导入 Domain Service/Repository、数据库适配器或工具 Registry，也不得通过重新导出或动态导入绕过。
+- Ask AI、智能粘贴及桌面 Resume 使用共享 Agent Engine，并集中注册可信定义。Resume 业务状态与 Artifact 输出状态各自独立于 Agent Run 和 Cycle 状态。
 - 变更 Ask AI 的执行状态、转换或收尾规则时，同步更新中英文 Agent 运行时规范及其状态图。
 - 宿主资料读取和模型推理在业务 MCP 外完成。`job.import` 仅保存结构化数据。人工表单和只读 UI 投影可继续使用 typed IPC 与 Domain 服务。
 

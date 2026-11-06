@@ -22,9 +22,9 @@ export function createMCPServer(registry: ToolRegistry, policy: ToolScopePolicy,
       const run = await runAuthorization?.authorize(name, input, metadata)
       if (runAuthorization && !run) toolFail('TOOL_FORBIDDEN')
       if (authorize && !await authorize(name, input, metadata)) toolFail('TOOL_FORBIDDEN')
-      const scope = registry.scope(policy, { agentId, signal: AbortSignal.any([signal, context.mcpReq.signal, ...(run ? [run.signal] : [])]) })
+      const scope = registry.scope(policy, { agentId, runId: run?.generationRunId, signal: AbortSignal.any([signal, context.mcpReq.signal, ...(run ? [run.signal] : [])]) })
       try {
-        if (!run) return mcpResult(await scope.execute(name, input))
+        if (!run || run.kind === 'resume-controller') return mcpResult(await scope.execute(name, input))
         const descriptor = scope.get(name)
         if (!descriptor) toolFail('TOOL_FORBIDDEN')
         const args = scope.prepareInput(name, input)

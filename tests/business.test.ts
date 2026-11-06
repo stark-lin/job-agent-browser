@@ -32,7 +32,7 @@ test('delete source entities completely but preserve generated results and delet
   assert.equal(value(await f.api.jobs.listJobs({})).total, 0)
   assert.equal(value(await f.api.profiles.listProfiles({})).total, 0)
   const view = value(await f.api.resumes.getArtifact({ id: f.artifact.id }))
-  assert.equal(view.artifact.content.summary?.text, 'PRIVATE_RESUME_BODY')
+  assert.equal(view.artifact.content.experience[0].bullets[0].text, 'PRIVATE_RESUME_BODY')
   assert.equal(view.references.every((ref) => ref.status === 'DELETED' && ref.deletedAt), true)
   assert.equal(view.provenance[0].factIds[0], f.fact.id)
   const removed = ['jobs', 'job_sources', 'job_events', 'profiles', 'profile_items', 'facts']
@@ -44,10 +44,11 @@ test('delete source entities completely but preserve generated results and delet
 test('artifact content and provenance edits are validated together and invalidate output file references', async (t) => {
   const f = await published(t)
   f.backend.generation.recordOutputFiles({ id: f.artifact.id, files: [{ format: 'PDF', relativePath: 'resume.pdf' }] })
-  const changed = { ...f.content, summary: { ...f.content.summary, text: 'Manual text', factIds: [randomUUID()] } }
+  const changed = structuredClone(f.content)
+  Object.assign(changed.experience[0].bullets[0], { text: 'Manual text', factIds: [randomUUID()] })
   const edited = value(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Edited', expectedRevision: 1, content: changed }))
   assert.equal(edited.revision, 2)
-  assert.deepEqual(edited.content.summary?.factIds, [])
+  assert.deepEqual(edited.content.experience[0].bullets[0].factIds, [])
   assert.equal(edited.outputFiles.length, 0)
   assert.deepEqual(value(await f.api.resumes.getArtifact({ id: f.artifact.id })).provenance, [])
   assert.deepEqual(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Stale', expectedRevision: 1, content: f.content }), { ok: false, error: 'CONFLICT' })
@@ -57,7 +58,7 @@ test('artifact content and provenance edits are validated together and invalidat
 
 test('generation snapshot is immutable, stage ordering is enforced and duplicate artifacts are rejected', async (t) => {
   const f = await published(t)
-  assert.throws(() => f.backend.generation.publishArtifact({ id: f.run.id, title: 'Second' }), { code: 'INVALID_STATE' })
+  assert.equal(f.backend.generation.publishArtifact({ runId: f.run.id }).id, f.artifact.id)
   assert.throws(() => f.database.transactions.forActor('AI').write({ event: 'GENERATION_SCORE', action: 'UPDATE', target: 'generation_run' }, () => {
     f.database.connection.prepare('UPDATE generation_runs SET input_snapshot_json=? WHERE id=?').run('{}', f.run.id)
   }), { code: 'CONFLICT' })

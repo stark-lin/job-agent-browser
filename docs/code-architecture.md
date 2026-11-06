@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, separate workspace/browser navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, separate workspace/browser navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume V3 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -137,13 +137,13 @@ The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types
 
 [Shared Agent contracts](../src/shared/agent/index.ts) own AgentModel/AgentTools. [Platform Tools](../src/platform/tools/index.ts) is the sole public MCP registry; ToolScope is Server-only. Only platform/mcp and platform/mcp-server import the MCP SDK. Agent modules may import pure Domain workflow/validation, but never services, repositories, registries or database adapters, including indirectly. [MCP architecture](mcp-architecture.md) owns capabilities and session behavior.
 
-[Chat Domain](../src/domain/chat/) owns pure transcript contracts/manual validation. [Main Ask tasks](../src/platform/electron/ask-agent-tasks.ts) own FIFO admission, persistence callbacks, per-turn authorization and cancellation; [AskStore](../src/app/ai/askStore.ts) owns event projection. Agent modules under platform/agent/pi, context and tools receive models, MCP clients and pure callbacks; they never import repositories or ToolScope. Provider framing stays in platform/ai. Only Ask uses Pi; existing workflow engines remain. CJS entries load Pi ESM through native dynamic import.
+[Chat Domain](../src/domain/chat/) owns pure transcript contracts/manual validation. [Main Ask tasks](../src/platform/electron/ask-agent-tasks.ts) own FIFO admission, persistence callbacks, per-turn authorization and cancellation; [AskStore](../src/app/ai/askStore.ts) owns event projection. Agent modules under platform/agent/pi, context and tools receive models, MCP clients and pure callbacks; they never import repositories or ToolScope. Provider framing stays in platform/ai. The [Agent Engine](../src/platform/agent/engine/index.ts) owns shared Pi execution for Ask, Smart Paste and Resume. CJS entries load Pi ESM through native dynamic import.
 
 [Profile](../src/pages/profile/ProfilePage.tsx) owns forms and review drafts. [Import tasks](../src/platform/profile-import/service.ts) own PDF extraction, one model parse, session ownership and retry. [Candidate Domain](../src/domain/candidate/import.service.ts) owns atomic saves and ordering.
 
 Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/useUnsavedGuard.ts); job forms, empty-field filling and Applications querying remain page-owned.
 
-[Platform Agents](../src/platform/agent/) implement Resume content optimization, source capture and application action planning through AgentTools. Domain retains machine-enforced workflow contracts; prompts belong to Agent adapters. Main task services under platform/electron own window lifecycle, typed IPC and UI projection; model adapters under platform/ai own provider access. The Node MCP Server owns business capabilities and Electron output-worker builds. UI preview/export do not become Agent capability shortcuts.
+[Platform Agents](../src/platform/agent/) implement Resume bullet rewriting, source capture and application action planning. AgentTools is the protocol client for business operations. Domain retains machine-enforced workflow contracts; prompts belong to Agent adapters. Main task services under platform/electron own window lifecycle, typed IPC and UI projection; model adapters under platform/ai own provider access. The Node MCP Server owns business capabilities and Electron output-worker builds. UI preview/export do not become Agent capability shortcuts.
 
 ## 6. Quality and future delivery
 

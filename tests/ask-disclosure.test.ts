@@ -69,7 +69,7 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
   const auditBefore = f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all()
   const capabilitiesBefore = f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all()
   f.backend.chats.deleteSession(ids.sessionId)
-  assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM chat_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
+  assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).id, f.job.id)
   assert.deepEqual(f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all(), auditBefore)
   assert.deepEqual(f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all(), capabilitiesBefore)

@@ -1,10 +1,12 @@
-# Ask AI Agent Runtime
+# Unified Agent Runtime
 
 Language: English · [简体中文](agent-runtime.zh-CN.md)
 
-Purpose. Define the Ask AI execution contract. Status. **Implemented** for the in-app Ask AI Agent.
+Purpose. Define the shared execution contract for Ask AI, Smart Paste, and desktop Resume V3. Status. **Implemented**.
 
 ## 1. Prompt, Run and Cycle
+
+The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume uses fixed tools and an isolated context with read-only shared Memory and Knowledge. Its Agent Run links to a separate GenerationRun. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
 
 A Session holds user Prompts. Each new Prompt creates one Run for its top-level task, which can include several requested operations. The same request ID and payload return the existing Run. Prior messages, tool results and context summaries help resolve references. Every new Run starts with fresh execution state, tool activation and RunGuard state. It does not resume earlier Runs or dispatch their pending calls.
 
@@ -35,7 +37,7 @@ stateDiagram-v2
     RUNNING --> CANCELLED
 ```
 
-Run status is derived from the latest Cycle. With no Cycles it is `null`. The Run diagram groups the three outcomes that permit a new Cycle. For example, a Run can move from `WARNING` through a new `RUNNING` Cycle to `SUCCESS`, while the earlier warning remains recorded.
+The latest Cycle is a projection independent of the Run lifecycle. A pending Run can end with zero Cycles. An interruption retains the last durable Cycle and is recorded on the Run.
 
 ```mermaid
 stateDiagram-v2
@@ -48,23 +50,33 @@ stateDiagram-v2
     Active --> Next: Cycle settles and permits continuation
     Next --> Active: next decision starts
     Active --> Stop: terminal settlement
+    Empty --> [*]: Run ends before a Cycle
     Stop --> [*]
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> running
+    running --> completed
+    running --> failed
+    running --> cancelled
+    running --> interrupted
 ```
 
 ## 3. Execution control and RunGuard
 
 Pi `turn_start` opens the Cycle before model preparation. `finishTurn` resolves the validated response and completed or skipped tool outcomes and stops Pi on a terminal decision. `turn_end` commits a continuing outcome before the next turn can start. The runtime checks permission before model and tool dispatch. A synthetic `turn_end` after preparation failure cannot create a Cycle. [Pi runtime](../src/platform/agent/pi/runtime.ts)
 
-RunGuard owns progress detection and hard blocks. Runtime uses the latest trusted Guard snapshot. Discovery or activation preserves an outstanding warning or recovery. A fresh business result can clear it within the same batch. Recovery stops dispatch of the remaining batch, retains the observations already received, and injects guidance into the next request after compaction. The next decision may use another authorized source or answer from confirmed evidence. Normal tool errors become observations. A known fatal cause takes precedence over generic cancellation. [MCP policy](mcp-architecture.md#ask-run-protection)
+RunGuard owns progress detection and hard blocks. Runtime uses the latest trusted Guard snapshot. Discovery or activation preserves an outstanding warning or recovery. A fresh business result can clear it within the same batch. Recovery stops dispatch of the remaining batch, retains the observations already received, and injects guidance into the next request after compaction. The next decision may use another authorized source or answer from confirmed evidence. Normal tool errors become observations. A known fatal cause takes precedence over generic cancellation. [MCP policy](mcp-architecture.md#agent-run-protection)
 
 [Smart Paste](architecture.md#smart-paste-and-global-banner) observes the existing assistant deltas and a host-only tool-turn result from Pi. The host can retract that turn's temporary field text without altering the recorded conversation or Cycle transitions.
 
 ## 4. Finalization and trace
 
-Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/ask-agent-recorder.ts)
+Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/agent-recorder.ts)
 
 The host lifecycle manages admission, resources, recovery and UI projection. Initialization failure or cancellation before the first turn leaves zero Cycles. A failure or cancellation between Cycles preserves the last settled Cycle. After a process interruption, the host may report `interrupted` while the last Cycle still shows `RUNNING`, the last recorded state before the crash. No work is resumed.
 
 Copy Debug JSON v2 includes the ordered Cycles and latest status alongside host lifecycle, model requests, Provider responses and actual tool records. Cycle tool IDs include calls skipped before dispatch. Storage and versioning details live in the [data architecture](data-architecture.md#copy-debug-json).
 
-The MVP covers a single Prompt within one Ask AI Run. Cross-Prompt workflows, a separate recovery Agent and a visual Cycle debugger remain outside this contract.
+A completed Resume Agent Run lets the Controller validate and publish the stored document through MCP. Agent final text is a summary for the Trace. A successful Agent Run can be followed by a failed business validation. File output has its own lifecycle. [Resume Controller](../src/platform/electron/resume-tasks.ts)

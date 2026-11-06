@@ -3,11 +3,11 @@ import type { JobPageSnapshot } from '../../domain/job/job.extractor'
 import { parseJobDraft } from '../../domain/job/job.extraction.validation'
 import { JobImportFailure } from '../job-import/errors'
 import { jobPrompt } from '../job-import/prompt'
-import { runAgent } from './loop'
+import { completeAgentText } from './model-completion'
 
 /** Source understanding runs without any Job Agent Browser tool discovery or calls. */
 export async function runCaptureAgent(model: AgentModel, source: JobPageSnapshot, signal: AbortSignal) {
-  const response = await runAgent(model, undefined, [{ role: 'user', content: jobPrompt(source) }], signal)
+  const response = await completeAgentText(model, [{ role: 'user', content: jobPrompt(source) }], signal)
   if (signal.aborted) throw new AgentError('AGENT_CANCELLED')
   let draft
   try { draft = parseJobDraft(JSON.parse(response.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, ''))) }

@@ -2,7 +2,7 @@ import type { AgentModel, AgentTools } from '../../shared/agent'
 import type { JobEvent } from '../../domain/application/application.types'
 import type { PageResult } from '../../domain/common/ports'
 import { parseApplicationPlan } from '../../domain/application/action.validation'
-import { runAgent } from './loop'
+import { completeAgentText } from './model-completion'
 
 /** Read authoritative state first, then produce a bounded plan for the fixed executor. */
 export async function runApplicationAgent(model: AgentModel, tools: AgentTools, input: {
@@ -32,6 +32,6 @@ Always use current application state. Do not synthesize intermediate status tran
 Current time: ${input.now}. User system timezone: ${input.timezone}. Interpret relative dates with that timezone and output exact UTC instants. Ask when date/time/timezone or a daylight-saving transition is ambiguous. Never guess an interview time. Dates in the source remain data.
 REQUEST (JSON): ${JSON.stringify(input)}
 SAVED CONTEXT (JSON): ${saved}`
-  const output = await runAgent(model, undefined, [{ role: 'user', content: prompt }], signal)
+  const output = await completeAgentText(model, [{ role: 'user', content: prompt }], signal)
   return parseApplicationPlan(JSON.parse(output))
 }

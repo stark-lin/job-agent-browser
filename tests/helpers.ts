@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
 import type { TestContext } from 'node:test'
 import { openDatabase } from '../src/platform/database/sqlite'
@@ -29,10 +30,12 @@ export async function seed(t: Pick<TestContext, 'after'>, path = ':memory:') {
 export async function published(t: Pick<TestContext, 'after'>, path = ':memory:') {
   const f = await seed(t, path)
   const run = f.backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
-  f.backend.generation.submitOptimization({ id: run.id, optimization: { language: 'en',
-    summary: { text: 'PRIVATE_RESUME_BODY', factIds: [f.fact.id] }, entries: [], skills: [] } }, () => {})
-  const artifact = f.backend.generation.publishArtifact({ id: run.id, title: 'PRIVATE_ARTIFACT_TITLE' })
-  const content = { ...artifact.content, summary: artifact.content.summary! }
-  const provenance = [{ blockId: content.summary.id, factIds: [f.fact.id] }]
+  f.backend.generation.rewriteBullet({ runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id,
+    text: 'PRIVATE_RESUME_BODY', expectedRevision: 0, requestId: randomUUID() })
+  f.backend.generation.beginValidation(run.id)
+  f.backend.generation.preparePublication(run.id)
+  const artifact = f.backend.generation.publishArtifact({ runId: run.id })
+  const content = artifact.content
+  const provenance = [{ blockId: content.experience[0].bullets[0].id, factIds: [f.fact.id] }]
   return { ...f, run, artifact, content, provenance }
 }
