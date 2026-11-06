@@ -35,7 +35,7 @@ export function ImportReview({ draft, setDraft, profile, disabled }: {
       {!validLink(link) && !link.ignored && <StatusMessage tone="error">{t($ => $.profile.formatError)}</StatusMessage>}
       <Checkbox label={t($ => $.profile.ignore)} checked={link.ignored} disabled={disabled} onChange={event => change(draft => ({ ...draft, links: draft.links.map(entry => entry.draftId === link.draftId ? { ...entry, ignored: event.target.checked } : entry) }))} />
     </div></SectionCard>)}
-    {draft.items.filter(item => !item.savedId || draft.facts.some(fact => fact.itemDraftId === item.draftId)).map(item => <SectionCard data-import-id={item.draftId} key={item.draftId} title={item.details.title || t($ => $.profile.types[item.details.type])}><div className="profile-stack">
+    {draft.items.filter(item => !item.savedId || draft.facts.some(fact => fact.itemDraftId === item.draftId)).map(item => <SectionCard data-import-id={item.draftId} key={item.draftId} title={item.details.title.trim() || t($ => $.profile.types[item.details.type])}><div className="profile-stack">
       {item.savedId ? <Badge tone="success">{t($ => $.profile.savedEntry)}</Badge> : <>
         <ItemFields review value={item.details} disabled={disabled || item.ignored} onChange={details => change(draft => changeImportItem(draft, item.draftId, details))} />
         {item.error && !item.ignored && <StatusMessage tone="error">{t($ => $.profile.formatError)}</StatusMessage>}
@@ -43,6 +43,9 @@ export function ImportReview({ draft, setDraft, profile, disabled }: {
       </>}
       <div className="profile-facts">{draft.facts.filter(fact => fact.itemDraftId === item.draftId).map(renderFact)}</div>
     </div></SectionCard>)}
-    <SectionCard title={t($ => $.profile.independent)}><div className="profile-stack">{draft.facts.filter(fact => !fact.itemDraftId).map(renderFact)}</div></SectionCard>
+    {draft.facts.some(fact => !fact.itemDraftId) && <section className="profile-stack" aria-label={t($ => $.profile.independent)}>
+      <h2 className="profile-group-heading">{t($ => $.profile.independent)}</h2>
+      {draft.facts.filter(fact => !fact.itemDraftId).map(renderFact)}
+    </section>}
   </div>
 }

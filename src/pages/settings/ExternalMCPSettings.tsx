@@ -75,7 +75,7 @@ export function ExternalMCPSettings() {
       {notice?.backupPath && <DetailsList items={[{ label: t($ => $.externalMCP.backup), value: notice.backupPath }]} />}
     </>
   }
-  return <SectionCard data-external-mcp title={t($ => $.externalMCP.title)} description={t($ => $.externalMCP.description)}>
+  return <SectionCard defaultCollapsed data-external-mcp title={t($ => $.externalMCP.title)} description={t($ => $.externalMCP.description)}>
     <div className="settings-stack" aria-busy={disabled}>
       <div><Button data-mcp-refresh disabled={disabled} onClick={() => { setFeedback({}); void refresh(); void skills.refresh() }}>{t($ => $.externalMCP.refresh)}</Button></div>
       {loading && <StatusMessage>{t($ => $.settings.loading)}</StatusMessage>}
@@ -83,7 +83,7 @@ export function ExternalMCPSettings() {
       <StatusMessage>{t($ => $.externalSkills.description)}</StatusMessage>
       {skills.loading && <StatusMessage>{t($ => $.settings.loading)}</StatusMessage>}
       {skills.error && <StatusMessage tone="error">{t($ => $.externalSkills.errors[skills.error!])}</StatusMessage>}
-      {inspection?.clients.map(status => <SectionCard key={status.target} data-agent-target={status.target} title={names[status.target]}>
+      {inspection?.clients.map(status => <SectionCard defaultCollapsed key={status.target} data-agent-target={status.target} title={names[status.target]}>
         <div className="settings-stack">
           <DetailsList items={[{ label: t($ => $.externalMCP.path), value: status.path }]} />
           <div><Badge tone={status.state === 'configured' ? 'success' : status.error ? 'error' : 'neutral'}>{t($ => $.externalMCP.states[status.state])}</Badge></div>
@@ -105,7 +105,7 @@ export function ExternalMCPSettings() {
             onRemove={names => skills.setRemoval({ status: client, names })} />)}
         </div>
       </SectionCard>)}
-      {inspection && <SectionCard data-agent-target="other" title={t($ => $.externalMCP.other)} description={t($ => $.externalMCP.otherHelp)}>
+      {inspection && <SectionCard defaultCollapsed data-agent-target="other" title={t($ => $.externalMCP.other)} description={t($ => $.externalMCP.otherHelp)}>
         <div className="settings-stack">
           <FormField label={t($ => $.externalMCP.genericConfig)}>{props => <TextArea {...props} readOnly rows={8} value={inspection.genericConfig} spellCheck={false} />}</FormField>
           <div><Button data-mcp-copy disabled={disabled} onClick={() => void action('other', 'copy')}>{t($ => $.externalMCP.copy)}</Button></div>

@@ -1,11 +1,20 @@
 const assert = require('node:assert/strict')
-const { dialog, safeStorage, session } = require('electron')
+const { app, dialog, safeStorage, session } = require('electron')
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs')
 const { resolve } = require('node:path')
+const openSectionCards = require('./open-section-cards.cjs')
 
 module.exports = async function settingsSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin }) {
   const frames = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   const formsReady = () => waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms ready')
+  const openForms = () => openSectionCards(evaluate, '[data-settings-general], [data-ai-config], [data-settings-mailbox-form]')
+  const assertCardGaps = async () => {
+    const gaps = await evaluate(`(() => {
+      const cards = [...document.querySelectorAll('.settings-sections > details, [data-audit-viewer] > details')];
+      return cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom);
+    })()`)
+    assert(gaps.length > 0 && gaps.every(gap => gap === 16), `Expected 16px between Settings cards, got ${gaps}`)
+  }
   const field = async (selector, value, type = 'input') => {
     await evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(selector)});
@@ -25,6 +34,21 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await formsReady()
   assert.equal(await evaluate('!!document.querySelector(".tab-strip, .address-form")'), false)
   assert(views().every(view => !view.getVisible()))
+  assert.equal(await evaluate('document.querySelectorAll(".settings-page .ui-section-card[open]").length'), 0)
+  await assertCardGaps()
+  assert.equal(await evaluate(`[...document.querySelectorAll(".settings-page .ui-section-card")].every(card =>
+    card.querySelector(":scope > summary h2").textContent.trim() &&
+    !card.querySelector(":scope > .ui-section-body").checkVisibility())`), true)
+  await capture('settings-collapsed.png')
+  window.show()
+  if (process.platform === 'darwin') app.focus({ steal: true })
+  window.focus()
+  window.webContents.focus()
+  await evaluate('document.querySelector("[data-settings-general]").closest("details").querySelector("summary").focus()')
+  assert.equal(await evaluate('document.activeElement.tagName'), 'SUMMARY')
+  shortcut(window.webContents, 'Space', [])
+  await waitFor(() => evaluate('document.querySelector("[data-settings-general]").checkVisibility()'), 'keyboard expands Settings card')
+  await openForms()
   const geometry = await evaluate(`(() => {
     const section = document.querySelector('.ui-section-card'), input = document.querySelector('.ui-input');
     return { padding: getComputedStyle(section).padding, radius: getComputedStyle(section).borderRadius, height: input.getBoundingClientRect().height,
@@ -34,13 +58,15 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await require('./audit-viewer-smoke.cjs')({ window, call, evaluate, waitFor, field, data, capture })
   await formsReady()
   await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data })
+  await openForms()
   await require('./external-mcp-smoke.cjs')({ window, evaluate, waitFor, data, capture })
+  await formsReady(); await openForms()
   await capture('settings-en.png')
 
   // Change through React controls and the production IPC, then reload the renderer.
   await field('.settings-page form:not([data-audit-filters]) select', 'zh-CN', 'select')
   await submit(0)
-  await waitFor(() => evaluate('document.documentElement.lang === "zh-CN" && document.querySelector("h1").textContent === "设置"'), 'saved Chinese UI')
+  await waitFor(() => evaluate('document.documentElement.lang === "zh-CN" && document.querySelector(".settings-page").getAttribute("aria-label") === "设置"'), 'saved Chinese UI')
   await waitState(state => state.language === 'zh-CN' && active(state).title === '设置', 'Main language follows saved preference')
   assert.equal(await evaluate('document.querySelector("[data-audit-viewer] h2").textContent'), '审计日志')
   assert.equal(await evaluate('document.querySelector("[data-audit-viewer] button[type=submit]").textContent'), '查询日志')
@@ -50,6 +76,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   window.webContents.reload()
   await loaded
   await formsReady()
+  await openForms()
   await waitFor(() => evaluate('document.documentElement.lang === "zh-CN"'), 'Chinese preference after reload')
 
   const originalSize = window.getContentSize(), originalMinimum = window.getMinimumSize()
@@ -58,6 +85,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     for (const width of [320, 640, 1200]) {
       window.setContentSize(width, 820)
       await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Settings viewport ${width}`)
+      await assertCardGaps()
       assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
       assert.equal(await evaluate('getComputedStyle(document.querySelector(".settings-fields")).gridTemplateColumns.split(" ").length'), width <= 640 ? 1 : 2)
       if (width === 320) await capture('settings-narrow.png')
@@ -70,6 +98,10 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   // Invalid URLs receive field feedback and never persist.
   await field('[data-settings-mailbox] select', 'custom', 'select')
   await field('[data-settings-mailbox] input', 'https://user:password@example.com')
+  await evaluate('document.querySelector("[data-settings-mailbox] > summary").click()')
+  assert.equal(await evaluate('document.querySelector("[data-settings-mailbox] input").checkVisibility()'), false)
+  await openSectionCards(evaluate, '[data-settings-mailbox]')
+  assert.equal(await evaluate('document.querySelector("[data-settings-mailbox] input").value'), 'https://user:password@example.com')
   await submit(3)
   await waitFor(() => evaluate('!!document.querySelector("input[aria-invalid=true]")'), 'invalid mailbox feedback')
   assert.equal((await data('settings', 'get', {})).value.mailbox.provider, 'none')
@@ -101,7 +133,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     await waitState(state => active(state).destination.page === 'ai', 'discard settings')
   } finally { dialog.showMessageBox = originalDialog }
 
-  await call('navigate', 'app://settings'); await formsReady()
+  await call('navigate', 'app://settings'); await formsReady(); await openForms()
   assert.equal(await evaluate('document.querySelector("[data-settings-mailbox] select").value'), 'none')
   await field('[data-settings-mailbox] select', 'gmail', 'select')
   assert.equal(await evaluate('document.querySelector("[data-settings-mailbox] input").value'), 'https://mail.google.com/')
@@ -123,7 +155,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await waitFor(() => evaluate('document.body.innerText.includes("Open Settings")'), 'unconfigured Inbox guidance')
   await require('./inbox-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin })
 
-  await call('navigate', 'app://settings'); await formsReady()
+  await call('navigate', 'app://settings'); await formsReady(); await openForms()
   const status = (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value
   if (status.available) {
     await field('.settings-page input[type=password]', 'smoke-key-disposable')

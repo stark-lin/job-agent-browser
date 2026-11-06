@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const { app } = require('electron'),
   assert = require('node:assert/strict'),
   { resolve, join } = require('node:path'),
@@ -174,6 +175,7 @@ app.on('browser-window-created', (_event, window) => {
           'knowledge settings'
         )
         assert.equal((await call('configuration')).value.preferences.semanticEnabled, true)
+        await openSectionCards(evaluate, '[data-local-model]')
         const settingsPrefs = (await call('configuration')).value.preferences
         await call('configure', { ...settingsPrefs, remote: 'https://github.com/fixture/settings-memory.git' })
         await click('Sync now')

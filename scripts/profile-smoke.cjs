@@ -25,8 +25,9 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
       input.dispatchEvent(new Event('input', {bubbles:true}));
     })()`); await frame()
   }
-  const section = title => `[...document.querySelectorAll('section')].find(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === ${JSON.stringify(title)})`
-  const factCard = text => `[...document.querySelectorAll('dd')].find(dd => dd.textContent === ${JSON.stringify(text)}).closest('section')`
+  const section = title => `[...document.querySelectorAll('details.ui-section-card')].find(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === ${JSON.stringify(title)})`
+  const workGroup = `document.querySelector('section[aria-label="Work experience"]')`
+  const factCard = text => `[...document.querySelectorAll('dd')].find(dd => dd.textContent === ${JSON.stringify(text)}).closest('details.ui-section-card')`
   const checkbox = async (label, scope = 'document') => {
     await evaluate(`[...${scope}.querySelectorAll('.ui-checkbox')].find(label => label.textContent === ${JSON.stringify(label)}).querySelector('input').click()`); await frame()
   }
@@ -52,6 +53,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form") && document.body.innerText.includes("Local profile fixture")'), 'profile forms and provider disclosure')
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'first-profile import draft')
+    assert.equal(await evaluate('!!document.querySelector(".profile-page details details details")'), false)
     window.setMinimumSize(320, 320); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     for (const width of [320, 1200]) {
       window.setContentSize(width, 820); await waitFor(() => evaluate(`innerWidth === ${width}`), 'import review viewport'); await frame()
@@ -66,8 +68,9 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     for (const [label, value] of [['Degree', 'BSc'], ['Major', 'Computing'], ['GPA', '3.8'], ['Employment type', 'Contract'], ['Technologies', 'SQL']]) {
       assert.equal(await evaluate(`(() => { const label = [...${section('Imported project')}.querySelectorAll('.ui-field-label')].find(label => label.textContent === ${JSON.stringify(label)}); return document.getElementById(label.htmlFor).value })()`), value)
     }
+    await evaluate(`${section('Imported project')}.querySelector('summary').click()`)
     await button('Save imported content')
-    await waitFor(() => evaluate('document.activeElement?.value === "example.com" && document.activeElement.getAttribute("aria-invalid") === "true"'), 'invalid URL receives focus instead of empty name')
+    await waitFor(() => evaluate('document.activeElement?.value === "example.com" && document.activeElement.getAttribute("aria-invalid") === "true"'), 'collapsed invalid URL is revealed and receives focus instead of empty name')
     assert.equal((await data('listProfiles')).value.total, 0)
     await field('URL', 'https://example.com', section('Imported project'))
     let draftRefreshPrompts = 0
@@ -90,11 +93,22 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     let profile
     await waitFor(async () => { profile = (await data('listProfiles')).value.items.find(p => p.name === 'Manual candidate'); return Boolean(profile) }, 'created profile')
     assert.equal(profile.introduction, 'Manual introduction.\nSecond sentence.')
-    await waitFor(() => evaluate(`[...(${section('Work experience')}?.querySelectorAll('button') ?? [])].find(button => button.textContent === 'Add')?.disabled === false`), 'profile creation reflected')
-    await button('Add', section('Work experience')); await field('Title', 'Manual experience', 'document.querySelector("dialog[open]")')
+    await waitFor(() => evaluate(`[...(${workGroup}?.querySelectorAll('button') ?? [])].find(button => button.textContent === 'Add')?.disabled === false`), 'profile creation reflected')
+    await button('Add', workGroup); await field('Title', 'Manual experience', 'document.querySelector("dialog[open]")')
     await field('Start date', '2020', 'document.querySelector("dialog[open]")'); await field('End date', '2022-07', 'document.querySelector("dialog[open]")')
     await button('Save', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listItems', { profileId: profile.id })).value.total === 1, 'manual experience saved')
+    await waitFor(() => evaluate(`!!${section('Manual experience')}`), 'manual experience card')
+    assert.deepEqual(await evaluate(`(() => {
+      const card = ${section('Manual experience')};
+      card.querySelector('summary').click();
+      const button = card.nextElementSibling;
+      const cardRect = card.getBoundingClientRect(), buttonRect = button.getBoundingClientRect();
+      const result = [buttonRect.width - cardRect.width, buttonRect.height - cardRect.height,
+        buttonRect.top - cardRect.bottom, getComputedStyle(button).borderTopStyle];
+      card.querySelector('summary').click();
+      return result;
+    })()`), [0, 0, 16, 'dashed'])
     for (const content of ['Manual first', 'Manual second']) {
       await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'editor closed')
       await button('Add fact', section('Manual experience')); await field('Fact', content, 'document.querySelector("dialog[open]")')
@@ -116,7 +130,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'built PDF worker and SSE parsed draft')
     await checkbox('Ignore', '[...document.querySelectorAll("[data-import-id=contact-name] .ui-checkbox")][0].parentElement')
-    const importedFact = text => `[...document.querySelectorAll('textarea')].find(input => input.value === ${JSON.stringify(text)}).closest('section')`
+    const importedFact = text => `[...document.querySelectorAll('textarea')].find(input => input.value === ${JSON.stringify(text)}).closest('details.ui-section-card')`
     await checkbox('Ignore', importedFact('Improved latency'))
     await field('Fact', 'Reviewed first', importedFact('Built services'))
     await button('Save imported content')
@@ -141,7 +155,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'second draft discarded')
     assert.equal(requests, 3)
-    const duplicateSection = `[...document.querySelectorAll('section')].filter(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === 'Imported project').at(-1)`
+    const duplicateSection = `[...document.querySelectorAll('details.ui-section-card')].filter(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === 'Imported project').at(-1)`
     await button('Delete', duplicateSection)
     assert(await evaluate('document.querySelector("dialog[open]").innerText.includes("0 descendant entries and 2 attached facts")'))
     await button('Delete', 'document.querySelector("dialog[open]")')
@@ -166,7 +180,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
           writeFileSync(resolve(__dirname, `../.cache/profile-${theme}-${width}.png`), (await window.capturePage()).toPNG())
           await evaluate('document.querySelector(".profile-page form textarea").scrollIntoView({block:"center"})'); await frame()
           writeFileSync(resolve(__dirname, `../.cache/profile-introduction-${theme}-${width}.png`), (await window.capturePage()).toPNG())
-          await evaluate('document.querySelector(".profile-page h1").scrollIntoView()'); await frame()
+          await evaluate('document.querySelector(".profile-page").scrollIntoView()'); await frame()
         }
       }
     }

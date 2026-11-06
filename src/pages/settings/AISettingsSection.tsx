@@ -27,7 +27,7 @@ export function AISettingsSection({ settings: s }: { settings: ReturnType<typeof
     })
     if (!result.ok && mounted.current) { setProbe('idle'); setProbeError(result.error) }
   }
-  return <SectionCard title={t($ => $.settings.ai)} description={t($ => $.settings.aiDescription)}>
+  return <SectionCard defaultCollapsed title={t($ => $.settings.ai)} description={t($ => $.settings.aiDescription)}>
     <div className="settings-stack">
       <form className="settings-stack" data-ai-config onSubmit={event => { event.preventDefault(); void s.save('ai') }}>
         <TimeoutSettings value={draft.ai.timeouts ?? defaultAITimeouts} disabled={busy} onChange={timeouts => s.changeAI({ ...draft.ai, timeouts })} />

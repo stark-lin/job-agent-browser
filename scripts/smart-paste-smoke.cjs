@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { clipboard, Menu, session } = require('electron')
@@ -119,6 +120,7 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
   try {
     await call('navigate', 'app://settings')
     await waitFor(() => evaluate(`!!document.querySelector(${JSON.stringify(settingsSelector)})`), 'Smart Paste Settings')
+    await openSectionCards(evaluate, settingsSelector)
     const applyDraft = text => evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(settingsField)});
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(text)});

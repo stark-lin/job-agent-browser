@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { dialog } = require('electron')
@@ -78,6 +79,7 @@ module.exports = async function parallelImportSmoke({ window, call, evaluate, wa
     assert.equal(await evaluate('document.querySelector("option[value=parallel]").disabled'), true)
     await call('navigate', 'app://settings')
     await waitFor(() => evaluate('!!document.querySelector("[data-ai-config] input[type=checkbox]")'), 'model parallel opt-in')
+    await openSectionCards(evaluate, '[data-ai-config]')
     await evaluate('document.querySelector("[data-ai-config] input[type=checkbox]").click()'); await frame()
     await evaluate('document.querySelector("[data-ai-config]").requestSubmit()')
     await waitFor(async () => (await evaluate('window.data.settings.get({})')).value.ai.providers[0].parallelModels?.includes('fixture'), 'parallel setting persisted through real form')

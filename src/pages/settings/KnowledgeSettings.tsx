@@ -68,7 +68,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
     setNotice(result.ok ? result.value.error ?? result.value.state : result.error)
   }
   return (
-    <SectionCard title={t(($) => $.knowledge.settingsTitle)} description={t(($) => $.knowledge.settingsHelp)}>
+    <SectionCard defaultCollapsed title={t(($) => $.knowledge.settingsTitle)} description={t(($) => $.knowledge.settingsHelp)}>
       <div className="settings-stack">
         <FormField label={t(($) => $.knowledge.remote)}>
           {(props) => (

@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { clipboard } = require('electron')
 const { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } = require('node:fs')
@@ -10,6 +11,15 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   const ready = () => waitFor(() => evaluate('document.querySelectorAll("[data-agent-target]").length === 4 && !document.querySelector("[data-mcp-refresh]").disabled'), 'external MCP settings ready')
   const refresh = async () => { await evaluate('document.querySelector("[data-mcp-refresh]").click()'); await ready() }
   await ready()
+  await openSectionCards(evaluate, '[data-external-mcp]')
+  assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 0)
+  await openSectionCards(evaluate, selector('codex'))
+  assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 1)
+  await evaluate('document.querySelector("[data-external-mcp] > summary").click()')
+  assert.equal(await evaluate('document.querySelector("[data-agent-target=codex] > summary").checkVisibility()'), false)
+  await openSectionCards(evaluate, '[data-external-mcp]')
+  assert.equal(await evaluate('document.querySelector("[data-agent-target=codex]").open'), true)
+  await openSectionCards(evaluate, '[data-agent-target]')
   const inspected = await api('inspect', {})
   assert(inspected.ok)
   const clients = inspected.value.clients

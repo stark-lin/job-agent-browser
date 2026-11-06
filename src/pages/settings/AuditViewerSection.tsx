@@ -36,7 +36,7 @@ export function AuditViewerSection() {
     { label: t($ => $.audit.actor), value: selected.actorId }
   ]
   return <div className="audit-viewer" data-audit-viewer>
-    <SectionCard title={t($ => $.audit.title)} description={t($ => $.audit.description)}>
+    <SectionCard defaultCollapsed title={t($ => $.audit.title)} description={t($ => $.audit.description)}>
       <div className="settings-stack">
         <form className="settings-stack" data-audit-filters noValidate onSubmit={event => { event.preventDefault(); submit() }}>
           <div className="settings-fields">

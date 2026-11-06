@@ -1,7 +1,7 @@
 import type { ComponentPropsWithRef } from 'react'
 
 type ButtonProps = ComponentPropsWithRef<'button'> & {
-  variant?: 'default' | 'primary' | 'ghost' | 'danger' | 'icon' | 'tab' | 'tab-close'
+  variant?: 'default' | 'primary' | 'ghost' | 'danger' | 'icon' | 'tab' | 'tab-close' | 'add-card'
   size?: 'sm' | 'md' | 'lg'
 }
 

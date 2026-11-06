@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const { app, utilityProcess } = require('electron')
 const fork = utilityProcess.fork
 utilityProcess.fork = function (...args) {
@@ -60,6 +61,7 @@ app.on('browser-window-created', (_event, window) => {
       const keyword = await call('search', { query: 'Trip.com' }); assert(keyword.ok && !keyword.value.semantic)
       await evaluate("window.browser.navigate('app://settings')")
       await wait(() => evaluate('!!document.querySelector("[data-local-model]")'), 'model controls')
+      await openSectionCards(evaluate, '[data-local-model]')
       console.log('Model fixture: missing-model keyword retrieval ready')
       await click('Download Model'); await wait(() => state('error'), 'offline failure')
       assert((await call('search', { query: 'Trip.com' })).ok, 'Offline model failure must preserve notes')

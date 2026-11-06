@@ -1,0 +1,28 @@
+.ui-section-card, .ui-button.ui-button--add-card {
+  min-width: 0; padding: var(--space-3); border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg); background: var(--panel);
+}
+.ui-section-heading { display: block; cursor: pointer; }
+.ui-section-heading::-webkit-details-marker { display: none; }
+.ui-section-heading:focus-visible { outline: var(--focus-width) solid var(--primary); outline-offset: var(--focus-width); }
+.ui-section-heading h2, .ui-button.ui-button--add-card {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); margin: 0;
+  font-size: var(--font-lg); line-height: var(--line-lg); font-weight: var(--weight-semibold);
+}
+.ui-section-title { min-width: 0; overflow-wrap: anywhere; }
+.ui-section-chevron { flex: 0 0 auto; width: var(--icon-size); height: var(--icon-size); color: var(--muted); stroke-width: 2; }
+.ui-section-card[open] > .ui-section-heading .ui-section-chevron { transform: rotate(90deg); }
+.ui-section-description { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--font-sm); line-height: var(--line-sm); }
+.ui-section-body { padding-top: var(--space-3); }
+
+@media (max-width: 640px) {
+  .ui-section-card, .ui-button.ui-button--add-card { padding: var(--space-2); }
+}
+.ui-section-card:not([open]), .ui-button.ui-button--add-card { padding-block: var(--space-1); }
+.ui-section-card:not([open]) > .ui-section-heading .ui-section-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ui-button.ui-button--add-card {
+  width: 100%; justify-content: center; border-style: dashed; background: transparent;
+  color: var(--text-secondary); cursor: pointer; white-space: nowrap; overflow: hidden;
+}
+.ui-button.ui-button--add-card:hover:not(:disabled) { border-color: var(--primary); color: var(--primary-hover); background: var(--primary-soft); }
+.ui-button.ui-button--add-card:disabled { color: var(--muted); cursor: default; }

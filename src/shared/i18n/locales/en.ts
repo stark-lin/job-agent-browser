@@ -267,7 +267,6 @@ export const en = {
     inputKind: 'Source', pastedJD: 'Pasted job description', pdf: 'PDF document', selectPdf: 'Choose PDF', pdfSelected: 'PDF selected ({{bytes}} bytes)',
     discardTitle: 'Discard this job draft?',
     discardDescription: 'Unsaved job details will be discarded and any active parsing will stop.',
-    "subtitle": "Add a job manually or capture a URL, pasted description or PDF. Review the fields before saving.",
     "importTitle": "Capture a job",
     "importHelp": "Read one public job page, pasted description or PDF. Source text is sent to the provider and model shown below. Review the extracted fields before saving.",
     "url": "Job URL (optional)",
@@ -347,7 +346,6 @@ export const en = {
       "REJECTED": "Rejected",
       "WITHDRAWN": "Withdrawn"
     },
-    "listHelp": "Review saved jobs and their application status.",
     "savedJobs": "Saved jobs",
     "search": "Search job title or company",
     "allStatuses": "All statuses",
@@ -540,7 +538,6 @@ export const en = {
     "connectionOK": "Connection and streaming response verified.",
     "testHelp": "Tests the saved provider and model with a short request, which may incur usage charges.",
 
-    subtitle: 'Make this workspace yours. Preferences are stored on this device.',
     general: 'General', generalDescription: 'Choose the language and appearance for your workspace.',
     language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark', system: 'Follow system', appearanceHelp: 'Save to apply. Follow system updates when your system appearance changes.',
     ai: 'AI providers',
@@ -559,7 +556,6 @@ export const en = {
     saveFailed: 'Changes could not be saved. Your previous settings are preserved.', retry: 'Try again',
     discardTitle: 'Leave without saving?', discardDescription: 'Your unsaved settings will be discarded.',
     discard: 'Discard changes', stay: 'Keep editing',
-    local: 'Stored locally', localDescription: 'Preferences and encrypted keys stay on this device. Website sign-ins are managed separately by the browser.'
   },
   audit: {
     title: 'Audit Viewer', description: 'Read local audit records, newest first. Viewing and filtering do not create records.',
@@ -610,7 +606,6 @@ export const en = {
   }
 },
   resume: {
-    "subtitle": "Create a tailored resume from saved evidence. The job determines the resume language.",
     "inputs": "Job and profile",
     "template": "default-v1 · A4 · single column · multiple pages · 500-word budget",
     "job": "Job",
@@ -678,7 +673,6 @@ export const en = {
     }
 },
   profile: {
-    subtitle: 'Build your shared profile. Each experience, project and education entry can contain several independently verified facts.',
     basic: 'Basic information', independent: 'Independent facts', noProfile: 'Save your name to create a profile, or import a PDF.', empty: 'No entries yet.',
     add: 'Add', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', save: 'Save', saving: 'Saving…', saved: 'Saved', retry: 'Retry',
     loading: 'Loading profile…', loadFailed: 'Unable to load the complete profile.', invalid: 'Check the required fields, links and dates.',

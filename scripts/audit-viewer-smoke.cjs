@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { ipcMain, dialog } = require('electron')
 const { randomUUID } = require('node:crypto')
@@ -10,6 +11,7 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
   const input = (name, value, type = 'input') => field(`${root} [name=${name}]`, value, type)
   const search = async () => { await evaluate(`document.querySelector('${root} form').requestSubmit()`); await ready() }
   await ready()
+  await openSectionCards(evaluate, `${root} form`)
   assert.equal(await evaluate(`document.querySelector('.settings-content').lastElementChild.matches('${root}')`), true)
   const profiles = []
   for (let index = 0; index < 27; index++) {

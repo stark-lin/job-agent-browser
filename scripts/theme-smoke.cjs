@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { BrowserWindow, dialog, nativeTheme } = require('electron')
 const { chmodSync, mkdirSync, statSync, writeFileSync } = require('node:fs')
@@ -30,6 +31,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     assert.equal(after.activeTabId, before.activeTabId)
   }
 
+  await openSectionCards(evaluate, appearance)
   assert.equal(await evaluate(`document.querySelector('${selector}').value`), 'en')
   assert.equal(await evaluate(`document.querySelector('${appearance}').disabled`), false)
   // Draft selection neither changes the saved theme nor applies a preview; leave protection still works.
@@ -46,7 +48,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     await call('navigate', 'app://ai')
     assert.equal(active(await read()).destination.page, 'ai', 'Theme notifications do not invalidate confirmed navigation')
   } finally { dialog.showMessageBox = originalDialog }
-  await call('navigate', 'app://settings'); await formsReady()
+  await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
   assert.equal(await evaluate(`document.querySelector('${appearance}').value`), 'light')
 
   if (process.platform !== 'win32' && process.getuid?.() !== 0) {
@@ -101,7 +103,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   assert.deepEqual(view.getBounds(), bounds, 'Native bounds unchanged')
   assert.equal(await view.webContents.executeJavaScript("matchMedia('(prefers-color-scheme: dark)').matches"), true)
   await capture('browser-dark.png')
-  await call('navigate', 'app://settings'); await formsReady()
+  await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
   await save('system')
   const target = active(await read()).targetId
   // Simulate native appearance updates while the persisted preference remains system.

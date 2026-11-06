@@ -195,7 +195,7 @@ export function KnowledgePage() {
     }
   }
   return (
-    <main className="knowledge-page" data-knowledge-page>
+    <main className="knowledge-page" aria-label={t($ => $.navigation.pages.knowledge)} data-knowledge-page>
       <ResizableExplorer
         width={preferences.explorerWidth}
         onWidth={(explorerWidth) => setPreferences((p) => ({ ...p, explorerWidth }))}
@@ -340,7 +340,6 @@ export function KnowledgePage() {
           </div>
         ) : (
           <div className="knowledge-empty">
-            <h1>{t(($) => $.navigation.pages.knowledge)}</h1>
             <p>{t(($) => $.knowledge.empty)}</p>
           </div>
         )}

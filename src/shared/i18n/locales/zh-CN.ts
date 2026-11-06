@@ -255,7 +255,6 @@ export const zhCN = {
     inputKind: '资料来源', pastedJD: '粘贴职位描述', pdf: 'PDF 文档', selectPdf: '选择 PDF', pdfSelected: '已选择 PDF（{{bytes}} 字节）',
     discardTitle: '放弃本次新增工作？',
     discardDescription: '未保存的工作内容将被丢弃，正在进行的解析也会停止。',
-    "subtitle": "手工填写，或采集职位 URL、粘贴描述或 PDF。核对字段后保存。",
     "importTitle": "采集职位",
     "importHelp": "读取一个公开职位页面、粘贴描述或 PDF。资料文字会发送给下方显示的服务商和模型，核对提取字段后再保存。",
     "url": "职位 URL（选填）",
@@ -335,7 +334,6 @@ export const zhCN = {
       "REJECTED": "已拒绝",
       "WITHDRAWN": "已撤回"
     },
-    "listHelp": "查看已保存的工作及申请状态。",
     "savedJobs": "已保存工作",
     "search": "搜索职位名称或公司",
     "allStatuses": "全部状态",
@@ -523,13 +521,12 @@ export const zhCN = {
     "connectionOK": "连接与流式响应已验证。",
     "testHelp": "使用已保存的 Provider 和模型发送短请求，可能产生用量费用。",
 
-    subtitle: '打造适合你的工作区。偏好设置保存在此设备上。',
     general: '通用', generalDescription: '选择工作区的显示语言和外观。', language: '语言', appearance: '外观', light: '浅色', dark: '暗夜', system: '跟随系统', appearanceHelp: '保存后生效。跟随系统会随系统外观变化自动更新。',
     ai: 'AI 服务',  provider: '服务商', apiKey: 'API 密钥', keyPlaceholder: '输入新的 API 密钥', keyHelp: '通过操作系统加密。此处不会显示已保存的密钥。',
     configured: '已保存密钥', notConfigured: '尚未保存密钥', encryptionUnavailable: '此设备无法使用安全的密钥存储。',
     mailbox: '邮箱', mailboxDescription: '从收件箱直接打开网页邮箱。', mailProvider: '邮箱服务商', none: '未配置', custom: '自定义网页邮箱', mailURL: '网页邮箱地址', mailHelp: '使用 HTTPS 地址，且网址中不得包含用户名或密码。', mailInvalid: '请输入有效的 HTTPS 网页邮箱地址，且不得包含登录凭据。',
     save: '保存更改', saveKey: '保存密钥', replaceKey: '替换密钥', deleteKey: '删除密钥', saving: '正在保存…', saved: '更改已保存。', keySaved: '密钥已安全保存。', keyDeleted: '密钥已删除。', deleteTitle: '删除已保存的 API 密钥？', deleteDescription: '你可以稍后添加新的密钥。', cancel: '取消',
-    unsaved: '有未保存的更改', loading: '正在加载设置…', loadFailed: '无法加载设置。', saveFailed: '无法保存更改。之前的设置仍然保留。', retry: '重试', discardTitle: '放弃更改并离开？', discardDescription: '未保存的设置将被丢弃。', discard: '放弃更改', stay: '继续编辑', local: '保存在本地', localDescription: '偏好设置和加密密钥保存在此设备上。网站登录由浏览器单独管理。'
+    unsaved: '有未保存的更改', loading: '正在加载设置…', loadFailed: '无法加载设置。', saveFailed: '无法保存更改。之前的设置仍然保留。', retry: '重试', discardTitle: '放弃更改并离开？', discardDescription: '未保存的设置将被丢弃。', discard: '放弃更改', stay: '继续编辑'
   },
   audit: {
     title: '审计日志', description: '查看本地审计记录，最新记录优先。查看和筛选不会产生审计记录。',
@@ -580,7 +577,6 @@ export const zhCN = {
   }
 },
   resume: {
-    "subtitle": "使用已保存的事实生成定制简历。简历语言跟随职位主体语言。",
     "inputs": "职位与个人资料",
     "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词预算",
     "job": "职位",
@@ -648,7 +644,6 @@ export const zhCN = {
     }
 },
   profile: {
-    subtitle: '维护共享求职资料。每条经历、项目和教育记录可包含多个独立核实的事实。',
     basic: '基本信息', independent: '独立事实', noProfile: '保存姓名以创建资料，或导入 PDF。', empty: '暂无记录。',
     add: '新增', edit: '编辑', remove: '删除', cancel: '取消', save: '保存', saving: '保存中…', saved: '已保存', retry: '重试',
     loading: '正在加载个人资料…', loadFailed: '无法完整加载个人资料。', invalid: '请检查必填字段、链接和日期。',

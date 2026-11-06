@@ -39,7 +39,7 @@
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | 带图标、标题和描述的功能入口 | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
 | `FormField`, `Select` | 关联标签、帮助/错误及原生选择 | [Form.tsx](../src/shared/ui/Form.tsx) |
-| `SectionCard`, `PageHeading` | 共享面板及页面标题外观 | [Form.tsx](../src/shared/ui/Form.tsx) |
+| `SectionCard` | 带标题的可折叠内容面板 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `StatusMessage` | 中性、信息、成功及错误反馈 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `Dialog` | 原生模态焦点约束、可选正文；页面管理操作及取消 | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
 | `DataTable`、`Badge`、`DetailsList` | 命名滚动区、列标题、元数据列表及带文字的中性/成功/错误徽章 | [DataTable.tsx](../src/shared/ui/DataTable.tsx) |
@@ -98,7 +98,9 @@
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
 - 设置页外部 Agent 接入组合中央 SectionCard、DetailsList、Badge、Button、Dialog 和只读 TextArea。MCP 配置、连接结果和逐项 Skill 安装状态分开显示。Skill 安装/更新操作展示目录及已完成/待完成结果；文件夹不同时，确认弹窗列出冲突、默认聚焦取消，并明确无备份替换。其他 Agent 可打开内置 Skills 文件夹；MCP 替换仍采用独立的备份行为。MCP 重新连接会重写配置并验证新连接，Skills 重新连接会重新安装内置文件夹。MCP 和单项/全部 Skills 删除使用列出路径与受影响名称的确认对话框，初始焦点位于取消；结果分别显示已删除与待删除项，并明确提示宿主重新加载。路径可换行，忙碌时禁用操作，静态 Settings 图库展示这些控件。
 
-- Settings 在 16px 圆角面板中组合 40px 字段，内边距为 24px（窄屏为 16px）；页面 CSS 仅管理布局。成功反馈使用可读文字及成功背景/边框。展示库 Settings 示例引用这些共享规则。
+- 每个 `SectionCard` 都有标题，标题栏支持键盘操作。折叠时保留单行标题和向右的箭头，上下内边距各为 16px。展开时箭头朝下，说明和内容恢复原有间距。相邻面板在所有宽度下的垂直间距固定为 16px。嵌套面板复用 `SectionCard`，各自独立展开和折叠，父面板关闭时保留子面板的内容和状态。校验时会展开包含无效字段的面板。
+- 个人资料使用普通标题分组。资料条目和导入预览卡片可包含事实卡片，卡片最多嵌套两层。条目、事实、职位地点和要求的新增按钮使用虚线边框，与同组折叠卡片等宽、等高、同圆角，间距为 16px。
+- 设置页各层级面板默认折叠，其他页面的内容面板默认展开。展开时保留 16px 圆角、24px 内边距（窄屏为 16px）及设置页的 40px 字段。页面 CSS 仅管理布局。成功反馈使用可读文字以及成功背景和边框。展示库设置示例复用共享面板样式。
 - 导入模式用中央 `FormField`/`Select`，模型许可用 `Checkbox`；独立分组状态和耗时用 `DetailsList`；仅完成数量摘要使用实时状态文字，避免每次计时刷新都被重复朗读，失败组提供明确重试按钮。工作期间禁用模式切换；不可用的并行选项说明 Settings 前置条件。Forms 图库包含这些控件。
 - Profile 组合中央卡片、字段、忽略复选框、状态标记和对话框。基本信息和导入审核使用 `TextArea` 编辑可选个人简介（上限 2,000 字符），帮助文案说明 Agent 只能小修小补，Forms 图库包含示例。保存提交有效且未忽略内容；导入文本字段可以留空，格式错误在对应字段旁显示并聚焦。忽略父项排除子事实，部分导入保留已保存父项。[导入核对界面](../src/pages/profile/ImportReview.tsx)不按类型隐藏条目元数据字段；与手工编辑复用同一[事实字段](../src/pages/profile/ProfileFields.tsx)，仅含类别、内容和标签，不提供来源附件编辑框或详情行。窄屏标签换行，Forms 图库展示忽略状态。
 - Settings 审计查看器组合中央 `DataTable`、`Badge`、`DetailsList` 和 `Dialog` 正文。表格行至少 64px，ID 可换行，状态带文字，横向滚动区可通过键盘聚焦，不撑宽页面。元数据弹窗在视口内滚动。Tables 展示库包含审计参考。
@@ -165,7 +167,7 @@ npm run quality
 | [Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs) | 流式活动、并发会话、定向停止、草稿/滚动恢复、双语主题的 320/640/1200px 布局及强制结束进程后的恢复 | 本地样本，不证明真实 Provider 或屏幕阅读器兼容性 |
 | [审计查看器 smoke](../scripts/audit-viewer-smoke.cjs) | 筛选、分页、元数据弹窗、键盘关闭、320/640/1200px 页面无溢出及只读/错误/加载状态 | 不认证读屏或并发写入时跨页快照一致性 |
 | [个人资料 smoke](../scripts/profile-smoke.cjs) | 手动条目/事实、构建后的 PDF Worker/SSE、显式保存/忽略、分批保存、重载/分页、320/640/1200px 双语浅/暗布局及离开保护 | 使用生成 PDF/本地 AI 样本，不认证第三方 Provider、任意 PDF 排版或读屏器 |
-| [Settings smoke](../scripts/settings-smoke.cjs) | 真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
+| [Settings smoke](../scripts/settings-smoke.cjs) | 默认折叠、键盘操作、嵌套面板、草稿保留、真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |
 | [主题 smoke](../scripts/theme-smoke.cjs)及[重启 smoke](../scripts/settings-restart-smoke.cjs) | 草稿/保存/失败/放弃、模拟原生外观变化、导航/原生边界不变、320/640/1200px 的 Settings 与 Ask AI 尺寸、展示库全部元素尺寸和持久化暗色启动 | 不自动操作真实系统设置，不认证全部视觉状态，也不证明启动每一帧均无闪屏 |
 
 原生边界通过[浏览器契约](../src/shared/browser.ts)使用[生成尺寸](../src/shared/ui/geometry.ts)，不得分别修改 CSS 与 Main 的工具栏高度。[构建配置](../electron.vite.config.ts)选择 Renderer 入口，脚本和命令以 [package.json](../package.json) 为准。

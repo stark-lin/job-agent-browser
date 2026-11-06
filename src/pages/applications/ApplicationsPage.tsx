@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Checkbox, DataTable, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Badge, Button, Checkbox, DataTable, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { applicationStatuses, type ApplicationStatus } from '../../domain/job/job.types'
@@ -13,8 +13,7 @@ export function ApplicationsPage() {
   const [search, setSearch] = useState(''), [status, setStatus] = useState<ApplicationStatus | ''>('')
   const [archived, setArchived] = useState(false)
   const [selected, setSelected] = useState<string | null>(() => context.getSnapshot().jobId)
-  return <main className="job-page"><div className="job-content">
-    <PageHeading title={t($ => $.navigation.pages.applications)} description={t($ => $.jobs.listHelp)} />
+  return <main className="job-page" aria-label={t($ => $.navigation.pages.applications)}><div className="job-content">
     <SectionCard title={t($ => $.jobs.savedJobs)}><div className="job-stack">
       <form className="job-stack" onSubmit={event => { event.preventDefault(); setSelected(null); viewer.apply(search, status, archived) }}>
         <div className="job-fields"><FormField label={t($ => $.jobs.search)}>{props => <TextInput {...props} name="jobSearch" value={search} maxLength={200} onChange={event => setSearch(event.target.value)} />}</FormField>

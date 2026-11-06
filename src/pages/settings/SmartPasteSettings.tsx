@@ -12,7 +12,7 @@ export function SmartPasteSettings({ settings }: { settings: ReturnType<typeof u
   const change = (id: string, patch: Partial<SmartPasteConfig>) => settings.changeSmartPaste({
     configs: configs.map(config => config.id === id ? { ...config, ...patch } : config)
   })
-  return <SectionCard title={t($ => $.smartPaste.title)} description={t($ => $.smartPaste.description)}>
+  return <SectionCard defaultCollapsed title={t($ => $.smartPaste.title)} description={t($ => $.smartPaste.description)}>
     <form className="settings-stack" data-settings-smart-paste onSubmit={event => { event.preventDefault(); void settings.save('smartPaste') }}>
       {configs.map(config => <div className="settings-stack" key={config.id}>
         <FormField label={t($ => $.smartPaste.configTitle)}>{props => <TextInput {...props} required

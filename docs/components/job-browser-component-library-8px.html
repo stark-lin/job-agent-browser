@@ -413,39 +413,51 @@
         </div>
         <div class="demo">
           <div class="demo-label">Settings group — shared runtime reference</div>
-          <div class="demo-stage">
-            <section class="settings-panel" aria-labelledby="settings-example-title">
-              <h3 id="settings-example-title">General</h3>
-              <p>Choose the language and appearance for your workspace.</p>
-              <div class="grid-2">
-                <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
-                <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
+          <div class="demo-stage settings-example">
+            <details class="ui-section-card" aria-labelledby="settings-example-title">
+              <summary class="ui-section-heading"><h2 id="settings-example-title"><span class="ui-section-title">General</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <p class="ui-section-description">Choose the language and appearance for your workspace.</p>
+              <div class="ui-section-body">
+                <div class="grid-2">
+                  <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
+                  <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
+                </div>
+                <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
               </div>
-              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
-            </section>
-            <section class="settings-panel" aria-labelledby="knowledge-semantic-example-title">
-              <h3 id="knowledge-semantic-example-title">Semantic search</h3>
-              <label class="check-row"><input type="checkbox" checked /><span>Enable semantic indexing</span></label>
-              <p>Optional multilingual-e5-small · 384 dimensions · about 140 MB. Notes and search queries are processed entirely on this device.</p>
-              <p>Not installed. Smart Note and keyword search remain available.</p>
-              <div class="settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
-              <progress class="ui-progress" aria-label="Example model download progress" value="40" max="100"></progress>
-              <p class="muted">Static progress reference: installation offers Cancel; corruption offers Repair Model. Removal retains notes, backups and derived indexes.</p>
-              <p class="muted">Keyword search remains available while the index builds or semantic search is unavailable.</p>
-            </section>
-            <section class="settings-panel" aria-labelledby="external-agent-example-title">
-              <h3 id="external-agent-example-title">Connect external Agents</h3>
-              <p>Static reference: Codex, Claude Code and Cursor user-wide MCP configuration and separate Skills installation.</p>
-              <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
-              <p><span class="badge badge-success">Configured</span></p>
-              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
-              <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
-              <dl class="ui-details-list"><div><dt>Skills installation directory</dt><dd>~/.agents/skills</dd></div><div><dt>capture-job</dt><dd><span class="badge badge-success">Installed</span></dd></div><div><dt>manage-applications</dt><dd><span class="badge">Not installed</span></dd></div><div><dt>tailor-resume</dt><dd><span class="badge">Different content</span></dd></div></dl>
-              <div class="settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
-              <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Delete one Skill from its row or delete all three after confirmation. Completed and pending items have separate feedback; reload the host to update its loaded configuration and Skills.</p>
-              <label class="field"><span class="field-label">Other Agents: stdio MCP configuration</span><textarea class="control" rows="4" readonly>{ "mcpServers": { "job_agent_browser": { "command": "/absolute/path/Electron", "args": ["/absolute/path/job-agent-mcp.js"], "env": { "ELECTRON_RUN_AS_NODE": "1", "JOB_BROWSER_USER_DATA": "/absolute/path/user-data", "JOB_BROWSER_MCP_CALLER": "mcp-client", "JOB_BROWSER_ELECTRON": "/absolute/path/Electron" } } } }</textarea></label>
-              <p>A different existing entry requires confirmation: Cancel / Back up and replace. Paths wrap; busy actions are disabled.</p>
-            </section>
+            </details>
+            <details class="ui-section-card" aria-labelledby="knowledge-semantic-example-title">
+              <summary class="ui-section-heading"><h2 id="knowledge-semantic-example-title"><span class="ui-section-title">Semantic search</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <div class="ui-section-body">
+                <label class="check-row"><input type="checkbox" checked /><span>Enable semantic indexing</span></label>
+                <p>Optional multilingual-e5-small · 384 dimensions · about 140 MB. Notes and search queries are processed entirely on this device.</p>
+                <p>Not installed. Smart Note and keyword search remain available.</p>
+                <div class="settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
+                <progress class="ui-progress" aria-label="Example model download progress" value="40" max="100"></progress>
+                <p class="muted">Static progress reference: installation offers Cancel; corruption offers Repair Model. Removal retains notes, backups and derived indexes.</p>
+                <p class="muted">Keyword search remains available while the index builds or semantic search is unavailable.</p>
+              </div>
+            </details>
+            <details class="ui-section-card" aria-labelledby="external-agent-example-title">
+              <summary class="ui-section-heading"><h2 id="external-agent-example-title"><span class="ui-section-title">Connect external Agents</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <p class="ui-section-description">Static reference: Codex, Claude Code and Cursor user-wide MCP configuration and separate Skills installation.</p>
+              <div class="ui-section-body">
+                <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
+                <p><span class="badge badge-success">Configured</span></p>
+                <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
+                <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
+                <dl class="ui-details-list"><div><dt>Skills installation directory</dt><dd>~/.agents/skills</dd></div><div><dt>capture-job</dt><dd><span class="badge badge-success">Installed</span></dd></div><div><dt>manage-applications</dt><dd><span class="badge">Not installed</span></dd></div><div><dt>tailor-resume</dt><dd><span class="badge">Different content</span></dd></div></dl>
+                <div class="settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
+                <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Delete one Skill from its row or delete all three after confirmation. Completed and pending items have separate feedback; reload the host to update its loaded configuration and Skills.</p>
+                <details class="ui-section-card" aria-labelledby="other-agents-example-title">
+                  <summary class="ui-section-heading"><h2 id="other-agents-example-title"><span class="ui-section-title">Other Agents</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+                  <div class="ui-section-body">
+                    <label class="field"><span class="field-label">Other Agents: stdio MCP configuration</span><textarea class="control" rows="4" readonly>{ "mcpServers": { "job_agent_browser": { "command": "/absolute/path/Electron", "args": ["/absolute/path/job-agent-mcp.js"], "env": { "ELECTRON_RUN_AS_NODE": "1", "JOB_BROWSER_USER_DATA": "/absolute/path/user-data", "JOB_BROWSER_MCP_CALLER": "mcp-client", "JOB_BROWSER_ELECTRON": "/absolute/path/Electron" } } } }</textarea></label>
+                    <p>A different existing entry requires confirmation: Cancel / Back up and replace. Paths wrap; busy actions are disabled.</p>
+                  </div>
+                </details>
+              </div>
+            </details>
+            <button type="button" class="ui-button ui-button--add-card">Add entry</button>
           </div>
         </div>
       </section>

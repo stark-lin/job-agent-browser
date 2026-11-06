@@ -47,7 +47,10 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await field('title', 'Manual engineer'); await field('companyNameRaw', 'Manual company'); await field('notes', 'Keep these notes')
     // Invalid required fields never dispatch a save.
     await field('companyNameRaw', '')
+    await evaluate('document.querySelector("[name=companyNameRaw]").closest("details").querySelector("summary").click()')
     await evaluate('document.querySelector(".job-page form").requestSubmit()'); await frame()
+    assert.equal(await evaluate('document.querySelector("[name=companyNameRaw]").closest("details").open'), true)
+    assert.equal(await evaluate('document.activeElement.name'), 'companyNameRaw')
     assert.equal((await data('listJobs')).value.items.some(job => job.title === 'Manual engineer'), false)
     await field('companyNameRaw', 'Manual company')
     // A cancelled navigation keeps the in-memory job draft.

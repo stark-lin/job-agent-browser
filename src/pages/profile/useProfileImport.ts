@@ -5,6 +5,7 @@ import type { ApplyImport, ImportDraft } from '../../domain/candidate/import.typ
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { ImportEvent, ImportTask, PdfSelection } from '../../platform/electron/profile-import-contract'
 import type { ImportMode, ImportGroupProgress } from '../../shared/import'
+import { revealSectionCards } from '../../shared/ui'
 import { importError, importSelection, savedSelection } from './import-state'
 
 export function useProfileImport(profile: Profile | null, onSaved: (profile: Profile) => Promise<void>) {
@@ -83,7 +84,11 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
       const editor = document.querySelector(`[data-import-id="${invalid}"]`)
       const control = editor?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? editor?.querySelector<HTMLElement>('input, textarea, select')
       const target = control ?? editor
-      target?.scrollIntoView({ block: 'center' }); control?.focus()
+      if (target) {
+        revealSectionCards(target)
+        target.scrollIntoView({ block: 'center' })
+        control?.focus()
+      }
       return
     }
     const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), profile?.id ?? importedProfileId.current)

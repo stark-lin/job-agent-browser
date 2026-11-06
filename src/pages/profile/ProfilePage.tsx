@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, Dialog, FormField, PageHeading, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
+import { Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import type { ProfileDetails, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
 import { itemTypes } from '../../domain/candidate/candidate.types'
@@ -62,7 +62,7 @@ export function ProfilePage() {
   }
   function renderItem(entry: ProfileItem) {
     const { id, profileId: _profileId, parentItemId: _parent, ...details } = entry
-    return <SectionCard key={id} title={entry.title} description={[entry.organization, entry.role].filter(Boolean).join(' · ')}><div className="profile-stack">
+    return <SectionCard key={id} title={entry.title.trim() || t($ => $.profile.types[entry.type])} description={[entry.organization, entry.role].filter(Boolean).join(' · ')}><div className="profile-stack">
       <DetailsList items={[
         { label: t($ => $.profile.startDate), value: entry.metadata.startDateText || entry.startDate || '—' },
         { label: t($ => $.profile.endDate), value: entry.metadata.isCurrent ? t($ => $.profile.current) : entry.metadata.endDateText || entry.endDate || '—' },
@@ -70,12 +70,13 @@ export function ProfilePage() {
         ...(['degree', 'major', 'gpa', 'employmentType', 'url'] as const).filter(key => entry.metadata[key]).map(key => ({ label: t($ => $.profile[key]), value: entry.metadata[key] })),
         ...(entry.metadata.technologies?.length ? [{ label: t($ => $.profile.technologies), value: entry.metadata.technologies.join(', ') }] : [])
       ]} />
-      <div className="profile-actions"><Button disabled={manualDisabled} onClick={() => beginItem(details, id)}>{t($ => $.profile.edit)}</Button><Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'item', id })}>{t($ => $.profile.remove)}</Button><Button disabled={manualDisabled} onClick={() => beginFact({ kind: 'ACHIEVEMENT', content: '' }, id)}>{t($ => $.profile.addFact)}</Button></div>
-      <div className="profile-facts">{state.facts.filter(fact => fact.profileItemId === id).map(renderFact)}</div>
+      <div className="profile-actions"><Button disabled={manualDisabled} onClick={() => beginItem(details, id)}>{t($ => $.profile.edit)}</Button><Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'item', id })}>{t($ => $.profile.remove)}</Button></div>
+      <div className="profile-facts">{state.facts.filter(fact => fact.profileItemId === id).map(renderFact)}
+        <Button variant="add-card" disabled={manualDisabled} onClick={() => beginFact({ kind: 'ACHIEVEMENT', content: '' }, id)}>{t($ => $.profile.addFact)}</Button>
+      </div>
     </div></SectionCard>
   }
-  return <main className="profile-page"><div className="profile-content">
-    <PageHeading title={t($ => $.navigation.pages.profile)} description={t($ => $.profile.subtitle)} />
+  return <main className="profile-page" aria-label={t($ => $.navigation.pages.profile)}><div className="profile-content">
     {state.error && <StatusMessage tone="error">{state.error === 'loadFailed' ? t($ => $.profile.loadFailed) : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })}</StatusMessage>}
     {state.notice && <StatusMessage tone="success">{t($ => $.profile.saved)}</StatusMessage>}
     {state.loading ? <StatusMessage>{t($ => $.profile.loading)}</StatusMessage> : state.error === 'loadFailed' ? <Button onClick={() => void state.reload()}>{t($ => $.profile.retry)}</Button> : <>
@@ -88,14 +89,18 @@ export function ProfilePage() {
         <div className="profile-actions"><Button disabled={manualDisabled || contact.links.length >= 20} onClick={() => setContact({ ...contact, links: [...contact.links, { label: '', url: '' }] })}>{t($ => $.profile.add)} {t($ => $.profile.links)}</Button><Button variant="primary" type="submit" disabled={manualDisabled || (!contactDirty && Boolean(profileId))}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.save)}</Button></div>
         {invalid && !item && !fact && <StatusMessage tone="error">{t($ => $.profile.invalid)}</StatusMessage>}
       </form></SectionCard>
-      {itemTypes.map(type => <SectionCard key={type} title={t($ => $.profile.types[type])}><div className="profile-stack">
-        <div><Button disabled={!profileId || manualDisabled} onClick={() => beginItem({ type, title: '' })}>{t($ => $.profile.add)}</Button></div>
-        {!state.items.some(item => item.type === type) && <StatusMessage>{t($ => $.profile.empty)}</StatusMessage>}
+      {itemTypes.map(type => <section key={type} className="profile-stack" aria-label={t($ => $.profile.types[type])}>
+        <h2 className="profile-group-heading">{t($ => $.profile.types[type])}</h2>
         {state.items.filter(item => item.type === type).map(renderItem)}
-      </div></SectionCard>)}
-      <SectionCard title={t($ => $.profile.independent)}><div className="profile-stack"><div><Button disabled={!profileId || manualDisabled} onClick={() => beginFact({ kind: 'SKILL', content: '' }, null)}>{t($ => $.profile.addFact)}</Button></div>{state.facts.filter(fact => !fact.profileItemId).map(renderFact)}</div></SectionCard>
+        <Button variant="add-card" disabled={!profileId || manualDisabled} onClick={() => beginItem({ type, title: '' })}>{t($ => $.profile.add)}</Button>
+      </section>)}
+      <section className="profile-stack" aria-label={t($ => $.profile.independent)}>
+        <h2 className="profile-group-heading">{t($ => $.profile.independent)}</h2>
+        {state.facts.filter(fact => !fact.profileItemId).map(renderFact)}
+        <Button variant="add-card" disabled={!profileId || manualDisabled} onClick={() => beginFact({ kind: 'SKILL', content: '' }, null)}>{t($ => $.profile.addFact)}</Button>
+      </section>
     </>}
-    <Dialog open={Boolean(item || fact)} title={t($ => $.profile.edit)} description={t($ => $.profile.subtitle)} onClose={() => { if (!state.saving) { setItem(null); setFact(null) } }} content={<form id="profile-editor" className="profile-stack" onSubmit={event => { event.preventDefault(); void saveEditor() }}>
+    <Dialog open={Boolean(item || fact)} title={t($ => $.profile.edit)} onClose={() => { if (!state.saving) { setItem(null); setFact(null) } }} content={<form id="profile-editor" className="profile-stack" onSubmit={event => { event.preventDefault(); void saveEditor() }}>
       {item && <ItemFields value={item.details} fixedType={Boolean(item.id)} disabled={manualDisabled} onChange={details => { setItem({ ...item, details }); setInvalid(false) }} />}
       {fact && <><FormField label={t($ => $.profile.belongsTo)}>{props => <Select {...props} value={fact.profileItemId ?? ''} disabled={manualDisabled} onChange={event => setFact({ ...fact, profileItemId: event.target.value || null })}><option value="">{t($ => $.profile.independent)}</option>{state.items.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</Select>}</FormField><FactFields value={fact.details} disabled={manualDisabled} onChange={details => { setFact({ ...fact, details }); setInvalid(false) }} /></>}
       {invalid && <StatusMessage tone="error">{t($ => $.profile.invalid)}</StatusMessage>}

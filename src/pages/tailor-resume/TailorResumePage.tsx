@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, DocumentPreview, FormField, PageHeading, SectionCard, Select, StageProgress, StatusMessage } from '../../shared/ui'
+import { Button, DetailsList, DocumentPreview, FormField, SectionCard, Select, StageProgress, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { en } from '../../shared/i18n/locales/en'
 import { statements } from '../../domain/resume/document'
@@ -11,8 +11,7 @@ export function TailorResumePage() {
   const task = state.task, active = Boolean(task?.active), artifact = task?.artifact
   const error = (code: string) => t($ => $.resume.errors[code as keyof typeof en.resume.errors], { defaultValue: t($ => $.ai.errors[code as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })
   const stages = (['score', 'gate', 'select', 'draft', 'validate-draft', 'polish', 'validate-polish', 'publish', 'output'] as const).map(id => ({ id, label: t($ => $.resume.stages[id]) }))
-  return <main className="resume-page"><div className="resume-content">
-    <PageHeading title={t($ => $.navigation.pages.resume)} description={t($ => $.resume.subtitle)} />
+  return <main className="resume-page" aria-label={t($ => $.navigation.pages.resume)}><div className="resume-content">
     {state.error && <StatusMessage tone="error">{error(state.error)}</StatusMessage>}
     <SectionCard title={t($ => $.resume.inputs)} description={t($ => $.resume.template)}><div className="resume-stack">
       <FormField label={t($ => $.resume.job)}>{props => <Select {...props} disabled={active || state.busy} value={state.jobId} onChange={event => state.setJobId(event.target.value)}><option value="">{t($ => $.resume.chooseJob)}</option>{state.jobs.map(job => <option key={job.id} value={job.id}>{job.title} · {job.companyNameRaw}</option>)}</Select>}</FormField>

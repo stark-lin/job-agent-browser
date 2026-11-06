@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, FormField, PageHeading, SectionCard, StatusMessage, TextInput, Select, TextArea } from '../../shared/ui'
+import { Button, FormField, SectionCard, StatusMessage, TextInput, Select, TextArea } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { useUnsavedGuard } from '../../app/navigation/useUnsavedGuard'
@@ -51,8 +51,7 @@ export function AddJobPage() {
     } catch { if (alive.current) setError(committed ? 'JOB_SAVED_NAV_FAILED' : 'STORAGE_UNAVAILABLE') }
     finally { lock.current = false; if (alive.current) setSaving(false) }
   }
-  return <main className="job-page"><div className="job-content">
-    <PageHeading title={t($ => $.navigation.pages.find)} description={t($ => $.jobs.subtitle)} />
+  return <main className="job-page" aria-label={t($ => $.navigation.pages.find)}><div className="job-content">
     <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
       {selection.error && <div><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></div>}
       {webSource && <StatusMessage>{t($ => $.selection.source)}: {webSource.title} · {webSource.url}</StatusMessage>}

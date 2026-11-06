@@ -1,7 +1,7 @@
 import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, FormField, PageHeading, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { Button, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
@@ -27,13 +27,12 @@ export function SettingsPage() {
     setMailError(!valid)
     if (valid) void settings.save('mailbox')
   }
-  return <main className="settings-page">
+  return <main className="settings-page" aria-label={t($ => $.navigation.pages.settings)}>
     <div className="settings-content">
-      <PageHeading title={t($ => $.navigation.pages.settings)} description={t($ => $.settings.subtitle)} />
       {settings.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : settings.loadFailed || !draft ? <div className="settings-stack">
         <StatusMessage tone="error">{t($ => $.settings.loadFailed)}</StatusMessage><Button onClick={settings.retry}>{t($ => $.settings.retry)}</Button>
       </div> : <div className="settings-sections">
-        <SectionCard title={t($ => $.settings.general)} description={t($ => $.settings.generalDescription)}>
+        <SectionCard defaultCollapsed title={t($ => $.settings.general)} description={t($ => $.settings.generalDescription)}>
           <form data-settings-general className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.save('general') }}>
             <div className="settings-fields">
               <FormField label={t($ => $.settings.language)}>{props => <Select {...props} value={draft.language} disabled={Boolean(saving)} onChange={event => settings.changeLanguage(event.target.value as Language)}>
@@ -48,7 +47,7 @@ export function SettingsPage() {
         </SectionCard>
         <AISettingsSection settings={settings} />
         <SmartPasteSettings settings={settings} />
-        <SectionCard data-settings-mailbox title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
+        <SectionCard defaultCollapsed data-settings-mailbox title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
           <form data-settings-mailbox-form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>
             <FormField label={t($ => $.settings.mailProvider)}>{props => <Select {...props} value={draft.mailbox.provider} disabled={Boolean(saving)} onChange={event => {
               const provider = event.target.value as MailProvider
@@ -60,7 +59,6 @@ export function SettingsPage() {
         </SectionCard>
         <KnowledgeSettings onDirty={settings.setKnowledgeDirty} />
         <ExternalMCPSettings />
-        <div className="settings-stack"><StatusMessage>{t($ => $.settings.local)}</StatusMessage><StatusMessage>{t($ => $.settings.localDescription)}</StatusMessage></div>
       </div>}
       <AuditViewerSection />
     </div>

@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { mkdirSync, writeFileSync } = require('node:fs')
@@ -53,6 +54,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   try {
     await call('navigate', 'app://settings')
     await waitFor(() => evaluate('!!document.querySelector("form[data-ai-config]")'), 'AI provider form')
+    await openSectionCards(evaluate, '[data-ai-config]')
     const timeouts = { requestSeconds: 300, pageSeconds: 60, modelsSeconds: 30 }
     for (const [name, value] of Object.entries(timeouts)) await field(`form[data-ai-config] input[name=${name}]`, String(value))
     await field('form[data-ai-config] input[name=pageSeconds]', '0')
