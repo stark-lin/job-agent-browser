@@ -36,8 +36,6 @@ export function aiPreferences(input: unknown): AISettings {
     if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || typeof p.requiresKey !== 'boolean' || !Array.isArray(p.models) || p.models.length > 100) return fail('INVALID_INPUT')
     const models = p.models.map(modelId)
     if (new Set(models).size !== models.length || typeof p.defaultModel !== 'string' || (p.defaultModel !== '' && !models.includes(p.defaultModel))) return fail('INVALID_INPUT')
-    const parallelModels = p.parallelModels === undefined ? [] : p.parallelModels
-    if (!Array.isArray(parallelModels) || parallelModels.some(model => typeof model !== 'string' || !models.includes(model)) || new Set(parallelModels).size !== parallelModels.length) return fail('INVALID_INPUT')
     const capabilities: Record<string, ModelCapabilities> = Object.create(null)
     if (p.capabilities !== undefined) {
       const configured = object(p.capabilities, models)
@@ -49,7 +47,7 @@ export function aiPreferences(input: unknown): AISettings {
         capabilities[id] = { contextWindow: Number(c.contextWindow), maxOutputTokens: Number(c.maxOutputTokens), source: c.source as ModelCapabilities['source'], verified: c.verified }
       }
     }
-    return { ...(Object.keys(capabilities).length ? { capabilities } : {}), ...(parallelModels.length ? { parallelModels } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
+    return { ...(Object.keys(capabilities).length ? { capabilities } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
   })
   if (new Set(providers.map(p => p.id)).size !== providers.length) return fail('INVALID_INPUT')
   if (value.default === null) return { providers, default: null, timeouts }

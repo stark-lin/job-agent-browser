@@ -17,7 +17,7 @@ jab doctor
 
 应用启动时直接打开 Ask AI（询问 AI），它位于侧栏九个功能入口之首。Browser 恢复原标签或打开可输入 URL、域名或搜索词的空白工作区，Settings 支持语言及浅色/暗夜/跟随系统外观持久化、多个 AI Provider、加密 API 密钥和邮箱配置；Ask AI 通过限定的 first-party MCP 工具提供持久化多会话流式 Agent 对话；My Profile 管理包含多个事实的履历条目及经核对的 PDF 导入；新增工作支持手工录入与 URL/文本/PDF Agent 采集，保存为未开始申请后进入申请记录；申请记录通过 Agent 管理状态、备注、本地日程及归档/详情变更；其他功能在流程尚不可用时显示待实现内容。只有 Browser 显示标签栏和地址控件；所有功能共用带悬停提示和分区短横线的左侧图标导航；已配置的 Inbox 显示网页邮箱，不显示应用顶部条。浏览器历史与工作区导航分离。导航规则、快捷键、运行细节及源码依据见[当前架构](docs/architecture.zh-CN.md)。
 
-配置 AI 服务、密钥及全局默认模型后，即可采集职位 URL/文本/PDF、管理申请或导入 PDF 简历；在设置中为该模型开启并行导入并保存后，可在两个导入入口分别选择并行模式。分组、重试及精简输出的运行说明见[当前架构](docs/architecture.zh-CN.md)。
+配置 AI 服务、密钥及全局默认模型后，即可采集职位 URL、文本或 PDF、管理申请或导入 PDF 简历。两条导入流程均为单次解析并支持人工审核。详见[当前架构](docs/architecture.zh-CN.md)。
 
 完整用法、`npx` 临时执行、更新、MCP 和本地数据说明见 [npm 用户指南](packages/npm/README.zh-CN.md)。目前仅 macOS ARM64 经过完整发行验证。
 
@@ -49,7 +49,7 @@ npm run test:profile
 npm run test:ask-ai
 ```
 
-构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、浏览器历史隔离、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及两种并行导入及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台打包已配置于 [electron-builder.yml](electron-builder.yml)，验收及发布前置条件见 [CI/CD](docs/ci-cd.zh-CN.md)。
+构建根据 [electron.vite.config.ts](electron.vite.config.ts) 将 Main、MCP Server、输出 Worker、Preload 和 Renderer 产物写入 `out/`。`check` 执行类型检查、架构/文档质量检查、Electron SQLite 集成测试及构建。`test:smoke` 需要图形桌面，使用临时数据验证构建后的窗口/Preload/IPC、九个入口页面、浏览器历史隔离、视图生命周期、Settings、AI SSE 对话、个人资料编辑/PDF 导入、新增工作/申请记录、全局侧栏及 Inbox。`test:theme` 独立验证主题、仅颜色的尺寸一致性及重启恢复，无需原生键盘焦点。`test:jobs` 独立验证新增工作、URL/文本/PDF 采集、申请 Agent 动作及单次采集及进程重启持久化。单项命令为 `typecheck`、`quality`、`test` 和 `build`。平台打包已配置于 [electron-builder.yml](electron-builder.yml)，验收及发布前置条件见 [CI/CD](docs/ci-cd.zh-CN.md)。
 
 `test:mcp` 验证现有 MCP Client 运行时。`test:mcp-server` 验证 Job/Application/Resume 公共能力、运行时一致性及构建后的 Node stdio Server，使用临时存储和真实 Electron HTML/PDF 输出。两种运行时 smoke 均纳入 `check`；Server PDF 验证需要图形桌面。见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
 

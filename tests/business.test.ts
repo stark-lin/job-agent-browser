@@ -44,10 +44,14 @@ test('delete source entities completely but preserve generated results and delet
 test('artifact content and provenance edits are validated together and invalidate output file references', async (t) => {
   const f = await published(t)
   f.backend.generation.recordOutputFiles({ id: f.artifact.id, files: [{ format: 'PDF', relativePath: 'resume.pdf' }] })
-  assert.deepEqual(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Edit', content: { ...f.content, summary: { ...f.content.summary, factIds: [randomUUID()] } } }), { ok: false, error: 'CONFLICT' })
-  assert.equal(value(await f.api.resumes.getArtifact({ id: f.artifact.id })).artifact.outputFiles.length, 1)
-  const edited = value(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Edited', content: f.content }))
+  const changed = { ...f.content, summary: { ...f.content.summary, text: 'Manual text', factIds: [randomUUID()] } }
+  const edited = value(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Edited', expectedRevision: 1, content: changed }))
+  assert.equal(edited.revision, 2)
+  assert.deepEqual(edited.content.summary?.factIds, [])
   assert.equal(edited.outputFiles.length, 0)
+  assert.deepEqual(value(await f.api.resumes.getArtifact({ id: f.artifact.id })).provenance, [])
+  assert.deepEqual(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Stale', expectedRevision: 1, content: f.content }), { ok: false, error: 'CONFLICT' })
+  assert.equal(value(await f.api.profiles.listFacts({ profileId: f.profile.id })).items[0].content, f.fact.content)
   assert.throws(() => f.backend.generation.recordOutputFiles({ id: f.artifact.id, files: [{ format: 'PDF', relativePath: '../outside.pdf' }] }), { code: 'INVALID_INPUT' })
 })
 
@@ -80,19 +84,6 @@ test('normalized optional URL fields can round-trip through business editors', a
   assert.equal(value(await f.api.jobs.updateCompany({ id: company.id, details: { name: company.name, domain: company.domain, website: company.website, logoUrl: company.logoUrl } })).website, '')
   const { id, profileId: _profile, parentItemId: _parent, ...details } = f.item
   assert.equal(value(await f.api.profiles.editItem({ id, details })).title, f.item.title)
-})
-
-test('empty resume and unselected evidence are rejected; rejected gate stops generation', async (t) => {
-  const f = await published(t)
-  assert.deepEqual(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Empty', content: { ...f.content, summary: null } }), { ok: false, error: 'CONFLICT' })
-  assert.deepEqual(await f.api.resumes.editArtifact({ id: f.artifact.id, title: 'Foreign', content: { ...f.content, summary: { ...f.content.summary, factIds: [randomUUID()] } } }), { ok: false, error: 'CONFLICT' })
-  const run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
-  f.backend.generation.start({ id: run.id })
-  assert.throws(() => f.backend.generation.recordGate({ id: run.id, gate: { passed: true, reason: '', missingRequirements: [] } }), { code: 'INVALID_STATE' })
-  f.backend.generation.recordScores({ id: run.id, language: 'en', scores: [{ factId: f.fact.id, score: 0, reason: '' }] })
-  f.backend.generation.recordGate({ id: run.id, gate: { passed: false, reason: 'Missing evidence', missingRequirements: ['Skill'] } })
-  assert.equal(value(await f.api.resumes.getRun({ id: run.id })).run.status, 'FAILED')
-  assert.throws(() => f.backend.generation.selectEvidence({ id: run.id, selection: { factIds: [f.fact.id], itemIds: [], wordBudget: 500 } }), { code: 'INVALID_STATE' })
 })
 
 test('history list annotates deleted source and company references just like detail queries', async (t) => {

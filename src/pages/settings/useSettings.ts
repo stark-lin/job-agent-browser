@@ -78,7 +78,6 @@ export function useSettings() {
   const editProvider = (patch: Partial<AIProvider>) => {
     if (!draft || !provider) return
     const next = { ...provider, ...patch }
-    if (next.parallelModels) next.parallelModels = next.parallelModels.filter(model => next.models.includes(model))
     if (next.capabilities) next.capabilities = Object.fromEntries(Object.entries(next.capabilities).filter(([model]) => next.models.includes(model)))
     if (!next.models.includes(next.defaultModel)) next.defaultModel = next.models[0] ?? ''
     let choice = draft.ai.default

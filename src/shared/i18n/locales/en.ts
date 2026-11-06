@@ -168,6 +168,7 @@ export const en = {
     "selectResume": "Select resume evidence",
     "draftResume": "Save resume draft",
     "polishResume": "Save polished resume",
+    "optimizeResume": "Optimize resume content",
     "publishResume": "Publish resume",
     "failResume": "Record resume failure",
     "cancelResume": "Cancel resume",
@@ -242,16 +243,6 @@ export const en = {
       profile: 'Manage your resume, experience and preferences.',
       ai: 'Work with your job-search context.', settings: 'Configure AI, browser and application preferences.'
     }
-  },
-  imports: {
-    mode: 'Import mode', single: 'Standard', parallel: 'Parallel',
-    configureModel: 'Model settings', allowParallel: 'Allow parallel requests for this model',
-    enableHelp: 'Enable parallel imports for this model in Settings to use this mode.',
-    parallelHelp: 'Parallel mode splits extraction across requests. Input tokens and cost may increase; speed depends on your provider.',
-    retry: 'Retry failed parts', progress: '{{completed}} of {{total}} parts completed',
-    groupState: '{{state}} · processing {{elapsed}}s · queued {{queued}}s',
-    groups: { single: 'Full extraction', basics: 'Job details and salary', description: 'Job description', requirements: 'Requirements', contact: 'Contact and standalone facts', experience: 'Work experience', projects: 'Projects', education: 'Education' },
-    states: { queued: 'Queued', running: 'Processing', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' }
   },
   applicationAgent: {
     configure: 'Choose a default AI provider and model in Settings to run application requests.',
@@ -499,6 +490,7 @@ export const en = {
     "noModel": "Choose a default Ask AI model in Settings."
   },
   settings: {
+    configureModel: 'Model settings',
     "invalidSmartPaste": "Enter a valid title and prompt for every configuration.",
     contextWindow: 'Effective context window (tokens)', contextWindowHelp: 'Ask AI needs at least 65,536. Enter actual deployment limits; detected runtime limits take precedence.', maxOutputTokens: 'Model maximum output tokens',
 
@@ -605,6 +597,7 @@ export const en = {
   }
 },
   resume: {
+    editTitle: 'Edit this resume', addBullet: 'Add bullet', saveAndBuild: 'Save and rebuild PDF', editSaved: 'Resume changes saved', discardEdit: 'Discard changes', discardEditHelp: 'Unsaved edits to this resume will be lost.',
     "inputs": "Job and profile",
     "template": "default-v1 · A4 · single column · multiple pages · 500-word budget",
     "job": "Job",
@@ -624,8 +617,8 @@ export const en = {
     "saved": "PDF saved.",
     "preview": "Resume preview",
     "pages": "Pages: {{count}}",
-    "sources": "Statement sources",
     "stages": {
+        optimize: "Optimize content", assemble: "Assemble and validate",
         "score": "Score evidence",
         "gate": "Check coverage",
         "select": "Select evidence",
@@ -667,11 +660,13 @@ export const en = {
         "PDF_EXPORT_FAILED": "The PDF could not be saved. Choose another location and try again; the application copy is retained.",
         "OUTPUT_FAILED": "HTML / PDF output failed. Your resume is retained; rebuild the output.",
         "OUTPUT_INTERRUPTED": "Output was interrupted. Rebuild it without generating again.",
+        "EDIT_CONFLICT": "The resume changed or a PDF build is active. Your draft is still here. Review the latest version before saving again.",
         "OUTPUT_MISSING": "An output file is missing. Rebuild HTML / PDF.",
         "AUDIT_UNAVAILABLE": "Audit storage is unavailable. Generation stopped."
     }
 },
   profile: {
+    unmapped: 'Unclassified text', sourcePosition: 'Page {{page}}, line {{line}}', mapField: 'Assign to a field',
     basic: 'Basic information', independent: 'Independent facts', noProfile: 'Save your name to create a profile, or import a PDF.', empty: 'No entries yet.',
     add: 'Add', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', save: 'Save', saving: 'Saving…', saved: 'Saved', retry: 'Retry',
     loading: 'Loading profile…', loadFailed: 'Unable to load the complete profile.', invalid: 'Check the required fields, links and dates.',

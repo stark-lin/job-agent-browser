@@ -11,7 +11,6 @@ import { JobFields } from './JobFields'
 import { emptyJob, fillEmptyJob, jobFormSource } from './job-form'
 import { useWebSelection } from '../../app/navigation/useWebSelection'
 import type { WebSelection } from '../../shared/browser-selection'
-import { ImportModeField, ImportProgress } from '../../app/ai/ImportControls'
 import { useJobImport } from './useJobImport'
 import './job.css'
 
@@ -64,15 +63,12 @@ export function AddJobPage() {
         <Button disabled={busy || saving || saved} onClick={() => { void importer.selectPdf().then(result => { if (result.ok) setPdf(result.value); else setError(result.error) }).catch(() => setError('PDF_INVALID')) }}>{t($ => $.jobs.selectPdf)}</Button></ActionRow>}
 
       {importer.configured ? <StatusMessage>{t($ => $.jobs.selectedModel, { provider: importer.provider, model: importer.model })}</StatusMessage> : <StatusMessage>{t($ => $.jobs.noAI)}</StatusMessage>}
-      <ImportModeField value={importer.mode} allowed={importer.parallelAllowed} disabled={busy || saving || saved}
-        onChange={mode => { importer.clearError(); importer.setMode(mode) }} />
       <ActionRow><Button disabled={!(sourceKind === 'url' ? url.trim() : sourceKind === 'text' ? text.trim() : pdf) || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(sourceKind === 'url' ? { url: url.trim() } : sourceKind === 'text' ? { text } : { fileId: pdf!.fileId }) }}>{t($ => $.jobs.parse)}</Button>
-        {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start({ url: url.trim() }, true)}>{t($ => $.imports.retry)}</Button>}
+        {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start()}>{t($ => $.profile.parseAgain)}</Button>}
         {busy && <Button onClick={importer.cancel}>{t($ => $.jobs.cancelParse)}</Button>}
         {!importer.configured && <Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>}
       </ActionRow>
       {busy && <StatusMessage>{t($ => $.jobs[importer.phase === 'reading' ? 'reading' : 'parsing'])}</StatusMessage>}
-      <ImportProgress groups={importer.groups} />
       {importer.error && <StatusMessage tone="error">{errorText(importer.error)}</StatusMessage>}
       {notice && <StatusMessage tone="success">{t($ => $.jobs.parsed)}</StatusMessage>}
     </div></SectionCard>

@@ -1,4 +1,4 @@
-import type { InputSnapshot, ResumeDocument, ResumeEntry, ResumeLanguage, ResumeStatement, ResumeWriting } from './resume.types'
+import type { InputSnapshot, ResumeDocument, ResumeEntry, ResumeLanguage, ResumeOptimization, OptimizationStatement, ResumeStatement } from './resume.types'
 import type { ProfileItem } from '../candidate/candidate.types'
 import { fail } from '../common/errors'
 
@@ -21,17 +21,34 @@ export function entryBasics(item: ProfileItem): Omit<ResumeEntry, 'bullets'> {
     startDate: item.metadata.startDateText || item.startDate || '', endDate: item.metadata.endDateText || item.endDate || '', isCurrent: item.metadata.isCurrent ?? false,
     degree: item.metadata.degree ?? '', major: item.metadata.major ?? '', gpa: item.metadata.gpa ?? '', url: item.metadata.url ?? '' }
 }
-export function materializeDocument(snapshot: InputSnapshot, language: ResumeLanguage, writing: ResumeWriting): ResumeDocument {
-  const entries = (group: ResumeWriting['experience'], type: ProfileItem['type']) => group.map(entry => {
-    const item = snapshot.items.find(item => item.id === entry.profileItemId && item.type === type)
-    if (!item) fail('CONFLICT')
-    return { ...entryBasics(item), bullets: structuredClone(entry.bullets) }
+/** Only snapshot data controls structure and ordering. */
+export function assembleResume(snapshot: InputSnapshot, optimization: ResumeOptimization, id: () => string): ResumeDocument {
+  const facts = new Map(snapshot.facts.map((fact, index) => [fact.id, { fact, index }]))
+  const items = new Map(snapshot.items.map(item => [item.id, item]))
+  function rank(block: OptimizationStatement, accepts: (fact: InputSnapshot['facts'][number]) => boolean) {
+    if (!block.factIds.length || new Set(block.factIds).size !== block.factIds.length) fail('CONFLICT')
+    return Math.min(...block.factIds.map(factId => {
+      const source = facts.get(factId)
+      if (!source || !accepts(source.fact)) fail('CONFLICT')
+      return source.index
+    }))
+  }
+  const statement = ({ text, factIds }: OptimizationStatement): ResumeStatement => ({ id: id(), text, factIds })
+  const entries = new Map<string, ResumeOptimization['entries'][number]>()
+  for (const entry of optimization.entries) {
+    if (!items.has(entry.profileItemId) || entries.has(entry.profileItemId)) fail('CONFLICT')
+    entries.set(entry.profileItemId, entry)
+  }
+  const ordered = [...snapshot.items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+  const group = (type: ProfileItem['type']) => ordered.filter(item => item.type === type && entries.has(item.id)).map(item => {
+    const bullets = entries.get(item.id)!.bullets.map(block => ({ block, index: rank(block, fact => fact.profileItemId === item.id) }))
+    if (new Set(bullets.map(bullet => bullet.index)).size !== bullets.length) fail('CONFLICT')
+    return { ...entryBasics(item), bullets: bullets.sort((a, b) => a.index - b.index).map(({ block }) => statement(block)) }
   })
   const { name, email, phone, location, links } = snapshot.profile
-  return { schemaVersion: 1, language, basics: { name, email, phone, location, links: structuredClone(links) }, summary: structuredClone(writing.summary),
-    experience: entries(writing.experience, 'EXPERIENCE'), projects: entries(writing.projects, 'PROJECT'), education: entries(writing.education, 'EDUCATION'), skills: structuredClone(writing.skills) }
-}
-export function writingOf(document: ResumeDocument): ResumeWriting {
-  const group = (entries: ResumeEntry[]) => entries.map(({ profileItemId, bullets }) => ({ profileItemId, bullets }))
-  return { summary: document.summary, experience: group(document.experience), projects: group(document.projects), education: group(document.education), skills: document.skills }
+  if (optimization.summary) rank(optimization.summary, () => true)
+  const skills = optimization.skills.map(block => ({ block, index: rank(block, fact => fact.kind === 'SKILL') }))
+  return { schemaVersion: 1, language: optimization.language, basics: { name, email, phone, location, links },
+    summary: optimization.summary && statement(optimization.summary), experience: group('EXPERIENCE'), projects: group('PROJECT'),
+    education: group('EDUCATION'), skills: skills.sort((a, b) => a.index - b.index).map(({ block }) => statement(block)) }
 }

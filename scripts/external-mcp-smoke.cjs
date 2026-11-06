@@ -66,7 +66,9 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   assert(repeated.ok); assert.equal(repeated.value.backupPath, undefined); assert.equal(statSync(codex.path).mtimeMs, before)
   assert(readFileSync(cursor.path, 'utf8').includes('// keep comment'))
   await click('codex', 'test')
-  await waitFor(() => evaluate(`document.querySelector('${selector('codex')}').textContent.includes('Connection verified: 42 tools')`), 'real built stdio service discovery')
+  await ready()
+  const connectionFeedback = await evaluate(`document.querySelector('${selector('codex')}').textContent`)
+  assert.match(connectionFeedback, /Connection verified: [1-9]\d* tools discovered\./, 'real built stdio service discovery')
   for (const target of ['codex', 'claude-code', 'cursor', 'other']) {
     await click(target, 'copy')
     await waitFor(() => evaluate(`document.querySelector('${selector(target)}').textContent.includes('Configuration copied')`), `${target} copied`)

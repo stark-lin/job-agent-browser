@@ -12,7 +12,7 @@ export interface ChatRun extends ChatChoice {
 }
 export type ToolSummaryKey = 'memoryRead' | 'memoryWrite' | 'knowledgeRead' | 'knowledgeWrite' | 'profileItems' | 'createProfile' | 'updateProfile' | 'addProfileItem' | 'updateProfileItem' | 'addProfileFact' | 'updateProfileFact' | 'jobs' | 'job' | 'updateJob' | 'archiveJob' | 'profiles' | 'profile' | 'facts'
   | 'application' | 'events' | 'setStatus' | 'addNote' | 'schedule' | 'reschedule' | 'artifact' | 'tool'
-  | 'importJob' | 'startResume' | 'resumeContext' | 'resumeFacts' | 'scoreResume' | 'checkResume' | 'selectResume' | 'draftResume' | 'polishResume' | 'publishResume' | 'failResume' | 'cancelResume' | 'buildArtifact' | 'searchTools' | 'activateTools'
+  | 'importJob' | 'startResume' | 'resumeContext' | 'resumeFacts' | 'optimizeResume' | 'scoreResume' | 'checkResume' | 'selectResume' | 'draftResume' | 'polishResume' | 'publishResume' | 'failResume' | 'cancelResume' | 'buildArtifact' | 'searchTools' | 'activateTools'
 export interface ToolDisplay { key: ToolSummaryKey; count?: number; status?: string; startsAt?: string }
 export interface ChatReasoning { source: string; kind: 'text' | 'summary' | 'encrypted'; blockId?: string }
 export type ChatContent = { type: 'user_message'; text: string; source?: 'smart-paste' }

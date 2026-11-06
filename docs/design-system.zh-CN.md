@@ -29,7 +29,7 @@
 | `Button`、`ActionRow`、`IconButton` | 操作、图标与浏览器标签变体；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
 | `CopyButton` | 异步复制并防止重复提交；成功后原按钮禁用并切换为传入的已复制文案，以礼貌实时反馈播报；失败仍可重试 | [CopyButton.tsx](../src/shared/ui/CopyButton.tsx) |
 | `TextArea` | 多行模型 ID、聊天输入和个人简介；最小高度使用 96px Token，支持缩放/焦点/禁用/错误状态 | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
-| `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立忽略控件及按模型开启并行导入 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
+| `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立忽略控件 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
 | `TextInput` | 文本、URL、密码和数字字段，或位于有样式容器中的裸输入框 | [TextInput.tsx](../src/shared/ui/TextInput.tsx) |
 | `ListInput` | 复用 `TextInput` 展示的逗号分隔列表，输入时保留末尾分隔符，外部值变更时同步重置 | [ListInput.tsx](../src/shared/ui/ListInput.tsx) |
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
@@ -102,10 +102,10 @@
 - 每个 `SectionCard` 都有标题，标题栏支持键盘操作。折叠时保留单行标题和向右的箭头，上下内边距各为 16px。展开时箭头朝下，说明和内容恢复原有间距。相邻外层面板的垂直间距为 24px，嵌套面板之间为 16px。嵌套面板复用 `SectionCard`，各自独立展开和折叠，父面板关闭时保留子面板的内容和状态。校验时会展开包含无效字段的面板。
 - 个人资料使用普通标题分组。资料条目和导入预览卡片可包含事实卡片，卡片最多嵌套两层。条目、事实、职位地点和要求的新增按钮使用虚线边框，与同组折叠卡片等宽、等高、同圆角，垂直间距也一致。
 - 设置页各层级面板默认折叠，其他页面的内容面板默认展开。展开时使用 16px 圆角和 24px 内边距（窄屏为 16px）。包含嵌套卡片的面板在所有宽度下四周内边距均为 16px。设置页字段高 40px。页面 CSS 仅管理布局。成功反馈使用可读文字以及成功背景和边框。展示库设置示例复用共享面板样式。
-- 导入模式用中央 `FormField`/`Select`，模型许可用 `Checkbox`；独立分组状态和耗时用 `DetailsList`；仅完成数量摘要使用实时状态文字，避免每次计时刷新都被重复朗读，失败组提供明确重试按钮。工作期间禁用模式切换；不可用的并行选项说明 Settings 前置条件。Forms 图库包含这些控件。
-- Profile 组合中央卡片、字段、忽略复选框、状态标记和对话框。基本信息和导入审核使用 `TextArea` 编辑可选个人简介（上限 2,000 字符），帮助文案说明 Agent 只能小修小补，Forms 图库包含示例。保存提交有效且未忽略内容；导入文本字段可以留空，格式错误在对应字段旁显示并聚焦。忽略父项排除子事实，部分导入保留已保存父项。[导入核对界面](../src/pages/profile/ImportReview.tsx)不按类型隐藏条目元数据字段；与手工编辑复用同一[事实字段](../src/pages/profile/ProfileFields.tsx)，仅含类别、内容和标签，不提供来源附件编辑框或详情行。窄屏标签换行，Forms 图库展示忽略状态。
+- 导入页用中央状态组件展示读取和解析进度。失败后提供整次解析重试。定制简历复用 Profile 的字段、经历卡片和编辑 Dialog。编辑区使用普通标题，Bullet 卡片只嵌套在经历卡片内。
+- Profile 组合中央卡片、字段、忽略复选框、状态标记和对话框。基本信息和导入审核使用 `TextArea` 编辑可选个人简介（上限 2,000 字符），帮助文案说明 Agent 只能小修小补，Forms 图库包含示例。保存提交有效且未忽略内容；导入文本字段可以留空，格式错误在对应字段旁显示并聚焦。忽略父项排除子事实，部分导入保留已保存父项。[导入核对界面](../src/pages/profile/ImportReview.tsx)不按类型隐藏条目元数据字段；与手工编辑复用同一[事实字段](../src/app/profile-editor/ProfileFields.tsx)，仅含类别、内容和标签，不提供来源附件编辑框或详情行。窄屏标签换行，Forms 图库展示忽略状态。
 - Settings 审计查看器组合中央 `DataTable`、`Badge`、`DetailsList` 和 `Dialog` 正文。表格单元格的上下内边距各为 8px。共享数据表格的单元格只显示首行，过长内容以省略号截断。申请和审计查看器可点击整行打开详情，也可用键盘激活首列，关闭弹窗后焦点返回该单元格。审计成功和失败分别使用绿色和红色文字。表格在页面内横向滚动。元数据弹窗在视口内滚动。Tables 展示库包含审计参考。
-- Tailor Resume 组合中央选择字段、操作、阶段进度、来源详情和文档预览。页面 CSS 只管理布局，输出重试、取消及系统保存明确显示状态。Feedback 图库包含这两个原语，PDF 排版由固定输出模板管理。
+- Tailor Resume 组合中央选择字段、操作、阶段进度、文档预览和共享编辑组件。页面 CSS 只管理布局，输出重试、取消及系统保存明确显示状态。Feedback 图库包含这两个原语，PDF 排版由固定输出模板管理。
 - 保留原生键盘激活、禁用行为和可见焦点。裸 `TextInput` 必须位于提供可见焦点反馈的容器中，参见 [AddressBar](../src/pages/browser/AddressBar.tsx)；其自身描边按设计被移除。
 - Browser 的 Back/Forward、Alt 历史快捷键、右键拖动和触控板横向滑动仅操作网页历史；工作区导航保留浏览器状态及前进项。手势中内容和工具栏固定；中央 `historyIndicatorDocument` 组件在对应边缘的 64px 透明原生浮层中显示 48px 圆形箭头，边距为 8px。可用箭头使用 text/surface Token，达到触发距离后使用 primary/on-primary，不可用方向使用 muted/panel-solid；短距离或取消手势立即隐藏箭头，无位移或动画；成功的历史导航和刷新使用纯中性的 `--browser-transition-bg`（亮色和暗色均为 #303030）遮罩，目标帧就绪后直接显示。Browser 工作区/底层画布使用独立的 `--browser-canvas-bg`（亮色 #e5e5e5 / 暗色 #303030）。刷新位于 Forward 右侧，也出现在 Browser/Inbox 原生菜单；普通右键点击保留原生菜单，网页滚动优先。箭头和手势尺寸由现有尺寸/间距 Token 生成。新标签打开空白 Browser 工作区，标签名称使用浏览器标题。标签选择、键盘焦点和选中状态保持一致；键盘处理归 [TabStrip](../src/pages/browser/TabStrip.tsx)。通过适当文字/角色宣布错误，长文本保持可读，不隐藏完整含义。
 - Browser 在地址输入框右侧放置共享复制图标按钮。空白、加载中或加载失败的网页禁用“复制网页文本”。工具栏和原生右键菜单均在成功时于工具栏显示“已复制”，失败时显示错误提示。[Browser 控件](../src/pages/browser/BrowserControls.tsx)
@@ -126,7 +126,7 @@ Enter 发送、Shift+Enter 换行，输入法组合期间不发送。运行中�
 
 [会话操作](../src/pages/ai/SessionSidebar.tsx)顺序为重命名 → 复制调试 JSON → 删除。复制复用中央 Dialog/Button/CopyButton/StatusMessage，展示完整敏感数据警告，初始聚焦取消，并提供复制 JSON；不加复选框或展示 Token。打开、取消及 Escape 不复制。每次确认固定目标 Session（包括运行中的 Session），阻止重复提交；成功后保留弹窗，原 CopyButton 切换为“已复制到剪贴板”并保持禁用，关闭弹窗后才可重新确认复制；会话列表下方不显示成功提示。失败保留错误/重试弹窗。Overlays 画廊包含警告示例；完整数据留在 Main。
 
-沿用 StatusMessage 展示 Pending、同步上下文压缩及工具搜索/激活。Memory 读写使用普通工具时间线行，不显示后台 Memory 状态或重试操作。仅有 Run 运行时 Session 才繁忙。Settings 每模型并行许可仅用于导入，实际上下文/输出控件仍供 Ask 使用。不提供 Ask Memory 模式开关或 Memory 控制台。
+沿用 StatusMessage 展示 Pending、同步上下文压缩及工具搜索/激活。Memory 读写使用普通工具时间线行，不显示后台 Memory 状态或重试操作。仅有 Run 运行时 Session 才繁忙。设置中的上下文和输出上限供 Ask 使用。不提供 Ask Memory 模式开关或 Memory 控制台。
 
 [工具详情](../src/pages/ai/TimelineItem.tsx)组合现有 DetailsList 和 Collapsible，显示 Chat Run ID/最终状态、Guard 调用/派发/拦截计数、已确认操作及本地化停止原因。可选告警/恢复和下一步行说明策略切换，不改变工具成功状态。执行前拒绝标为“未执行”，成功及不确定结果保留各自状态。Feedback 图库包含这些区别，Token 和几何保持不变。
 

@@ -9,7 +9,7 @@ export interface ResumeAPI {
   getTask(input: { runId?: string }): Promise<Result<ResumeTask | null>>
   cancel(input: { runId: string }): Promise<Result<null>>
   retryOutput(input: { artifactId: string }): Promise<Result<null>>
-  getPreview(input: { artifactId: string }): Promise<Result<{ html: string; pages: number }>>
+  getPreview(input: { artifactId: string }): Promise<Result<{ html: string; pages: number; revision: number }>>
   exportPdf(input: { artifactId: string }): Promise<Result<{ saved: boolean }>>
   onEvent(callback: (event: ResumeEvent) => void): () => void
 }

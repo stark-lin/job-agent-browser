@@ -29,7 +29,7 @@ app.once('browser-window-created', (_event, window) => {
       await wait(() => evaluate('!!document.querySelector(".ui-document-preview")'), 'automatic HTML and PDF output')
       const task = (await evaluate('window.resume.getTask({})')).value
       assert.equal(task.run.status, 'SUCCEEDED'); assert.equal(task.run.language, 'zh-CN'); assert.equal(task.artifact.output.status, 'READY')
-      assert(task.run.draft && task.run.polished && task.run.scores.length === 1)
+      assert(task.run.assembled)
       assert.equal(task.artifact.content.summary.factIds[0], fact.id)
       assert.deepEqual(task.artifact.outputFiles.map(file => file.format), ['HTML', 'PDF'])
       const preview = (await evaluate(`window.resume.getPreview({artifactId:${JSON.stringify(task.artifact.id)}})`)).value
@@ -58,6 +58,20 @@ app.once('browser-window-created', (_event, window) => {
       const before = server.requests()
       await click('Rebuild HTML / PDF'); await wait(() => evaluate('window.resume.getTask({}).then(result => result.ok && !result.value.active && result.value.artifact.output.status === "READY")'), 'output retry terminal state'); await wait(() => evaluate('!!document.querySelector(".ui-document-preview")'), 'output-only retry')
       assert.equal(server.requests(), before)
+      assert.equal(await evaluate(`!!document.querySelector('section[aria-label="Edit this resume"]')`), true)
+      assert.equal(await evaluate('!!document.querySelector(".resume-page details details details")'), false)
+      assert.equal(await evaluate('document.querySelector(".resume-page").textContent.includes("Statement sources")'), false)
+      await evaluate(`(() => {
+        const input = document.querySelector('section[aria-label="Edit this resume"] input');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Edited resume contact');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+      await click('Save and rebuild PDF')
+      await wait(() => evaluate('window.resume.getTask({}).then(result => result.ok && !result.value.active && result.value.artifact.revision === 2 && result.value.artifact.output.status === "READY")'), 'edited resume rebuild')
+      const edited = (await evaluate('window.resume.getTask({})')).value
+      assert.equal(edited.artifact.content.basics.name, 'Edited resume contact')
+      assert.equal((await data('profiles', 'getProfile', { id: profile.id })).name, profile.name)
+      assert.equal(server.requests(), before)
       // Document container remains opaque and every UI control uses central components.
       window.setMinimumSize(320, 320); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
       for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {
@@ -78,7 +92,7 @@ app.once('browser-window-created', (_event, window) => {
       writeFileSync(join(process.env.JOB_BROWSER_SMOKE_DATA, 'resume-receipt.json'), JSON.stringify({ runId: task.run.id, artifactId: task.artifact.id, pendingId: pending.id }))
       const { BrowserWindow } = require('electron'), { DatabaseSync } = require('node:sqlite')
       const keepAlive = new BrowserWindow({ show: false })
-      const callsBeforeClose = server.requests(); server.hook(stage => stage === 'score')
+      const callsBeforeClose = server.requests(); server.hook(stage => stage === 'optimize')
       const closing = await evaluate(`window.resume.start({jobId:${JSON.stringify(task.run.jobId)},profileId:${JSON.stringify(profile.id)}})`)
       assert(closing.ok)
       await wait(() => Promise.resolve(server.requests() > callsBeforeClose), 'model request before window destruction')

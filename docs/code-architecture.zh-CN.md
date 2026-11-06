@@ -139,11 +139,11 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Chat Domain](../src/domain/chat/)管理纯会话契约及人工校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)拥有 FIFO 放行、持久化回调、每轮授权和取消；[AskStore](../src/app/ai/askStore.ts)负责事件投影。platform/agent/pi、context、tools 模块仅接收模型、MCP 客户端及纯回调，不能导入 Repository 或 ToolScope。Provider 分帧留在 platform/ai。仅 Ask 使用 Pi，既有流程引擎保留；CJS 入口通过原生动态 import 加载 Pi ESM。
 
-[Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
+[个人资料页面](../src/pages/profile/ProfilePage.tsx)管理表单和导入审核。[导入任务](../src/platform/profile-import/service.ts)管理 PDF 提取、一次模型解析、会话归属和重试。[Candidate Domain](../src/domain/candidate/import.service.ts)负责原子保存与排序。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 
-[Platform Agent](../src/platform/agent/)通过 AgentTools 实现 Resume 五阶段推理、资料采集和申请动作规划。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
+[Platform Agent](../src/platform/agent/)通过 AgentTools 实现 Resume 内容优化、资料采集和申请动作规划。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
 
 ## 六、质量与后续交付
 

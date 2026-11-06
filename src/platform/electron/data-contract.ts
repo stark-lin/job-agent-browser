@@ -73,7 +73,7 @@ export interface DataContract {
     getRun: Endpoint<Id, RunView>
     listRuns: Endpoint<{ jobId?: string | null } & Page, PageResult<RunView>>
     getArtifact: Endpoint<Id, ArtifactView>
-    editArtifact: Endpoint<{ id: string; title: string; content: ResumeDocument }, Artifact>
+    editArtifact: Endpoint<{ id: string; title: string; expectedRevision: number; content: ResumeDocument }, Artifact>
     deleteArtifact: Endpoint<Id, Id>
   }
   audit: { list: Endpoint<AuditFilter, PageResult<AuditEntry>> }

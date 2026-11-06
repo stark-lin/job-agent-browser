@@ -15,7 +15,7 @@ function legacyFixture(t: TestContext) {
   t.after(() => backend.close())
   const store = new Store(db, transactions), tx = transactions.forActor('USER')
   const profile = backend.profiles.createProfile({ name: 'Keep person', introduction: 'Keep introduction' })
-  const item = backend.profiles.addItem({ profileId: profile.id, details: { type: 'PROJECT', title: 'Keep project' } })
+  const item = backend.profiles.addItem({ profileId: profile.id, details: { type: 'PROJECT', title: 'Keep project', sortOrder: 0 } })
   const job = backend.jobs.saveJob({ details: { title: 'Keep role', companyNameRaw: 'Keep company' } })
   const facts = ['Page 2\nOriginal quote: 原文片段', ''].map((evidence, index) => {
     const fact = { id: randomUUID(), profileId: profile.id, profileItemId: index ? null : item.id,
@@ -24,7 +24,15 @@ function legacyFixture(t: TestContext) {
     tx.write({ event: 'FACT_ADD', action: 'CREATE', target: 'fact' }, () => store.insert('fact', fact))
     return fact
   })
-  const run = backend.resumes.createRun({ jobId: job.id, profileId: profile.id })
+  const run = { id: randomUUID(), jobId: job.id, type: 'RESUME', status: 'PENDING', stage: 'snapshot', language: null,
+    inputSnapshot: { schemaVersion: 1, job, profile: backend.profiles.getProfile({ id: profile.id }), items: [item], facts: [...facts].sort((a, b) => a.id.localeCompare(b.id)) },
+    scores: null, gate: null, selection: null, draft: null, polished: null,
+    config: { templateId: 'default-v1', targetWordCount: 500, providerId: '', modelId: '' },
+    error: null, createdAt: '2026-01-01', updatedAt: '2026-01-01', finishedAt: null }
+  tx.write({ event: 'GENERATION_CREATE', action: 'CREATE', target: 'generation_run' }, () => {
+    store.insert('generation_run', run)
+    backend.lease.claim('generation', run.id)
+  })
   const request = { profileId: profile.id, profileItemId: null, expectedRevision: 3, requestId: randomUUID(),
     details: { kind: 'OTHER', content: facts[1].content, tags: facts[1].tags, evidence: '' } }
   const result = { ...facts[1], revision: 4 }, receipts = operationReceipts(db)
@@ -46,7 +54,7 @@ test('V15 removes attachments from facts, snapshots and receipts, preserving all
   migrate(db, migrations.slice(0, 15))
   assert(!db.prepare('PRAGMA table_info(facts)').all().some(column => column.name === 'evidence'))
   const expectedFacts = f.facts.map(({ evidence: _removed, ...fact }) => fact).sort((a, b) => a.id.localeCompare(b.id))
-  assert.deepEqual(backend.profiles.listFacts({ profileId: f.profile.id }).items, expectedFacts)
+  assert.deepEqual(f.rows('facts').map(row => f.store.decode(row)).sort((a, b) => (a as { id: string }).id.localeCompare((b as { id: string }).id)), expectedFacts)
   const nextRun = backend.resumes.getRun({ id: f.run.id }).run
   assert.deepEqual(nextRun, { ...f.run, inputSnapshot: { ...f.run.inputSnapshot, facts: expectedFacts } })
   for (const table of ['profiles', 'profile_items', 'jobs', 'audit_logs']) assert.deepEqual(f.rows(table), before[table])
@@ -64,6 +72,7 @@ test('V15 removes attachments from facts, snapshots and receipts, preserving all
     db.prepare("UPDATE generation_runs SET input_snapshot_json=json_set(input_snapshot_json,'$.profile.name','forged')").run()
   }), { code: 'CONFLICT' })
   assert.deepEqual(backend.resumes.getRun({ id: f.run.id }).run, nextRun)
+  migrate(db)
   const profile = backend.profiles.getProfile({ id: f.profile.id })
   const edited = backend.profileWrites.updateFact({ id: f.facts[0].id, profileId: profile.id, requestId: randomUUID(),
     expectedRevision: profile.revision, changes: { tags: ['updated'] } })
@@ -73,7 +82,7 @@ test('V15 removes attachments from facts, snapshots and receipts, preserving all
   backend.generation.start({ id: f.run.id })
   assert(db.prepare("SELECT * FROM audit_logs WHERE target_id=? AND event_type='GENERATION_START'").get(f.run.id))
   const stored = f.rows('generation_runs'), receipts = f.rows('operation_receipts'), audits = f.rows('audit_logs')
-  migrate(db, migrations.slice(0, 15))
+  migrate(db)
   assert.deepEqual(f.rows('generation_runs'), stored); assert.deepEqual(f.rows('operation_receipts'), receipts)
   assert.deepEqual(f.rows('audit_logs'), audits)
   const { evidence: _removed, ...details } = f.request.details

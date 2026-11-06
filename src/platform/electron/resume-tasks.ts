@@ -154,12 +154,13 @@ export function createResumeTasks(deps: {
       } finally { pending.delete(owner); finish() }
     },
     async getPreview(input: unknown) {
-      const { artifactId } = v.object({ artifactId: v.id })(input), current = artifact(artifactId)
-      return { html: (await outputs.read(artifactId, 'HTML')).toString('utf8'), pages: current.output.pages! }
+      const { artifactId } = v.object({ artifactId: v.id })(input)
+      const { bytes, pages, revision } = await outputs.read(artifactId, 'HTML')
+      return { html: bytes.toString('utf8'), pages, revision }
     },
     async pdf(input: unknown) {
       const { artifactId } = v.object({ artifactId: v.id })(input)
-      return { bytes: await outputs.read(artifactId, 'PDF'), name: `${artifactId}.pdf` }
+      return { bytes: (await outputs.read(artifactId, 'PDF')).bytes, name: `${artifactId}.pdf` }
     },
     disposeOwner(owner: number) { pending.get(owner)?.controller.abort(); active.get(owner)?.controller.abort() },
     async dispose() {

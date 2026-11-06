@@ -1,6 +1,6 @@
 # Current Runtime Architecture
 
-Purpose: record verified runtime behavior. Status: **Implemented** React composition, separate workspace/browser navigation, Settings, Profile editing/PDF import, Job Capture/Application Agents, Ask AI V2 and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
+Purpose: record verified runtime behavior. Status: **Implemented** React composition, separate workspace/browser navigation, Settings, Profile editing/PDF import, Job Capture/Application Agents, Ask AI V2 and Tailor Resume with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
 
 Language: English · [简体中文](architecture.zh-CN.md)
 
@@ -112,39 +112,19 @@ Follow system responds to native appearance updates; explicit Light/Dark overrid
 
 [Import IPC](../src/platform/electron/main/profile-import-ipc.ts) opens one native PDF selection and returns an opaque file ID. [The session service](../src/platform/profile-import/service.ts) owns bytes, tasks, draft IDs, save receipts and owner checks in memory. [PDF.js extraction](../src/platform/import/pdf-worker.mjs) runs in a cancellable Node Worker copied beside Main by the build; CMaps, standard fonts and WASM resolve from the installed dependency. Limits are 10 MB, 20 pages and 60,000 extracted characters, with explicit encrypted/corrupt/no-text/limit errors. Text line/column ordering is heuristic, so review remains necessary.
 
-Main sends PDF text to the disclosed saved default Provider/model, reusing AI timeouts, cancellation and startup audit. [Draft parsing](../src/platform/profile-import/draft.ts) validates JSON and groups multiple facts per entry. Import output contains no source quotes/page numbers or evidence checks; optional empty fields may be omitted. Saved facts still support Resume Agent statement associations. Raw streams are never presented as parsed records. Retry is manual. Raw PDFs, full text and unsaved drafts are not persisted; leave, refresh, crash and window disposal release sessions. OCR, original-file management and third-party Provider compatibility certification remain unimplemented.
+Main sends numbered PDF text to the selected model. [Draft parsing](../src/platform/profile-import/draft.ts) validates source locations, sorts entries and deduplicates facts. Review can assign unclassified source lines to fields or facts, or ignore them. PDF bytes, full text and unsaved drafts stay in memory.
 
-**Implemented import modes:** both imports start in Standard mode (`single`, one AI request). In Settings, select the Provider and the model under “Model settings”, enable “Allow parallel requests for this model” and save. Then select Parallel (`parallel`) independently on the PDF or URL import page. The permission belongs to the Provider/model pair, not the model API. Import mode is page/session state, not a saved global preference; a missing permission disables Parallel and Main rejects attempts to bypass it. See [model controls](../src/pages/settings/ModelImportSettings.tsx), [mode controls](../src/app/ai/ImportControls.tsx) and [Main policy](../src/platform/import/policy.ts).
-
-The page is downloaded/cleaned once or the PDF text is extracted once before AI work starts. [Job groups](../src/platform/job-import/parts.ts) and [profile groups](../src/platform/profile-import/parts.ts) read the same complete source; splitting does not partition the document by page. Ordinary and parallel PDF import use the same compact fact schema described in [data architecture](data-architecture.md#2-business-rules).
-
-| Import | Group | Extracted content |
-| --- | --- | --- |
-| Job capture | `basics` | Title, raw company name, location text/list, employment type and salary |
-| Job capture | `description` | Job description |
-| Job capture | `requirements` | Requirement text, category and keywords |
-| PDF profile | `contact` | Basic profile fields including introduction, links and standalone facts |
-| PDF profile | `experience` | Work experience entries with their nested facts |
-| PDF profile | `projects` | Project entries with their nested facts |
-| PDF profile | `education` | Education entries with their nested facts |
-
-In Parallel mode, job notes default to empty; source metadata is assembled locally. [Shared batches](../src/platform/import/batch.ts) permit at most three concurrent parts, so the fourth PDF group waits for a slot. Each group can return only its assigned fields/item types; deterministic merging happens after all groups succeed. Profile merging removes matching kind/content duplicates within a parent and matching standalone copies of attached facts; equal facts under different parents remain separate.
-
-[The AI service](../src/platform/ai/service.ts) queues Profile imports within four active requests per window/sixteen globally and eighty accepted active/queued requests. Job Capture uses AgentModel with up to three concurrent groups per window-owned task. Each group reports memory-only queue/processing durations; [shared batches](../src/platform/import/batch.ts) refresh every 100 ms with a monotonic clock, preserve terminal durations and reset only failed parts on retry. Completion/failure/cancellation release the timer.
-
-When a part fails, completed results remain in memory and the page offers “Retry failed parts” only when the task reports `retryable`. Retrying reuses the original source, model choice, mode and successful results; it neither downloads/extracts again nor writes business data. Read/extraction failures or final merge failures without a failed part require a fresh parse. Replacement, discard, navigation/window disposal and process exit release the relevant task/cache. Retry identifiers belong to [data architecture](data-architecture.md#5-api-contract-and-access).
-
-Every group receives the full input, so input tokens/cost can increase. Smaller outputs and concurrent requests can reduce waiting, but provider concurrency, model throughput and network latency determine the result; local fixture tests do not establish a live-provider speedup.
+[Profile import requests](../src/platform/import/request.ts) and job capture each use one model request per parse. Explicit retry after a parse failure reuses the cached source and reruns the whole extraction. Cancellation, replacement or window disposal release task caches.
 
 **Implemented Add Job:** [the page](../src/pages/find-jobs/AddJobPage.tsx) supports manual entry and URL/text/PDF capture through [Capture Agent](../src/platform/agent/capture.ts). It fills empty fields, preserves existing arrays/salary and shows the selected model. Reading and interpretation make no JAB MCP calls; edited drafts are saved through job.import after review. Manual forms retain typed IPC. [Unsaved protection](../src/app/navigation/useUnsavedGuard.ts) is shared with Profile; storage rules belong to [data architecture](data-architecture.md).
 
 [The public URL reader](../src/platform/job-import/url-reader.ts) reads HTTP(S) HTML in Main without website cookies or page scripts: the saved page-read timeout, up to 5 redirects, 2 MB HTML, 60,000 text characters and 40,000 JobPosting metadata characters. [HTML parsing](../src/platform/job-import/html.ts) uses htmlparser2 and excludes scripts/navigation. HTTP denials, detected login/challenge pages and unreadable content return fixed errors. Script-only pages and unrecognized challenges may fail; compatibility with all job sites is not guaranteed.
 
-[Capture tasks](../src/platform/job-import/service.ts) own source bytes, draft state, retries and a stable save requestId per window. [Common PDF reading](../src/platform/import/pdf.ts) shares the Profile worker and limits. Job parsing uses AgentModel; [group parsing](../src/platform/job-import/parts.ts) rejects managed fields and preserves successful groups for retry. Window disposal suppresses late results. Authenticated Browser capture, login/captcha handling, OCR and original-file management remain unimplemented.
+[Capture tasks](../src/platform/job-import/service.ts) own source data, draft state, retries and stable save request IDs per window. [Job parsing](../src/platform/agent/capture.ts) uses AgentModel and suppresses late results after disposal. PDF reading shares the Profile worker and limits.
 
 [Applications](../src/pages/applications/ApplicationsPage.tsx) supports search/status/archive filters, 25-row pages and explicit refresh. Details contain sources, paginated events and an [Application Agent panel](../src/pages/applications/ApplicationAgentPanel.tsx). Clear instructions execute local status/note/event/detail/archive actions through MCP; missing details trigger questions, and partial failures retain completed actions. Saving a Job opens its details. External calendar/email actions and duplicate merging remain planned.
 
-**Implemented Resume Agent V1:** [Main tasks](../src/platform/electron/resume-tasks.ts) compose a fixed five-stage [Resume Agent](../src/platform/agent/resume.ts) and a real first-party stdio MCP session. Immutable start/read/submission/publish/fail/cancel/build all cross MCP; UI queries/preview/export remain separate Main operations. [The asynchronous bridge](../src/platform/electron/resume-contract.ts) powers Tailor Resume, retains history, limits one active task per window and cancels destroyed-window work. [Data architecture](data-architecture.md#3-generation-output-and-deletion) owns persistence/output; [MCP architecture](mcp-architecture.md) owns Agent boundaries.
+**Implemented Tailor Resume:** [Main tasks](../src/platform/electron/resume-tasks.ts) use a real MCP session to freeze inputs, submit one AI content optimization, publish and build HTML/PDF. [Tailor Resume](../src/pages/tailor-resume/TailorResumePage.tsx) shows history and preview and shares Profile editing components. Manual saves change the current Artifact and rebuild without calling a model.
 
 ## 4. Session, security and storage
 
@@ -173,7 +153,7 @@ Main opens storage and registers data handlers before creating the window, close
 
 Tab histories and context references are memory-only. Retained web segments are released by branching or closing tabs/windows; automatic eviction and cross-restart restoration are not implemented. Remaining business workflows, authenticated page extraction, full Shared Context capture remain unimplemented; packaging and its verification status belong to [CI/CD](ci-cd.md).
 
-[Job import tests](../tests/job-import.test.ts) cover HTML cleaning, access restrictions, timeout/cancellation, field allowlists, manual-value preservation and initial status. [Job smoke](../scripts/job-smoke.cjs) uses local HTML/SSE fixtures to verify real bridges, save/navigation, Applications and bilingual theme/layout behavior. [Parallel import tests](../tests/import-parallel.test.ts), [queue tests](../tests/ai-queue.test.ts) and [production smoke](../scripts/import-parallel-smoke.cjs) verify group isolation, bounded scheduling, retry/cancel, model opt-in and bilingual layouts. Real third-party job-site/account compatibility remains unverified.
+[Job import tests](../tests/job-import.test.ts) and [job smoke](../scripts/job-smoke.cjs) cover URL, text, PDF, single-request parsing and review before saving. Real third-party job-site and account compatibility remains unverified.
 
 ## 7. Related documents
 

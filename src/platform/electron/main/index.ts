@@ -39,8 +39,6 @@ import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
 import { defaultAITimeouts } from '../../../shared/ai'
 import { registerJobImportIPC } from './job-import-ipc'
-import type { ImportSaved } from '../../../domain/candidate/import.types'
-import type { Result } from '../../../shared/ipc'
 import { createMainWindow } from './window'
 import { registerBrowserIPC } from './browser-ipc'
 import { applyTheme } from './theme'
@@ -113,10 +111,10 @@ app.whenReady().then(async () => {
   // Optional external capabilities never delay window creation or reject the application startup.
   void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
-  profileImporter = createProfileImporter({ ai, settings: () => preferences.get({}).ai, apply: input => backend!.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
+  profileImporter = createProfileImporter({ ai, apply: (input, order) => backend!.applyProfileImport(input, order) })
   firstParty = createFirstPartyRuntime(directory, __dirname)
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAgentModel })
-  jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
+  jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
   askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty,

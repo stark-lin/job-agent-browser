@@ -3,7 +3,7 @@ import type { ChatDebugOutput } from '../../domain/chat/chat-debug.types'
 import { chatDebugExportRepository } from './repositories/chat-debug-export'
 import { chatRepository } from './repositories/chats'
 import { createChatService } from '../../domain/chat/chat.service'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { createJobService } from '../../domain/job/job.service'
 import { createProfileWriteService } from '../../domain/candidate/write.service'
 import { createCandidateService } from '../../domain/candidate/candidate.service'
@@ -47,13 +47,25 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
     resumes: createResumeService(repo.jobs, repo.candidate, repo.resumes, kind === 'external' ? database.transactions.forActor('EXTERNAL') : user, runtime, references(store), kind),
     audit: auditReader(store, user), ...storage
   } satisfies ServiceContract
-  const generation = createGenerationService(repo.resumes, database.transactions.forActor(kind === 'external' ? 'EXTERNAL' : 'AI'), runtime)
+  const fingerprint = (input: string) => createHash('sha256').update(input).digest('hex')
+  const generation = createGenerationService(repo.resumes, database.transactions.forActor(kind === 'external' ? 'EXTERNAL' : 'AI'), runtime, fingerprint)
+  const recoveryGeneration = createGenerationService(repo.resumes, system, runtime, fingerprint)
   function recover() {
     chats.recover()
-    createGenerationService(repo.resumes, system, runtime).recoverInterrupted()
+    recoveryGeneration.recoverInterrupted()
     const interrupted = database.connection.prepare("SELECT id FROM artifacts WHERE json_extract(output_json,'$.status')='RUNNING'").all()
-    for (const row of interrupted) if (!lease.active('output', String(row.id))) {
-      createGenerationService(repo.resumes, system, runtime).recordOutputState({ id: row.id, output: { status: 'FAILED', error: 'OUTPUT_INTERRUPTED', pages: null } })
+    for (const row of interrupted) {
+      const id = String(row.id)
+      if (lease.active('output', id)) continue
+      try {
+        const current = user.read(() => repo.resumes.getArtifact(id))
+        if (current.output.status !== 'RUNNING') continue
+        recoveryGeneration.commitOutput(id, current.revision,
+          { status: 'FAILED', error: 'OUTPUT_INTERRUPTED', pages: null }, [], () => {
+            lease.available('output', id)
+            if (repo.resumes.getArtifact(id).output.status !== 'RUNNING') fail('CONFLICT')
+          })
+      } catch (error) { if (!['CONFLICT', 'NOT_FOUND'].includes(errorCode(error))) throw error }
     }
     database.transactions.capabilities.recoverInterrupted()
   }
@@ -75,12 +87,17 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
     } catch (error) { return { ok: false, error: errorCode(error) } }
   }
   return {
+    applyProfileImport(input: Parameters<typeof services.profiles.applyImport>[0], order: Parameters<typeof services.profiles.applyImport>[1]) {
+      try { return { ok: true, value: services.profiles.applyImport(input, order) } as const }
+      catch (error) { return { ok: false, error: errorCode(error) } as const }
+    },
     generation,
     profileWrites: createProfileWriteService(repo.candidate, business, runtime, receipts),
     chats,
     lease,
     recover,
     outputTransaction: system,
+    artifactForOutput: (id: string) => repo.resumes.getArtifact(id),
     resumes: services.resumes,
     jobs: services.jobs,
     profiles: services.profiles,

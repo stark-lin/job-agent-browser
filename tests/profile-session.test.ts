@@ -6,12 +6,11 @@ import { createProfileImporter } from '../src/platform/profile-import/service'
 import type { AIService } from '../src/platform/ai'
 import type { AIEvent } from '../src/shared/ai'
 import type { ImportEvent } from '../src/platform/electron/profile-import-contract'
-import type { ApplyImport, ImportDraft, ImportSaved } from '../src/domain/candidate/import.types'
-import type { Result } from '../src/shared/ipc'
+import type { ApplyImport, ImportDraft } from '../src/domain/candidate/import.types'
 
 const pages = [{ page: 1, text: 'First fact\nSecond fact' }]
-const response = JSON.stringify({ contact: { name: 'Candidate' }, links: [], items: [{ type: 'PROJECT', title: 'Project',
-  facts: ['First fact', 'Second fact'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] })
+const response = JSON.stringify({ contact: { name: 'Candidate' }, links: [], items: [{ source: { page: 1, line: 1 }, type: 'PROJECT', title: 'Project',
+  facts: ['First fact', 'Second fact'].map((content, index) => ({ kind: 'ACHIEVEMENT', content, source: { page: 1, line: index + 1 } })) }], facts: [], unmapped: [] })
 const choice = { providerId: 'fixture', modelId: 'fixture' }
 function aiFixture(automatic = true) {
   let emit: ((event: AIEvent) => void) | undefined
@@ -38,7 +37,7 @@ function selection(draft: ImportDraft, sessionId: string): ApplyImport {
 }
 test('session saves parent once, attaches remaining facts later and replays uncertain saves without duplicate writes', async t => {
   const f = fixture(t), mock = aiFixture()
-  const importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
+  const importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: f.backend.applyProfileImport })
   t.after(() => importer.dispose())
   const file = importer.select(1, new Uint8Array([1])), task = await ready(importer, 1, file.fileId), first = selection(task.draft, task.sessionId)
   const saved = value(importer.apply(1, first)), count = value(await f.api.audit.list({})).total
@@ -54,7 +53,7 @@ test('session saves parent once, attaches remaining facts later and replays unce
   assert.equal(value(await f.api.profiles.listFacts({ profileId: saved.profile.id })).total, 2)
 })
 test('file/task ownership is enforced and deleted saved parents block later facts', async t => {
-  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
+  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: f.backend.applyProfileImport })
   t.after(() => importer.dispose())
   const file = importer.select(1, new Uint8Array([1]))
   assert.throws(() => importer.start(2, { fileId: file.fileId, choice }, () => {}), /FORBIDDEN/)
@@ -81,7 +80,7 @@ test('cancel/discard suppress late AI results and release sessions', async () =>
   importer.dispose()
 })
 test('uploading identical content again creates new IDs after explicit saving', async t => {
-  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: input => f.backend.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
+  const f = fixture(t), mock = aiFixture(), importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: f.backend.applyProfileImport })
   t.after(() => importer.dispose())
   const one = importer.select(1, new Uint8Array([1])), first = await ready(importer, 1, one.fileId)
   const saved = value(importer.apply(1, selection(first.draft, first.sessionId)))
@@ -92,7 +91,7 @@ test('uploading identical content again creates new IDs after explicit saving', 
   assert.equal(value(await f.api.profiles.listItems({ profileId: saved.profile.id })).total, 2)
 })
 test('AI failures and malformed output require an explicit retry and do not write profile data', async () => {
-  let calls = 0, completed!: (event: ImportEvent) => void
+  let calls = 0, reads = 0, completed!: (event: ImportEvent) => void
   const ai: Pick<AIService, 'start' | 'cancel'> = {
     start(_owner, _input, emit) {
       const requestId = randomUUID(); calls++
@@ -103,16 +102,16 @@ test('AI failures and malformed output require an explicit retry and do not writ
       return { requestId }
     }, cancel() {}
   }
-  const importer = createProfileImporter({ ai, extract: async () => structuredClone(pages), apply: () => assert.fail('no implicit writes') })
+  const importer = createProfileImporter({ ai, extract: async () => { reads++; return structuredClone(pages) }, apply: () => assert.fail('no implicit writes') })
   const file = importer.select(1, new Uint8Array([1]))
   const failure = () => new Promise<ImportEvent>(resolve => { completed = resolve })
   let done = failure()
-  importer.start(1, { fileId: file.fileId, choice }, event => { if (event.type === 'failed') completed(event) })
+  const task = importer.start(1, { fileId: file.fileId, choice }, event => { if (event.type === 'failed') completed(event) })
   assert.deepEqual((await done as { error: string }).error, 'AI_RATE_LIMITED'); assert.equal(calls, 1)
   await new Promise(resolve => setImmediate(resolve)); assert.equal(calls, 1, 'no automatic retry')
   done = failure()
-  importer.start(1, { fileId: file.fileId, choice }, event => { if (event.type === 'failed') completed(event) })
-  assert.deepEqual((await done as { error: string }).error, 'IMPORT_INVALID_OUTPUT'); assert.equal(calls, 2)
+  importer.retry(1, { sessionId: task.sessionId })
+  assert.deepEqual((await done as { error: string }).error, 'IMPORT_INVALID_OUTPUT'); assert.equal(calls, 2); assert.equal(reads, 1)
   importer.dispose()
 })
 test('discard during extraction suppresses a late worker result before any AI request', async () => {
@@ -126,4 +125,35 @@ test('discard during extraction suppresses a late worker result before any AI re
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(events.filter(event => event.type === 'ready').length, 0)
   importer.dispose()
+})
+
+test('source order survives reversed partial saves with manual entries inserted between batches', async t => {
+  const f = fixture(t)
+  const ai: Pick<AIService, 'start' | 'cancel'> = {
+    start(_owner, _input, emit) {
+      const requestId = randomUUID()
+      const rows = [2, 1].map(line => ({ type: 'PROJECT', title: `Project ${line}`, source: { page: 1, line },
+        facts: [{ kind: 'ACHIEVEMENT', content: `Fact ${line}`, source: { page: 1, line } }] }))
+      setImmediate(() => {
+        emit({ requestId, type: 'delta', text: JSON.stringify({ contact: { name: 'Candidate' }, links: [], items: rows, facts: [], unmapped: [] }) })
+        emit({ requestId, type: 'completed' })
+      })
+      return { requestId }
+    }, cancel() {}
+  }
+  const importer = createProfileImporter({ ai, extract: async () => pages, apply: f.backend.applyProfileImport })
+  t.after(() => importer.dispose())
+  const task = await ready(importer, 1, importer.select(1, new Uint8Array([1])).fileId)
+  const batch = (index: number, profileId: string | null): ApplyImport => {
+    const item = task.draft.items[index], fact = task.draft.facts.find(fact => fact.itemDraftId === item.draftId)!
+    return { sessionId: task.sessionId, batchId: randomUUID(), profileId, contact: profileId ? {} : { name: 'Candidate' }, links: [],
+      items: [{ draftId: item.draftId, details: item.details }], facts: [{ draftId: fact.draftId, itemDraftId: item.draftId, profileItemId: null, details: fact.details }] }
+  }
+  const saved = value(importer.apply(1, batch(1, null)))
+  const profileId = saved.profile.id
+  f.backend.profiles.addItem({ profileId, details: { type: 'PROJECT', title: 'Manual' } })
+  f.backend.profiles.addFact({ profileId, details: { kind: 'OTHER', content: 'Manual fact' } })
+  value(importer.apply(1, batch(0, profileId)))
+  assert.deepEqual(f.backend.profiles.listItems({ profileId }).items.map(item => item.title), ['Project 1', 'Project 2', 'Manual'])
+  assert.deepEqual(f.backend.profiles.listFacts({ profileId }).items.map(fact => fact.content), ['Fact 1', 'Fact 2', 'Manual fact'])
 })

@@ -1,9 +1,9 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Checkbox, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
+import { ActionRow, Badge, Button, Checkbox, DetailsList, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { DraftFact, ImportDraft } from '../../domain/candidate/import.types'
-import { basicKeys, FactFields, ItemFields } from './ProfileFields'
+import { basicKeys, FactFields, ItemFields } from '../../app/profile-editor/ProfileFields'
 import { changeImportFact, changeImportItem, ignoreImportItem, parentReady, validContact, validLink, importLinkErrors } from './import-state'
 
 export function ImportReview({ draft, setDraft, profile, disabled }: {
@@ -11,6 +11,8 @@ export function ImportReview({ draft, setDraft, profile, disabled }: {
 }) {
   const { t } = useTranslation()
   const change = (update: (draft: ImportDraft) => ImportDraft) => setDraft(previous => previous && update(previous))
+  const itemKeys = ['title', 'organization', 'role', 'location', 'summary'] as const
+  const mappedItems = draft.items.filter(item => !item.savedId && !item.ignored)
   const renderFact = (fact: DraftFact) => {
     const ready = parentReady(draft, fact.itemDraftId), ignoredParent = draft.items.some(item => item.draftId === fact.itemDraftId && item.ignored)
     return <SectionCard data-import-id={fact.draftId} key={fact.draftId} title={t($ => $.profile.kinds[fact.details.kind])}><div className="profile-stack">
@@ -23,6 +25,35 @@ export function ImportReview({ draft, setDraft, profile, disabled }: {
   }
   return <div className="profile-stack">
     <StatusMessage>{t($ => $.profile.reviewHelp)}</StatusMessage>
+    {draft.unmapped?.map(row => {
+      const discard = (value: ImportDraft) => ({ ...value, unmapped: value.unmapped?.filter(entry => entry.draftId !== row.draftId) })
+      return <SectionCard key={row.draftId} title={t($ => $.profile.unmapped)}><div className="profile-stack">
+        <DetailsList items={[{ label: t($ => $.profile.sourcePosition, { ...row.source }), value: row.text }]} />
+        <FormField label={t($ => $.profile.mapField)}>{props => <Select {...props} value="" disabled={disabled} onChange={event => {
+          const target = event.target.value
+          const key = basicKeys.find(key => key === target)
+          if (key) {
+            change(value => ({ ...discard(value), contact: { ...value.contact, [key]: { value: row.text, ignored: false } } }))
+            return
+          }
+          const [id, field] = target.split('/')
+          const item = mappedItems.find(item => item.draftId === id), itemKey = itemKeys.find(key => key === field)
+          if (item && itemKey) change(value => changeImportItem(discard(value), id, { ...item.details, [itemKey]: row.text }))
+        }}>
+          <option value="">{t($ => $.profile.mapField)}</option>
+          {basicKeys.filter(key => !draft.contact[key].saved && !draft.contact[key].value.trim()).map(key =>
+            <option key={key} value={key}>{t($ => $.profile[key])}</option>)}
+          {mappedItems.map(item => <optgroup key={item.draftId} label={item.details.title || t($ => $.profile.types[item.details.type])}>
+            {itemKeys.filter(key => !item.details[key]?.trim()).map(key => <option key={key} value={`${item.draftId}/${key}`}>{t($ => $.profile[key])}</option>)}
+          </optgroup>)}
+        </Select>}</FormField>
+        <ActionRow><Button disabled={disabled} onClick={() => change(value => ({ ...discard(value), facts: [...value.facts, {
+          draftId: row.draftId, source: row.source, details: { kind: 'OTHER', content: row.text }, ignored: false, error: false, itemDraftId: null, profileItemId: null
+        }] }))}>{t($ => $.profile.addFact)}</Button>
+        <Button disabled={disabled} onClick={() => change(discard)}>{t($ => $.profile.ignore)}</Button></ActionRow>
+      </div></SectionCard>
+    })}
+
     <SectionCard title={t($ => $.profile.basic)}><div className="profile-stack">{basicKeys.filter(key => !draft.contact[key].saved).map(key => {
       const field = draft.contact[key], valid = validContact(key, field.value), Input = key === 'introduction' ? TextArea : TextInput
       return <div className="profile-stack" key={key} data-import-id={`contact-${key}`}>

@@ -21,7 +21,7 @@ const metadata = v.object(itemMetadataFields)
 const itemFields = {
   type: v.choice(itemTypes), title: v.text(500, 1), organization: v.optionalText(300), role: v.optionalText(300), location: v.optionalText(),
   startDate: v.optional(v.nullable(v.date), null), endDate: v.optional(v.nullable(v.date), null), summary: v.optionalText(20_000),
-  sortOrder: v.optional(v.integer(0, 1_000_000), 0), metadata: v.optional(metadata, metadata({}))
+  sortOrder: v.optional(v.integer(0, Number.MAX_SAFE_INTEGER - 1), 0), metadata: v.optional(metadata, metadata({}))
 }
 export const itemDetails = v.object(itemFields)
 const factFields = { kind: v.choice(factKinds), content: v.text(20_000, 1), tags: v.optional(v.array(v.text(100, 1), 100), []) }

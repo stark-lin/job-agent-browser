@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { fixture, value } from './helpers'
 import { parseImportDraft } from '../src/platform/profile-import/draft'
-import { profileParts, mergeProfileParts } from '../src/platform/profile-import/parts'
 import { importSelection, importError } from '../src/pages/profile/import-state'
 
 const introduction = '专注可靠服务的工程师。\n希望继续深入基础设施。'
@@ -23,7 +22,7 @@ test('profile introduction validates, preserves omitted updates and supports exp
 
 test('import review preserves original introduction, ignores missing text and allows explicit replacement or clearing', async t => {
   const f = fixture(t), profile = value(await f.api.profiles.createProfile({ name: 'Candidate', introduction }))
-  const parse = (contact: object) => parseImportDraft(JSON.stringify({ contact, links: [], items: [], facts: [] }))
+  const parse = (contact: object) => parseImportDraft(JSON.stringify({ contact, links: [], items: [], facts: [], unmapped: [] }), [])
   for (const contact of [{ name: 'Imported' }, { introduction: '' }]) {
     const draft = parse(contact)
     assert.equal(draft.contact.introduction.ignored, true)
@@ -39,10 +38,4 @@ test('import review preserves original introduction, ignores missing text and al
   assert.equal(value(await f.api.profiles.applyImport(importSelection(draft, randomUUID(), randomUUID(), profile.id))).profile.introduction, 'Reviewed wording.')
   draft.contact.introduction.value = ''
   assert.equal(value(await f.api.profiles.applyImport(importSelection(draft, randomUUID(), randomUUID(), profile.id))).profile.introduction, '')
-})
-
-test('parallel profile extraction keeps the contact-group introduction verbatim through merging', () => {
-  const parts = profileParts([{ page: 1, text: introduction }], 'parallel')
-  const raw = parts.map(part => part.parse(JSON.stringify(part.id === 'contact' ? { contact: { introduction }, links: [], facts: [] } : { items: [] })))
-  assert.equal(mergeProfileParts(raw).contact.introduction.value, introduction)
 })

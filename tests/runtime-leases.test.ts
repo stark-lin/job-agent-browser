@@ -27,12 +27,12 @@ test('a second backend preserves live generation and audit; only a dead owner is
   assert.equal(b.backend.resumes.getRun({ id: run.id }).run.status, 'RUNNING')
   assert.equal(b.backend.toolAudit.list().filter(row => row.invocation_id === invocationId).length, 1)
   assert.throws(() => b.backend.resumes.cancelRun({ id: run.id }), { code: 'FORBIDDEN' })
-  assert.throws(() => b.backend.generation.recordScores({ id: run.id, language: 'en', scores: [{ factId: a.fact.id, score: 90, reason: '' }] }), { code: 'FORBIDDEN' })
+  assert.throws(() => b.backend.generation.submitOptimization({ id: run.id, optimization: { language: 'en', summary: { text: 'Supported', factIds: [a.fact.id] }, entries: [], skills: [] } }, () => {}), { code: 'FORBIDDEN' })
   a.database.connection.prepare('UPDATE runtime_instances SET expires_at=0 WHERE id=?').run(a.backend.lease.id)
   b.backend.recover()
   assert.equal(b.backend.resumes.getRun({ id: run.id }).run.status, 'INTERRUPTED')
   assert.equal(b.backend.toolAudit.list().find(row => row.invocation_id === invocationId && row.phase === 'END')?.status, 'INTERRUPTED')
-  assert.throws(() => a.backend.generation.recordScores({ id: run.id, language: 'en', scores: [{ factId: a.fact.id, score: 90, reason: '' }] }))
+  assert.throws(() => a.backend.generation.submitOptimization({ id: run.id, optimization: { language: 'en', summary: { text: 'Supported', factIds: [a.fact.id] }, entries: [], skills: [] } }, () => {}))
 })
 
 test('a separate process write lock cannot partially commit a generation stage; explicit retry succeeds after release', async t => {
@@ -48,19 +48,19 @@ test('a separate process write lock cannot partially commit a generation stage; 
     }
   })
   await new Promise<void>((resolve, reject) => { child.once('message', () => resolve()); child.once('error', reject); child.once('exit', code => { if (code) reject(new Error('Lock fixture exited')) }) })
-  const scores = { id: run.id, language: 'en', scores: [{ factId: f.fact.id, score: 90, reason: '' }] }
-  assert.throws(() => f.backend.generation.recordScores(scores), { code: 'AUDIT_UNAVAILABLE' })
-  assert.equal(f.backend.resumes.getRun({ id: run.id }).run.scores, null)
+  const input = { id: run.id, optimization: { language: 'en', summary: { text: 'Supported', factIds: [f.fact.id] }, entries: [], skills: [] } }
+  assert.throws(() => f.backend.generation.submitOptimization(input, () => {}), { code: 'AUDIT_UNAVAILABLE' })
+  assert.equal(f.backend.resumes.getRun({ id: run.id }).run.assembled, null)
   const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
   child.send({ release: true }); await exited
-  assert.equal(f.backend.generation.recordScores(scores).stage, 'gate')
+  assert.equal(f.backend.generation.submitOptimization(input, () => {}).stage, 'publish')
 })
 test('concurrent output has one owner and a late expired worker cannot replace recovered state or write files', async t => {
   const { root, resources } = directory(t), a = await published(resources, join(root, 'database.sqlite')), b = fixture(resources, join(root, 'database.sqlite'))
   let finish!: (result: { html: string; pdf: Buffer; pages: number }) => void
   const output = createResumeOutput(a.backend, join(root, 'artifacts'), '', () => new Promise(resolve => { finish = resolve }))
   const pending = output.build(a.artifact.id, new AbortController().signal)
-  assert.throws(() => a.backend.resumes.editArtifact({ id: a.artifact.id, title: a.artifact.title, content: a.artifact.content }), { code: 'CONFLICT' })
+  assert.throws(() => a.backend.resumes.editArtifact({ id: a.artifact.id, title: a.artifact.title, expectedRevision: 1, content: a.artifact.content }), { code: 'CONFLICT' })
   const other = createResumeOutput(b.backend, join(root, 'artifacts'), '', async () => ({ html: 'other', pdf: Buffer.from('PDF'), pages: 1 }))
   await assert.rejects(other.build(a.artifact.id, new AbortController().signal), { code: 'CONFLICT' })
   assert.equal(b.backend.resumes.getArtifact({ id: a.artifact.id }).artifact.output.status, 'RUNNING')

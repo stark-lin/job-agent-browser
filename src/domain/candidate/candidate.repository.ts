@@ -16,7 +16,8 @@ export interface CandidateRepository {
   allFacts(profileId: string): Fact[]
   getFact(id: string): Fact
   facts(profileId: string, limit: number, offset: number): PageResult<Fact>
-  insertFact(fact: Fact): void
+  reserveOrder(profileId: string, items: number, facts: number): { item: number; fact: number }
+  insertFact(fact: Fact, sortOrder?: number): void
   saveFact(fact: Fact): void
   removeFact(id: string): void
 }
