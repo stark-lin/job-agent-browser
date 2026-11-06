@@ -7,6 +7,14 @@ export interface Presentation {
   targetId: string
 }
 
+export interface SidebarTooltip {
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface BrowserTabState {
   id: string
   title: string
@@ -33,6 +41,7 @@ export interface BrowserAPI {
   ackSelection(input: Presentation & { id: string }): Promise<void>
   setUnsaved(unsaved: boolean, presentation: Presentation): Promise<void>
   setVisible(visible: boolean, presentation: Presentation): Promise<void>
+  setSidebarTooltip(tooltip: SidebarTooltip | null): Promise<void>
   navigate(input: string): Promise<void>
   back(): Promise<void>
   forward(): Promise<void>
@@ -58,6 +67,7 @@ export const BROWSER_COPY_WEBPAGE = 'browser:copy-webpage'
 export const BROWSER_COPY_WEBPAGE_RESULT = 'browser:copy-webpage-result'
 export const BROWSER_GET_STATE = 'browser:get-state'
 export const BROWSER_SET_VISIBLE = 'browser:set-visible'
+export const BROWSER_SET_SIDEBAR_TOOLTIP = 'browser:set-sidebar-tooltip'
 export const BROWSER_SET_UNSAVED = 'browser:set-unsaved'
 export const BROWSER_CREATE_TAB = 'browser:create-tab'
 export const BROWSER_ACTIVATE_TAB = 'browser:activate-tab'

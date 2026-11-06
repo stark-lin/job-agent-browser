@@ -52,7 +52,7 @@ React App → Page → Preload → IPC → Main
 
 ## 三、展示与交互
 
-[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 将 Ask AI 放在常驻图标栏首位，之后是求职、管理、工具分组及底部的设置。各组以短横线分隔，悬停时显示翻译后的名称。切换目标使用共享导航 API 和离开保护。在任意工作区页面均可从侧栏打开 Ask AI。[Browser 控件](../src/pages/browser/BrowserControls.tsx)提供后退、前进和刷新。参见[设计规范](design-system.zh-CN.md#五交互与无障碍)及[页面按钮归属](code-architecture.zh-CN.md#页面按钮归属)。
+[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 将 Ask AI 放在常驻图标栏首位，之后是管理、求职、工具分组及底部的设置。各组以短横线分隔，悬停时显示翻译后的名称。切换目标使用共享导航 API 和离开保护。在任意工作区页面均可从侧栏打开 Ask AI。[Browser 控件](../src/pages/browser/BrowserControls.tsx)提供后退、前进和刷新。参见[设计规范](design-system.zh-CN.md#五交互与无障碍)及[页面按钮归属](code-architecture.zh-CN.md#页面按钮归属)。
 
 **已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
 

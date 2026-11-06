@@ -12,7 +12,7 @@
 | 公共 UI 基础组件 | [中央入口](../src/shared/ui/index.ts) |
 | 共享应用外观 | [components.css](../src/shared/ui/components.css) |
 | 参考示例及其展示样式 | [展示库 HTML](components/job-browser-component-library-8px.html) 和 [component-library.css](../src/shared/ui/component-library.css) |
-| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[原生箭头样式](../src/shared/ui/history-indicator-styles.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
+| 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[原生箭头样式](../src/shared/ui/history-indicator-styles.ts)、[原生导航提示样式](../src/shared/ui/navigation-tooltip-styles.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
 
 [Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。
 
@@ -35,7 +35,7 @@
 | `ExternalLink` | 业务来源的 HTTP(S) 链接，拒绝凭据及其他协议，在外部打开 | [ExternalLink.tsx](../src/shared/ui/ExternalLink.tsx) |
 | `Glyph` | 工作区导航使用的命名 SVG 图形 | [Glyph.tsx](../src/shared/ui/Glyph.tsx) |
 | `historyIndicatorDocument` | 无页面脚本的原生历史箭头；固定位置、触发就绪及不可用状态 | [HistoryIndicator.ts](../src/shared/ui/HistoryIndicator.ts), [history-indicator.css](../src/shared/ui/history-indicator.css) |
-| `Sidebar`, `NavigationGroup`, `NavigationItem` | 图标栏、无障碍导航分组及带悬停提示和当前页面状态的原生命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
+| `Sidebar`, `NavigationGroup`, `NavigationItem` | 图标栏、无障碍导航分组及带定位标题提示和当前页面状态的命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | 带图标、标题和描述的功能入口 | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
 | `FormField`, `Select` | 关联标签、帮助/错误及原生选择 | [Form.tsx](../src/shared/ui/Form.tsx) |
@@ -94,7 +94,7 @@
 
 以下是 UI 新增和修改的要求，不代表已获得完整无障碍认证：
 
-- 侧栏不显示品牌头部或文字标签，Ask AI 位于首位，其后依次为求职、管理、工具和固定在底部的设置。分区之间用居中的 24px 短横线分隔，颜色和线宽分别使用 `--line` 与 `--border-width`；横线仅作装饰，分组保留翻译后的无障碍名称。导航项保留完整翻译后的无障碍名称及原生悬停提示气泡；使用 `aria-current="page"` 标记当前目标。中间分组滚动时，Settings 仍可访问。
+- 侧栏不显示品牌头部或文字标签，Ask AI 位于首位，其后依次为管理（个人资料、定制简历、智能笔记）、求职（新增工作、申请记录、收件箱）、工具（浏览器）和固定在底部的设置。分区之间用居中的 24px 短横线分隔，颜色和线宽分别使用 `--line` 与 `--border-width`；横线仅作装饰，分组保留翻译后的无障碍名称。导航项的无障碍名称和提示都使用完整的翻译名称。鼠标悬停或键盘聚焦时，提示立即显示在图标右侧。鼠标移开、失去焦点或按 Escape 会关闭提示。[原生浮层](../src/platform/browser/navigationTooltip.ts)在浏览器和收件箱的网页内容上方显示同样的名称。使用 `aria-current="page"` 标记当前目标。中间分组滚动时，Settings 仍可访问。
 - 所有控件提供无障碍名称。`IconButton` 要求 `aria-label`，输入框需要关联标签或无障碍名称。`Icon` 默认是装饰图形，应由所属控件传达含义，或明确配置图形的无障碍语义。
 - 设置页外部 Agent 接入组合中央 SectionCard、DetailsList、Badge、Button、Dialog 和只读 TextArea。MCP 配置、连接结果和逐项 Skill 安装状态分开显示。Skill 安装/更新操作展示目录及已完成/待完成结果；文件夹不同时，确认弹窗列出冲突、默认聚焦取消，并明确无备份替换。其他 Agent 可打开内置 Skills 文件夹；MCP 替换仍采用独立的备份行为。MCP 重新连接会重写配置并验证新连接，Skills 重新连接会重新安装内置文件夹。MCP 和单项/全部 Skills 删除使用列出路径与受影响名称的确认对话框，初始焦点位于取消；结果分别显示已删除与待删除项，并明确提示宿主重新加载。路径可换行，忙碌时禁用操作，静态 Settings 图库展示这些控件。
 
@@ -163,7 +163,7 @@ npm run quality
 | [质量检查器](../scripts/quality.cjs) | 中央 UI 外禁止原生通用 JSX 控件/图标及显式 JSX `style` 属性；App/Page/Renderer 组件经公共入口导入；文档双语、路径和篇幅检查 | 不同类名的重复实现、props 展开绕过和动态创建元素仍需审查 |
 | [Browser smoke](../scripts/browser-smoke.cjs) | Ask AI 启动、侧栏切换及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
-| [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、固定图标栏宽度、悬停提示名称及原生视图不遮挡导航 | 不证明全部辅助技术行为 |
+| [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、固定图标栏宽度、提示位置及关闭行为、原生视图不遮挡导航 | 不证明全部辅助技术行为 |
 | [AI smoke](../scripts/ai-smoke.cjs) | Provider endpoint/超时表单、复用中央控件的模型检测/选择、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
 | [Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs) | 流式活动、并发会话、定向停止、草稿/滚动恢复、双语主题的 320/640/1200px 布局及强制结束进程后的恢复 | 本地样本，不证明真实 Provider 或屏幕阅读器兼容性 |
 | [审计查看器 smoke](../scripts/audit-viewer-smoke.cjs) | 筛选、分页、元数据弹窗、键盘关闭、320/640/1200px 页面无溢出及只读/错误/加载状态 | 不认证读屏或并发写入时跨页快照一致性 |

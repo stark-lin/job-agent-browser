@@ -809,6 +809,31 @@ tbody tr:last-child td { border-bottom: 0; }
 .ui-action-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-1); min-width: 0; }
 .ui-action-row > :is(.ui-status, .ui-badge):first-child { margin-inline-end: auto; }
 
+button[interestfor]:is(.ui-navigation-item, .workspace-navigation-item) {
+  interest-delay: 0s;
+}
+
+.ui-navigation-tooltip[popover] {
+  position: fixed;
+  position-area: right;
+  position-visibility: anchors-visible;
+  margin: 0;
+  margin-left: var(--space-2);
+  max-width: calc(100vw - var(--sidebar-width) - var(--space-3));
+  pointer-events: none;
+}
+
+.ui-navigation-tooltip {
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font: var(--weight-medium) var(--font-xs) / var(--line-xs) var(--font);
+  overflow-wrap: anywhere;
+}
+
 .ui-history-indicator {
   display: inline-grid;
   place-items: center;

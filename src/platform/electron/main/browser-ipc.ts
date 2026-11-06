@@ -13,6 +13,7 @@ import {
   BROWSER_GET_STATE,
   BROWSER_NAVIGATE,
   BROWSER_SET_VISIBLE,
+  BROWSER_SET_SIDEBAR_TOOLTIP,
   BROWSER_SET_UNSAVED,
 } from '../../../shared/browser'
 
@@ -52,6 +53,17 @@ export function registerBrowserIPC(requireBrowser: () => BrowserManager, assertT
       throw new Error(t($ => $.errors.presentationInput))
     }
     requireBrowser().setVisible(visible, { tabId: presentation.tabId, targetId: presentation.targetId })
+  })
+
+  ipcMain.handle(BROWSER_SET_SIDEBAR_TOOLTIP, (event, input: unknown) => {
+    assertTrustedRenderer(event)
+    if (input === null) return requireBrowser().setSidebarTooltip(null)
+    if (!input || typeof input !== 'object') return
+    const { label, x, y, width, height } = input as Record<string, unknown>
+    if (typeof label !== 'string' || label.length > 120 ||
+      typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number' ||
+      ![x, y, width, height].every(Number.isFinite)) return
+    return requireBrowser().setSidebarTooltip({ label, x, y, width, height })
   })
 
   ipcMain.handle(BROWSER_SET_UNSAVED, (event, unsaved: unknown, presentation: unknown) => {

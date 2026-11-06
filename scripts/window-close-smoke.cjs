@@ -19,7 +19,9 @@ module.exports = async function windowCloseSmoke(window) {
     await window.webContents.executeJavaScript("window.browser.navigate('app://ai')")
     const banner = window.contentView.children.find(view => view.webContents?.getTitle() === 'Banner')
     assert(banner, 'The owning window has one native Banner')
-    const retained = [...require('./native-views.cjs').views(window), banner].map(view => view.webContents)
+    const tooltip = window.contentView.children.find(view => view.webContents?.getTitle() === 'Navigation tooltip')
+    assert(tooltip, 'The owning window has one native navigation tooltip')
+    const retained = [...require('./native-views.cjs').views(window), banner, tooltip].map(view => view.webContents)
     assert(retained.length > 0)
     const themeListeners = nativeTheme.listenerCount('updated')
     // WebContents.close() completes asynchronously after the BrowserWindow's

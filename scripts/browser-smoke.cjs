@@ -235,7 +235,7 @@ module.exports = async function browserSmoke(window) {
     await require('./browser-copy-smoke.cjs')({ window, call, read, evaluate, waitFor, pageFor, origin })
     await require('./history-gesture-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin })
     await require('./navigation-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut })
-    await require('./sidebar-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut })
+    await require('./sidebar-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin })
     await require('./ai-smoke.cjs')({ window, call, evaluate, waitFor })
     await require('./profile-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
     await require('./job-smoke.cjs')({ window, call, read, active, evaluate, waitFor })

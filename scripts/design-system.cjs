@@ -72,6 +72,9 @@ generated['src/shared/ui/history-indicator-styles.ts'] =
 generated['src/shared/ui/banner-styles.ts'] =
   '// Generated from design-tokens.css and banner.css: npm run design:tokens\n' +
   `export const bannerStyles = ${JSON.stringify(generated['src/shared/ui/design-tokens.css'] + '\n' + read('src/shared/ui/banner.css'))}\n`
+generated['src/shared/ui/navigation-tooltip-styles.ts'] =
+  '// Generated from design-tokens.css and navigation-tooltip.css: npm run design:tokens\n' +
+  `export const navigationTooltipStyles = ${JSON.stringify(generated['src/shared/ui/design-tokens.css'] + '\n' + read('src/shared/ui/navigation-tooltip.css'))}\n`
 generated['docs/components/job-browser-component-library-8px.css'] =
   generated['src/shared/ui/design-tokens.css'] + '\n' +
   read('src/shared/ui/component-library.css').replace('@import "./design-tokens.css";\n', '') + '\n' +

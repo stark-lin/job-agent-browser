@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { app, session, dialog, nativeTheme, type BrowserWindow, type WebContents } from 'electron'
 import { resolvedTheme, themeBackground } from '../electron/main/theme'
 import { BROWSER_CHROME_HEIGHT, getSidebarWidth, BROWSER_COPY_WEBPAGE_RESULT, BROWSER_FOCUS_ADDRESS, BROWSER_STATE_CHANGED,
-  type BrowserState, type BrowserTabState, type Presentation } from '../../shared/browser'
+  type BrowserState, type BrowserTabState, type Presentation, type SidebarTooltip } from '../../shared/browser'
 import { isBrowserDestination } from '../../shared/navigation'
 import { resolveDestination } from './navigationManager'
 import { TabNavigation } from './tabNavigation'
@@ -13,6 +13,7 @@ import { SESSION_PARTITION, WebSegment } from './webSegment'
 import { installShortcuts } from './shortcuts'
 import { SelectionHandoff } from './selectionHandoff'
 import type { SelectionTarget, WebSelection } from '../../shared/browser-selection'
+import { mountNavigationTooltip } from './navigationTooltip'
 
 interface Tab { id: string; version: number; history: TabNavigation<WebSegment> }
 
@@ -25,9 +26,11 @@ export class BrowserManager {
   private confirming = false
   private rendererLoading = false
   private readonly selections = new SelectionHandoff()
+  private readonly showSidebarTooltip: ReturnType<typeof mountNavigationTooltip>
 
   constructor(private readonly window: BrowserWindow, private readonly getInboxURL: () => string | null = () => null,
     private readonly smartPaste?: SmartPasteService, private readonly raiseBanner?: () => void) {
+    this.showSidebarTooltip = mountNavigationTooltip(window)
     session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     this.addTab('ai')
     const languageChanged = () => { window.setTitle(t($ => $.app.title)); this.publishState() }
@@ -139,6 +142,11 @@ export class BrowserManager {
     const destination = this.tabState(tab).destination
     this.visible = visible && (destination.kind === 'web' || isBrowserDestination(destination))
     this.updateVisibility()
+  }
+
+  setSidebarTooltip(tooltip: SidebarTooltip | null): Promise<void> {
+    const item = this.tabs.get(this.activeTabId)?.history.current
+    return this.showSidebarTooltip(!this.rendererLoading && this.visible && item?.kind === 'web' ? tooltip : null)
   }
 
   async createTab(): Promise<void> {
@@ -334,6 +342,7 @@ export class BrowserManager {
   }
 
   private updateVisibility(): void {
+    if (this.rendererLoading || !this.visible) void this.showSidebarTooltip(null)
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
       if (item.kind === 'web') item.segment.setVisible(!this.rendererLoading && this.visible && tab.id === this.activeTabId && item === tab.history.current)
     }
