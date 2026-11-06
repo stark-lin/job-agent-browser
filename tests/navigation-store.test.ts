@@ -13,6 +13,7 @@ function fixture() {
   const api: BrowserAPI = {
     peekSelection: async () => null, ackSelection: async () => {},
     copyWebpage: async () => {}, onCopyWebpageResult: () => () => {},
+    setSidebarTooltip: async () => {},
     getState: () => new Promise((resolve) => reads.push(resolve)),
     onStateChange: (callback) => { callbacks.add(callback); return () => { callbacks.delete(callback) } },
     onFocusAddress: () => () => {}, setVisible: async () => {}, setUnsaved: async () => {}, navigate: async () => {},
