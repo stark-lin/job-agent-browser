@@ -170,6 +170,7 @@ export const zhCN = {
     "selectResume": "选择简历证据",
     "draftResume": "保存简历草稿",
     "polishResume": "保存润色简历",
+    "optimizeResume": "优化简历内容",
     "publishResume": "发布简历",
     "failResume": "记录简历失败",
     "cancelResume": "取消简历任务",
@@ -230,16 +231,6 @@ export const zhCN = {
   features: {
     comingSoon: '即将推出', notImplemented: '此功能尚未实现。',
     descriptions: { knowledge: "统一维护求职知识，让 AI 直接检索和修改。", find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
-  },
-  imports: {
-    mode: '导入模式', single: '普通模式', parallel: '并行模式',
-    configureModel: '配置模型', allowParallel: '允许此模型并行请求',
-    enableHelp: '在设置中为此模型开启并行导入后，即可选择此模式。',
-    parallelHelp: '并行模式将解析拆成多个请求，输入 token 和费用可能增加，提速效果取决于服务商。',
-    retry: '重试失败部分', progress: '已完成 {{completed}} / {{total}} 组',
-    groupState: '{{state}} · 处理 {{elapsed}} 秒 · 排队 {{queued}} 秒',
-    groups: { single: '完整解析', basics: '职位信息与待遇', description: '职位描述', requirements: '任职要求', contact: '联系方式与独立事实', experience: '工作经历', projects: '项目经历', education: '教育经历' },
-    states: { queued: '排队中', running: '处理中', completed: '已完成', failed: '失败', cancelled: '已取消' }
   },
   applicationAgent: {
     configure: '在设置中选择默认 AI 服务商和模型，即可执行申请管理指令。',
@@ -482,6 +473,7 @@ export const zhCN = {
     "noModel": "请先在设置中选择默认 Ask AI 模型。"
   },
   settings: {
+    configureModel: '配置模型',
     "invalidSmartPaste": "请为每条配置填写有效的标题和提示词。",
     contextWindow: '实际上下文窗口（Tokens）', contextWindowHelp: 'Ask AI 至少需要 65,536。请填写部署时的实际限制；可检测到的运行参数优先。', maxOutputTokens: '模型最大输出 Tokens',
 
@@ -576,6 +568,7 @@ export const zhCN = {
   }
 },
   resume: {
+    editTitle: '编辑这份简历', addBullet: '添加要点', saveAndBuild: '保存并重新编译 PDF', editSaved: '简历修改已保存', discardEdit: '放弃修改', discardEditHelp: '这份简历中未保存的修改将丢失。',
     "inputs": "职位与个人资料",
     "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词预算",
     "job": "职位",
@@ -595,8 +588,8 @@ export const zhCN = {
     "saved": "PDF 已保存。",
     "preview": "简历预览",
     "pages": "页数：{{count}}",
-    "sources": "表述来源",
     "stages": {
+        optimize: "优化内容", assemble: "组装与校验",
         "score": "事实评分",
         "gate": "覆盖检查",
         "select": "证据筛选",
@@ -638,11 +631,13 @@ export const zhCN = {
         "PDF_EXPORT_FAILED": "无法另存 PDF，请选择其他位置重试；应用内 PDF 仍然保留。",
         "OUTPUT_FAILED": "HTML / PDF 输出失败，简历仍然保留，请重建输出。",
         "OUTPUT_INTERRUPTED": "输出已中断，可直接重建，无需重新生成内容。",
+        "EDIT_CONFLICT": "简历已更新，或 PDF 正在编译。草稿仍保留，请核对最新版本后再保存。",
         "OUTPUT_MISSING": "输出文件缺失，请重建 HTML / PDF。",
         "AUDIT_UNAVAILABLE": "审计存储不可用，已停止生成。"
     }
 },
   profile: {
+    unmapped: '待归类原文', sourcePosition: '第 {{page}} 页第 {{line}} 行', mapField: '归入字段',
     basic: '基本信息', independent: '独立事实', noProfile: '保存姓名以创建资料，或导入 PDF。', empty: '暂无记录。',
     add: '新增', edit: '编辑', remove: '删除', cancel: '取消', save: '保存', saving: '保存中…', saved: '已保存', retry: '重试',
     loading: '正在加载个人资料…', loadFailed: '无法完整加载个人资料。', invalid: '请检查必填字段、链接和日期。',

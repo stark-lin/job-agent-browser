@@ -35,10 +35,10 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
   await assert.rejects(f.tasks.cancel(2, { runId }), { code: 'FORBIDDEN' })
   const result = await done(f.tasks, runId)
   assert.equal(result.run.status, 'SUCCEEDED'); assert.equal(result.run.language, 'en'); assert.equal(result.artifact?.output.status, 'READY')
-  assert(result.run.scores && result.run.gate?.passed && result.run.selection && result.run.draft && result.run.polished)
+  assert(result.run.assembled)
   assert.equal(result.artifact?.outputFiles.length, 2)
-  assert.equal(f.server.requests(), 9)
-  assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 9)
+  assert.equal(f.server.requests(), 2)
+  assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 2)
   assert(f.database.connection.prepare("SELECT count(*) n FROM capability_audit WHERE agent_id='internal.resume'").get()!.n as number > 0)
   assert(f.events.every((event, index) => event.sequence === index + 1 && event.runId === runId))
   const before = f.server.requests()
@@ -46,20 +46,11 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
   assert.equal(f.server.requests(), before); assert.equal(f.outputCount(), 2)
   assert.equal((await f.tasks.getPreview({ artifactId: result.artifact!.id })).pages, 1)
 })
-test('gate rejection persists missing evidence and stops before drafting', async t => {
-  const f = await setup(t)
-  f.server.hook((stage, response) => {
-    if (stage !== 'gate') return false
-    response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify({ passed: false, reason: 'No evidence', missingRequirements: ['Leadership'] }) } }] })); return true
-  })
-  const result = await done(f.tasks, (await f.start()).runId)
-  assert.equal(result.run.error, 'GATE_REJECTED'); assert.equal(result.run.gate?.missingRequirements[0], 'Leadership'); assert.equal(result.run.draft, null); assert.equal(f.outputCount(), 0)
-})
 test('cancellation during a hanging model call and owner disposal cannot publish late results', async t => {
   const f = await setup(t)
-  f.server.hook((stage) => stage === 'draft')
+  f.server.hook((stage) => stage === 'optimize')
   const { runId } = await f.start()
-  for (let i = 0; i < 300 && !f.events.some(event => event.stage === 'draft'); i++) await new Promise(resolve => setTimeout(resolve, 5))
+  for (let i = 0; i < 300 && !f.events.some(event => event.stage === 'optimize'); i++) await new Promise(resolve => setTimeout(resolve, 5))
   f.tasks.disposeOwner(1)
   const result = await done(f.tasks, runId)
   assert.equal(result.run.status, 'CANCELLED'); assert.equal(result.artifact, null)
@@ -76,7 +67,7 @@ test('post-publication output failure preserves SUCCEEDED and supports model-fre
 test('invalid stage output fails once without an implicit repair loop', async t => {
   const f = await setup(t)
   f.server.hook((stage, response) => {
-    if (stage !== 'score') return false
+    if (stage !== 'optimize') return false
     response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '{}' } }] })); return true
   })
   const result = await done(f.tasks, (await f.start()).runId)

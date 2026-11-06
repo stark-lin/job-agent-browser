@@ -21,7 +21,7 @@ export async function resumeFixture() {
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ choices: [{ finish_reason, message }] }))
       }
-      if (!observations.length && stage !== 'polish') {
+      if (!observations.length) {
         return finish({ role: 'assistant', content: null, tool_calls: [
           { id: randomUUID(), type: 'function', function: { name: 'tool_0', arguments: JSON.stringify({ runId }) } },
           { id: randomUUID(), type: 'function', function: { name: 'tool_1', arguments: JSON.stringify({ runId, limit: 100, offset: 0 }) } }
@@ -32,17 +32,11 @@ export async function resumeFixture() {
         cache.set(runId, { schemaVersion: 1, job: context.job, profile: context.profile, items: context.items, facts: facts.items })
       }
       const snapshot = cache.get(runId)!
-      let output: unknown
-      if (stage === 'score') output = { language: /[\u4e00-\u9fff]/.test(snapshot.job.description) ? 'zh-CN' : 'en', scores: snapshot.facts.map(fact => ({ factId: fact.id, score: 90, reason: 'Relevant saved evidence' })) }
-      else if (stage === 'gate') output = { passed: true, reason: 'Sufficient saved evidence', missingRequirements: [] }
-      else if (stage === 'select') output = { factIds: snapshot.facts.map(fact => fact.id), itemIds: snapshot.items.map(item => item.id), wordBudget: 500 }
-      else if (stage === 'draft') {
-        const entries = (type: string) => snapshot.items.filter(item => item.type === type).map(item => ({ profileItemId: item.id,
-          bullets: snapshot.facts.filter(fact => fact.profileItemId === item.id).map(fact => ({ id: randomUUID(), text: fact.content, factIds: [fact.id] })) }))
-        output = { summary: { id: randomUUID(), text: snapshot.facts[0].content, factIds: [snapshot.facts[0].id] }, experience: entries('EXPERIENCE'), projects: entries('PROJECT'), education: entries('EDUCATION'),
-          skills: snapshot.facts.filter(fact => !fact.profileItemId).map(fact => ({ id: randomUUID(), text: fact.content, factIds: [fact.id] })) }
-      } else if (stage === 'polish') output = JSON.parse(prompt.split('\nDraft: ')[1])
-      else output = { error: 'unknown stage' }
+      const statement = (fact: InputSnapshot['facts'][number]) => ({ text: fact.content, factIds: [fact.id] })
+      const output = { language: /[\u4e00-\u9fff]/.test(snapshot.job.description) ? 'zh-CN' : 'en',
+        summary: { ...statement(snapshot.facts[0]), text: snapshot.profile.introduction || snapshot.facts[0].content },
+        entries: snapshot.items.map(item => ({ profileItemId: item.id, bullets: snapshot.facts.filter(fact => fact.profileItemId === item.id).map(statement) })),
+        skills: snapshot.facts.filter(fact => fact.kind === 'SKILL').map(statement) }
       finish({ role: 'assistant', content: JSON.stringify(output) })
     })
   })

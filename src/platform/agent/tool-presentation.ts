@@ -11,8 +11,7 @@ const labels: Record<string, ToolSummaryKey> = {
   'application.list_events': 'events', 'application.set_status': 'setStatus', 'application.add_note': 'addNote',
   'application.schedule_event': 'schedule', 'application.reschedule_event': 'reschedule', 'artifact.get': 'artifact',
   'job.import': 'importJob', 'resume.start': 'startResume', 'resume.get_context': 'resumeContext', 'resume.list_facts': 'resumeFacts',
-  'resume.submit_scores': 'scoreResume', 'resume.submit_gate': 'checkResume', 'resume.submit_selection': 'selectResume',
-  'resume.submit_draft': 'draftResume', 'resume.submit_polished': 'polishResume', 'resume.publish': 'publishResume',
+  'resume.submit_optimization': 'optimizeResume', 'resume.publish': 'publishResume',
   'resume.fail': 'failResume', 'resume.cancel': 'cancelResume', 'artifact.build': 'buildArtifact'
 }
 // Treat unknown future capabilities as writes so interruption never suggests a safe replay.

@@ -32,8 +32,8 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await evaluate(`[...${scope}.querySelectorAll('.ui-checkbox')].find(label => label.textContent === ${JSON.stringify(label)}).querySelector('input').click()`); await frame()
   }
   const body = { contact: { name: 'Imported candidate', email: 'imported@example.com', introduction: 'Imported introduction.\nOriginal wording.' }, links: [],
-    items: [{ type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
-      facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] }
+    items: [{ source: { page: 1, line: 1 }, type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
+      facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content, source: { page: 1, line: 1 } })) }], facts: [], unmapped: [] }
   let requests = 0
   const server = createServer((request, response) => {
     request.resume(); request.on('end', () => {

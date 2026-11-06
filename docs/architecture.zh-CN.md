@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 组装、工作区/浏览器分离导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、Ask AI V2 及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现，更多产品流程仍为**规划**。
+用途：记录已验证的运行行为。状态：React 组装、工作区/浏览器分离导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、Ask AI V2 及包含 HTML/PDF 的 Tailor Resume 均**已实现**。智能笔记已实现，更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -112,39 +112,19 @@ React App → Page → Preload → IPC → Main
 
 [导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
 
-Main 将 PDF 文字发送给已展示的全局默认 Provider/模型，复用 AI 超时、取消和启动审计。[草稿解析](../src/platform/profile-import/draft.ts)校验 JSON，将多个事实归入同一条目。导入输出不包含原文引用、页码及证据校验，可省略空的可选字段；已保存事实仍支持 Resume Agent 表述关联。原始流不作为已解析资料展示，重试由用户手动发起。原始 PDF、完整文字和未保存草稿不持久化，离页、刷新、崩溃和窗口销毁会释放会话。OCR、原始文件管理和真实第三方 Provider 兼容性认证尚未实现。
+主进程向已选模型提交带页码和行号的 PDF 提取文本。[草稿解析](../src/platform/profile-import/draft.ts)校验位置，按来源排序并对 Fact 去重。未归类原文供人工分配字段、转换为 Fact 或忽略。原始 PDF、全文和未保存草稿留在内存。
 
-**已实现导入模式：**两种导入默认使用普通模式（`single`，一个 AI 请求）。在设置中选择 Provider，再在“配置模型”中选择模型，勾选“允许此模型并行请求”并保存；随后在 PDF 或 URL 导入页面各自选择并行模式（`parallel`）。许可属于 Provider/模型组合，不是模型 API 参数。导入模式只存于页面/会话，不是持久化全局偏好；缺少许可时并行选项不可用，Main 也拒绝绕过界面的调用。见[模型控件](../src/pages/settings/ModelImportSettings.tsx)、[模式控件](../src/app/ai/ImportControls.tsx)和 [Main 策略](../src/platform/import/policy.ts)。
-
-AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位分组](../src/platform/job-import/parts.ts)和[资料分组](../src/platform/profile-import/parts.ts)读取相同完整来源，不按页切分文档。普通与并行 PDF 导入使用同一精简事实结构，详见[数据架构](data-architecture.zh-CN.md#二业务规则)。
-
-| 导入 | 分组 | 提取内容 |
-| --- | --- | --- |
-| 职位 URL | `basics` | 职位名称、公司原名、地点文字/列表、雇佣类型及薪资 |
-| 职位 URL | `description` | 职位描述 |
-| 职位 URL | `requirements` | 要求原文、类别及关键词 |
-| PDF 资料 | `contact` | 包含个人简介的基本信息、链接及独立事实 |
-| PDF 资料 | `experience` | 工作经历条目及所属事实 |
-| PDF 资料 | `projects` | 项目条目及所属事实 |
-| PDF 资料 | `education` | 教育条目及所属事实 |
-
-并行模式下职位备注默认为空，来源元数据由本地组装。[共用批次](../src/platform/import/batch.ts)最多并发三组，PDF 的第四组等待空闲位置。每组只能返回分配的字段/条目类型；所有组成功后按固定顺序合并。资料合并按事实类别/内容去除同一父项内的重复及独立事实对条目事实的重复；不同父项下的相同事实分别保留。
-
-[AI 服务](../src/platform/ai/service.ts)为 Profile 导入排队，每窗口四个/全局十六个活动请求，活动与排队合计最多八十个。职位采集通过 AgentModel 在每个窗口任务内最多并发三组。各组报告仅存内存的排队/处理耗时；[共用批次](../src/platform/import/batch.ts)使用单调时钟每 100 毫秒刷新，保留终态耗时，重试只重置失败组，完成/失败/取消释放计时器。
-
-分组失败时，成功结果留在内存；只有任务返回 `retryable`，页面才提供“重试失败部分”。重试复用原来源、模型选择、模式和成功结果，不重新下载/提取，也不写业务数据。读取/提取失败，或没有失败组的最终合并失败，需要重新解析。替换、放弃、导航/窗口释放和进程退出会释放对应任务/缓存。重试标识规则见[数据架构](data-architecture.zh-CN.md#五api-契约与访问)。
-
-每组接收完整输入，因此输入 token/费用可能增加。较短输出和并发请求可以减少等待，但效果取决于服务商并发、模型吞吐及网络延迟；本地样本测试不代表真实服务提速。
+[导入请求](../src/platform/import/request.ts)在每次解析中发送一次模型请求。解析失败后手工重试复用已读取的来源，并重新执行整次解析。任务取消、替换或关闭窗口后释放对应缓存。
 
 **已实现新增工作：**[页面](../src/pages/find-jobs/AddJobPage.tsx)支持手工录入及 URL/文本/PDF [采集 Agent](../src/platform/agent/capture.ts)。解析仅回填空字段，保留已有数组/薪资并显示所选模型。读取和理解期间不调用 JAB MCP，审核编辑后的草稿通过 job.import 保存；人工表单保留 typed IPC。[未保存保护](../src/app/navigation/useUnsavedGuard.ts)与 Profile 共用，存储规则归属[数据架构](data-architecture.zh-CN.md)。
 
 [公开 URL 读取器](../src/platform/job-import/url-reader.ts)在 Main 读取 HTTP(S) HTML，不发送网站 Cookie，不执行网页脚本；使用已保存的网页读取超时，最多 5 次重定向、2 MB HTML、60,000 个正文字符及 40,000 个 JobPosting 元数据字符。[HTML 解析](../src/platform/job-import/html.ts)使用 htmlparser2 去除脚本/导航等内容；HTTP 拒绝、登录/验证页及无可读内容返回固定错误。仅脚本生成或无法识别的限制页可能无法解析，不保证所有招聘网站兼容。
 
-[采集任务](../src/platform/job-import/service.ts)按窗口管理原始字节、草稿、重试和稳定保存 requestId。[通用 PDF 读取](../src/platform/import/pdf.ts)与 Profile 共用 Worker 和上限。职位解析使用 AgentModel；[分组解析](../src/platform/job-import/parts.ts)拒绝受控字段，保留成功分组供重试。窗口释放阻止迟到结果。登录态 Browser 采集、登录/验证码、OCR 和原文件管理仍未实现。
+[采集任务](../src/platform/job-import/service.ts)按窗口管理来源、草稿、重试和稳定的保存 requestId。[职位解析](../src/platform/agent/capture.ts)使用 AgentModel，并在关闭窗口时抑制迟到的结果。PDF 读取与个人资料导入共用 Worker 和上限。
 
 [申请记录](../src/pages/applications/ApplicationsPage.tsx)支持搜索/状态/归档筛选、25 条分页和手动刷新。详情包含来源、分页事件及[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)。明确指令通过 MCP 执行本地状态/备注/日程/详情/归档动作，缺少信息时追问，部分失败保留已完成动作。保存 Job 后打开其详情。外部日历/邮件动作及重复合并仍为规划。
 
-**已实现 Resume Agent V1：**[Main 任务](../src/platform/electron/resume-tasks.ts)组装固定五阶段的 [Resume Agent](../src/platform/agent/resume.ts)与真实 first-party stdio MCP 会话。不可变 start/read/submit/publish/fail/cancel/build 均经过 MCP，UI 查询/预览/导出属于独立 Main 操作。[异步桥接](../src/platform/electron/resume-contract.ts)驱动定制简历，保留历史、每窗口限制一个活动任务，并取消被销毁窗口的工作。[数据架构](data-architecture.zh-CN.md#三生成成品与删除)管理持久化/输出，[MCP 架构](mcp-architecture.zh-CN.md)管理 Agent 边界。
+**已实现定制简历：**[主进程任务](../src/platform/electron/resume-tasks.ts)通过真实 MCP 会话冻结快照、提交一次内容优化、发布并自动编译 HTML/PDF。[定制简历页面](../src/pages/tailor-resume/TailorResumePage.tsx)复用个人资料编辑组件。手工保存只修改当前 Artifact，重新编译无需调用模型。
 
 ## 四、会话、安全与存储
 
@@ -173,7 +153,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获仍未实现；打包及其验收状态归属 [CI/CD](ci-cd.zh-CN.md)。
 
-[职位导入测试](../tests/job-import.test.ts)覆盖 HTML 清洗、访问限制、超时/取消、字段白名单、手工值保留及初始状态；[新增工作 smoke](../scripts/job-smoke.cjs)通过本地 HTML/SSE 服务验证真实桥接、保存跳转、申请记录及双语主题布局。[并行导入测试](../tests/import-parallel.test.ts)、[排队测试](../tests/ai-queue.test.ts)和[生产 smoke](../scripts/import-parallel-smoke.cjs)验证分组隔离、有界调度、重试/取消、模型许可及双语布局。真实第三方招聘站点和账号兼容性未验证。
+[职位导入测试](../tests/job-import.test.ts)和[职位 smoke](../scripts/job-smoke.cjs)覆盖 URL、文本、PDF、单次解析和人工保存。真实第三方招聘站点和账号兼容性尚未验证。
 
 ## 七、相关文档
 

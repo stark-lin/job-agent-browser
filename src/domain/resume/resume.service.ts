@@ -33,7 +33,7 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
           createdAt: now, updatedAt: now, finishedAt: null }
         options.validateSnapshot?.(run.inputSnapshot)
         repo.insertRun(run)
-        if (options.start) { run.status = 'RUNNING'; run.stage = 'score'; repo.saveRun(run) }
+        if (options.start) { run.status = 'RUNNING'; run.stage = 'optimize'; repo.saveRun(run) }
         if (options.requestId) repo.recordRequest(options.requestId, identity, run.id)
         return run
       })

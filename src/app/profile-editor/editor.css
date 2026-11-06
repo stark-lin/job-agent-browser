@@ -1,0 +1,7 @@
+.profile-group-heading { margin: 0; font-size: var(--font-sm); line-height: var(--line-sm); font-weight: var(--weight-semibold); color: var(--muted); }
+.profile-stack { display: grid; gap: var(--space-2); min-width: 0; }
+.profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.profile-facts { display: grid; gap: var(--space-2); min-width: 0; }
+@media (max-width: 640px) {
+  .profile-fields { grid-template-columns: minmax(0, 1fr); }
+}

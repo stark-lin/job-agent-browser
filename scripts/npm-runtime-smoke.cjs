@@ -46,11 +46,9 @@ const profile=await call('profile.create',{requestId:randomUUID(),details:{name:
 const item=await call('profile.add_item',{profileId:profile.id,requestId:randomUUID(),expectedRevision:profile.revision,details:{type:'EXPERIENCE',title:'Engineer',organization:'Fixture'}});
 const fact=await call('profile.add_fact',{profileId:profile.id,profileItemId:item.id,requestId:randomUUID(),expectedRevision:item.revision,details:{kind:'ACHIEVEMENT',content:'Built TypeScript services with automated tests.'}});
 const {runId}=await call('resume.start',{jobId:job.id,profileId:profile.id,requestId:randomUUID()});
-await call('resume.submit_scores',{runId,language:'en',scores:[{factId:fact.id,score:95,reason:'Direct evidence.'}]});
-await call('resume.submit_gate',{runId,gate:{passed:true,reason:'Supported.',missingRequirements:[]}});
-await call('resume.submit_selection',{runId,selection:{factIds:[fact.id],itemIds:[item.id],wordBudget:500}});
-const writing={summary:{id:randomUUID(),text:fact.content,factIds:[fact.id]},experience:[{profileItemId:item.id,bullets:[{id:randomUUID(),text:fact.content,factIds:[fact.id]}]}],projects:[],education:[],skills:[]};
-await call('resume.submit_draft',{runId,writing});await call('resume.submit_polished',{runId,writing});
+await call('resume.submit_optimization', { runId, optimization: { language: 'en',
+    summary: { text: fact.content, factIds: [fact.id] },
+    entries: [{ profileItemId: item.id, bullets: [{ text: fact.content, factIds: [fact.id] }] }], skills: [] } })
 const {artifact}=await call('resume.publish',{runId});const built=await call('artifact.build',{artifactId:artifact.id});assert.equal(built.output.status,'READY');
 console.log('Pure Node jab mcp verified Main-initialized storage, public tools without Memory, and real PDF output without protocol stdout contamination.');
 }finally{await client.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -23,7 +23,7 @@ The sole public composition is [createJobAgentTooling](../src/platform/tools/ind
 
 [AgentLoop](../src/platform/agent/loop.ts) permits eight sequential model turns per stage, checks complete assistant call batches, and preserves fixed errors. Cancellation/audit failure terminate immediately. [AgentModel adaptation](../src/platform/ai/agent-model.ts) supports both complete and streaming compatible Chat Completions, maps dotted tool names injectively, and records content-free request outcomes. Model settings and credentials stay in Main.
 
-[Resume](../src/platform/agent/resume.ts) follows score/gate/select/draft/polish; the model sees only immutable snapshot read tools bound to its run. [Capture](../src/platform/agent/capture.ts) reads no JAB tools during interpretation and saves only after review. [Application management](../src/platform/agent/application.ts) reads current Job/state/events before producing a validated action plan; Main binds actions to the selected Job and executes them in order. Missing details trigger a question; partial failures retain completed actions and request IDs.
+[Resume](../src/platform/agent/resume.ts) runs one content optimization; the model sees only immutable snapshot read tools bound to its run. [Capture](../src/platform/agent/capture.ts) reads no JAB tools during interpretation and saves only after review. [Application management](../src/platform/agent/application.ts) reads current Job/state/events before producing a validated action plan; Main binds actions to the selected Job and executes them in order. Missing details trigger a question; partial failures retain completed actions and request IDs.
 
 [Ask Agent](../src/platform/agent/ask.ts) uses the [Pi runtime](../src/platform/agent/pi/runtime.ts). Its initial loadout contains only tool.search/tool.activate; the [catalog](../src/platform/agent/tools/discovery.ts) indexes authorized MCP descriptors and risk metadata, including all five Memory tools. Search returns at most eight summaries; activation defaults to eight tools and an 8%/8,192-token Schema soft budget, subject to the hard context budget. Loadouts change at request boundaries; execution calls MCPAgentTools.call. Validated batches execute sequentially and await every result before the next inference, with a shared 64-request limit per Run, including context summaries; cancellation, audit failure or an uncertain write stops execution.
 
@@ -105,9 +105,8 @@ The following public contracts are available to dedicated workflows and external
 | application.list_events, application.add_note | Paginated timeline; receipt-backed notes also allowed on archived jobs |
 | application.schedule_event, application.reschedule_event | Local UTC events; creation receipt, event/Job ownership and archive checks |
 | resume.start | Atomic immutable snapshot/start and same-session request UUID receipt; optional declared provider/model metadata |
-| resume.get_context, resume.list_facts | Snapshot/progress/documents and paginated facts |
-| resume.submit_scores, resume.submit_gate, resume.submit_selection | Ordered stages, identical retry support |
-| resume.submit_draft, resume.submit_polished | Validated writing; copied snapshot metadata and derived provenance |
+| resume.get_context, resume.list_facts | Snapshot, progress, assembled or historical documents, and paginated facts |
+| resume.submit_optimization | Assemble and validate evidence-backed writing from the snapshot, with identical retry support |
 | resume.publish, resume.fail, resume.cancel | Publication or fixed-code failure/cancellation of the owning runtime's run |
 | artifact.get, artifact.build | Content/provenance or model-free HTML/PDF output and local paths |
 

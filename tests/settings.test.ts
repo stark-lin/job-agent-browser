@@ -204,20 +204,17 @@ test('timeout settings retain legacy defaults in memory, persist explicit limits
   }
 })
 
-test('parallel model opt-in persists per provider and survives unrelated preference saves', t => {
+test('legacy parallel import settings are ignored on read and dropped on the next save', t => {
   const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
-  const ai = { providers: [
-    { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model', 'other'], defaultModel: 'model', parallelModels: ['model'] },
-    { id: 'second', name: 'Second', baseURL: 'https://second.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
-  ], default: { providerId: 'first', modelId: 'model' } }
-  service.savePreferences({ ai }); service.savePreferences({ language: 'zh-CN', theme: 'dark' })
-  const restored = createPreferences(path).get({})
-  assert.deepEqual(restored.ai.providers[0].parallelModels, ['model']); assert.equal(restored.ai.providers[1].parallelModels, undefined)
-  const before = readFileSync(path, 'utf8')
-  assert.throws(() => service.savePreferences({ ai: { ...ai, providers: [{ ...ai.providers[0], parallelModels: ['absent'] }] } }), /INVALID_INPUT/)
-  assert.equal(readFileSync(path, 'utf8'), before)
-  service.savePreferences({ ai: { ...restored.ai, providers: restored.ai.providers.map(provider => ({ ...provider, parallelModels: [] })) } })
-  assert(service.get({}).ai.providers.every(provider => !provider.parallelModels?.length))
+  const provider = { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
+  service.savePreferences({ ai: { providers: [provider], default: { providerId: 'first', modelId: 'model' } } })
+  const stored = JSON.parse(readFileSync(path, 'utf8'))
+  stored.ai.providers[0].parallelModels = ['model']
+  writeFileSync(path, JSON.stringify(stored))
+  assert.deepEqual(service.get({}).ai.providers[0], provider)
+  assert(readFileSync(path, 'utf8').includes('parallelModels'))
+  service.savePreferences({ language: 'zh-CN' })
+  assert(!readFileSync(path, 'utf8').includes('parallelModels'))
 })
 
 test('Smart Paste defaults follow legacy preferences, while explicit deletion and rejected edits survive reload', t => {

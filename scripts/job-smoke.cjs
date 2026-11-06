@@ -19,7 +19,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
       Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(text)});
       input.dispatchEvent(new Event('input', {bubbles:true})); })()`); await frame()
   }
-  let aiCalls = 0, malformed = false, slow = false, headers
+  let aiCalls = 0, reads = 0, malformed = false, slow = false, headers
   const parsed = { title: 'Imported engineer', companyNameRaw: 'Imported company', description: 'Build reliable services.', locationText: 'Sydney', employmentType: 'Full-time',
     locations: [{ text: 'Sydney', city: 'Sydney', state: 'NSW', country: 'Australia', mode: 'HYBRID' }],
     salary: { min: 120000, max: 150000, currency: 'AUD', text: 'AUD 120k–150k', period: 'YEAR' },
@@ -27,6 +27,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
   const server = createServer((request, response) => {
     if (request.url === '/restricted') { response.writeHead(403); response.end('Restricted'); return }
     if (request.url === '/job') {
+      reads++
       headers = request.headers; response.writeHead(200, { 'Content-Type': 'text/html' })
       response.end('<title>Public engineer</title><main><h1>Engineer</h1><p>Build reliable TypeScript services in Sydney with a collaborative team. Salary AUD 120000 to 150000 per year.</p></main>'); return
     }
@@ -75,10 +76,13 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await field('jobUrl', `${origin}/job`); malformed = true
     await button('Parse with AI'); await waitFor(() => evaluate('document.body.innerText.includes("does not match the job fields")'), 'invalid AI output error')
     assert.equal(await evaluate('document.querySelector("[name=title]").value'), 'Keep manual title')
+    assert.equal(aiCalls, 1); assert.equal(reads, 1)
     malformed = false; slow = true
-    await button('Parse with AI'); await waitFor(() => Promise.resolve(aiCalls === 2), 'in-flight parsing')
+    await button('Retry parsing'); await waitFor(() => Promise.resolve(aiCalls === 2), 'in-flight parsing')
+    assert.equal(reads, 1)
     await button('Cancel parsing'); slow = false
     await button('Parse with AI'); await waitFor(() => evaluate('document.querySelector("[name=companyNameRaw]").value === "Imported company"'), 'AI fills draft')
+    assert.equal(aiCalls, 3); assert.equal(reads, 2)
     assert.equal(await evaluate('document.querySelector("[name=title]").value'), 'Keep manual title')
     assert.equal(await evaluate('document.querySelector("[name=notes]").value'), 'Keep manual notes')
     assert.equal(headers.cookie, undefined)

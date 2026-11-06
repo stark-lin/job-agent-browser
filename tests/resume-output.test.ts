@@ -4,6 +4,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { mkdir, symlink, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { DatabaseSync } from 'node:sqlite'
+import { Transactions } from '../src/platform/database/transactions'
+import { Store } from '../src/platform/database/repositories/store'
+import { migrate, migrations } from '../src/platform/database/migrations'
+import { composeBackend } from '../src/platform/database/backend'
+import { createResumeOutput } from '../src/platform/resume-output/service'
 import { randomUUID } from 'node:crypto'
 import { compileHTML, safeLink } from '../src/platform/resume-output/compiler'
 import { artifactFiles } from '../src/platform/resume-output/files'
@@ -34,4 +40,62 @@ test('managed file output is atomic, constrained to artifact root, symlink-safe 
   assert.equal((await readFile(join(root, files[0].relativePath))).toString(), 'safe html')
   const other = randomUUID(); await mkdir(join(directory, 'outside')); await symlink(join(directory, 'outside'), join(root, other))
   await assert.rejects(store.write(other, { html: 'escape', pdf: Buffer.from('escape') }, signal), /INVALID_OUTPUT_PATH/)
+})
+
+test('version 17 resume history, managed PDF and provenance survive the upgrade', async t => {
+  const f = await published(t), db = new DatabaseSync(':memory:'), transactions = new Transactions(db)
+  const root = mkdtempSync(join(tmpdir(), 'resume-upgrade-'))
+  t.after(() => { if (db.isOpen) db.close(); rmSync(root, { recursive: true, force: true }) })
+  migrate(db, migrations.slice(0, 17))
+  const store = new Store(db, transactions)
+  const pdf = Buffer.from('%PDF-1.4 fixture from the old version')
+  const files = await artifactFiles(root).write(f.artifact.id, { html: 'Historical preview', pdf }, new AbortController().signal)
+  const { revision: _revision, ...artifact } = f.artifact
+  const { assembled: _assembled, optimizationHash: _hash, ...run } = f.run
+  const unfinishedId = randomUUID()
+  transactions.forActor('USER').write({ event: 'LEGACY_FIXTURE', action: 'CREATE', target: 'generation_run' }, () => {
+    store.insert('job', f.job)
+    store.insert('profile', f.profile)
+    store.insert('profile_item', f.item)
+    store.insert('fact', f.fact)
+    store.insert('generation_run', { ...run, language: 'en', status: 'SUCCEEDED', stage: 'output', draft: f.content, polished: f.content })
+    store.insert('generation_run', { ...run, id: unfinishedId, stage: 'score' })
+    store.insert('artifact', { ...artifact, outputFiles: files, output: { status: 'READY', error: null, pages: 1 } })
+    store.insert('artifact_fact', { artifactId: artifact.id, blockId: f.content.summary.id, factId: f.fact.id })
+  })
+  migrate(db)
+  const backend = composeBackend({ connection: db, transactions, close: () => db.close() })
+  try {
+    const view = backend.resumes.getArtifact({ id: artifact.id })
+    assert.equal(view.artifact.revision, 1)
+    assert.deepEqual(view.artifact.content, artifact.content)
+    assert.deepEqual(view.provenance, f.provenance)
+    assert.deepEqual(backend.resumes.getRun({ id: run.id }).run.polished, f.content)
+    assert.equal(backend.resumes.getRun({ id: unfinishedId }).run.status, 'INTERRUPTED')
+    const output = createResumeOutput(backend, root, '', () => assert.fail('Historical PDF must not rebuild'))
+    assert.deepEqual((await output.read(artifact.id, 'PDF')).bytes, pdf)
+  } finally { backend.close() }
+})
+
+test('failed compilation preserves the edited revision and successful retry uses that content', async t => {
+  const f = await published(t), root = mkdtempSync(join(tmpdir(), 'resume-recompile-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const next = { ...f.content, basics: { ...f.content.basics, name: 'Edited name' },
+    skills: [{ id: randomUUID(), text: 'Manual skill', factIds: [f.fact.id] }] }
+  const edited = f.backend.resumes.editArtifact({ id: f.artifact.id, title: f.artifact.title, expectedRevision: 1, content: next })
+  assert.deepEqual(edited.content.summary?.factIds, [f.fact.id])
+  assert.deepEqual(edited.content.skills[0].factIds, [])
+  let fail = true
+  const output = createResumeOutput(f.backend, root, '', async document => {
+    if (fail) throw new Error('Fixture build failed')
+    return { html: document.basics.name, pdf: Buffer.from('PDF'), pages: 1 }
+  })
+  const signal = new AbortController().signal
+  assert.equal((await output.build(f.artifact.id, signal)).output.status, 'FAILED')
+  assert.deepEqual(f.backend.resumes.getArtifact({ id: f.artifact.id }).artifact.content, edited.content)
+  fail = false
+  assert.equal((await output.build(f.artifact.id, signal)).output.status, 'READY')
+  const preview = await output.read(f.artifact.id, 'HTML')
+  assert.equal(preview.revision, 2)
+  assert.equal(preview.bytes.toString(), 'Edited name')
 })

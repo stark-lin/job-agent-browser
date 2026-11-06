@@ -6,7 +6,7 @@ export interface ModelCapabilities {
 }
 export interface AIProvider {
   id: string; name: string; baseURL: string; requiresKey: boolean
-  models: string[]; defaultModel: string; parallelModels?: string[]
+  models: string[]; defaultModel: string
   capabilities?: Record<string, ModelCapabilities>
 }
 export interface AIChoice { providerId: string; modelId: string }
@@ -30,10 +30,6 @@ export interface AIAPI {
   start(input: AIInput): Promise<Result<{ requestId: string }, AIError>>
   cancel(input: { requestId: string }): Promise<Result<null, AIError>>
   onEvent(callback: (event: AIEvent) => void): () => void
-}
-export function allowsParallelImport(settings: AISettings | null, choice: AIChoice | null): boolean {
-  return Boolean(choice && settings?.providers.some(provider => provider.id === choice.providerId
-    && provider.models.includes(choice.modelId) && provider.parallelModels?.includes(choice.modelId)))
 }
 
 export const AI_START = 'ai:start', AI_CANCEL = 'ai:cancel', AI_EVENT = 'ai:event', AI_MODELS = 'ai:models'

@@ -4,13 +4,13 @@ import { fail } from '../common/errors'
 import { unique } from '../common/validation'
 import { importContact, importItemDetails, importFactDetails, validateItemDates } from './candidate.validation'
 import { applyImportInput } from './import.validation'
-import type { ImportSaved } from './import.types'
+import type { ImportOrder, ImportSaved } from './import.types'
 import type { Fact, Profile } from './candidate.types'
 
 /** One transaction for the explicitly saved subset; session ownership/replay lives in Main. */
 export function createImportService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   return {
-    applyImport(input: unknown): ImportSaved {
+    applyImport(input: unknown, order?: ImportOrder): ImportSaved {
       return tx.write({ event: 'PROFILE_IMPORT', action: 'CREATE', target: 'profile' }, () => {
         const args = applyImportInput(input)
         if (!Object.values(args.contact).some(value => value !== undefined) && !args.items.length && !args.facts.length && !args.links.length) fail('INVALID_INPUT')
@@ -23,16 +23,20 @@ export function createImportService(repo: CandidateRepository, tx: UnitOfWork, r
         if (existing) repo.saveProfile(profile)
         else repo.insertProfile(profile)
         const itemIds: Record<string, string> = {}, factIds: Record<string, string> = {}
-        const current = repo.allItems(profile.id)
-        const offset = current.reduce((max, item) => Math.max(max, item.sortOrder + 1), 0)
+        const base = order?.base ?? repo.reserveOrder(profile.id, order?.items.length ?? args.items.length, order?.facts.length ?? args.facts.length)
+        const position = (ids: string[] | undefined, draftId: string, fallback: number) => {
+          const index = ids ? ids.indexOf(draftId) : fallback
+          if (index < 0) fail('CONFLICT')
+          return index
+        }
         const items = args.items.map((entry, index) => {
           const parsed = importItemDetails(entry.details)
           validateItemDates(parsed)
-          const item = { ...parsed, sortOrder: offset + index, id: runtime.id(), profileId: profile.id, parentItemId: null }
+          const item = { ...parsed, sortOrder: base.item + position(order?.items, entry.draftId, index), id: runtime.id(), profileId: profile.id, parentItemId: null }
           repo.insertItem(item); itemIds[entry.draftId] = item.id
           return item
         })
-        const facts = args.facts.map(entry => {
+        const facts = args.facts.map((entry, index) => {
           if (entry.itemDraftId && entry.profileItemId) fail('CONFLICT')
           const itemId = entry.itemDraftId ? itemIds[entry.itemDraftId] : entry.profileItemId
           if (entry.itemDraftId && !itemId) fail('CONFLICT')
@@ -40,11 +44,11 @@ export function createImportService(repo: CandidateRepository, tx: UnitOfWork, r
           const now = runtime.now()
           const fact: Fact = { ...importFactDetails(entry.details), id: runtime.id(), profileId: profile.id, profileItemId: itemId ?? null,
             createdAt: now, updatedAt: now }
-          repo.insertFact(fact)
+          repo.insertFact(fact, base.fact + position(order?.facts, entry.draftId, index))
           factIds[entry.draftId] = fact.id
           return fact
         })
-        return { profile: repo.getProfile(profile.id), items, facts, itemIds, factIds }
+        return { ...(order ? { orderBase: base } : {}), profile: repo.getProfile(profile.id), items, facts, itemIds, factIds }
       })
     }
   }

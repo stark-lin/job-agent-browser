@@ -1,7 +1,5 @@
 import type { GenerationRun } from '../../domain/resume/resume.types'
-import { isDeepStrictEqual } from 'node:util'
-import { materializeDocument, documentProvenance } from '../../domain/resume/document'
-import * as check from '../../domain/resume/resume.validation'
+import { documentProvenance } from '../../domain/resume/document'
 import { DataError, fail } from '../../domain/common/errors'
 import type { composeBackend } from '../database/backend'
 import type { JsonSchema, JsonValue, RegisteredTool, ToolDescriptor, ToolExecutionContext } from '../../shared/tools/tool.types'
@@ -28,7 +26,7 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
         throw new ToolError(error.code === 'INVALID_INPUT' ? 'TOOL_INVALID_INPUT' : error.code === 'FORBIDDEN' ? 'TOOL_FORBIDDEN' :
           ['CONFLICT', 'INVALID_STATE'].includes(error.code) ? 'TOOL_CONFLICT' : error.code === 'STORAGE_BUSY' ? 'TOOL_BUSY' : 'TOOL_EXECUTION_FAILED')
       }
-    }, { timeoutMs: name === 'artifact.build' ? 90000 : 30000, inputLimit: name === 'resume.submit_scores' ? 1048576 : name.includes('draft') || name.includes('polished') ? 524288 : 65536,
+    }, { timeoutMs: name === 'artifact.build' ? 90000 : 30000, inputLimit: name === 'resume.submit_optimization' ? 524288 : 65536,
       runId: input => (input as Args).runId,
       target: input => name === 'artifact.build' ? { type: 'artifact', id: String((input as Args).artifactId) } : undefined }))
   }
@@ -44,46 +42,28 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
       } })
     return state(current)
   })
-  bind('resume.get_context', 'Read only GenerationRun.inputSnapshot. Default section=context returns job/profile/items/config; progress returns accepted scores/gate/selection; draft and polished return saved documents.', schemas.context, false, args => {
+  bind('resume.get_context', 'Read only GenerationRun.inputSnapshot. Default section=context returns job/profile/items/config; progress returns accepted scores/gate/selection; draft and polished return historical documents; assembled returns the accepted new document.', schemas.context, false, args => {
     const current = run(args.runId), section = args.section ?? 'context'
     return { ...state(current), ...(section === 'context' ? { job: current.inputSnapshot.job, profile: current.inputSnapshot.profile,
       items: current.inputSnapshot.items, config: current.config, factCount: current.inputSnapshot.facts.length } : section === 'progress'
-      ? { scores: current.scores, gate: current.gate, selection: current.selection } : { document: section === 'draft' ? current.draft : current.polished }) }
+      ? { scores: current.scores, gate: current.gate, selection: current.selection } : { document: section === 'draft' ? current.draft : section === 'polished' ? current.polished : current.assembled ?? null }) }
   })
   bind('resume.list_facts', 'Read every immutable snapshot fact page. Defaults offset=0, limit=100; continue until offset reaches total.', schemas.facts, false, args => {
     const facts = run(args.runId).inputSnapshot.facts, offset = Number(args.offset ?? 0), limit = Number(args.limit ?? 100)
     return { items: facts.slice(offset, offset + limit), total: facts.length }
   })
-  function submit(name: string, schema: JsonSchema, field: 'scores' | 'gate' | 'selection' | 'draft' | 'polished', value: (args: Args, current: GenerationRun) => unknown,
-    save: (current: GenerationRun, accepted: unknown, args: Args) => GenerationRun) {
-    bind(name, `Submit ${field} for the current resume stage. An identical retry returns the accepted state; conflicting or out-of-order submissions fail.`, schema, true, args => {
-      backend.lease.assert('generation', args.runId)
-      const current = run(args.runId), accepted = value(args, current)
-      if (current[field] !== null) {
-        if (!isDeepStrictEqual(current[field], accepted) || field === 'scores' && current.language !== args.language) fail('CONFLICT')
-        return state(current)
+  bind('resume.submit_optimization', 'Submit evidence-backed writing for deterministic assembly. Identical retries return the accepted state.', schemas.optimization, true, args => {
+    backend.lease.assert('generation', args.runId)
+    const references = backend.resumes.getRun({ id: args.runId }).references
+    return state(backend.generation.submitOptimization({ id: args.runId, optimization: args.optimization }, content => {
+      try { jsonCopy({ content, provenance: documentProvenance(content), references, envelope: Array(128).fill(null) }, 900000, 'TOOL_INVALID_INPUT') }
+      catch (error) {
+        if (error instanceof ToolError && error.code === 'TOOL_INVALID_INPUT') fail('INVALID_INPUT')
+        throw error
       }
-      return state(save(current, accepted, args))
-    })
-  }
-  submit('resume.submit_scores', schemas.scores, 'scores', args => {
-    const scores = check.scores(args.scores)
-    jsonCopy(scores, 786432, 'TOOL_INVALID_INPUT') // Reserve space for gate/selection in progress reads.
-    return scores
-  }, (current, scores, args) => backend.generation.recordScores({ id: current.id, language: args.language, scores }))
-  submit('resume.submit_gate', schemas.gate, 'gate', args => check.gate(args.gate), (current, gate) => backend.generation.recordGate({ id: current.id, gate }))
-  submit('resume.submit_selection', schemas.selection, 'selection', args => check.selection(args.selection), (current, selection) => backend.generation.selectEvidence({ id: current.id, selection }))
-  const document = (args: Args, current: GenerationRun) => {
-    if (!current.language) fail('INVALID_STATE')
-    const content = materializeDocument(current.inputSnapshot, current.language, check.writing(args.writing))
-    // Ensure publication and Artifact reads remain possible before accepting the stage.
-    jsonCopy({ content, provenance: documentProvenance(content), references: backend.resumes.getRun({ id: current.id }).references,
-      envelope: Array(128).fill(null) }, 900000, 'TOOL_INVALID_INPUT')
-    return content
-  }
-  submit('resume.submit_draft', schemas.writing, 'draft', document, (current, content) => backend.generation.saveDraft({ id: current.id, content }))
-  submit('resume.submit_polished', schemas.writing, 'polished', document, (current, content) => backend.generation.savePolished({ id: current.id, content }))
-  bind('resume.publish', 'Publish the validated polished resume. An identical retry returns the existing published Artifact.', schemas.run, true, args => {
+    }))
+  })
+  bind('resume.publish', 'Publish the validated assembled resume. An identical retry returns the existing published Artifact.', schemas.run, true, args => {
     backend.lease.assert('generation', args.runId)
     const current = run(args.runId), previous = backend.artifactForRun(current.id)
     const artifact = previous ?? backend.generation.publishArtifact({ id: current.id, title: `${current.inputSnapshot.profile.name} — ${current.inputSnapshot.job.title}`.slice(0, 500) })

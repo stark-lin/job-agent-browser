@@ -57,19 +57,19 @@
 
 [显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦具体无效字段。忽略父项会排除其事实。导入允许姓名、名称、事实内容和链接名称/URL 留空或省略；已填值仍校验格式、日期范围和长度。手动创建资料仍需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
 
-导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。[PDF 解析](../src/platform/profile-import/draft.ts)接受含 `kind`、可选 `content` 及可选 `tags` 的事实，拒绝已移除的 `source.page`/`source.quote`，不做引用匹配。空的可选字段可省略，由本地补齐默认值。Fact 不含 `evidence` 附件；生成表述到 Fact 的关联继续支持。PDF 字节、完整文字、草稿及重试缓存只存内存。AI 审计继续只表示请求启动。
+导入在同一事务写入业务记录和 `PROFILE_IMPORT` 审计。[导入服务](../src/domain/candidate/import.service.ts)为每次导入预留经历和 Fact 的序号，分批保存使用原位置。[迁移 18](../src/platform/database/migrations/resume-module.ts)新增排序和版本字段，历史 Fact 保留时间顺序。PDF 页码与行号用于本次审核，随草稿缓存释放。
 
 ## 三、生成、成品与删除
 
 [简历请求](../src/domain/resume/resume.service.ts)原子快照 Job、Profile、全部 Fact 和相关条目；空事实资料及归档职位失败。配置固定模板/预算和 Server 运行时类型，可选 Provider/模型是调用方声明的溯源元数据，不构成权限或凭据。历史配置继续可读。[MCP 能力](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)服务内部与外部 Agent，[Resume 推理](../src/platform/agent/resume.ts)位于 Domain 持久化层之外。
 
-[内置提示词](../src/platform/agent/resume.ts)和[外部技能](../skills/tailor-resume/SKILL.zh-CN.md)要求将已填简介作为 summary，仅作局部小修，保留原意、表达、重点和语言。选材预留相关证据与预算；冲突应在 Gate 拒绝，不能悄悄改写。[校验](../src/domain/resume/resume.validation.ts)拒绝删除该 summary，继续执行 Fact 溯源检查。语义保留属于模型指令，并非确定性保证；缺失该字段的历史快照沿用原流程。
+[内置提示词](../src/platform/agent/resume.ts)和[外部技能](../skills/tailor-resume/SKILL.zh-CN.md)允许局部修订已有简介，要求保留语言、原意和重点，并为事实表述引用 Fact。缺少简介或证据、超出预算时拒绝提交。
 
-可信 [GenerationService](../src/domain/resume/generation.service.ts)持久化 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。内部模型只获得读取工具；可信 controller 和 Codex 使用共享阶段能力。门控拒绝持久化缺失证据并停止。发布创建唯一 Artifact 并标记 `SUCCEEDED`；输出失败保留发布结果。启动回执及阶段 handler 支持相同重试，冲突提交失败。
+[生成服务](../src/domain/resume/generation.service.ts)校验一次优化提交并保存组装结果，支持相同载荷重试。发布原子保存 Artifact 并标记 Run 为 `SUCCEEDED`。旧 Run 和文档仍可读取，输出失败保留发布结果。
 
-[运行租约](../src/platform/database/runtime-leases.ts)每 5 秒续期，30 秒后过期，并检测已退出的本地 PID。启动及后台恢复仅中断无归属/失效实例的任务和未结束审计。Repository 阻止过期/其他实例的生成写入；输出使用独立尝试 Token 及独立目录，排斥并发编辑/构建，并隔离文件替换。[共享输出服务](../src/platform/resume-output/service.ts)记录文件前校验 Token/内容。UI 查询只读并轮询外部活动；其他会话不能接管中断生成。
+[ResumeDocument](../src/domain/resume/resume.types.ts)是唯一的简历文档结构。[组装器](../src/domain/resume/document.ts)从冻结快照复制联系方式和经历字段，按来源排序并分配表述 ID。生成表述必须引用有效 Fact，经历 Bullet 只能引用所属经历的 Fact，Skills 只能引用技能 Fact。结构校验无法确认措辞是否忠实。
 
-[ResumeDocument](../src/domain/resume/resume.types.ts)是 draft/polished/Artifact 唯一结构：语言、应用复制的基本信息及条目元数据、summary、experience/projects/education bullet 及 skills。每条生成表述包含稳定 UUID、文字和非空 `factIds`。[校验](../src/domain/resume/resume.validation.ts)强制唯一 ID、入选快照引用、条目归属、基本信息不变及语言感知预算；中日韩字符逐字计数。导入条目的标题可以在简历中保持为空；元数据仍须与冻结快照完全一致，不得补造占位文本。润色不能新增表述 ID、条目或扩大草稿表述的引用。`artifact_facts` 从表述派生，调用方不再提交独立溯源。引用合法不代表语义真实；[人工核对样本](../tests/fixtures/resume-evidence.json)明确将虚构数字及扩张职责标为无证据支持。
+[Artifact 编辑](../src/domain/resume/artifact.service.ts)按 `expectedRevision` 和输出 Lease 核对版本。手工增改表述清空来源引用，未改表述保留。[运行时 Lease](../src/platform/database/runtime-leases.ts)与内容版本一起约束编译提交，排除并发构建及过期进程写入。
 
 [输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
 
@@ -161,11 +161,11 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 [固定错误码](../src/domain/common/errors.ts)覆盖非法输入、缺失或冲突状态、存储或审计不可用、拒绝调用方、加密及 AI 失败。IPC 只传递错误码，不传递原始数据库消息。
 
-[PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)暴露 `window.profileImport.selectPdf/start/retry/cancel/discard/onEvent`，不提供路径读取。两种导入的 `start` 均接受可选 `mode`（默认 `single`）；事件包含携带分组状态及 `queueMs`/`elapsedMs` 的 `progress.groups`，`failed.retryable` 表示可用缓存重试失败组。PDF 的 `retry({sessionId})` 保留会话并返回新 `taskId`。文件/网络操作与同步业务事务分离。
+[PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)提供选择、启动、重试、取消和丢弃。解析重试保留 sessionId，产生新 taskId，并复用已提取的文本。
 
 独立的 [AI API](../src/shared/ai.ts)保留非 Agent 流式任务。[简历 IPC](../src/platform/electron/resume-contract.ts)暴露 `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`；事件携带 run ID 和递增序号，不显示隐藏推理。每个窗口只允许一个活动任务；页面导航保留任务，窗口释放取消。发布前取消终止 run，发布后只停止输出。导出打开系统保存对话框并复制已有 PDF；`PDF_EXPORT_FAILED` 保留应用内文件，允许再次另存。
 
-[职位导入桥接](../src/platform/electron/job-import-contract.ts) 暴露 `window.jobImport.start/retry/cancel/onEvent`，与同步业务分发分离。职位的 `retry({taskId})` 保留该任务 ID；两种重试均要求归属匹配且批次处于可重试失败状态。新读取/解析错误仅属于桥接。每次提交的 AI 分组分别产生启动审计；重试时缓存成功组不产生新请求/审计，内容不进入审计。
+[职位导入桥接](../src/platform/electron/job-import-contract.ts)的重试保留 taskId，并从缓存的来源重新解析。两条桥接均按窗口检查任务所有权。
 
 ## 六、配置、密钥与待完成工作
 
@@ -175,7 +175,7 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 [偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。智能粘贴配置保存 ID、标题和提示词。缺少配置时使用本地化默认项，保存的空列表保持为空。
 
-[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。每个 Provider 可选的 `parallelModels` 只能包含其 `models` 内不重复的 ID；缺省/空列表表示关闭，无效写入原子拒绝。保存其他偏好保留该列表；在设置中移除模型 ID 时同步移除其许可。Endpoint 保留路径前缀，拒绝凭据、查询参数和片段。旧版本 1 文件在内存中补齐缺少的 AI/超时默认值，保存前不改写。移除 Provider 前须先删除其密钥。模型检测、导入模式选择及任务生命周期归属[当前架构](architecture.zh-CN.md)。
+[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。endpoint 可保留路径前缀，不接受凭据、查询或片段。读取时忽略旧 `parallelModels` 字段，下次保存时清除。缺失的 AI 与超时设置使用默认值，移除 Provider 前需先删除密钥。
 
 [超时设置](../src/shared/ai.ts)保存全局 `ai.timeouts.requestSeconds`、`pageSeconds` 和 `modelsSeconds`，默认分别为 120、20 和 15 秒。每项允许 1–3600 的整数秒数；无效写入保留原文件。AI 超时覆盖对话、职位/资料解析和 Resume Agent 的每次调用；网页读取及模型检测各自独立。编辑/移除 Provider 或保存其他偏好均保留这些值。[设置测试](../tests/settings.test.ts)验证旧配置读取、持久化及无效写入的原子拒绝。
 

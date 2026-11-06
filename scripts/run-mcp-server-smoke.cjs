@@ -55,11 +55,7 @@ async function main() {
     dispatch('profiles', 'editContact', { id: profile.id, details: { name: 'LIVE PROFILE CHANGED' } })
     const context = await call('resume.get_context', { runId }), facts = await call('resume.list_facts', { runId })
     assert.equal(context.profile.name, profile.name); assert.equal(facts.total, 1)
-    await call('resume.submit_scores', { runId, language: 'en', scores: [{ factId: fact.id, score: 95, reason: 'Direct evidence for TypeScript service delivery and tests.' }] })
-    await call('resume.submit_gate', { runId, gate: { passed: true, reason: 'Saved evidence supports the role.', missingRequirements: [] } })
-    await call('resume.submit_selection', { runId, selection: { factIds: [fact.id], itemIds: [item.id], wordBudget: 500 } })
-    const writing = { summary: { id: randomUUID(), text: fact.content, factIds: [fact.id] }, experience: [{ profileItemId: item.id, bullets: [{ id: randomUUID(), text: fact.content, factIds: [fact.id] }] }], projects: [], education: [], skills: [] }
-    await call('resume.submit_draft', { runId, writing }); await call('resume.submit_polished', { runId, writing })
+    await call('resume.submit_optimization', { runId, optimization: { language: 'en', summary: { text: fact.content, factIds: [fact.id] }, entries: [{ profileItemId: item.id, bullets: [{ text: fact.content, factIds: [fact.id] }] }], skills: [] } })
     const { artifact } = await call('resume.publish', { runId })
     const built = await call('artifact.build', { artifactId: artifact.id })
     assert.equal(built.output.status, 'READY', `Worker output failed: ${JSON.stringify(built)} ${diagnostics}`)
@@ -75,7 +71,6 @@ async function main() {
     assert.equal(backend.resumes.getRun({ id: runId }).run.config.providerId, '')
     // Audit has no model call, and the still-open parent backend remains independently writable.
     assert.equal(backend.dispatch('audit', 'list', { targetType: 'ai_request' }).value.total, 0)
-    backend.generation.recordScores({ id: baseline.id, language: 'en', scores: [{ factId: fact.id, score: 90, reason: '' }] })
     const cancel = new AbortController(), cancelled = client.callTool({ name: 'artifact.build', arguments: { artifactId: artifact.id } }, { signal: cancel.signal })
     await until(() => backend.resumes.getArtifact({ id: artifact.id }).artifact.output.status === 'RUNNING', 'Second build did not start')
     cancel.abort(); await assert.rejects(cancelled)

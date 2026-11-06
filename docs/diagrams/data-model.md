@@ -22,6 +22,7 @@ erDiagram
     FACT o|..o{ OPERATION_RECEIPT : logical_fact
     PROFILE ||--o{ PROFILE_ITEM : contains
     PROFILE ||--o{ FACT : owns
+    PROFILE ||--o| PROFILE_ORDER_COUNTER : reserves
     PROFILE_ITEM o|--o{ FACT : contextualizes
     PROFILE_ITEM o|--o{ PROFILE_ITEM : parent_of
     GENERATION_RUN ||--o| ARTIFACT : produces
@@ -144,6 +145,11 @@ erDiagram
         int revision
         json links_json
     }
+    PROFILE_ORDER_COUNTER {
+        string profile_id PK,FK
+        int next_item
+        int next_fact
+    }
     PROFILE_ITEM {
         string id PK
         string profile_id FK
@@ -158,6 +164,7 @@ erDiagram
         string profile_item_id FK
         string kind
         text content
+        int sort_order
     }
     GENERATION_RUN {
         string id PK
@@ -171,6 +178,8 @@ erDiagram
         json selection_json
         json draft_json
         json polished_json
+        json assembled_json
+        string optimization_hash
         json config_json
         text error
     }
@@ -178,6 +187,7 @@ erDiagram
         string id PK
         string generation_run_id FK,UK
         json content_json
+        int revision
         json output_json
         json output_files_json
     }

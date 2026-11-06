@@ -23,7 +23,7 @@ UI    → typed IPC → Domain
 
 [AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)支持普通及流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
 
-[Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
+[Resume](../src/platform/agent/resume.ts)执行一次内容优化，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
 
 [Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)。初始 loadout 只有 tool.search/tool.activate；[目录](../src/platform/agent/tools/discovery.ts)索引获授权的 MCP 描述及风险，包括五个 Memory 工具。搜索最多返回八个摘要；激活默认最多八个工具、Schema 软预算为 8%/8,192 Tokens，同时受硬上下文预算约束。Loadout 在请求边界切换，执行使用 MCPAgentTools.call。整批校验后串行执行，等待每个结果后才进入下一次推理，每 Run 的主循环及上下文摘要合计最多 64 次 Provider 请求；取消、审计失败或不确定写入终止执行。
 
@@ -105,9 +105,8 @@ JOB_BROWSER_MCP_CALLER = "codex"
 | application.list_events, application.add_note | 分页时间线，带 receipt 的备注也可写入归档职位 |
 | application.schedule_event, application.reschedule_event | 本地 UTC 日程，创建 receipt、事件/Job 归属及归档校验 |
 | resume.start | 原子快照/启动与同会话请求 UUID receipt，可声明 Provider/模型元数据 |
-| resume.get_context, resume.list_facts | 快照/进度/文档及分页事实 |
-| resume.submit_scores, resume.submit_gate, resume.submit_selection | 有序阶段与相同输入重试 |
-| resume.submit_draft, resume.submit_polished | 经校验的写作、应用复制的快照元数据与派生溯源 |
+| resume.get_context, resume.list_facts | 快照、进度、组装文档、历史文档及分页事实 |
+| resume.submit_optimization | 从快照组装并校验有来源的写作结果，支持相同提交重试 |
 | resume.publish, resume.fail, resume.cancel | 发布或以固定错误码失败/取消本运行时拥有的 run |
 | artifact.get, artifact.build | 内容/溯源或无需模型的 HTML/PDF 输出和本地路径 |
 

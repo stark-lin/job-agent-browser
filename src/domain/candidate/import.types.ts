@@ -8,14 +8,20 @@ export interface ApplyImport {
   sessionId: string; batchId: string; profileId: string | null
   contact: Partial<Pick<ProfileDetails, ContactKey>>; links: ImportLink[]; items: ImportItem[]; facts: ImportFact[]
 }
+export interface ImportPosition { page: number; line: number }
+export interface ImportOrder {
+  items: string[]; facts: string[]; base?: { item: number; fact: number }
+}
 export interface ImportSaved {
+  orderBase?: ImportOrder['base']
   profile: Profile; items: ProfileItem[]; facts: Fact[]
   itemIds: Record<string, string>; factIds: Record<string, string>
 }
-export interface DraftFact extends ImportFact { ignored: boolean; error: boolean }
-export interface DraftItem extends ImportItem { ignored: boolean; error: boolean; savedId: string | null }
+export interface DraftFact extends ImportFact { source?: ImportPosition; ignored: boolean; error: boolean }
+export interface DraftItem extends ImportItem { source?: ImportPosition; ignored: boolean; error: boolean; savedId: string | null }
 export interface ImportDraft {
   contact: Record<ContactKey, { value: string; ignored: boolean; saved?: boolean }>
   links: (ImportLink & { ignored: boolean })[]
   items: DraftItem[]; facts: DraftFact[]
+  unmapped?: { draftId: string; source: ImportPosition; text: string }[]
 }
