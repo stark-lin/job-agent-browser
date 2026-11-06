@@ -93,7 +93,7 @@ module.exports = async function jobAgentSmoke({ window, call, evaluate, waitFor 
     await button('Close')
     await evaluate('document.querySelector("[name=archivedJobs]").click()'); await button('Apply filters')
     await waitFor(() => evaluate('document.querySelector("tbody")?.innerText.includes("Reviewed text source engineer")'), 'archived Job filter')
-    await button('View details')
+    await evaluate('[...document.querySelectorAll("tbody tr")].find(row => row.innerText.includes("Reviewed text source engineer")).click()')
     await waitFor(() => evaluate('!!document.querySelector("[name=applicationInstruction]")'), 'archived details')
     await requestAction('Restore job')
     await button('Close')

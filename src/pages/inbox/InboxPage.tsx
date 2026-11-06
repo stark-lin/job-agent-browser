@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button, SectionCard, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, SectionCard, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useNativePresentation } from '../../app/navigation/useNativePresentation'
 import { isInboxDestination } from '../../shared/navigation'
@@ -17,10 +17,10 @@ export function InboxPage() {
       <SectionCard title={configured ? t($ => $.inbox.loadFailed) : t($ => $.inbox.configure)}>
         <div className="inbox-message-content">
           <StatusMessage tone={configured ? 'error' : 'neutral'}>{message || t($ => $.inbox.configureHelp)}</StatusMessage>
-          <div className="page-actions">
+          <ActionRow>
             {configured && <Button onClick={() => void openPage('inbox')}>{t($ => $.settings.retry)}</Button>}
             <Button variant="primary" onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>
-          </div>
+          </ActionRow>
         </div>
       </SectionCard>
     </div>

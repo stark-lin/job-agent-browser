@@ -27,7 +27,7 @@ export function ImportReview({ draft, setDraft, profile, disabled }: {
       const field = draft.contact[key], valid = validContact(key, field.value), Input = key === 'introduction' ? TextArea : TextInput
       return <div className="profile-stack" key={key} data-import-id={`contact-${key}`}>
         <FormField label={t($ => $.profile[key])} help={t($ => $.profile.existing, { value: profile?.[key] || t($ => $.profile.emptyValue) })} error={!valid && !field.ignored ? t($ => $.profile.formatError) : undefined}>{props => <Input {...props} value={field.value} maxLength={key === 'name' ? 300 : key === 'email' ? 320 : key === 'phone' ? 100 : key === 'introduction' ? 2000 : 1000} disabled={disabled || field.ignored} onChange={event => change(draft => ({ ...draft, contact: { ...draft.contact, [key]: { ...field, value: event.target.value } } }))} />}</FormField>
-        <div className="profile-actions"><Checkbox label={t($ => $.profile.ignore)} checked={field.ignored} disabled={disabled} onChange={event => change(draft => ({ ...draft, contact: { ...draft.contact, [key]: { ...field, ignored: event.target.checked } } }))} /></div>
+        <div><Checkbox label={t($ => $.profile.ignore)} checked={field.ignored} disabled={disabled} onChange={event => change(draft => ({ ...draft, contact: { ...draft.contact, [key]: { ...field, ignored: event.target.checked } } }))} /></div>
       </div>
     })}</div></SectionCard>
     {draft.links.map(link => <SectionCard data-import-id={link.draftId} key={link.draftId} title={t($ => $.profile.links)}><div className="profile-stack">

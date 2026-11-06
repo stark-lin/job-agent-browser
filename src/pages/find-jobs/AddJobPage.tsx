@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, FormField, SectionCard, StatusMessage, TextInput, Select, TextArea } from '../../shared/ui'
+import { ActionRow, Button, FormField, SectionCard, StatusMessage, TextInput, Select, TextArea } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { useUnsavedGuard } from '../../app/navigation/useUnsavedGuard'
@@ -53,24 +53,24 @@ export function AddJobPage() {
   }
   return <main className="job-page" aria-label={t($ => $.navigation.pages.find)}><div className="job-content">
     <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
-      {selection.error && <div><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></div>}
+      {selection.error && <ActionRow><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></ActionRow>}
       {webSource && <StatusMessage>{t($ => $.selection.source)}: {webSource.title} · {webSource.url}</StatusMessage>}
       <FormField label={t($ => $.jobs.inputKind)}>{props => <Select {...props} name="captureSource" value={sourceKind} disabled={busy || saving || saved} onChange={event => { setSourceKind(event.target.value as typeof sourceKind); setSource(null); setWebSource(null); importer.clearError() }}>
         <option value="url">{t($ => $.jobs.url)}</option><option value="text">{t($ => $.jobs.pastedJD)}</option><option value="pdf">{t($ => $.jobs.pdf)}</option>
       </Select>}</FormField>
       {sourceKind === 'url' && <FormField label={t($ => $.jobs.url)}>{props => <TextInput {...props} name="jobUrl" type="url" value={url} maxLength={4096} disabled={saving || busy || saved} onChange={event => { setUrl(event.target.value); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}</FormField>}
       {sourceKind === 'text' && <FormField label={t($ => $.jobs.pastedJD)}>{props => <TextArea {...props} name="jobText" value={text} maxLength={60000} disabled={busy || saving || saved} onChange={event => { setText(event.target.value); importer.clearError() }} />}</FormField>}
-      {sourceKind === 'pdf' && <div className="job-actions"><Button disabled={busy || saving || saved} onClick={() => { void importer.selectPdf().then(result => { if (result.ok) setPdf(result.value); else setError(result.error) }).catch(() => setError('PDF_INVALID')) }}>{t($ => $.jobs.selectPdf)}</Button>
-        {pdf && <StatusMessage>{t($ => $.jobs.pdfSelected, { bytes: pdf.bytes })}</StatusMessage>}</div>}
+      {sourceKind === 'pdf' && <ActionRow>{pdf && <StatusMessage>{t($ => $.jobs.pdfSelected, { bytes: pdf.bytes })}</StatusMessage>}
+        <Button disabled={busy || saving || saved} onClick={() => { void importer.selectPdf().then(result => { if (result.ok) setPdf(result.value); else setError(result.error) }).catch(() => setError('PDF_INVALID')) }}>{t($ => $.jobs.selectPdf)}</Button></ActionRow>}
 
       {importer.configured ? <StatusMessage>{t($ => $.jobs.selectedModel, { provider: importer.provider, model: importer.model })}</StatusMessage> : <StatusMessage>{t($ => $.jobs.noAI)}</StatusMessage>}
       <ImportModeField value={importer.mode} allowed={importer.parallelAllowed} disabled={busy || saving || saved}
         onChange={mode => { importer.clearError(); importer.setMode(mode) }} />
-      <div className="job-actions"><Button disabled={!(sourceKind === 'url' ? url.trim() : sourceKind === 'text' ? text.trim() : pdf) || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(sourceKind === 'url' ? { url: url.trim() } : sourceKind === 'text' ? { text } : { fileId: pdf!.fileId }) }}>{t($ => $.jobs.parse)}</Button>
+      <ActionRow><Button disabled={!(sourceKind === 'url' ? url.trim() : sourceKind === 'text' ? text.trim() : pdf) || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(sourceKind === 'url' ? { url: url.trim() } : sourceKind === 'text' ? { text } : { fileId: pdf!.fileId }) }}>{t($ => $.jobs.parse)}</Button>
         {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start({ url: url.trim() }, true)}>{t($ => $.imports.retry)}</Button>}
         {busy && <Button onClick={importer.cancel}>{t($ => $.jobs.cancelParse)}</Button>}
         {!importer.configured && <Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>}
-      </div>
+      </ActionRow>
       {busy && <StatusMessage>{t($ => $.jobs[importer.phase === 'reading' ? 'reading' : 'parsing'])}</StatusMessage>}
       <ImportProgress groups={importer.groups} />
       {importer.error && <StatusMessage tone="error">{errorText(importer.error)}</StatusMessage>}
@@ -80,8 +80,8 @@ export function AddJobPage() {
     <form className="job-stack" onSubmit={event => { event.preventDefault(); void save() }}>
       <JobFields value={details} disabled={saving || saved} onChange={value => { setDetails(value); setError('') }} />
       <StatusMessage>{t($ => $.jobs.initialStatus)}</StatusMessage>
-      <div className="job-actions"><Button type="submit" variant="primary" disabled={saving || busy || saved}>{t($ => $.jobs[saving ? 'saving' : 'save'])}</Button>
-        {saved && <Button onClick={() => void openPage('applications')}>{t($ => $.navigation.pages.applications)}</Button>}</div>
+      <ActionRow><Button type="submit" variant="primary" disabled={saving || busy || saved}>{t($ => $.jobs[saving ? 'saving' : 'save'])}</Button>
+        {saved && <Button onClick={() => void openPage('applications')}>{t($ => $.navigation.pages.applications)}</Button>}</ActionRow>
     </form>
   </div></main>
 }

@@ -1,7 +1,7 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ChatItem, ChatRun } from '../../domain/chat/chat.types'
-import { Button, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, StatusMessage } from '../../shared/ui'
 import { TimelineItem } from './TimelineItem'
 export function ConversationTimeline({ id, items, runs, total, loadOlder, retry, retryEnabled, positions }: {
   id: string; items: ChatItem[]; runs: ChatRun[]; total?: number; retryEnabled: boolean; loadOlder(): Promise<void>; retry(message: string): void; positions: Map<string, number>
@@ -22,10 +22,10 @@ export function ConversationTimeline({ id, items, runs, total, loadOlder, retry,
   return <div className="ai-timeline-wrap"><div ref={viewport} className="ai-transcript" role="region" aria-label={t($ => $.ask.conversation)} tabIndex={0} onScroll={e => {
     const node = e.currentTarget; positions.set(id, node.scrollTop); pinned.current = node.scrollHeight - node.clientHeight - node.scrollTop < 80; setFollowing(pinned.current)
   }}><div className="ai-timeline-content">
-    {total !== undefined && items.length < total && <Button variant="ghost" disabled={loadingOlder} onClick={() => {
+    {total !== undefined && items.length < total && <ActionRow><Button variant="ghost" disabled={loadingOlder} onClick={() => {
       previousHeight.current = viewport.current?.scrollHeight ?? null; setLoadingOlder(true)
       void loadOlder().finally(() => setLoadingOlder(false))
-    }}>{t($ => $.ask.older)}</Button>}
+    }}>{t($ => $.ask.older)}</Button></ActionRow>}
     {items.map((item, index) => {
       const run = runs.find(r => r.id === item.runId), end = items[index + 1]?.runId !== item.runId
       const error = run?.error, known = error && Object.hasOwn(t($ => $.ask.errors, { returnObjects: true }), error)
@@ -33,8 +33,8 @@ export function ConversationTimeline({ id, items, runs, total, loadOlder, retry,
         {end && run && ['failed', 'cancelled', 'interrupted'].includes(run.state) && <div className="ai-run-result" data-run-state={run.state}>
           <StatusMessage tone={run.state === 'failed' ? 'error' : 'neutral'}>{run.state === 'cancelled' ? t($ => $.ask.stopped) : run.state === 'interrupted' ? t($ => $.ask.interrupted) : known ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.failed)}</StatusMessage>
           {run.writeStarted ? <StatusMessage>{t($ => $.ask.reviewWrites)}</StatusMessage> : end && item === last && !active && !items.some(i => i.runId === run.id && i.content.type === 'user_message' && i.content.source === 'smart-paste') &&
-            <Button onClick={() => { const user = items.find(i => i.runId === run.id && i.content.type === 'user_message'); if (user?.content.type === 'user_message') retry(user.content.text) }}
-              disabled={!retryEnabled || !items.some(i => i.runId === run.id && i.content.type === 'user_message')}>{t($ => $.ask.retry)}</Button>}
+            <ActionRow><Button onClick={() => { const user = items.find(i => i.runId === run.id && i.content.type === 'user_message'); if (user?.content.type === 'user_message') retry(user.content.text) }}
+              disabled={!retryEnabled || !items.some(i => i.runId === run.id && i.content.type === 'user_message')}>{t($ => $.ask.retry)}</Button></ActionRow>}
         </div>}
       </Fragment>
     })}

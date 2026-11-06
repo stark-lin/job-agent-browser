@@ -19,6 +19,7 @@
   --primary-soft: #eff6ff;
   --primary-line: #bfdbfe;
   --success: #16a34a;
+  --success-text: #166534;
   --success-bg: #f0fdf4;
   --success-line: #bbf7d0;
   --warning: #d97706;
@@ -154,6 +155,7 @@
     --primary-soft: #1e304b;
     --primary-line: #355580;
     --success: #4ade80;
+    --success-text: #4ade80;
     --success-bg: #183326;
     --success-line: #2d6342;
     --warning: #fbbf24;
@@ -219,6 +221,7 @@
   --primary-soft: #1e304b;
   --primary-line: #355580;
   --success: #4ade80;
+  --success-text: #4ade80;
   --success-bg: #183326;
   --success-line: #2d6342;
   --warning: #fbbf24;

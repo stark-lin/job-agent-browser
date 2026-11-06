@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, Dialog, SectionCard, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, DetailsList, Dialog, SectionCard, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { en } from '../../shared/i18n/locales/en'
@@ -20,20 +20,20 @@ export function ProfileImport({ profile, onDirty, onSaved, disabled }: { profile
     : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })
   return <>
     <SectionCard title={t($ => $.profile.importTitle)} description={t($ => $.profile.importHelp)}><div className="profile-stack">
-      {configured ? <DetailsList items={[{ label: t($ => $.profile.provider), value: provider!.name }, { label: t($ => $.profile.model), value: state.choice!.modelId }]} /> : <><StatusMessage>{t($ => $.profile.noAI)}</StatusMessage><div><Button onClick={() => void openPage('settings')}>{t($ => $.profile.settings)}</Button></div></>}
+      {configured ? <DetailsList items={[{ label: t($ => $.profile.provider), value: provider!.name }, { label: t($ => $.profile.model), value: state.choice!.modelId }]} /> : <><StatusMessage>{t($ => $.profile.noAI)}</StatusMessage><ActionRow><Button onClick={() => void openPage('settings')}>{t($ => $.profile.settings)}</Button></ActionRow></>}
       <ImportModeField value={state.mode} allowed={state.parallelAllowed} disabled={disabled || busy || state.hasFile}
         onChange={state.setMode} />
       {state.error && <StatusMessage tone="error">{error}</StatusMessage>}
       {state.saved && <StatusMessage tone="success">{t($ => $.profile.importSaved)}</StatusMessage>}
       {busy && <StatusMessage>{state.stage === 'parsing' ? t($ => $.profile.parsing) : state.progress.pages ? t($ => $.profile.progress, state.progress) : t($ => $.profile.extracting)}</StatusMessage>}
       <ImportProgress groups={state.groups} />
-      <div className="profile-actions">
+      <ActionRow>
         {!state.hasFile && !busy && <Button variant="primary" disabled={disabled || !configured} onClick={() => void state.upload()}>{t($ => $.profile.upload)}</Button>}
         {state.stage === 'failed' && state.hasFile && <Button disabled={disabled} onClick={() => void state.start(state.retryable)}>{state.retryable ? t($ => $.imports.retry) : t($ => $.profile.parseAgain)}</Button>}
         {busy && state.stage !== 'selecting' && <Button onClick={state.stop}>{t($ => $.profile.stop)}</Button>}
         {state.hasFile && <Button disabled={state.saving} onClick={() => setDiscard(true)}>{t($ => $.profile.discard)}</Button>}
         {state.draft && <Button variant="primary" disabled={disabled || state.saving} onClick={() => void state.save()}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.saveImport)}</Button>}
-      </div>
+      </ActionRow>
       <Dialog open={discard} title={t($ => $.profile.discardImportTitle)} description={t($ => $.profile.discardImportDescription)} onClose={() => setDiscard(false)}><Button onClick={() => setDiscard(false)}>{t($ => $.profile.cancel)}</Button><Button variant="danger" onClick={() => { setDiscard(false); void state.discard() }}>{t($ => $.profile.discard)}</Button></Dialog>
     </div></SectionCard>
     {state.draft && <ImportReview draft={state.draft} setDraft={state.setDraft} profile={profile} disabled={disabled || state.saving || state.frozen} />}

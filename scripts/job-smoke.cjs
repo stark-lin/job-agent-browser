@@ -95,8 +95,17 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await waitFor(() => evaluate('document.querySelector("tbody")?.innerText.includes("Manual engineer")'), 'job search')
     assert.equal(await evaluate('document.querySelector("tbody").innerText.includes("Imported company")'), false)
     await field('jobSearch', ''); await button('Apply filters')
-    for (let index = 0; index < 25; index++) await data('saveJob', { details: { title: `Pagination role ${index}`, companyNameRaw: 'Pages company' } })
+    for (let index = 0; index < 25; index++) {
+      const title = index === 24 ? 'Pagination role 24\nHidden second line' : `Pagination role ${index}`
+      await data('saveJob', { details: { title, companyNameRaw: 'Pages company' } })
+    }
     await button('Refresh'); await waitFor(() => evaluate('document.querySelectorAll("tbody tr").length === 25'), 'job list page one')
+    await evaluate(`(() => {
+      const row = [...document.querySelectorAll('tbody tr')].find(row => row.cells[0].textContent === 'Pagination role 24');
+      row.cells[1].click();
+    })()`)
+    await waitFor(() => evaluate('document.querySelector("dialog[open]")?.textContent.includes("Hidden second line")'), 'row opens the full multiline job')
+    await button('Close', 'document.querySelector("dialog[open]")')
     await button('Next'); await waitFor(() => evaluate('document.querySelectorAll("tbody tr").length < 25'), 'job list page two')
     await button('Previous')
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded

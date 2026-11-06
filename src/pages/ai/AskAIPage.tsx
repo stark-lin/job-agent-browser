@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Drawer, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, Drawer, StatusMessage } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useAskAgent } from './useAskAgent'
@@ -26,10 +26,10 @@ export function AskAIPage() {
       {chat.state.loading ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : !chat.id ? <div className="ai-empty"><h1>{t($ => $.ask.empty)}</h1><p>{t($ => $.ask.emptyHint)}</p></div> :
         <ConversationTimeline key={chat.id} id={chat.id} items={chat.items} runs={chat.runs} total={chat.state.totals[chat.id]} retryEnabled={chat.valid && !chat.state.sending} positions={chat.ask.scroll} loadOlder={() => chat.ask.load(chat.id!, true)} retry={message => { if (chat.valid && chat.choice) void chat.ask.send(chat.choice, message) }} />}
       <div className="ai-composer-dock">
-        {selection.error && <div><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></div>}
+        {selection.error && <ActionRow><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></ActionRow>}
         {status && status !== 'idle' && <StatusMessage>{t($ => $.ask.runtime[runtimeKeys[status]])}</StatusMessage>}
         {error && <StatusMessage tone="error">{knownError ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.errors.UNKNOWN)}</StatusMessage>}
-        {!chat.valid && <div className="ai-configure"><StatusMessage>{t($ => $.ask.configure)}</StatusMessage><Button variant="ghost" onClick={() => void openPage('settings')}>{t($ => $.ask.settings)}</Button></div>}
+        {!chat.valid && <ActionRow><StatusMessage>{t($ => $.ask.configure)}</StatusMessage><Button variant="ghost" onClick={() => void openPage('settings')}>{t($ => $.ask.settings)}</Button></ActionRow>}
         <Composer text={chat.text} setText={chat.ask.setDraft} busy={Boolean(chat.active)} sending={chat.state.sending} valid={chat.valid} choice={chat.choice} config={chat.config} onChoice={choice => void chat.ask.setChoice(choice)} send={() => { if (chat.choice) void chat.ask.send(chat.choice) }} stop={() => { if (chat.active) void chat.ask.stop(chat.active.id) }} />
       </div>
     </section>

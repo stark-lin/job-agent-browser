@@ -50,7 +50,7 @@ app.on('browser-window-created', (_event, window) => {
     }
     const state = async value => (await call('modelStatus')).value.state === value
     const click = async label => {
-      const selector = `[...document.querySelectorAll('[data-local-model] > .settings-actions button')].find(b=>b.textContent===${JSON.stringify(label)}&&!b.disabled)`
+      const selector = `[...document.querySelectorAll('[data-local-model] > .ui-action-row button')].find(b=>b.textContent===${JSON.stringify(label)}&&!b.disabled)`
       await wait(() => evaluate(`!!(${selector})`), 'available action ' + label)
       await evaluate(`(${selector}).click()`)
     }

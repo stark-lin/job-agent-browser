@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, Dialog, Progress, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, DetailsList, Dialog, Progress, StatusMessage } from '../../shared/ui'
 import type { ModelStatus } from '../../shared/models'
 export function LocalModelSettings() {
   const { t } = useTranslation()
@@ -41,7 +41,7 @@ export function LocalModelSettings() {
       { label: t($ => $.knowledge.modelStorage), value: `${Math.ceil(model.total / 1000000)} MB · ${model.directory}` }
     ]} />
     {working && <Progress aria-label={t($ => $.knowledge.modelProgress)} max={model.total} value={model.completed} />}
-    <div className="settings-actions">
+    <ActionRow>
       {model.state !== 'ready' && !working && <Button variant="primary" disabled={busy} onClick={() => void run('modelInstall')}>
         {model.state === 'missing' ? t($ => $.knowledge.downloadModel) : t($ => $.knowledge.repairModel)}
       </Button>}
@@ -50,7 +50,7 @@ export function LocalModelSettings() {
         <Button disabled={busy} onClick={() => setRemove(true)}>{t($ => $.knowledge.removeModel)}</Button>
       </>}
       {working && model.state !== 'removing' && <Button onClick={() => void run('modelCancel')}>{t($ => $.knowledge.cancel)}</Button>}
-    </div>
+    </ActionRow>
     {code && <StatusMessage tone={code === 'MODEL_CANCELLED' ? 'neutral' : 'error'}>
       {code === 'MODEL_CANCELLED' ? t($ => $.knowledge.modelCancelled) : code === 'MODEL_BUSY' ? t($ => $.knowledge.modelBusy) : t($ => $.knowledge.modelError)}
       {code !== 'MODEL_CANCELLED' && ` (${code})`}

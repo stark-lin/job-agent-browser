@@ -17,6 +17,7 @@
   "primary-soft": "#eff6ff",
   "primary-line": "#bfdbfe",
   "success": "#16a34a",
+  "success-text": "#166534",
   "success-bg": "#f0fdf4",
   "success-line": "#bbf7d0",
   "warning": "#d97706",

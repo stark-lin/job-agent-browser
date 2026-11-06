@@ -13,7 +13,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
       const cards = [...document.querySelectorAll('.settings-sections > details, [data-audit-viewer] > details')];
       return cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom);
     })()`)
-    assert(gaps.length > 0 && gaps.every(gap => gap === 16), `Expected 16px between Settings cards, got ${gaps}`)
+    assert(gaps.length > 0 && gaps.every(gap => gap === 24), `Expected 24px between Settings cards, got ${gaps}`)
   }
   const field = async (selector, value, type = 'input') => {
     await evaluate(`(() => {

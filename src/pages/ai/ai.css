@@ -14,9 +14,8 @@
 .ai-empty h1 { font-size: var(--font-xl); line-height: var(--line-xl); margin: 0 0 var(--space-2); }
 .ai-empty p { margin: 0; color: var(--text-secondary); line-height: var(--line-md); }
 .ai-session-toggle { position: absolute; top: var(--space-1); left: var(--space-1); z-index: 1; }
-.ai-new-output { position: absolute; bottom: var(--space-2); left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; }
+.ai-new-output { position: absolute; bottom: var(--space-2); left: 0; right: var(--space-2); display: flex; justify-content: flex-end; pointer-events: none; }
 .ai-new-output > * { pointer-events: auto; }
-.ai-configure { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .ai-live-status { position: absolute; width: 0; height: 0; overflow: hidden; }
 @media (max-width: 959px) {
   .ai-transcript { padding-top: var(--space-8); }

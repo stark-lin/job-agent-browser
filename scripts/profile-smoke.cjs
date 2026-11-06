@@ -108,7 +108,16 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
         buttonRect.top - cardRect.bottom, getComputedStyle(button).borderTopStyle];
       card.querySelector('summary').click();
       return result;
-    })()`), [0, 0, 16, 'dashed'])
+    })()`), [0, 0, 24, 'dashed'])
+    assert.deepEqual(await evaluate(`(() => {
+      const card = ${section('Manual experience')};
+      const nested = card.querySelector('.ui-button--add-card');
+      const { paddingTop, paddingRight, paddingBottom, paddingLeft, borderLeftWidth } = getComputedStyle(card);
+      const outer = card.getBoundingClientRect(), inner = nested.getBoundingClientRect();
+      const border = parseFloat(borderLeftWidth);
+      return [paddingTop, paddingRight, paddingBottom, paddingLeft, inner.left - outer.left - border,
+        outer.right - inner.right - border, outer.bottom - inner.bottom - border];
+    })()`), ['16px', '16px', '16px', '16px', 16, 16, 16])
     for (const content of ['Manual first', 'Manual second']) {
       await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'editor closed')
       await button('Add fact', section('Manual experience')); await field('Fact', content, 'document.querySelector("dialog[open]")')

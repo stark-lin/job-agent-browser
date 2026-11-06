@@ -76,6 +76,8 @@ generated['docs/components/job-browser-component-library-8px.css'] =
   generated['src/shared/ui/design-tokens.css'] + '\n' +
   read('src/shared/ui/component-library.css').replace('@import "./design-tokens.css";\n', '') + '\n' +
   read('src/shared/ui/section-card.css') + '\n' +
+  read('src/shared/ui/action-row.css') + '\n' +
+  read('src/shared/ui/navigation-tooltip.css') + '\n' +
   read('src/shared/ui/history-indicator.css') + '\n' + read('src/shared/ui/banner.css')
 for (const [file, content] of Object.entries(generated)) {
   if (process.argv.includes('--write')) fs.writeFileSync(path.join(root, file), content)

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, DocumentPreview, FormField, SectionCard, Select, StageProgress, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, DetailsList, DocumentPreview, FormField, SectionCard, Select, StageProgress, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { en } from '../../shared/i18n/locales/en'
 import { statements } from '../../domain/resume/document'
@@ -16,9 +16,9 @@ export function TailorResumePage() {
     <SectionCard title={t($ => $.resume.inputs)} description={t($ => $.resume.template)}><div className="resume-stack">
       <FormField label={t($ => $.resume.job)}>{props => <Select {...props} disabled={active || state.busy} value={state.jobId} onChange={event => state.setJobId(event.target.value)}><option value="">{t($ => $.resume.chooseJob)}</option>{state.jobs.map(job => <option key={job.id} value={job.id}>{job.title} · {job.companyNameRaw}</option>)}</Select>}</FormField>
       <FormField label={t($ => $.resume.profile)}>{props => <Select {...props} disabled={active || state.busy} value={state.profileId} onChange={event => state.setProfileId(event.target.value)}><option value="">{t($ => $.resume.chooseProfile)}</option>{state.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</Select>}</FormField>
-      <div className="resume-actions"><Button variant="primary" disabled={active || state.busy || !state.jobId || !state.profileId} onClick={() => void state.start()}>{task ? t($ => $.resume.regenerate) : t($ => $.resume.start)}</Button>
+      <ActionRow><Button variant="primary" disabled={active || state.busy || !state.jobId || !state.profileId} onClick={() => void state.start()}>{task ? t($ => $.resume.regenerate) : t($ => $.resume.start)}</Button>
         {active && task?.owned && <Button disabled={state.busy} onClick={() => void state.cancel()}>{t($ => $.resume.cancel)}</Button>}
-        <Button onClick={() => void openPage('settings')}>{t($ => $.resume.settings)}</Button></div>
+        <Button onClick={() => void openPage('settings')}>{t($ => $.resume.settings)}</Button></ActionRow>
     </div></SectionCard>
     {state.history.length > 0 && <FormField label={t($ => $.resume.history)}>{props => <Select {...props} value={task?.run.id ?? ''} disabled={active || state.busy} onChange={event => state.selectRun(event.target.value)}><option value="" disabled>{t($ => $.resume.history)}</option>{state.history.map(({ run }) => <option key={run.id} value={run.id}>{run.createdAt} · {run.inputSnapshot.job.title} · {t($ => $.resume.statuses[run.status])}</option>)}</Select>}</FormField>}
     {task && <SectionCard title={t($ => $.resume.progress)}><div className="resume-stack">
@@ -28,8 +28,8 @@ export function TailorResumePage() {
       {task.run.gate && !task.run.gate.passed && <DetailsList items={[{ label: t($ => $.resume.reason), value: task.run.gate.reason }, { label: t($ => $.resume.missing), value: task.run.gate.missingRequirements.join(' · ') }]} />}
       {artifact && <><StatusMessage>{t($ => $.resume.outputs[artifact.output.status])}</StatusMessage>
         {artifact.output.error && <StatusMessage tone="error">{error(artifact.output.error)}</StatusMessage>}
-        <div className="resume-actions">{artifact.output.status === 'READY' && <Button variant="primary" disabled={state.busy} onClick={() => void state.exportPdf()}>{t($ => $.resume.export)}</Button>}
-          {!active && <Button disabled={state.busy} onClick={() => void state.retry()}>{t($ => $.resume.retryOutput)}</Button>}</div>
+        <ActionRow>{artifact.output.status === 'READY' && <Button variant="primary" disabled={state.busy} onClick={() => void state.exportPdf()}>{t($ => $.resume.export)}</Button>}
+          {!active && <Button disabled={state.busy} onClick={() => void state.retry()}>{t($ => $.resume.retryOutput)}</Button>}</ActionRow>
         {state.saved && <StatusMessage tone="success">{t($ => $.resume.saved)}</StatusMessage>}</>}
     </div></SectionCard>}
     {state.preview && <SectionCard title={t($ => $.resume.preview)} description={t($ => $.resume.pages, { count: state.preview.pages })}><DocumentPreview title={t($ => $.resume.preview)} html={state.preview.html} /></SectionCard>}

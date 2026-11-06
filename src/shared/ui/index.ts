@@ -1,5 +1,5 @@
 export { PlaceholderPage } from './PlaceholderPage'
-export { Button, IconButton } from './Button'
+export { ActionRow, Button, IconButton } from './Button'
 export { CopyButton } from './CopyButton'
 export { TextInput } from './TextInput'
 export { Icon, IconBox } from './Icon'

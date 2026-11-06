@@ -8,6 +8,7 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
   const ready = () => waitFor(() => evaluate(`!!document.querySelector('${root} [data-audit-pagination]')`), 'audit results ready')
   const text = () => evaluate(`document.querySelector('${root}').innerText`)
   const click = label => evaluate(`(() => { const button = [...document.querySelectorAll('${root} button')].find(button => button.textContent === ${JSON.stringify(label)}); button.focus(); button.click(); })()`)
+  const openFirstRow = () => evaluate(`document.querySelector('${root} tbody tr td:last-child').click()`)
   const input = (name, value, type = 'input') => field(`${root} [name=${name}]`, value, type)
   const search = async () => { await evaluate(`document.querySelector('${root} form').requestSubmit()`); await ready() }
   await ready()
@@ -30,7 +31,15 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
   assert((await text()).includes(`Page 2 of ${pageCount}`))
   await click('Refresh'); await ready()
   assert((await text()).includes(`Page 1 of ${pageCount}`))
-  await click('View details')
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('${root} thead th')].map(cell => cell.textContent)`), ['Time', 'Event', 'Target', 'Status'])
+  assert.equal(await evaluate(`!!document.querySelector('${root} tbody br')`), false)
+  assert.deepEqual(await evaluate(`(() => {
+    const row = document.querySelector('${root} tbody tr');
+    const cell = getComputedStyle(row.cells[0]);
+    const status = getComputedStyle(row.cells[3].querySelector('.ui-badge-text'));
+    return [cell.paddingTop, cell.paddingBottom, status.borderTopWidth, status.backgroundColor];
+  })()`), ['8px', '8px', '0px', 'rgba(0, 0, 0, 0)'])
+  await openFirstRow()
   assert.equal(await evaluate(`document.querySelector('${root} dialog').open`), true)
   assert.equal(await evaluate(`document.querySelectorAll('${root} dialog dt').length`), 15)
   assert.equal(await evaluate(`document.querySelector('${root} dialog').innerText.includes('PRIVATE_AUDIT_VIEWER_')`), false)
@@ -38,7 +47,11 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
   window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
   await waitFor(() => evaluate(`!document.querySelector('${root} dialog').open`), 'audit dialog keyboard dismissal')
-  assert.equal(await evaluate(`document.activeElement.textContent`), 'View details')
+  assert.equal(await evaluate(`document.activeElement === document.querySelector('${root} tbody button')`), true)
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' })
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' })
+  await waitFor(() => evaluate(`document.querySelector('${root} dialog').open`), 'keyboard opens audit row')
+  await click('Close')
   await click('Advanced filters')
   await input('targetId', profiles[0]); await search()
   assert.equal(await evaluate(`document.querySelectorAll('${root} tbody tr').length`), 1)
@@ -63,8 +76,14 @@ module.exports = async function auditViewerSmoke({ window, call, evaluate, waitF
       window.setContentSize(width, 820)
       await waitFor(() => evaluate(`window.innerWidth === ${width}`), `audit viewport ${width}`)
       assert.equal(await evaluate(`document.querySelector('.settings-page').scrollWidth > document.querySelector('.settings-page').clientWidth`), false)
+      assert.equal(await evaluate(`(() => {
+        const row = document.querySelector('${root} form > .ui-action-row');
+        const last = row.querySelector('button:last-child');
+        return row.querySelectorAll('button').length === 4 &&
+          Math.abs(row.getBoundingClientRect().right - last.getBoundingClientRect().right) < 1;
+      })()`), true)
       assert.equal(await evaluate(`!!document.querySelector('${root} .ui-table-scroll[tabindex="0"]')`), true)
-      await click('View details')
+      await openFirstRow()
       const fits = await evaluate(`(() => { const rect = document.querySelector('${root} dialog').getBoundingClientRect(); return rect.width <= window.innerWidth && rect.height <= window.innerHeight; })()`)
       assert.equal(fits, true)
       await click('Close')

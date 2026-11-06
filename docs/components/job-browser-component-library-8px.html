@@ -422,7 +422,7 @@
                   <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
                   <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
                 </div>
-                <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
               </div>
             </details>
             <details class="ui-section-card" aria-labelledby="knowledge-semantic-example-title">
@@ -431,7 +431,7 @@
                 <label class="check-row"><input type="checkbox" checked /><span>Enable semantic indexing</span></label>
                 <p>Optional multilingual-e5-small · 384 dimensions · about 140 MB. Notes and search queries are processed entirely on this device.</p>
                 <p>Not installed. Smart Note and keyword search remain available.</p>
-                <div class="settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
                 <progress class="ui-progress" aria-label="Example model download progress" value="40" max="100"></progress>
                 <p class="muted">Static progress reference: installation offers Cancel; corruption offers Repair Model. Removal retains notes, backups and derived indexes.</p>
                 <p class="muted">Keyword search remains available while the index builds or semantic search is unavailable.</p>
@@ -443,10 +443,10 @@
               <div class="ui-section-body">
                 <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
                 <p><span class="badge badge-success">Configured</span></p>
-                <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
                 <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
                 <dl class="ui-details-list"><div><dt>Skills installation directory</dt><dd>~/.agents/skills</dd></div><div><dt>capture-job</dt><dd><span class="badge badge-success">Installed</span></dd></div><div><dt>manage-applications</dt><dd><span class="badge">Not installed</span></dd></div><div><dt>tailor-resume</dt><dd><span class="badge">Different content</span></dd></div></dl>
-                <div class="settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
+                <div class="ui-action-row settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
                 <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Delete one Skill from its row or delete all three after confirmation. Completed and pending items have separate feedback; reload the host to update its loaded configuration and Skills.</p>
                 <details class="ui-section-card" aria-labelledby="other-agents-example-title">
                   <summary class="ui-section-heading"><h2 id="other-agents-example-title"><span class="ui-section-title">Other Agents</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
@@ -680,10 +680,10 @@
           <div class="demo-stage vstack">
             <div class="ui-table-scroll" role="region" aria-label="Audit Viewer" tabindex="0">
               <table class="ui-data-table" aria-label="Audit Viewer">
-                <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Target</th><th scope="col">Status</th><th scope="col">Details</th></tr></thead>
+                <thead><tr><th scope="col"><span class="ui-table-cell">Time</span></th><th scope="col"><span class="ui-table-cell">Event</span></th><th scope="col"><span class="ui-table-cell">Target</span></th><th scope="col"><span class="ui-table-cell">Status</span></th></tr></thead>
                 <tbody>
-                  <tr><td>14/10/2026, 12:30:00</td><td>AI_STREAM_START<br>Create</td><td>AI request<br>00000000-0000-4000-8000-000000000001</td><td><span class="ui-badge ui-badge--success">Success</span></td><td><button class="btn btn-sm">View details</button></td></tr>
-                  <tr><td>14/10/2026, 12:29:00</td><td>PROFILE_CREATE<br>Create</td><td>Profile<br>None</td><td><span class="ui-badge ui-badge--error">Failure</span></td><td><button class="btn btn-sm">View details</button></td></tr>
+                  <tr class="ui-table-row-action"><td><button type="button" class="ui-table-row-trigger" aria-label="View audit record 7" aria-haspopup="dialog"><span class="ui-table-cell">14/10/2026, 12:30:00</span></button></td><td><span class="ui-table-cell">AI_STREAM_START</span></td><td><span class="ui-table-cell">AI request</span></td><td><span class="ui-table-cell"><span class="ui-badge-text ui-badge-text--success">Success</span></span></td></tr>
+                  <tr class="ui-table-row-action"><td><button type="button" class="ui-table-row-trigger" aria-label="View audit record 6" aria-haspopup="dialog"><span class="ui-table-cell">14/10/2026, 12:29:00</span></button></td><td><span class="ui-table-cell">PROFILE_CREATE</span></td><td><span class="ui-table-cell">Profile</span></td><td><span class="ui-table-cell"><span class="ui-badge-text ui-badge-text--error">Failure</span></span></td></tr>
                 </tbody>
               </table>
             </div>

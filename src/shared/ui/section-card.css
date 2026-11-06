@@ -14,6 +14,12 @@
 .ui-section-card[open] > .ui-section-heading .ui-section-chevron { transform: rotate(90deg); }
 .ui-section-description { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--font-sm); line-height: var(--line-sm); }
 .ui-section-body { padding-top: var(--space-3); }
+.ui-section-card[open]:has(> .ui-section-body :is(.ui-section-card, .ui-button--add-card)) { padding: var(--space-2); }
+.ui-section-card[open]:has(> .ui-section-body :is(.ui-section-card, .ui-button--add-card)) > .ui-section-body { padding-top: var(--space-2); }
+
+/* Top-level cards add to the stack's space-2 gap. Nested cards use the stack gap directly. */
+:is(.ui-section-card, .ui-button--add-card) + :is(.ui-section-card, .ui-button--add-card) { margin-block-start: var(--space-1); }
+.ui-section-body :is(.ui-section-card, .ui-button--add-card) + :is(.ui-section-card, .ui-button--add-card) { margin-block-start: 0; }
 
 @media (max-width: 640px) {
   .ui-section-card, .ui-button.ui-button--add-card { padding: var(--space-2); }

@@ -1,7 +1,7 @@
 import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { ActionRow, Button, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
 import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
@@ -29,9 +29,9 @@ export function SettingsPage() {
   }
   return <main className="settings-page" aria-label={t($ => $.navigation.pages.settings)}>
     <div className="settings-content">
-      {settings.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : settings.loadFailed || !draft ? <div className="settings-stack">
+      {settings.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : settings.loadFailed || !draft ? <ActionRow>
         <StatusMessage tone="error">{t($ => $.settings.loadFailed)}</StatusMessage><Button onClick={settings.retry}>{t($ => $.settings.retry)}</Button>
-      </div> : <div className="settings-sections">
+      </ActionRow> : <div className="settings-sections">
         <SectionCard defaultCollapsed title={t($ => $.settings.general)} description={t($ => $.settings.generalDescription)}>
           <form data-settings-general className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.save('general') }}>
             <div className="settings-fields">
@@ -42,7 +42,7 @@ export function SettingsPage() {
                 <option value="light">{t($ => $.settings.light)}</option><option value="dark">{t($ => $.settings.dark)}</option><option value="system">{t($ => $.settings.system)}</option>
               </Select>}</FormField>
             </div>
-            <div className="settings-actions">{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" disabled={!settings.generalDirty || Boolean(saving)}>{saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
+            <ActionRow>{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" disabled={!settings.generalDirty || Boolean(saving)}>{saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></ActionRow>
           </form>
         </SectionCard>
         <AISettingsSection settings={settings} />
@@ -54,7 +54,7 @@ export function SettingsPage() {
               settings.changeMailbox({ provider, url: provider === 'none' ? '' : provider === 'custom' ? draft.mailbox.url : mailURLs[provider] }); setMailError(false)
             }}><option value="none">{t($ => $.settings.none)}</option><option value="gmail">Gmail</option><option value="outlook">Outlook</option><option value="custom">{t($ => $.settings.custom)}</option></Select>}</FormField>
             {draft.mailbox.provider !== 'none' && <FormField label={t($ => $.settings.mailURL)} help={t($ => $.settings.mailHelp)} error={mailError ? t($ => $.settings.mailInvalid) : undefined}>{props => <TextInput {...props} type="url" maxLength={2048} value={draft.mailbox.url} disabled={Boolean(saving)} onChange={event => { settings.changeMailbox({ ...draft.mailbox, url: event.target.value }); setMailError(false) }} />}</FormField>}
-            <div className="settings-actions">{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" disabled={!settings.mailDirty || Boolean(saving)}>{saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></div>
+            <ActionRow>{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" disabled={!settings.mailDirty || Boolean(saving)}>{saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></ActionRow>
           </form>
         </SectionCard>
         <KnowledgeSettings onDirty={settings.setKnowledgeDirty} />

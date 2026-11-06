@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { SMART_PASTE_CONFIG_LIMIT, SMART_PASTE_PROMPT_LIMIT, SMART_PASTE_TITLE_LIMIT, smartPasteSettings, type SmartPasteConfig } from '../../shared/smart-paste'
-import { Button, FormField, SectionCard, StatusMessage, TextArea, TextInput } from '../../shared/ui'
+import { ActionRow, Button, FormField, SectionCard, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import type { useSettings } from './useSettings'
 
 export function SmartPasteSettings({ settings }: { settings: ReturnType<typeof useSettings> }) {
@@ -21,16 +21,16 @@ export function SmartPasteSettings({ settings }: { settings: ReturnType<typeof u
         <FormField label={t($ => $.smartPaste.prompt)}>{props => <TextArea {...props} required
           value={config.prompt} maxLength={SMART_PASTE_PROMPT_LIMIT} disabled={Boolean(saving)}
           onChange={event => change(config.id, { prompt: event.target.value })} />}</FormField>
-        <div className="settings-actions"><Button type="button" variant="ghost" disabled={Boolean(saving)}
-          onClick={() => settings.changeSmartPaste({ configs: configs.filter(item => item.id !== config.id) })}>{t($ => $.smartPaste.remove)}</Button></div>
+        <ActionRow><Button type="button" variant="ghost" disabled={Boolean(saving)}
+          onClick={() => settings.changeSmartPaste({ configs: configs.filter(item => item.id !== config.id) })}>{t($ => $.smartPaste.remove)}</Button></ActionRow>
       </div>)}
-      <div className="settings-actions">
-        <Button type="button" disabled={Boolean(saving) || configs.length >= SMART_PASTE_CONFIG_LIMIT}
-          onClick={() => settings.changeSmartPaste({ configs: [...configs, { id: crypto.randomUUID(), title: '', prompt: '' }] })}>{t($ => $.smartPaste.add)}</Button>
+      <ActionRow>
         {notice ? <StatusMessage tone={notice === 'saved' ? 'success' : 'error'}>{t($ => $.settings[notice])}</StatusMessage>
           : smartPasteDirty && <StatusMessage>{t($ => $.settings.unsaved)}</StatusMessage>}
+        <Button type="button" disabled={Boolean(saving) || configs.length >= SMART_PASTE_CONFIG_LIMIT}
+          onClick={() => settings.changeSmartPaste({ configs: [...configs, { id: crypto.randomUUID(), title: '', prompt: '' }] })}>{t($ => $.smartPaste.add)}</Button>
         <Button variant="primary" type="submit" disabled={!smartPasteDirty || Boolean(saving)}>{saving === 'smartPaste' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button>
-      </div>
+      </ActionRow>
     </form>
   </SectionCard>
 }

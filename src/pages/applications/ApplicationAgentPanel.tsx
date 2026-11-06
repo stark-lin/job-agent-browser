@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
-import { Button, FormField, SectionCard, StatusMessage, TextArea } from '../../shared/ui'
+import { ActionRow, Button, FormField, SectionCard, StatusMessage, TextArea } from '../../shared/ui'
 import type { ApplicationTask } from '../../platform/electron/application-contract'
 
 export function ApplicationAgentPanel({ jobId, onChanged }: { jobId: string; onChanged(): void }) {
@@ -57,13 +57,13 @@ export function ApplicationAgentPanel({ jobId, onChanged }: { jobId: string; onC
     finally { locked.current = false; if (alive.current) setSubmitting(false) }
   }
   return <SectionCard title={t($ => $.applicationAgent.title)} description={t($ => $.applicationAgent.help)}><div className="job-stack">
-    {model ? <StatusMessage>{t($ => $.jobs.selectedModel, model)}</StatusMessage> : <div className="job-actions"><StatusMessage>{t($ => $.applicationAgent.configure)}</StatusMessage><Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button></div>}
+    {model ? <StatusMessage>{t($ => $.jobs.selectedModel, model)}</StatusMessage> : <ActionRow><StatusMessage>{t($ => $.applicationAgent.configure)}</StatusMessage><Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button></ActionRow>}
     {task?.question && <StatusMessage>{task.question}</StatusMessage>}
     <form className="job-stack" onSubmit={event => { event.preventDefault(); void submit() }}>
       <FormField label={t($ => $.applicationAgent[task?.state === 'waiting' ? 'answer' : 'instruction'])}>{props => <TextArea {...props} name="applicationInstruction" value={text} maxLength={10000} disabled={busy} onChange={event => setText(event.target.value)} />}</FormField>
-      <div className="job-actions"><Button type="submit" disabled={busy || !text.trim() || !model}>{t($ => $.applicationAgent.submit)}</Button>
+      <ActionRow><Button type="submit" disabled={busy || !text.trim() || !model}>{t($ => $.applicationAgent.submit)}</Button>
         {busy && <Button onClick={() => { if (taskId.current) void applicationAgent.cancel({ taskId: taskId.current }).catch(() => setError('STORAGE_UNAVAILABLE')) }}>{t($ => $.applicationAgent.cancel)}</Button>}
-        {task?.retryable && <Button disabled={busy} onClick={() => { void applicationAgent.retry({ taskId: task.taskId }).then(result => { if (!alive.current) return; if (!result.ok) setError(result.error); else { shouldPoll.current = true; setTask({ ...task, state: 'executing', retryable: false }) } }).catch(() => { if (alive.current) setError('STORAGE_UNAVAILABLE') }) }}>{t($ => $.applicationAgent.retry)}</Button>}</div>
+        {task?.retryable && <Button disabled={busy} onClick={() => { void applicationAgent.retry({ taskId: task.taskId }).then(result => { if (!alive.current) return; if (!result.ok) setError(result.error); else { shouldPoll.current = true; setTask({ ...task, state: 'executing', retryable: false }) } }).catch(() => { if (alive.current) setError('STORAGE_UNAVAILABLE') }) }}>{t($ => $.applicationAgent.retry)}</Button>}</ActionRow>
     </form>
     {task && <StatusMessage tone={task.state === 'failed' ? 'error' : task.state === 'succeeded' ? 'success' : 'neutral'}>{t($ => $.applicationAgent.states[task.state])}</StatusMessage>}
     {task?.results.map((result, index) => <StatusMessage key={index} tone={result.state === 'failed' ? 'error' : 'neutral'}>{t($ => $.applicationAgent.actions[result.type])}: {t($ => $.applicationAgent.results[result.state])}</StatusMessage>)}

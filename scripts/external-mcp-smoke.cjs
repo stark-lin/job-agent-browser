@@ -13,6 +13,10 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   await ready()
   await openSectionCards(evaluate, '[data-external-mcp]')
   assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 0)
+  assert.deepEqual(await evaluate(`(() => {
+    const cards = [...document.querySelectorAll('[data-agent-target]')];
+    return cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom);
+  })()`), [16, 16, 16])
   await openSectionCards(evaluate, selector('codex'))
   assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 1)
   await evaluate('document.querySelector("[data-external-mcp] > summary").click()')

@@ -12,3 +12,7 @@ export function Button({ variant = 'default', size = 'md', type = 'button', clas
 export function IconButton({ size = 'sm', ...props }: Omit<ButtonProps, 'variant' | 'size'> & { 'aria-label': string; size?: 'sm' | 'md' }) {
   return <Button {...props} variant="icon" size={size} />
 }
+
+export function ActionRow({ className = '', ...props }: ComponentPropsWithRef<'div'>) {
+  return <div {...props} className={`ui-action-row ${className}`.trim()} />
+}

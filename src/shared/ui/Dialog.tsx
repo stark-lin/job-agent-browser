@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { ActionRow } from './Button'
 
 export function Dialog({ open, title, description, onClose, content, children }: {
   open: boolean; title: string; description?: string; onClose: () => void; content?: ReactNode; children: ReactNode
@@ -14,6 +15,6 @@ export function Dialog({ open, title, description, onClose, content, children }:
     <h2 id={`${id}-title`}>{title}</h2>
     {description && <p id={`${id}-description`}>{description}</p>}
     {content && <div className="ui-dialog-content">{content}</div>}
-    <div className="ui-dialog-actions">{children}</div>
+    <ActionRow className="ui-dialog-actions">{children}</ActionRow>
   </dialog>
 }

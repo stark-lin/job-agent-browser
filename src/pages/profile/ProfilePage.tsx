@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
+import { ActionRow, Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import type { ProfileDetails, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
 import { itemTypes } from '../../domain/candidate/candidate.types'
@@ -55,9 +55,9 @@ export function ProfilePage() {
     return <SectionCard key={entry.id} title={t($ => $.profile.kinds[entry.kind])}><div className="profile-stack">
       <DetailsList items={[{ label: t($ => $.profile.content), value: entry.content },
         ...(entry.tags.length ? [{ label: t($ => $.profile.tags), value: entry.tags.join(', ') }] : [])]} />
-      <div className="profile-actions">
+      <ActionRow>
         <Button disabled={manualDisabled} onClick={() => beginFact({ kind: entry.kind, content: entry.content, tags: entry.tags }, entry.profileItemId, entry.id)}>{t($ => $.profile.edit)}</Button>
-        <Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'fact', id: entry.id })}>{t($ => $.profile.remove)}</Button></div>
+        <Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'fact', id: entry.id })}>{t($ => $.profile.remove)}</Button></ActionRow>
     </div></SectionCard>
   }
   function renderItem(entry: ProfileItem) {
@@ -70,7 +70,7 @@ export function ProfilePage() {
         ...(['degree', 'major', 'gpa', 'employmentType', 'url'] as const).filter(key => entry.metadata[key]).map(key => ({ label: t($ => $.profile[key]), value: entry.metadata[key] })),
         ...(entry.metadata.technologies?.length ? [{ label: t($ => $.profile.technologies), value: entry.metadata.technologies.join(', ') }] : [])
       ]} />
-      <div className="profile-actions"><Button disabled={manualDisabled} onClick={() => beginItem(details, id)}>{t($ => $.profile.edit)}</Button><Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'item', id })}>{t($ => $.profile.remove)}</Button></div>
+      <ActionRow><Button disabled={manualDisabled} onClick={() => beginItem(details, id)}>{t($ => $.profile.edit)}</Button><Button variant="danger" disabled={manualDisabled} onClick={() => setRemove({ kind: 'item', id })}>{t($ => $.profile.remove)}</Button></ActionRow>
       <div className="profile-facts">{state.facts.filter(fact => fact.profileItemId === id).map(renderFact)}
         <Button variant="add-card" disabled={manualDisabled} onClick={() => beginFact({ kind: 'ACHIEVEMENT', content: '' }, id)}>{t($ => $.profile.addFact)}</Button>
       </div>
@@ -79,14 +79,14 @@ export function ProfilePage() {
   return <main className="profile-page" aria-label={t($ => $.navigation.pages.profile)}><div className="profile-content">
     {state.error && <StatusMessage tone="error">{state.error === 'loadFailed' ? t($ => $.profile.loadFailed) : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })}</StatusMessage>}
     {state.notice && <StatusMessage tone="success">{t($ => $.profile.saved)}</StatusMessage>}
-    {state.loading ? <StatusMessage>{t($ => $.profile.loading)}</StatusMessage> : state.error === 'loadFailed' ? <Button onClick={() => void state.reload()}>{t($ => $.profile.retry)}</Button> : <>
+    {state.loading ? <StatusMessage>{t($ => $.profile.loading)}</StatusMessage> : state.error === 'loadFailed' ? <ActionRow><Button onClick={() => void state.reload()}>{t($ => $.profile.retry)}</Button></ActionRow> : <>
       <ProfileImport profile={state.profile} onDirty={setImportDirty} onSaved={async profile => { await state.refresh(profile.id) }} disabled={state.saving || contactDirty || Boolean(item || fact)} />
       {!profileId && <StatusMessage>{t($ => $.profile.noProfile)}</StatusMessage>}
       <SectionCard title={t($ => $.profile.basic)}><form className="profile-stack" onSubmit={event => { event.preventDefault(); void saveContact() }}>
         <div className="profile-fields">{contactKeys.map(key => <FormField key={key} label={t($ => $.profile[key])}>{props => <TextInput {...props} value={contact[key]} required={key === 'name'} maxLength={key === 'name' ? 300 : key === 'email' ? 320 : key === 'phone' ? 100 : 1000} disabled={manualDisabled} onChange={event => { setContact({ ...contact, [key]: event.target.value }); setInvalid(false) }} />}</FormField>)}</div>
         <FormField label={t($ => $.profile.introduction)} help={t($ => $.profile.introductionHelp)}>{props => <TextArea {...props} value={contact.introduction} maxLength={2000} disabled={manualDisabled} onChange={event => { setContact({ ...contact, introduction: event.target.value }); setInvalid(false) }} />}</FormField>
-        {contact.links.map((link, index) => <div className="profile-stack" key={index}><div className="profile-fields">{(['label', 'url'] as const).map(key => <FormField key={key} label={t($ => $.profile[key])}>{props => <TextInput {...props} value={link[key]} required maxLength={key === 'label' ? 100 : 4096} disabled={manualDisabled} onChange={event => setContact({ ...contact, links: contact.links.map((value, i) => i === index ? { ...value, [key]: event.target.value } : value) })} />}</FormField>)}</div><div><Button disabled={manualDisabled} onClick={() => setContact({ ...contact, links: contact.links.filter((_, i) => i !== index) })}>{t($ => $.profile.remove)}</Button></div></div>)}
-        <div className="profile-actions"><Button disabled={manualDisabled || contact.links.length >= 20} onClick={() => setContact({ ...contact, links: [...contact.links, { label: '', url: '' }] })}>{t($ => $.profile.add)} {t($ => $.profile.links)}</Button><Button variant="primary" type="submit" disabled={manualDisabled || (!contactDirty && Boolean(profileId))}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.save)}</Button></div>
+        {contact.links.map((link, index) => <div className="profile-stack" key={index}><div className="profile-fields">{(['label', 'url'] as const).map(key => <FormField key={key} label={t($ => $.profile[key])}>{props => <TextInput {...props} value={link[key]} required maxLength={key === 'label' ? 100 : 4096} disabled={manualDisabled} onChange={event => setContact({ ...contact, links: contact.links.map((value, i) => i === index ? { ...value, [key]: event.target.value } : value) })} />}</FormField>)}</div><ActionRow><Button disabled={manualDisabled} onClick={() => setContact({ ...contact, links: contact.links.filter((_, i) => i !== index) })}>{t($ => $.profile.remove)}</Button></ActionRow></div>)}
+        <ActionRow><Button disabled={manualDisabled || contact.links.length >= 20} onClick={() => setContact({ ...contact, links: [...contact.links, { label: '', url: '' }] })}>{t($ => $.profile.add)} {t($ => $.profile.links)}</Button><Button variant="primary" type="submit" disabled={manualDisabled || (!contactDirty && Boolean(profileId))}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.save)}</Button></ActionRow>
         {invalid && !item && !fact && <StatusMessage tone="error">{t($ => $.profile.invalid)}</StatusMessage>}
       </form></SectionCard>
       {itemTypes.map(type => <section key={type} className="profile-stack" aria-label={t($ => $.profile.types[type])}>

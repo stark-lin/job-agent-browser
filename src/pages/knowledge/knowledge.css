@@ -48,10 +48,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.knowledge-toolbar-actions {
-  display: flex;
-  gap: var(--space-1);
-}
+.knowledge-toolbar-actions { margin-inline-start: auto; }
 .knowledge-save-status {
   padding: var(--space-1) var(--space-2);
   color: var(--muted);
@@ -80,8 +77,7 @@
   color: var(--muted);
 }
 .knowledge-conflict,
-.knowledge-results,
-.knowledge-menu {
+.knowledge-results {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
