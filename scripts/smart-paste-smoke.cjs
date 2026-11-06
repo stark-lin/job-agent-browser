@@ -74,13 +74,21 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     view.webContents.setBackgroundThrottling(false)
     return view
   }
-  const pointer = (contents, x, y, button) => {
-    contents.sendInputEvent({ type: 'mouseMove', x, y })
-    for (const type of ['mouseDown', 'mouseUp']) contents.sendInputEvent({ type, x, y, button, clickCount: 1 })
+  const pointer = async (contents, x, y, button) => {
+    // Dispatch through Chromium so CI mouse delivery does not depend on native window focus.
+    const debug = contents.debugger
+    const attached = debug.isAttached()
+    if (!attached) debug.attach()
+    try {
+      await debug.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+      for (const type of ['mousePressed', 'mouseReleased']) {
+        await debug.sendCommand('Input.dispatchMouseEvent', { type, x, y, button, clickCount: 1 })
+      }
+    } finally { if (!attached) debug.detach() }
   }
   async function context(view, selector = '#field', frame = view.webContents.mainFrame, iframe) {
     menu = undefined
-    window.show(); window.focus(); view.webContents.focus()
+    view.webContents.focus()
     const point = await frame.executeJavaScript(`(() => {
       const field = document.querySelector(${JSON.stringify(selector)}); field.focus();
       if (field.setSelectionRange && field.type !== 'password') field.setSelectionRange(5, 8);
@@ -94,17 +102,7 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
       const frame = document.querySelector(${JSON.stringify(iframe)}), bounds = frame.getBoundingClientRect();
       return { x: bounds.x + frame.clientLeft, y: bounds.y + frame.clientTop };
     })()`) : { x: 0, y: 0 }
-    if (iframe) {
-      const { debugger: debug } = view.webContents
-      const coordinates = { x: point.x + offset.x, y: point.y + offset.y, button: 'right', clickCount: 1 }
-      const attached = debug.isAttached()
-      if (!attached) debug.attach()
-      try {
-        await debug.sendCommand('Input.dispatchMouseEvent', { ...coordinates, type: 'mouseMoved', button: 'none' })
-        await debug.sendCommand('Input.dispatchMouseEvent', { ...coordinates, type: 'mousePressed' })
-        await debug.sendCommand('Input.dispatchMouseEvent', { ...coordinates, type: 'mouseReleased' })
-      } finally { if (!attached) debug.detach() }
-    } else pointer(view.webContents, point.x, point.y, 'right')
+    await pointer(view.webContents, point.x + offset.x, point.y + offset.y, 'right')
     await waitFor(() => Boolean(menu), `native Smart Paste menu for ${selector}`)
     assert.equal(popup.frame.frameToken, frame.frameToken, `menu frame ${popup.frame.url} should be ${frame.url}`)
     return menu.getMenuItemById('smart-paste')?.submenu?.items.find(item => item.id === `smart-paste-${id}`)
@@ -188,13 +186,13 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     await data('settings', 'savePreferences', { theme: 'dark' })
     await waitFor(() => notice.webContents.executeJavaScript('document.documentElement.dataset.theme === "dark"'), 'native Banner dark theme')
     await waitBanner('Reading context')
-    pointer(notice.webContents, 36, 25, 'left')
+    await pointer(notice.webContents, 36, 25, 'left')
     await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Banner opens Ask AI')
     final()
     await waitFor(async () => await value(cross) === 'left Answer right', 'background field finishes while viewing Ask AI')
     await waitFor(() => evaluate('document.body.innerText.includes("Answer")'), 'linked session is selected')
     await waitBanner('Finished Updated title')
-    pointer(notice.webContents, 335, 40, 'left')
+    await pointer(notice.webContents, 335, 40, 'left')
     await waitFor(() => !notice.getVisible(), 'Banner close does not navigate')
 
     await call('navigate', 'app://browser')
@@ -259,7 +257,7 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     webSession.webRequest.onBeforeRequest(null)
     const notice = banner()
     if (notice?.getVisible()) {
-      pointer(notice.webContents, 335, 40, 'left')
+      await pointer(notice.webContents, 335, 40, 'left')
       await waitFor(() => !notice.getVisible(), 'Smart Paste smoke cleanup')
     }
     await call('navigate', 'app://ai')
