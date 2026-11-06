@@ -60,16 +60,22 @@ const generated = {
     `export const HISTORY_DRAG_THRESHOLD = ${pixels('space-12')}\n` +
     `export const HISTORY_INDICATOR_SIZE = ${pixels('control-lg') + pixels('space-1') * 2}\n` +
     `export const HISTORY_INDICATOR_INSET = ${pixels('space-1')}\n` +
+    `export const BANNER_WIDTH = ${pixels('toast-width')}\n` +
+    `export const BANNER_HEIGHT = ${pixels('space-10')}\n` +
+    `export const BANNER_INSET = ${pixels('space-2')}\n` +
     `export const UI_MOTION_MS = ${Number.parseInt(tokens.ease, 10)}\n` +
     'export const getSidebarWidth = (): number => SIDEBAR_WIDTH\n'
 }
 generated['src/shared/ui/history-indicator-styles.ts'] =
   '// Generated from design-tokens.css and history-indicator.css: npm run design:tokens\n' +
   `export const historyIndicatorStyles = ${JSON.stringify(generated['src/shared/ui/design-tokens.css'] + '\n' + read('src/shared/ui/history-indicator.css'))}\n`
+generated['src/shared/ui/banner-styles.ts'] =
+  '// Generated from design-tokens.css and banner.css: npm run design:tokens\n' +
+  `export const bannerStyles = ${JSON.stringify(generated['src/shared/ui/design-tokens.css'] + '\n' + read('src/shared/ui/banner.css'))}\n`
 generated['docs/components/job-browser-component-library-8px.css'] =
   generated['src/shared/ui/design-tokens.css'] + '\n' +
   read('src/shared/ui/component-library.css').replace('@import "./design-tokens.css";\n', '') + '\n' +
-  read('src/shared/ui/history-indicator.css')
+  read('src/shared/ui/history-indicator.css') + '\n' + read('src/shared/ui/banner.css')
 for (const [file, content] of Object.entries(generated)) {
   if (process.argv.includes('--write')) fs.writeFileSync(path.join(root, file), content)
   else assert.equal(read(file), content, `${file}: regenerate with npm run design:tokens`)

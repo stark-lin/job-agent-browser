@@ -53,6 +53,8 @@ export class MCPAgentTools implements AgentTools {
   }
 }
 
+const askSessionKey = (id: string, readOnly?: boolean) => `ask-ai:${readOnly ? 'read-only:' : ''}${id}`
+
 /** One stable server session per workflow; a lost session is never used for run takeover. */
 export function createFirstPartyRuntime(directory: string, bundleDirectory: string) {
   const authority = createMemoryAuthority(directory)
@@ -60,10 +62,10 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
   const clients = new Set<MCPClient>(), lifecycle = new AbortController()
   let disposed = false
   const runtime = {
-    async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default'): Promise<MCPAgentTools> {
+    async session(agent: FirstPartyAgent, signal: AbortSignal, sessionId = 'default', readOnly = false): Promise<MCPAgentTools> {
       if (disposed) toolFail('TOOL_UNAVAILABLE')
       signal.throwIfAborted()
-      const sessionKey = agent === 'ask-ai' ? `${agent}:${sessionId}` : agent
+      const sessionKey = agent === 'ask-ai' ? askSessionKey(sessionId, readOnly) : agent
       let pending = sessions.get(sessionKey)
       if (!pending) {
         pending = (async () => {
@@ -76,7 +78,7 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
             args: [join(bundleDirectory, 'job-agent-mcp.js')], tools: [] }, {
             closed() { closed.abort(new ToolError('TOOL_UNAVAILABLE')); clients.delete(client); if (sessions.get(sessionKey) === pending) sessions.delete(sessionKey) },
             changed() { closed.abort(new ToolError('MCP_INVALID_RESPONSE')); void client.close() }
-          }, { processEnv: { ...(process.versions.electron ? { JOB_BROWSER_ELECTRON: process.execPath } : {}), JOB_BROWSER_USER_DATA: directory, JOB_BROWSER_MCP_CALLER: `internal.${agent}`, ...(launch ? { JOB_BROWSER_MEMORY_LAUNCH: launch } : {}), ELECTRON_RUN_AS_NODE: '1' } })
+          }, { processEnv: { ...(process.versions.electron ? { JOB_BROWSER_ELECTRON: process.execPath } : {}), JOB_BROWSER_USER_DATA: directory, JOB_BROWSER_MCP_CALLER: `internal.${agent}`, ...(launch ? { JOB_BROWSER_MEMORY_LAUNCH: launch } : {}), JOB_BROWSER_ASK_READ_ONLY: readOnly ? '1' : '0', ELECTRON_RUN_AS_NODE: '1' } })
           clients.add(client)
           try {
             await client.connect(lifecycle.signal)
@@ -90,22 +92,37 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
       const { tools } = await abortable(pending, signal)
       return tools
     },
-    async openAskRun(input: { chatRunId: string; sessionId: string; sourceMessageIds: string[]; signal: AbortSignal }) {
-      const tools = await runtime.session('ask-ai', input.signal, input.sessionId)
-      const pending = sessions.get(`ask-ai:${input.sessionId}`)
-      if (!pending) toolFail('TOOL_UNAVAILABLE')
-      const { authSession } = await pending
-      input.signal.throwIfAborted(); tools.signal.throwIfAborted()
-      const stopped = new AbortController()
-      const registered = authority.registerRun(authSession, input.chatRunId, input.sessionId), sources = [...input.sourceMessageIds]
+    async openAskRun(input: { chatRunId: string; sessionId: string; sourceMessageIds: string[]; signal: AbortSignal; readOnly?: boolean }) {
+      const connection = runtime.session('ask-ai', input.signal, input.sessionId, input.readOnly)
+      const pending = sessions.get(askSessionKey(input.sessionId, input.readOnly))
+      let tools: MCPAgentTools, authSession: string, registered: ReturnType<typeof authority.registerRun>
+      try {
+        tools = await connection
+        if (!pending) toolFail('TOOL_UNAVAILABLE')
+        authSession = (await pending).authSession
+        input.signal.throwIfAborted(); tools.signal.throwIfAborted()
+        registered = authority.registerRun(authSession, input.chatRunId, input.sessionId)
+      } catch (error) {
+        if (input.readOnly) void pending?.then(({ tools }) => tools.close()).catch(() => {})
+        throw error
+      }
+      const stopped = new AbortController(), sources = [...input.sourceMessageIds]
       let closing: Promise<void> | undefined
-      const close = () => { stopped.abort(); return closing ??= registered.close().catch(async () => { await tools.close(); throw new ToolError('TOOL_UNAVAILABLE') }).finally(() => input.signal.removeEventListener('abort', cancel)) }
+      const close = () => {
+        stopped.abort()
+        return closing ??= registered.close().then(async () => {
+          if (input.readOnly) await tools.close()
+        }).catch(async () => {
+          await tools.close()
+          throw new ToolError('TOOL_UNAVAILABLE')
+        }).finally(() => input.signal.removeEventListener('abort', cancel))
+      }
       const cancel = () => { void close().catch(() => {}) }
       input.signal.addEventListener('abort', cancel, { once: true })
       if (input.signal.aborted) { cancel(); input.signal.throwIfAborted() }
       const view = tools.withRun(AbortSignal.any([input.signal, stopped.signal]), { chatRunId: input.chatRunId, metadata(name, args) {
         input.signal.throwIfAborted()
-        return { jabRunGrant: registered.grant(name, args), ...(['memory.write', 'memory.mkdir'].includes(name) && sources.length
+        return { jabRunGrant: registered.grant(name, args), ...(!input.readOnly && ['memory.write', 'memory.mkdir'].includes(name) && sources.length
           ? { jabMemoryGrant: authority.grant(authSession, name, args, sources) } : {}) }
       } })
       return { tools: view, close }

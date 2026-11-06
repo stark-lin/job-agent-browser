@@ -472,7 +472,24 @@ export const zhCN = {
       "COPY_FAILED": "无法复制配置，请重试。"
     }
   },
+  "smartPaste": {
+    "title": "智能粘贴",
+    "description": "使用智能粘贴时，剪贴板和字段上下文会发送给默认 Ask AI 模型，并保存到对应会话。",
+    "configTitle": "标题",
+    "prompt": "提示词",
+    "add": "添加配置",
+    "remove": "删除配置",
+    "closeBanner": "关闭通知",
+    "preparing": "正在准备「{{title}}」",
+    "reading": "正在为「{{title}}」读取资料",
+    "filling": "正在填写「{{title}}」",
+    "done": "「{{title}}」已填写",
+    "stopped": "已停止填写「{{title}}」",
+    "failed": "未能完成「{{title}}」",
+    "noModel": "请先在设置中选择默认 Ask AI 模型。"
+  },
   settings: {
+    "invalidSmartPaste": "请为每条配置填写有效的标题和提示词。",
     contextWindow: '实际上下文窗口（Tokens）', contextWindowHelp: 'Ask AI 至少需要 65,536。请填写部署时的实际限制；可检测到的运行参数优先。', maxOutputTokens: '模型最大输出 Tokens',
 
     "aiDescription": "配置兼容 OpenAI Chat Completions 的服务。每个 Provider 的密钥分别加密保存。",

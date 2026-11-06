@@ -1,4 +1,7 @@
 import { ipcRenderer } from 'electron'
+import { installWebField } from './web-field'
+
+if (location.protocol === 'https:' || location.protocol === 'http:') installWebField()
 
 // Isolated, sandboxed preload: expose no browser, Node or IPC API to websites.
 let enabled = false, epoch = 0, mode: 'idle' | 'page' | 'history' = 'idle'

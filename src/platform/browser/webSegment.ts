@@ -1,3 +1,5 @@
+import { SmartPasteField } from './smartPasteField'
+import type { SmartPasteService } from '../smart-paste/service'
 import { join } from 'node:path'
 import { t } from '../../shared/i18n'
 import { randomUUID } from 'node:crypto'
@@ -61,6 +63,9 @@ export class WebSegment implements HistorySegment {
   private readonly identity: NativeHistoryIdentity
   private navigationGeneration = 0
   private menu?: Menu
+  private menuRequest = 0
+  private menuCandidate?: Awaited<ReturnType<SmartPasteField['probe']>>
+  private readonly smartField?: SmartPasteField
 
   constructor(
     private readonly window: BrowserWindow,
@@ -72,11 +77,13 @@ export class WebSegment implements HistorySegment {
       accept(target: SelectionTarget, content: Pick<WebSelection, 'text' | 'source'>): void
       travel(direction: -1 | 1): void
       requestCopy(): void
-    }
+    },
+    private readonly smartPaste?: SmartPasteService
   ) {
     this.view = new WebContentsView({ webPreferences: {
       session: session.fromPartition(SESSION_PARTITION), nodeIntegration: false,
-      preload: surface === 'browser' ? join(__dirname, '../preload/browser-gestures.js') : undefined,
+      preload: surface === 'browser' || smartPaste ? join(__dirname, '../preload/browser-gestures.js') : undefined,
+      nodeIntegrationInSubFrames: Boolean(smartPaste),
       contextIsolation: true, sandbox: true, webSecurity: true
     } })
     this.surfaceView.addChildView(this.view)
@@ -115,6 +122,7 @@ export class WebSegment implements HistorySegment {
     this.setVisible(false)
     window.contentView.addChildView(this.surfaceView)
     const contents = this.view.webContents
+    if (smartPaste) this.smartField = new SmartPasteField(contents)
     this.identity = new NativeHistoryIdentity(contents)
     if (surface === 'browser') {
       const active = () => !!this.browserActions?.identity(), epoch = () => this.navigationGeneration
@@ -162,7 +170,14 @@ export class WebSegment implements HistorySegment {
   }
 
   setVisible(visible: boolean): void {
-    if (!visible) this.drag.cancel()
+    if (!visible) {
+      this.drag.cancel()
+      if (this.surfaceView.getVisible()) {
+        this.menuRequest++
+        this.menuCandidate?.discard()
+        this.menuCandidate = undefined
+      }
+    }
     this.surfaceView.setVisible(visible); this.view.setVisible(visible)
     this.syncWheel()
     if (visible) this.restoreFocus()
@@ -247,6 +262,7 @@ export class WebSegment implements HistorySegment {
     this.presentation.dispose()
     this.indicator?.dispose()
     this.disposed = true
+    this.smartField?.dispose()
     if (!this.window.isDestroyed()) this.menu?.closePopup(this.window)
     this.menu = undefined
     if (!this.window.isDestroyed()) this.window.contentView.removeChildView(this.surfaceView)
@@ -275,8 +291,11 @@ export class WebSegment implements HistorySegment {
     this.showContextMenu(params)
   }
 
-  private showContextMenu(params: ContextMenuParams): void {
+  private async showContextMenu(params: ContextMenuParams): Promise<void> {
     if (this.disposed || this.window.isDestroyed()) return
+    this.menuCandidate?.discard()
+    this.menuCandidate = undefined
+    const request = ++this.menuRequest
     const contents = this.view.webContents, frame = params.frame
     if (!frame || frame.detached) return
     const generation = this.navigationGeneration, identity = this.browserActions?.identity()
@@ -309,10 +328,37 @@ export class WebSegment implements HistorySegment {
       template.push({ type: 'separator' }, { id: 'selection-ask-ai', label: t($ => $.selection.ask), click: () => accept('ask-ai') },
         { id: 'selection-job-import', label: t($ => $.selection.job), click: () => accept('job-import') })
     }
+    const present = () => !this.disposed && !this.window.isDestroyed() && !contents.isDestroyed() && !frame.detached
+      && request === this.menuRequest && this.surfaceView.getVisible() && generation === this.navigationGeneration
+    let candidate: Awaited<ReturnType<SmartPasteField['probe']>>
+    if (params.isEditable && params.formControlType !== 'input-password' && this.smartField && this.smartPaste && present()) {
+      const configs = (() => { try { return this.smartPaste.configs() } catch { return [] } })()
+      if (configs.length) candidate = await this.smartField.probe(frame).catch(() => undefined)
+      if (!present()) { candidate?.discard(); return }
+      if (candidate) {
+        this.menuCandidate = candidate
+        const index = template.findIndex(item => item.role === 'selectAll')
+        template.splice(index, 0, { type: 'separator' }, {
+          id: 'smart-paste', label: t($ => $.smartPaste.title), submenu: configs.map(config => ({
+            id: `smart-paste-${config.id}`, label: config.title.replaceAll('&', '&&'), click: () => {
+              if (!present()) return
+              const target = candidate?.start()
+              if (target) void this.smartPaste?.start(this.window, config.id, target, { title: contents.getTitle(), url: contents.getURL() })
+            }
+          }))
+        }, { type: 'separator' })
+      }
+    }
     this.menu?.closePopup(this.window)
     const menu = Menu.buildFromTemplate(template)
     this.menu = menu
     contents.focus()
-    menu.popup({ window: this.window, frame, sourceType: params.menuSourceType, callback: () => { if (this.menu === menu) this.menu = undefined } })
+    menu.popup({ window: this.window, frame, sourceType: params.menuSourceType, callback: () => {
+      if (this.menu === menu) this.menu = undefined
+      setImmediate(() => {
+        candidate?.discard()
+        if (this.menuCandidate === candidate) this.menuCandidate = undefined
+      })
+    } })
   }
 }

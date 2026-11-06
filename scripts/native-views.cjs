@@ -15,4 +15,4 @@ function bounds(window, view) {
   }
   return rect
 }
-module.exports = { views: window => views(window.contentView), bounds, parent: (window, view) => parent(window.contentView, view) }
+module.exports = { views: window => window.contentView.children.filter(child => !child.webContents).flatMap(views), bounds, parent: (window, view) => parent(window.contentView, view) }

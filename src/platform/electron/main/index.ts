@@ -1,3 +1,5 @@
+import { BannerService } from '../../banner/bannerService'
+import { SmartPasteService } from '../../smart-paste/service'
 import { createChatDebugOutput } from './chat-debug-output'
 import { buildCommit } from './build-info'
 import { npmMCPLaunch } from '../../npm/distribution'
@@ -134,12 +136,15 @@ app.whenReady().then(async () => {
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
   })
-  const created = createMainWindow(getInboxURL)
+  const banner = new BannerService()
+  const smartPaste = { banner, service: new SmartPasteService(() => preferences.get({}), askAgent, banner),
+    hasSession(id: string) { try { return Boolean(backend?.chats.getSession(id)) } catch { return false } } }
+  const created = createMainWindow(getInboxURL, smartPaste)
   browser = created.browser
 
   app.on('activate', () => {
     if (browserWindowCount() === 0) {
-      const next = createMainWindow(getInboxURL)
+      const next = createMainWindow(getInboxURL, smartPaste)
       browser = next.browser
     }
   })

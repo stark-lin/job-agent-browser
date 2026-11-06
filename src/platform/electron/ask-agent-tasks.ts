@@ -8,7 +8,7 @@ import { DataError, fail } from '../../domain/common/errors'
 import type { ChatRecorder } from '../database/repositories/chats'
 import type { FirstPartyRuntime } from '../mcp/first-party-client'
 import { ToolError } from '../../shared/tools/errors'
-import { askSystem, runAskAgent } from '../agent/ask'
+import { askSystem, runAskAgent, smartPasteSystem } from '../agent/ask'
 import { discoveryTools } from '../agent/tools/discovery'
 import { ContextBudget } from '../agent/context/budget'
 import { ContextManager } from '../agent/context/manager'
@@ -33,15 +33,16 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
     return { runId, task }
   }
   return {
-    start(owner: number, input: unknown, send: (event: AgentRunEvent) => void) {
+    start(owner: number, input: unknown, send: (event: AgentRunEvent) => void, smartPaste?: { onToolTurn(): void }) {
       if (disposed) fail('INVALID_STATE')
       const args = chatStart(input)
       if (Buffer.byteLength(args.message.trim()) > 1048576) fail('INVALID_INPUT')
+      if (smartPaste && args.sessionId) fail('INVALID_INPUT')
       const normalized = { ...args, sessionId: args.sessionId || undefined }, previous = deps.chats.lookup(normalized)
       if (previous) { owned(owner, { runId: previous.runId }); return previous }
       if ([...tasks.values()].filter(t => !t.settled).length >= 16
         || [...tasks.values()].filter(t => t.owner === owner && !t.settled).length >= 4) fail('INVALID_STATE')
-      const result = deps.chats.start(normalized, true)
+      const result = deps.chats.start(normalized, true, smartPaste ? 'smart-paste' : undefined)
       const snapshot = deps.chats.snapshot(result.runId), controller = new AbortController()
       const task: Task = { owner, controller, snapshot }; tasks.set(result.runId, task)
       const recorder = createAskRecorder(deps.chats, snapshot, event => { try { send(event) } catch { /* Renderer loss has owner disposal. */ } }, error => { task.failure = error; controller.abort() })
@@ -64,10 +65,10 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
           const budget = new ContextBudget(await deps.capabilities(args.choice, controller.signal), args.choice.modelId)
           controller.signal.throwIfAborted()
           const model = observeAskModel(deps.model(args.choice), receive)
-          budget.assert([{ role: 'system', content: askSystem }, { role: 'user', content: args.message.trim() }], discoveryTools)
+          budget.assert([{ role: 'system', content: smartPaste ? smartPasteSystem : askSystem }, { role: 'user', content: args.message.trim() }], discoveryTools)
           const user = snapshot.items[0], sessionId = result.sessionId
           deps.chats.admit(result.runId); snapshot.run.admission = 'admitted'
-          run = await deps.mcp.openAskRun({ chatRunId: result.runId, sessionId, sourceMessageIds: [user.id], signal: controller.signal })
+          run = await deps.mcp.openAskRun({ chatRunId: result.runId, sessionId, sourceMessageIds: [user.id], signal: controller.signal, readOnly: Boolean(smartPaste) })
           const tools = run.tools
           const signal = AbortSignal.any([controller.signal, tools.signal])
           const memory = await loadCoreMemory(tools, budget, signal)
@@ -75,7 +76,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
             memory, protectedState: deps.chats.protectedState(sessionId),
             save: (value, revision) => deps.chats.saveContext(sessionId, value, revision), compacting: () => status('context.compacting') })
           status('idle')
-          await runAskAgent({ model, tools, message: args.message.trim(), signal, userSignal: controller.signal, budget, context, emit: receive, status,
+          await runAskAgent({ model, tools, smartPaste: Boolean(smartPaste), onToolTurn: smartPaste?.onToolTurn, message: args.message.trim(), signal, userSignal: controller.signal, budget, context, emit: receive, status,
             protect(name, input, output, uncertain) {
               const record = resourceRecord(name, input, output, uncertain)
               if (record) { deps.chats.saveProtected(sessionId, updateResourceRecords(deps.chats.protectedState(sessionId), record)); context.protect(record) }

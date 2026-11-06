@@ -14,7 +14,7 @@
 
 [验证](../.github/workflows/validate.yml) 固定 Node 24.22.1，在 `macos-15` ARM64 上运行。显式安装 Electron，运行 `check`、发布脚本测试、不含模型的 npm 内容校验和 Electron/Knowledge 冒烟测试。普通验证不下载模型。[范围检测](../scripts/ci-scope.cjs) 为受影响源码、依赖、资源、打包和工作流增加原生/发行验证。
 
-[Electron 冒烟测试](../scripts/smoke.cjs) 记录 Main 未捕获异常并立即退出，避免错误弹窗阻塞无人值守运行。其 [AI fixture](../scripts/ai-smoke.cjs) 提供模型发现、运行时上下文元数据和流式回复；Ask 在推理前验证 fixture 的实际部署上下文。
+[Electron 冒烟测试](../scripts/smoke.cjs) 记录 Main 未捕获异常并立即退出，避免错误弹窗阻塞无人值守运行。其 [AI fixture](../scripts/ai-smoke.cjs) 提供模型发现、运行时上下文元数据和流式回复；Ask 在推理前验证 fixture 的实际部署上下文。独立的[智能粘贴与全局通知冒烟测试](../scripts/smart-paste-smoke.cjs)先于通用 Electron 冒烟测试运行。
 
 [打包](../.github/workflows/package.yml) 包含两个作业：附带已校验离线 Seed/推理的 Full DMG，以及经过干净安装/运行时冒烟测试的不含模型 npm tarball。两者使用相同发布元数据。不接受跨架构运行结果。Windows、Linux 和 macOS x64 仍为**脚手架**，不参与发布。
 

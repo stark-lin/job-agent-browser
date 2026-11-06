@@ -82,6 +82,10 @@ module.exports = async function browserSmoke(window) {
   }
 
   try {
+    if (process.env.JOB_BROWSER_SMART_PASTE_SMOKE === '1') {
+      await require('./smart-paste-smoke.cjs')({ window, call, read, active, evaluate, waitFor, views })
+      return
+    }
     let state = await read()
     assert.equal(state.tabs.length, 1)
     const firstId = state.activeTabId

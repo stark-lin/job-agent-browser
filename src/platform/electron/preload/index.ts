@@ -1,7 +1,7 @@
 import { createKnowledgeBridge } from './knowledge-bridge'
 import { KNOWLEDGE_CALL, KNOWLEDGE_CHANGED, KNOWLEDGE_FLUSH, KNOWLEDGE_FLUSHED } from '../knowledge-contract'
 import { createAskAgentBridge } from './ask-agent-bridge'
-import { ASK_AGENT_CALL, ASK_AGENT_EVENT } from '../ask-agent-contract'
+import { ASK_AGENT_CALL, ASK_AGENT_EVENT, ASK_AGENT_OPEN_SESSION } from '../ask-agent-contract'
 import type { AgentRunEvent } from '../../../domain/chat/chat.types'
 import { contextBridge, ipcRenderer } from 'electron'
 import { EXTERNAL_MCP_CALL } from '../../../shared/external-mcp'
@@ -123,6 +123,10 @@ contextBridge.exposeInMainWorld('askAgent', createAskAgentBridge((method, input)
   const listener = (_event: Electron.IpcRendererEvent, message: AgentRunEvent) => callback(message)
   ipcRenderer.on(ASK_AGENT_EVENT, listener)
   return () => ipcRenderer.removeListener(ASK_AGENT_EVENT, listener)
+}, callback => {
+  const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id)
+  ipcRenderer.on(ASK_AGENT_OPEN_SESSION, listener)
+  return () => ipcRenderer.removeListener(ASK_AGENT_OPEN_SESSION, listener)
 }))
 
 const knowledgeFlushHandlers = new Set<()=>Promise<boolean>>()
