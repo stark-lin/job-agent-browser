@@ -1,6 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位采集/申请 Agent以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume Agent V1 均**已实现**。其余产品流程为**规划**。
+用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位采集/申请 Agent以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume V3 均**已实现**。其余产品流程为**规划**。
 语言：简体中文 · [English](data-architecture.md)
 
 ## 一、运行与存储
@@ -21,10 +21,10 @@
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | 跨会话写入回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts)和[版本 8 扩展](../src/platform/database/migrations/profile-writes.ts) |
-| `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
+| `chat_sessions`, `agent_runs`, `agent_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[迁移 19](../src/platform/database/migrations/agent-storage.ts) |
 | `chat_context_checkpoints`, `chat_memory_progress` | 私有上下文检查点及停用的旧 Memory 进度；[版本 11](../src/platform/database/migrations/ask-runtime.ts)，由[版本 13](../src/platform/database/migrations/ask-serial.ts)停用 |
-| `chat_provider_responses`, `chat_model_requests` | Host 专属续传数据（[版本 12](../src/platform/database/migrations/chat-protocol.ts)）及可删除请求诊断（[版本 14](../src/platform/database/migrations/chat-model-requests.ts)） |
-| `chat_react_cycles` | Run 下按序保存的执行状态和诊断关联，随 Run 级联删除 |
+| `agent_model_responses`, `agent_model_requests` | Host 专属续传数据（[版本 12](../src/platform/database/migrations/chat-protocol.ts)）及可删除请求诊断（[版本 14](../src/platform/database/migrations/chat-model-requests.ts)） |
+| `agent_react_cycles` | Run 下按序保存的执行状态和诊断关联，随 Run 级联删除 |
 
 ## 二、业务规则
 
@@ -61,13 +61,13 @@
 
 ## 三、生成、成品与删除
 
-[简历请求](../src/domain/resume/resume.service.ts)原子快照 Job、Profile、全部 Fact 和相关条目；空事实资料及归档职位失败。配置固定模板/预算和 Server 运行时类型，可选 Provider/模型是调用方声明的溯源元数据，不构成权限或凭据。历史配置继续可读。[MCP 能力](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)服务内部与外部 Agent，[Resume 推理](../src/platform/agent/resume.ts)位于 Domain 持久化层之外。
+[简历启动](../src/domain/resume/resume.service.ts)在同一事务冻结已保存的 Job、Profile、Item、Fact 和配置，并复制为 [ResumeDocument](../src/domain/resume/document.ts)。联系方式和个人简介分别填入基础信息及摘要。条目元数据与顺序来自快照。含正文的 Fact 保持原有顺序，不重复的 Item 摘要置于其 Fact 之前。未关联条目的 SKILL Fact 进入技能栏，其余游离 Fact 和导入时留空的 Fact 保存在快照中。
 
-[内置提示词](../src/platform/agent/resume.ts)和[外部技能](../skills/tailor-resume/SKILL.zh-CN.md)允许局部修订已有简介，要求保留语言、原意和重点，并为事实表述引用 Fact。缺少简介或证据、超出预算时拒绝提交。
+[生成状态](../src/domain/resume/state-machine.ts)按 `CREATED → COPYING → REWRITING → VALIDATING → PUBLISHING → PUBLISHED` 前进。未发布的任务可进入 `FAILED`、`CANCELLED` 或 `INTERRUPTED`。状态变化递增 `stateVersion`。只有成功改动既有要点文字才递增 `rewriteRevision`，文档与请求回执同事务提交。Fact ID 和其余字段均固定。字数目标指导改写，结构与大小校验无法证明措辞准确。[生成服务](../src/domain/resume/generation.service.ts)
 
-[生成服务](../src/domain/resume/generation.service.ts)校验一次优化提交并保存组装结果，支持相同载荷重试。发布原子保存 Artifact 并标记 Run 为 `SUCCEEDED`。旧 Run 和文档仍可读取，输出失败保留发布结果。
+发布同时提交 Artifact、Fact 溯源链接及 `PUBLISHED`。文件输出可独立失败。桌面任务在推理前绑定 Agent Run，外部宿主复用业务状态且无本地 Agent Run。[MCP 契约](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)
 
-[ResumeDocument](../src/domain/resume/resume.types.ts)是唯一的简历文档结构。[组装器](../src/domain/resume/document.ts)从冻结快照复制联系方式和经历字段，按来源排序并分配表述 ID。生成表述必须引用有效 Fact，经历 Bullet 只能引用所属经历的 Fact，Skills 只能引用技能 Fact。结构校验无法确认措辞是否忠实。
+[迁移 19](../src/platform/database/migrations/agent-storage.ts)保留聊天与 Trace 身份。[迁移 20](../src/platform/database/migrations/resume-v3.ts)将旧运行中任务标记为中断，保留已发布成品和文件，将退役字段保留为只读历史。升级前关闭应用和 MCP 宿主并备份整个 userData 目录。退回 v18 时，用对应版本的应用和 MCP 恢复备份。
 
 [Artifact 编辑](../src/domain/resume/artifact.service.ts)按 `expectedRevision` 和输出 Lease 核对版本。手工增改表述清空来源引用，未改表述保留。[运行时 Lease](../src/platform/database/runtime-leases.ts)与内容版本一起约束编译提交，排除并发构建及过期进程写入。
 
@@ -79,7 +79,7 @@
 | Profile | 删除全部条目/事实；保留生成历史 |
 | ProfileItem | 删除后代子树及关联事实 |
 | Fact | 删除来源事实；保留历史成品引用 |
-| GenerationRun | 删除其成品及成品溯源 |
+| GenerationRun | 删除成品、Fact 溯源、改写回执及关联的 Resume Trace |
 | Artifact | 删除其溯源；保留任务 |
 
 `generation_runs.job_id` 和 `artifact_facts.fact_id` 使用稳定的逻辑引用，允许历史来源被删除。快照 ID 同样属于逻辑引用。其他归属关系使用外键。审计在所有业务删除后保留；没有实现审计清空或磁盘文件清理 API。
@@ -121,13 +121,13 @@
 
 ### Ask AI 会话存储
 
-[Chat Repository](../src/platform/database/repositories/chats.ts)以输入哈希和请求 UUID 回执原子保存 Session/Run/User Item。迁移 11 增加 Pending/admitted 状态，部分唯一索引保证同一 Session 只有一个已放行的活动 Run；组合外键绑定 Item 与 Run/Session。模型选择按 Session 保存并复制到 Run。删除要求没有活动 Run，级联清理私有检查点，不撤销业务变更或审计。智能粘贴的 User Item 保存发送给模型的提示词与限长上下文，并以可选来源标记禁用通用重试。
+[统一 Agent 存储](../src/platform/database/repositories/chats.ts)为两个定义保存有序 Item、请求回执和诊断。Ask Run 关联 Session 并复用会话序号和检查点。隔离的 Resume Run 的 Session 为空，Item 在本 Run 内排序。聊天仍限制每个 Session 只有一个已放行 Run。删除时级联清理私有记录。智能粘贴的来源标记保留历史并禁用通用重试。
 
-只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。 工具条目还保存经白名单解析的 Guard 计数、原因、执行标记、已确认归档效果，以及可选告警/恢复级别与固定 nextAction，不含凭证或证据指纹；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/pages/ai/TimelineItem.tsx)展示这些字段。复用现有 JSON 存储，无需迁移，历史快照可缺少新增字段。派发前跳过的调用不创建工具 Item 或不确定写入。
+只有 [Main 记录器](../src/platform/electron/agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。 工具条目还保存经白名单解析的 Guard 计数、原因、执行标记、已确认归档效果，以及可选告警/恢复级别与固定 nextAction，不含凭证或证据指纹；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/app/components/AgentTimelineItem.tsx)展示这些字段。复用现有 JSON 存储，无需迁移，历史快照可缺少新增字段。派发前跳过的调用不创建工具 Item 或不确定写入。
 
 提供商续传数据与普通聊天投影 IPC 分离，保存含签名/加密推理的已校验 assistant 消息，随会话删除级联清除。历史重建 assistant/tool 消息但不执行工具；切换提供商/模型后不附带续传元数据，压缩提示词也排除这些数据。旧 Item 继续可读，不补造缺失的历史详情。
 
-**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 chat_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
+**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 agent_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
 
 Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。 [迁移 16 和 17](../src/platform/database/migrations/chat-react-cycles.ts)保存以 `(run_id, cycle_index)` 标识的 Cycle，约束单个活动 Cycle、连续编号和已结算记录不可变。模型请求 ordinal 和工具 ID 在派发前分别随其诊断和响应保存。最终 Cycle、Run 和会话内容原子结算。历史 Run 不补造记录，恢复保留最后已保存的 Cycle。
 

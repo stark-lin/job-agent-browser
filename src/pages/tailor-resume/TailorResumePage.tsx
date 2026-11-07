@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, DetailsList, Dialog, DocumentPreview, FormField, SectionCard, Select, StageProgress, StatusMessage } from '../../shared/ui'
+import { ActionRow, Button, Dialog, DocumentPreview, FormField, SectionCard, Select, StageProgress, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { en } from '../../shared/i18n/locales/en'
 import { useTailorResume } from './hooks/useTailorResume'
+import { ResumeTraceView } from './ResumeTraceView'
 import { ResumeEditor } from './ResumeEditor'
 import { useUnsavedGuard } from '../../app/navigation/useUnsavedGuard'
 import './resume.css'
@@ -15,10 +16,12 @@ export function TailorResumePage() {
   const dirty = Boolean(state.draft)
   useUnsavedGuard(dirty || editing)
   const protectedAction = (action: () => void) => { if (dirty) setDiscard({ next: action }); else action() }
-  const error = (code: string) => t($ => $.resume.errors[code as keyof typeof en.resume.errors], { defaultValue: t($ => $.ai.errors[code as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })
-  const legacy = Boolean(task?.run.scores || ['score', 'gate', 'select', 'draft', 'validate-draft', 'polish', 'validate-polish'].some(stage => stage === task?.run.stage))
-  const stages = (legacy ? ['score', 'gate', 'select', 'draft', 'validate-draft', 'polish', 'validate-polish', 'publish', 'output'] as const
-    : ['optimize', 'assemble', 'publish', 'output'] as const).map(id => ({ id, label: t($ => $.resume.stages[id]) }))
+  const error = (code: string) => t($ => $.resume.errors[code as keyof typeof en.resume.errors], { defaultValue: t($ => $.ai.errors[code as keyof typeof en.ai.errors], { defaultValue: t($ => $.ask.errors[code as keyof typeof en.ask.errors], { defaultValue: t($ => $.errors.actionFailed) }) }) })
+  const steps = ['COPYING', 'REWRITING', 'VALIDATING', 'PUBLISHING', 'OUTPUT'] as const
+  const stages = steps.map(id => ({ id, label: t($ => $.resume.stages[id]) }))
+  const current = task?.run.state
+  const progress = current === 'PUBLISHED' ? 'OUTPUT' : current && steps.some(step => step === current) ? current
+    : steps[Math.max(0, Math.min(3, (task?.run.stateVersion ?? 0) - 2))]
   return <main className="resume-page" aria-label={t($ => $.navigation.pages.resume)}><div className="resume-content">
     {state.error && <StatusMessage tone="error">{error(state.error)}</StatusMessage>}
     <SectionCard title={t($ => $.resume.inputs)} description={t($ => $.resume.template)}><div className="resume-stack">
@@ -28,12 +31,12 @@ export function TailorResumePage() {
         {active && task?.owned && <Button disabled={state.busy} onClick={() => void state.cancel()}>{t($ => $.resume.cancel)}</Button>}
         <Button onClick={() => void openPage('settings')}>{t($ => $.resume.settings)}</Button></ActionRow>
     </div></SectionCard>
-    {state.history.length > 0 && <FormField label={t($ => $.resume.history)}>{props => <Select {...props} value={task?.run.id ?? ''} disabled={active || editing || state.busy} onChange={event => { const id = event.target.value; protectedAction(() => state.selectRun(id)) }}><option value="" disabled>{t($ => $.resume.history)}</option>{state.history.map(({ run }) => <option key={run.id} value={run.id}>{run.createdAt} · {run.inputSnapshot.job.title} · {t($ => $.resume.statuses[run.status])}</option>)}</Select>}</FormField>}
+    {state.history.length > 0 && <FormField label={t($ => $.resume.history)}>{props => <Select {...props} value={task?.run.id ?? ''} disabled={active || editing || state.busy} onChange={event => { const id = event.target.value; protectedAction(() => state.selectRun(id)) }}><option value="" disabled>{t($ => $.resume.history)}</option>{state.history.map(({ run }) => <option key={run.id} value={run.id}>{run.createdAt} · {run.inputSnapshot.job.title} · {t($ => $.resume.statuses[run.state])}</option>)}</Select>}</FormField>}
     {task && <SectionCard title={t($ => $.resume.progress)}><div className="resume-stack">
-      <StatusMessage tone={task.run.status === 'FAILED' ? 'error' : task.run.status === 'SUCCEEDED' ? 'success' : 'neutral'}>{t($ => $.resume.statuses[task.run.status])}</StatusMessage>
-      <StageProgress stages={stages} current={task.run.stage} complete={artifact?.output.status === 'READY'} label={t($ => $.resume.progress)} />
+      <StatusMessage tone={task.run.state === 'FAILED' ? 'error' : task.run.state === 'PUBLISHED' ? 'success' : 'neutral'}>{t($ => $.resume.statuses[task.run.state])}</StatusMessage>
+      <StageProgress stages={stages} current={progress} complete={artifact?.output.status === 'READY'} label={t($ => $.resume.progress)} />
       {task.run.error && <StatusMessage tone="error">{error(task.run.error)}</StatusMessage>}
-      {task.run.gate && !task.run.gate.passed && <DetailsList items={[{ label: t($ => $.resume.reason), value: task.run.gate.reason }, { label: t($ => $.resume.missing), value: task.run.gate.missingRequirements.join(' · ') }]} />}
+      {task.run.agentRunId && <ResumeTraceView key={task.run.id} runId={task.run.id} active={active} />}
       {artifact && <><StatusMessage>{t($ => $.resume.outputs[artifact.output.status])}</StatusMessage>
         {artifact.output.error && <StatusMessage tone="error">{error(artifact.output.error)}</StatusMessage>}
         <ActionRow>{artifact.output.status === 'READY' && <Button variant="primary" disabled={state.busy} onClick={() => void state.exportPdf()}>{t($ => $.resume.export)}</Button>}

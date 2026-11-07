@@ -28,7 +28,7 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
   }
   const db = new DatabaseSync(resolve(directory, 'database.sqlite'), { readOnly: true })
   const plain = value => JSON.parse(JSON.stringify(value))
-  const snapshot = () => plain(['chat_sessions', 'chat_runs', 'chat_items', 'chat_model_requests', 'chat_provider_responses', 'chat_context_checkpoints', 'chat_memory_progress', 'audit_logs', 'capability_audit'].map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]))
+  const snapshot = () => plain(['chat_sessions', 'agent_runs', 'agent_items', 'agent_model_requests', 'agent_model_responses', 'chat_context_checkpoints', 'chat_memory_progress', 'audit_logs', 'capability_audit'].map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]))
   try {
     const before = running ? null : snapshot()
     await clipboard.writeText('DEBUG_COPY_SENTINEL')
@@ -52,16 +52,16 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
     assert.deepEqual(bundle.session, plain(db.prepare('SELECT * FROM chat_sessions WHERE id=?').get(session.id)))
     const rows = (table, suffix = '') => plain(db.prepare(`SELECT * FROM ${table} WHERE session_id=? ${suffix}`).all(session.id))
     for (const entry of bundle.runs) {
-      const cycles = db.prepare('SELECT * FROM chat_react_cycles WHERE run_id=? ORDER BY cycle_index').all(entry.run.id)
+      const cycles = db.prepare('SELECT * FROM agent_react_cycles WHERE run_id=? ORDER BY cycle_index').all(entry.run.id)
       assert.deepEqual(entry.cycles, cycles.map(c => ({ index: c.cycle_index, status: c.status, reason: c.reason,
         modelRequestOrdinal: c.model_request_ordinal, toolCallIds: JSON.parse(c.tool_call_ids_json), startedAt: c.started_at, finishedAt: c.finished_at })))
       assert.equal(entry.cycleStatus, cycles.at(-1)?.status ?? null)
     }
     if (running) assert(bundle.runs.some(r => r.run.state === 'running'))
     else {
-      assert.deepEqual(bundle.runs.map(r => r.run), rows('chat_runs', 'ORDER BY created_at,id'))
-      assert.deepEqual(bundle.runs.flatMap(r => r.items).sort((a, b) => a.sequence - b.sequence), rows('chat_items', 'ORDER BY sequence'))
-      for (const run of bundle.runs) for (const [key, table] of [['modelRequests', 'chat_model_requests'], ['providerResponses', 'chat_provider_responses']]) {
+      assert.deepEqual(bundle.runs.map(r => r.run), rows('agent_runs', 'ORDER BY created_at,id').map(({agent, source, ...run}) => run))
+      assert.deepEqual(bundle.runs.flatMap(r => r.items).sort((a, b) => a.sequence - b.sequence), rows('agent_items', 'ORDER BY sequence'))
+      for (const run of bundle.runs) for (const [key, table] of [['modelRequests', 'agent_model_requests'], ['providerResponses', 'agent_model_responses']]) {
         assert.deepEqual(run[key], plain(db.prepare(`SELECT * FROM ${table} WHERE run_id=? ORDER BY ordinal`).all(run.run.id)))
       }
       assert.deepEqual(bundle.context.checkpoint, plain(db.prepare('SELECT * FROM chat_context_checkpoints WHERE session_id=?').get(session.id) ?? null))

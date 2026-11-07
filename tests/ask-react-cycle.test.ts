@@ -29,7 +29,7 @@ async function wait(tasks: ReturnType<typeof createAskAgentTasks>, runId: string
 }
 
 test('Cycle transitions gate starts, settlement and continuation', () => {
-  const guard: RunGuardSnapshot = { chatRunId: randomUUID(), status: 'ACTIVE', calls: 4, executedCalls: 4,
+  const guard: RunGuardSnapshot = { agentRunId: randomUUID(), status: 'ACTIVE', calls: 4, executedCalls: 4,
     noProgress: 2, rejections: 0, progress: 2, executed: true, effectAlreadyConfirmed: false, effects: [] }
   const base = { fatal: false, cancelled: false, finalAnswer: false }
   assert.equal(resolveCycle(base), 'CONTINUE')
@@ -122,10 +122,10 @@ test('terminal transaction rolls back Cycle and Run together, then retries persi
   let duringRetry: ReturnType<typeof debug.getDebugBundle> | undefined
   t.mock.method(repo, 'finish', (snapshot: Parameters<typeof finish>[0], reason?: string | null) => {
     if (++attempts !== 1) {
-      duringRetry = debug.getDebugBundle(snapshot.run.sessionId)
+      duringRetry = debug.getDebugBundle(snapshot.run.sessionId!)
       return finish(snapshot, reason)
     }
-    db.exec(`CREATE TEMP TRIGGER fail_terminal BEFORE UPDATE OF state ON chat_runs
+    db.exec(`CREATE TEMP TRIGGER fail_terminal BEFORE UPDATE OF state ON agent_runs
       WHEN NEW.state='completed' BEGIN SELECT RAISE(ABORT,'fixture'); END`)
     try { finish(snapshot, reason) }
     finally { db.exec('DROP TRIGGER fail_terminal') }
@@ -140,8 +140,8 @@ test('terminal transaction rolls back Cycle and Run together, then retries persi
 
 test('failure preparing the next Pi turn leaves the previous Cycle settled without fabricating another', async t => {
   const f = await firstPartyFixture(t), debug = chatDebugExportRepository(f.database.connection)
-  const open = f.mcp.openAskRun.bind(f.mcp)
-  t.mock.method(f.mcp, 'openAskRun', async (args: Parameters<typeof open>[0]) => {
+  const open = f.mcp.openAgentRun.bind(f.mcp)
+  t.mock.method(f.mcp, 'openAgentRun', async (args: Parameters<typeof open>[0]) => {
     const run = await open(args), list = run.tools.list.bind(run.tools)
     let refreshes = 0
     t.mock.method(run.tools, 'list', async () => {

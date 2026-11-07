@@ -46,9 +46,9 @@ const profile=await call('profile.create',{requestId:randomUUID(),details:{name:
 const item=await call('profile.add_item',{profileId:profile.id,requestId:randomUUID(),expectedRevision:profile.revision,details:{type:'EXPERIENCE',title:'Engineer',organization:'Fixture'}});
 const fact=await call('profile.add_fact',{profileId:profile.id,profileItemId:item.id,requestId:randomUUID(),expectedRevision:item.revision,details:{kind:'ACHIEVEMENT',content:'Built TypeScript services with automated tests.'}});
 const {runId}=await call('resume.start',{jobId:job.id,profileId:profile.id,requestId:randomUUID()});
-await call('resume.submit_optimization', { runId, optimization: { language: 'en',
-    summary: { text: fact.content, factIds: [fact.id] },
-    entries: [{ profileItemId: item.id, bullets: [{ text: fact.content, factIds: [fact.id] }] }], skills: [] } })
+const page=await call('resume.list_bullets',{runId});
+assert.equal(page.items[0].factIds[0],fact.id);
+await call('resume.rewrite_bullet',{runId,bulletId:page.items[0].bulletId,text:'Built TypeScript services and automated tests.',expectedRevision:page.revision,requestId:randomUUID()});
 const {artifact}=await call('resume.publish',{runId});const built=await call('artifact.build',{artifactId:artifact.id});assert.equal(built.output.status,'READY');
 console.log('Pure Node jab mcp verified Main-initialized storage, public tools without Memory, and real PDF output without protocol stdout contamination.');
 }finally{await client.close()}})().catch(e=>{console.error(e);process.exitCode=1});

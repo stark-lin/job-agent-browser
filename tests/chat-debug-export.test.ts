@@ -14,7 +14,7 @@ import { chatDebugExportRepository } from '../src/platform/database/repositories
 const choice = { providerId: 'fixture', modelId: 'test' }
 const dump = (db: DatabaseSync) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map(r => [r.name, db.prepare(`SELECT * FROM "${r.name}" ORDER BY rowid`).all()])
 
-test('raw export includes every column, all states and Pending, long JSON, over-page records and historical Memory without writes', t => {
+test('raw export preserves the versioned fields, all states and Pending, long JSON, over-page records and historical Memory without writes', t => {
   const f = fixture(t), db = f.database.connection, repo = chatDebugExportRepository(db)
   const ids = f.backend.chats.start({ requestId: randomUUID(), message: 'Initial', choice })
   const states = ['completed', 'failed', 'cancelled', 'interrupted'] as const
@@ -30,11 +30,11 @@ test('raw export includes every column, all states and Pending, long JSON, over-
   const raw = '{ "type": "assistant_message", "text": ' + JSON.stringify('長文本🚀'.repeat(30000)) + ' }'
   for (let i = 0; i < 125; i++) {
     const item = f.backend.chats.append(current.runId, { type: 'assistant_message', text: '' }, i === 124 ? 'streaming' : 'completed')
-    db.prepare('UPDATE chat_items SET content_json=? WHERE id=?').run(raw, item.id)
+    db.prepare('UPDATE agent_items SET content_json=? WHERE id=?').run(raw, item.id)
     db.prepare('INSERT INTO chat_memory_progress VALUES(?,?,?,?)').run(item.id, ids.sessionId, item.sequence, '{ "history": true }')
     // Reverse insertion order exercises explicit ordinal ordering.
-    db.prepare('INSERT INTO chat_model_requests VALUES(?,?,?,?)').run(current.runId, 125 - i, '{ "ordinal": 0 }', '[  ]')
-    db.prepare('INSERT INTO chat_provider_responses VALUES(?,?,?,?)').run(current.runId, 125 - i, item.sequence, '{ "capsule": "private" }')
+    db.prepare('INSERT INTO agent_model_requests VALUES(?,?,?,?)').run(current.runId, 125 - i, '{ "ordinal": 0 }', '[  ]')
+    db.prepare('INSERT INTO agent_model_responses VALUES(?,?,?,?)').run(current.runId, 125 - i, item.sequence, '{ "capsule": "private" }')
   }
   f.backend.chats.startCycle(current.runId, 1, 'start-1')
   f.backend.chats.settleCycle(current.runId, 1, 'WARNING', 'NO_PROGRESS_LOOP', 'end-1')
@@ -42,7 +42,7 @@ test('raw export includes every column, all states and Pending, long JSON, over-
   f.backend.chats.saveProviderResponse(current.runId, { content: '', toolCalls: [{ id: 'call', name: 'job.list', arguments: {} }] }, 1, 2)
   db.prepare('INSERT INTO chat_context_checkpoints VALUES(?,?,?,?,?)').run(ids.sessionId, 'PRIVATE_SUMMARY', 9, 2, '[ "protected" ]')
   // Tie timestamps to verify the id tiebreaker rather than relying on insertion order.
-  db.prepare('UPDATE chat_runs SET created_at=? WHERE session_id=?').run('2026-01-01T00:00:00.000Z', ids.sessionId)
+  db.prepare('UPDATE agent_runs SET created_at=? WHERE session_id=?').run('2026-01-01T00:00:00.000Z', ids.sessionId)
   const before = dump(db), changes = db.prepare('SELECT total_changes() n').get()!.n
   const bundle = repo.getDebugBundle(ids.sessionId)
   assert.deepEqual(dump(db), before); assert.equal(db.prepare('SELECT total_changes() n').get()!.n, changes)
@@ -52,11 +52,11 @@ test('raw export includes every column, all states and Pending, long JSON, over-
   const plain = (value: unknown) => JSON.parse(JSON.stringify(value))
   const expected = (table: string, clause: string) => plain(db.prepare(`SELECT * FROM ${table} WHERE session_id=? ${clause}`).all(ids.sessionId))
   assert.deepEqual(plain(bundle.session), plain(db.prepare('SELECT * FROM chat_sessions WHERE id=?').get(ids.sessionId)))
-  assert.deepEqual(plain(bundle.runs.map(r => r.run)), expected('chat_runs', 'ORDER BY created_at,id'))
+  assert.deepEqual(plain(bundle.runs.map(r => r.run)), expected('agent_runs', 'ORDER BY created_at,id').map(({ agent: _agent, source: _source, ...run }: Record<string, unknown>) => run))
   const flatItems = bundle.runs.flatMap(r => r.items).sort((a, b) => a.sequence - b.sequence)
-  assert.deepEqual(plain(flatItems), expected('chat_items', 'ORDER BY sequence'))
+  assert.deepEqual(plain(flatItems), expected('agent_items', 'ORDER BY sequence'))
   for (const run of bundle.runs) {
-    for (const [key, table] of [['modelRequests', 'chat_model_requests'], ['providerResponses', 'chat_provider_responses']] as const) {
+    for (const [key, table] of [['modelRequests', 'agent_model_requests'], ['providerResponses', 'agent_model_responses']] as const) {
       assert.deepEqual(plain(run[key]), plain(db.prepare(`SELECT * FROM ${table} WHERE run_id=? ORDER BY ordinal`).all(run.run.id)))
     }
   }
@@ -94,7 +94,7 @@ test('empty collections, absent checkpoint, missing session and read failure are
   assert.deepEqual(JSON.parse(JSON.stringify(repo.getDebugBundle(id))), { session: { id, title: 'Empty', provider_id: 'p', model_id: 'm', created_at: 'now', updated_at: 'now' }, runs: [], context: { checkpoint: null, memoryProgress: [] } })
   assert.throws(() => repo.getDebugBundle(randomUUID()), { code: 'NOT_FOUND' })
   const prepare = db.prepare.bind(db)
-  t.mock.method(db, 'prepare', ((sql: string) => { if (sql.includes('chat_runs')) throw new Error('PRIVATE_SQL_ERROR'); return prepare(sql) }) as typeof db.prepare)
+  t.mock.method(db, 'prepare', ((sql: string) => { if (sql.includes('agent_runs')) throw new Error('PRIVATE_SQL_ERROR'); return prepare(sql) }) as typeof db.prepare)
   assert.throws(() => repo.getDebugBundle(id), { code: 'STORAGE_UNAVAILABLE' })
   t.mock.restoreAll()
   assert.equal(db.isTransaction, false); assert.deepEqual(dump(db), before)
@@ -113,13 +113,13 @@ test('second WAL connection commits during export while all chat tables retain t
   const prepare = db.prepare.bind(db)
   let committed = false
   t.mock.method(db, 'prepare', ((sql: string) => {
-    if (!committed && sql.startsWith('SELECT * FROM chat_runs')) {
+    if (!committed && sql.includes('FROM agent_runs WHERE session_id=')) {
       committed = true
       writer.exec('BEGIN IMMEDIATE')
       writer.prepare('UPDATE chat_sessions SET title=? WHERE id=?').run('after', ids.sessionId)
-      writer.prepare('UPDATE chat_items SET content_json=? WHERE session_id=?').run('{"type":"user_message","text":"after"}', ids.sessionId)
+      writer.prepare('UPDATE agent_items SET content_json=? WHERE session_id=?').run('{"type":"user_message","text":"after"}', ids.sessionId)
       writer.prepare('INSERT INTO chat_context_checkpoints(session_id,summary) VALUES(?,?)').run(ids.sessionId, 'after')
-      writer.prepare("INSERT INTO chat_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,1,'RUNNING','after')").run(ids.runId)
+      writer.prepare("INSERT INTO agent_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,1,'RUNNING','after')").run(ids.runId)
       writer.exec('COMMIT')
     }
     return prepare(sql)

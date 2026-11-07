@@ -19,26 +19,25 @@ function directory(t: import('node:test').TestContext) {
 }
 test('a second backend preserves live generation and audit; only a dead owner is recovered and fenced', async t => {
   const { root, resources } = directory(t), path = join(root, 'database.sqlite'), a = await seed(resources, path)
-  const run = a.backend.resumes.createRun({ jobId: a.job.id, profileId: a.profile.id })
-  a.backend.generation.start({ id: run.id })
+  const run = a.backend.resumes.createRun({ jobId: a.job.id, profileId: a.profile.id }, { start: true })
   const invocationId = randomUUID()
+  const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, expectedRevision: 0, text: 'Supported', requestId: randomUUID() }
   a.backend.toolAudit.sink.start({ invocationId, agentId: 'resume', runId: run.id, tool: a.backend.toolCapabilities.read[0].descriptor })
   const b = fixture(resources, path)
-  assert.equal(b.backend.resumes.getRun({ id: run.id }).run.status, 'RUNNING')
+  assert.equal(b.backend.resumes.getRun({ id: run.id }).run.state, 'REWRITING')
   assert.equal(b.backend.toolAudit.list().filter(row => row.invocation_id === invocationId).length, 1)
   assert.throws(() => b.backend.resumes.cancelRun({ id: run.id }), { code: 'FORBIDDEN' })
-  assert.throws(() => b.backend.generation.submitOptimization({ id: run.id, optimization: { language: 'en', summary: { text: 'Supported', factIds: [a.fact.id] }, entries: [], skills: [] } }, () => {}), { code: 'FORBIDDEN' })
+  assert.throws(() => b.backend.generation.rewriteBullet(input), { code: 'FORBIDDEN' })
   a.database.connection.prepare('UPDATE runtime_instances SET expires_at=0 WHERE id=?').run(a.backend.lease.id)
   b.backend.recover()
-  assert.equal(b.backend.resumes.getRun({ id: run.id }).run.status, 'INTERRUPTED')
+  assert.equal(b.backend.resumes.getRun({ id: run.id }).run.state, 'INTERRUPTED')
   assert.equal(b.backend.toolAudit.list().find(row => row.invocation_id === invocationId && row.phase === 'END')?.status, 'INTERRUPTED')
-  assert.throws(() => a.backend.generation.submitOptimization({ id: run.id, optimization: { language: 'en', summary: { text: 'Supported', factIds: [a.fact.id] }, entries: [], skills: [] } }, () => {}))
+  assert.throws(() => a.backend.generation.rewriteBullet(input))
 })
 
 test('a separate process write lock cannot partially commit a generation stage; explicit retry succeeds after release', async t => {
   const { root, resources } = directory(t), path = join(root, 'database.sqlite'), f = await seed(resources, path)
-  const run = f.backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id })
-  f.backend.generation.start({ id: run.id })
+  const run = f.backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
   const child = fork(join('tests', 'fixtures', 'database-lock.cjs'), [path], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
   resources.after(async () => {
     if (child.exitCode === null && child.signalCode === null) {
@@ -48,12 +47,12 @@ test('a separate process write lock cannot partially commit a generation stage; 
     }
   })
   await new Promise<void>((resolve, reject) => { child.once('message', () => resolve()); child.once('error', reject); child.once('exit', code => { if (code) reject(new Error('Lock fixture exited')) }) })
-  const input = { id: run.id, optimization: { language: 'en', summary: { text: 'Supported', factIds: [f.fact.id] }, entries: [], skills: [] } }
-  assert.throws(() => f.backend.generation.submitOptimization(input, () => {}), { code: 'AUDIT_UNAVAILABLE' })
-  assert.equal(f.backend.resumes.getRun({ id: run.id }).run.assembled, null)
+  const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, expectedRevision: 0, text: 'Supported', requestId: randomUUID() }
+  assert.throws(() => f.backend.generation.rewriteBullet(input), { code: 'AUDIT_UNAVAILABLE' })
+  assert.equal(f.backend.resumes.getRun({ id: run.id }).run.rewriteRevision, 0)
   const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
   child.send({ release: true }); await exited
-  assert.equal(f.backend.generation.submitOptimization(input, () => {}).stage, 'publish')
+  assert.equal(f.backend.generation.rewriteBullet(input).rewriteRevision, 1)
 })
 test('concurrent output has one owner and a late expired worker cannot replace recovered state or write files', async t => {
   const { root, resources } = directory(t), a = await published(resources, join(root, 'database.sqlite')), b = fixture(resources, join(root, 'database.sqlite'))

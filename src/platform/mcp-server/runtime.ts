@@ -1,4 +1,5 @@
 import type { MemoryAuthorization } from '../mcp/memory-authority'
+import { resumeAgentTools, resumeAgentLifecycle } from '../../shared/agent/resume-policy'
 import { askToolAllowlist } from '../../shared/agent/ask-policy'
 import { SmartNoteWorkspace } from '../knowledge/workspace'
 import { createPreferences } from '../storage/preferences'
@@ -20,15 +21,27 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const output = createResumeOutput(backend, join(directory, 'artifacts'), join(bundleDirectory, 'fonts'), render ?? electronRenderer(join(bundleDirectory, 'resume-output-worker.js')))
   const preferences = createPreferences(join(directory,'settings.json'))
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
-  const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge, memoryAuthorization ? knowledge.spaces.memory : undefined)
-  const allow = memoryAuthorization ? askToolAllowlist : jobAgentAllowlist
+  const internalResume = memoryAuthorization?.kind === 'resume'
+  const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge,
+    memoryAuthorization ? knowledge.spaces.memory : undefined, internalResume)
+  const allow = internalResume ? [...resumeAgentTools, ...resumeAgentLifecycle] : memoryAuthorization ? askToolAllowlist : jobAgentAllowlist
   const mcp = createMCPServer(tooling.registry, { allow, maxRisk: askReadOnly && memoryAuthorization ? 'COMPUTE' : 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
     async (name, args, metadata) => {
       if (!['memory.write', 'memory.mkdir'].includes(name)) return true
       const token = metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabMemoryGrant : undefined
       return Boolean(memoryAuthorization && await memoryAuthorization.authorize?.(token, name, args))
     }, memoryAuthorization ? {
-      authorize: (name, args, metadata) => memoryAuthorization.authorizeRun(metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabRunGrant : undefined, name, args),
+      async authorize(name, args, metadata) {
+        const grant = await memoryAuthorization.authorizeRun(metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabRunGrant : undefined, name, args)
+        if (grant?.kind === 'resume') {
+          try {
+            const run = backend.generationRun(grant.generationRunId!)
+            if (run.agentRunId !== grant.agentRunId || run.state !== 'REWRITING' || backend.chats.getAgentRun(grant.agentRunId).state !== 'running') return
+            backend.lease.assert('generation', run.id)
+          } catch { return }
+        }
+        return grant
+      },
       onClosed: listener => memoryAuthorization.onRunClosed(listener)
     } : undefined)
   let disposal: Promise<void> | undefined

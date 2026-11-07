@@ -4,10 +4,10 @@ import { DataError } from '../../../domain/common/errors'
 import { entityTables } from '../migrations/audit-triggers'
 import type { Transactions } from '../transactions'
 
-const jsonColumns = new Set(['locations', 'salary', 'requirements', 'metadata', 'links', 'tags', 'inputSnapshot', 'scores', 'gate', 'selection', 'draft', 'polished', 'assembled', 'config', 'content', 'outputFiles', 'output'])
+const jsonColumns = new Set(['locations', 'salary', 'requirements', 'metadata', 'links', 'tags', 'inputSnapshot', 'assembled', 'config', 'content', 'outputFiles', 'output'])
 const jsonByTable: Record<string, string[]> = {
   jobs: ['locations', 'salary', 'requirements'], job_events: ['metadata'], profiles: ['links'], profile_items: ['metadata'], facts: ['tags'],
-  generation_runs: ['inputSnapshot', 'scores', 'gate', 'selection', 'draft', 'polished', 'assembled', 'config'], artifacts: ['content', 'outputFiles', 'output']
+  generation_runs: ['inputSnapshot', 'assembled', 'config'], artifacts: ['content', 'outputFiles', 'output']
 }
 const snake = (key: string) => key.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`)
 const camel = (key: string) => key.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase())

@@ -106,6 +106,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
       const row = database.connection.prepare('SELECT run_id FROM resume_start_receipts WHERE request_id=? AND runtime_id=?').get(requestId, lease.id)
       return row ? services.resumes.getRun({ id: String(row.run_id) }).run : null
     },
+    generationRun: (id: string) => user.read(() => repo.resumes.getRun(id)),
     artifactForRun: (id: string) => user.read(() => repo.resumes.artifactForRun(id)),
     capabilities,
     toolAudit: database.transactions.capabilities,

@@ -27,7 +27,7 @@ async function main() {
   const profile = dispatch('profiles', 'createProfile', { name: 'MCP Resume Fixture', email: 'fixture@example.com' })
   const item = dispatch('profiles', 'addItem', { profileId: profile.id, details: { type: 'EXPERIENCE', title: 'Engineer', organization: 'Fixture Team' } })
   const fact = dispatch('profiles', 'addFact', { profileId: profile.id, profileItemId: item.id, details: { kind: 'ACHIEVEMENT', content: 'Built TypeScript services with automated tests.' } })
-  const baseline = backend.resumes.createRun({ jobId: job.id, profileId: profile.id }); backend.generation.start({ id: baseline.id })
+  const baseline = backend.resumes.createRun({ jobId: job.id, profileId: profile.id }, { start: true })
   const client = new Client({ name: 'codex-smoke', version: '1' })
   const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: resolve(__dirname, '..'), env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'pipe', maxBufferSize: 2097152 })
   let diagnostics = ''
@@ -36,7 +36,7 @@ async function main() {
   try {
     await client.connect(transport)
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist].sort())
-    assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING', 'MCP startup must preserve another process task')
+    assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING', 'MCP startup must preserve another process task')
     assert.equal((await call('job.list', {})).items[0].id, job.id)
     assert.equal((await call('profile.list', {})).items[0].id, profile.id)
     // Exercise the built profile surface, not only the compiled test runtime.
@@ -55,18 +55,22 @@ async function main() {
     dispatch('profiles', 'editContact', { id: profile.id, details: { name: 'LIVE PROFILE CHANGED' } })
     const context = await call('resume.get_context', { runId }), facts = await call('resume.list_facts', { runId })
     assert.equal(context.profile.name, profile.name); assert.equal(facts.total, 1)
-    await call('resume.submit_optimization', { runId, optimization: { language: 'en', summary: { text: fact.content, factIds: [fact.id] }, entries: [{ profileItemId: item.id, bullets: [{ text: fact.content, factIds: [fact.id] }] }], skills: [] } })
+    const page = await call('resume.list_bullets', { runId })
+    const rewrite = { runId, bulletId: page.items[0].bulletId, text: 'Built TypeScript services and automated tests.', expectedRevision: page.revision, requestId: randomUUID() }
+    const receipt = await call('resume.rewrite_bullet', rewrite)
+    assert.equal(receipt.rewriteRevision, 1)
+    assert.deepEqual(await call('resume.rewrite_bullet', rewrite), receipt)
     const { artifact } = await call('resume.publish', { runId })
     const built = await call('artifact.build', { artifactId: artifact.id })
     assert.equal(built.output.status, 'READY', `Worker output failed: ${JSON.stringify(built)} ${diagnostics}`)
     for (const file of built.files) assert(existsSync(file.path))
     const html = readFileSync(built.files.find(file => file.format === 'HTML').path, 'utf8')
     const pdf = readFileSync(built.files.find(file => file.format === 'PDF').path)
-    assert(html.includes(profile.name)); assert(html.includes(fact.content)); assert.equal(pdf.subarray(0, 5).toString(), '%PDF-')
+    assert(html.includes(profile.name)); assert(html.includes(rewrite.text)); assert.equal(pdf.subarray(0, 5).toString(), '%PDF-')
     const pages = await extractPdf(new Uint8Array(pdf), new AbortController().signal, () => {}, resolve(__dirname, '../out/main/pdf-worker.mjs'))
     assert.equal(pages.length, built.output.pages); assert(pages.map(page => page.text).join(' ').includes('TypeScript services'))
     const view = await call('artifact.get', { id: artifact.id })
-    assert.equal(view.provenance.length, 2)
+    assert.deepEqual(view.provenance, [{ blockId: rewrite.bulletId, factIds: [fact.id] }])
     assert.equal(backend.resumes.getRun({ id: runId }).run.config.runtimeKind, 'external')
     assert.equal(backend.resumes.getRun({ id: runId }).run.config.providerId, '')
     // Audit has no model call, and the still-open parent backend remains independently writable.
@@ -81,8 +85,8 @@ async function main() {
     await client.close()
     await until(() => { try { process.kill(pid, 0); return false } catch { return true } }, 'MCP process remained alive after EOF')
     backend.recover()
-    assert.equal(backend.resumes.getRun({ id: unfinished.runId }).run.status, 'INTERRUPTED')
-    assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING')
+    assert.equal(backend.resumes.getRun({ id: unfinished.runId }).run.state, 'INTERRUPTED')
+    assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING')
     const crashed = new Client({ name: 'crash-smoke', version: '1' })
     const crashTransport = new StdioClientTransport({ command: process.execPath, args: [entry], env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'ignore' })
     try {
@@ -92,8 +96,8 @@ async function main() {
       process.kill(crashTransport.pid, 'SIGKILL')
       await until(() => { try { process.kill(crashTransport.pid, 0); return false } catch { return true } }, 'Crashed MCP process was not reaped')
       backend.recover()
-      assert.equal(backend.resumes.getRun({ id: result.structuredContent.runId }).run.status, 'INTERRUPTED')
-      assert.equal(backend.resumes.getRun({ id: baseline.id }).run.status, 'RUNNING')
+      assert.equal(backend.resumes.getRun({ id: result.structuredContent.runId }).run.state, 'INTERRUPTED')
+      assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING')
     } finally { await crashed.close() }
     const env = { ...process.env }; delete env.JOB_BROWSER_USER_DATA
     const missing = spawnSync(process.execPath, [entry], { env, encoding: 'utf8', timeout: 10000 })

@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-A local-first desktop workspace for job seeking. Status: **Implemented** React navigation, Browser/Inbox, Settings, streaming AI, SQLite/audit, Profile editing/PDF import, job capture/applications and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
+A local-first desktop workspace for job seeking. Status: **Implemented** React navigation, Browser/Inbox, Settings, streaming AI, SQLite/audit, Profile editing/PDF import, job capture/applications and Resume V3 with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
 
 Language: English · [简体中文](README.zh-CN.md)
 
@@ -47,6 +47,8 @@ npm run test:integrations
 npm run test:agent
 npm run test:profile
 npm run test:ask-ai
+npm run design:check
+npm run release:npm:check
 ```
 
 The build writes Main, MCP Server, output worker, Preload, and Renderer bundles to `out/`, using [electron.vite.config.ts](electron.vite.config.ts). `check` runs type checking, architecture/document quality checks, Electron SQLite integration tests and build. `test:smoke` requires a graphical desktop and verifies the built window/Preload/IPC, nine entry pages, browser history isolation, view lifecycle, Settings, AI SSE chat, profile editing/PDF import, Add Job/Applications, the global sidebar and Inbox with disposable data. `test:theme` independently verifies themes, color-only geometry and restart recovery without requiring native keyboard focus. `test:jobs` independently verifies job entry, URL/text/PDF capture, application Agent actions, single-request capture and persistence after process restart. Individual commands are `typecheck`, `quality`, `test`, and `build`. Platform packaging is configured in [electron-builder.yml](electron-builder.yml); verification and release prerequisites are tracked in [CI/CD](docs/ci-cd.md).
@@ -55,7 +57,7 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 
 `test:integrations` builds and verifies external Agent MCP/Skills setup, reconnection, confirmed selective/all removal, stale revisions, trusted IPC and bilingual responsive themes using disposable configuration directories. It requires a graphical desktop.
 
-`test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. [CI](docs/ci-cd.md) exercises PDF rendering on the macOS arm64 release target; live-provider compatibility and clean-machine behavior beyond CI remain unverified. Resume V1 requires a new database generation; legacy databases are refused without migration or deletion.
+`test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. [CI](docs/ci-cd.md) exercises PDF rendering on the macOS arm64 release target; live-provider compatibility and clean-machine behavior beyond CI remain unverified. Resume V3 migrates v18 in place. See [upgrade and recovery](docs/data-architecture.md#3-generation-output-and-deletion).
 
 `test:ask-ai` checks Pi streaming, token budgets/compaction, tool disclosure, Agent-managed Memory, transcript storage, MCP boundaries and event resync, then exercises concurrent chats, Stop, drafts, Markdown, bilingual layouts and forced-process recovery in Electron. It uses local fixtures and disposable userData; live-provider compatibility remains unverified. Migration 13 preserves legacy Memory progress and retires its runtime lifecycle.
 

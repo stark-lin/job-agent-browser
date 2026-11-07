@@ -1,16 +1,16 @@
 ```mermaid
 erDiagram
     direction TB
-    CHAT_SESSION ||--o{ CHAT_RUN : contains
-    CHAT_SESSION ||--o{ CHAT_ITEM : orders
-    CHAT_RUN ||--o{ CHAT_ITEM : records
-    CHAT_RUN ||--o{ CHAT_PROVIDER_RESPONSE : continues
-    CHAT_RUN ||--o{ CHAT_MODEL_REQUEST : diagnoses
-    CHAT_RUN ||--o{ CHAT_REACT_CYCLE : executes
+    CHAT_SESSION o|--o{ AGENT_RUN : contains
+    CHAT_SESSION o|--o{ AGENT_ITEM : orders
+    AGENT_RUN ||--o{ AGENT_ITEM : records
+    AGENT_RUN ||--o{ AGENT_MODEL_RESPONSE : continues
+    AGENT_RUN ||--o{ AGENT_MODEL_REQUEST : diagnoses
+    AGENT_RUN ||--o{ AGENT_REACT_CYCLE : executes
     CHAT_SESSION ||--o| CHAT_CONTEXT_CHECKPOINT : projects
     CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : retains_legacy
-    CHAT_ITEM ||--o| CHAT_MEMORY_PROGRESS : retains_legacy
-    RUNTIME_INSTANCE ||--o{ CHAT_RUN : owns
+    AGENT_ITEM ||--o| CHAT_MEMORY_PROGRESS : retains_legacy
+    RUNTIME_INSTANCE ||--o{ AGENT_RUN : owns
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
     JOB ||--o{ JOB_EVENT : has
@@ -25,6 +25,8 @@ erDiagram
     PROFILE ||--o| PROFILE_ORDER_COUNTER : reserves
     PROFILE_ITEM o|--o{ FACT : contextualizes
     PROFILE_ITEM o|--o{ PROFILE_ITEM : parent_of
+    AGENT_RUN o|--o| GENERATION_RUN : tailors
+    GENERATION_RUN ||--o{ RESUME_BULLET_REWRITE : receipts
     GENERATION_RUN ||--o| ARTIFACT : produces
     ARTIFACT ||--o{ ARTIFACT_FACT : references
     FACT o|..o{ ARTIFACT_FACT : logical_source
@@ -43,10 +45,12 @@ erDiagram
         string model_id
         datetime updated_at
     }
-    CHAT_RUN {
+    AGENT_RUN {
         string id PK
         string session_id FK
         string owner_runtime_id FK
+        string agent
+        string source
         string request_id UK
         string request_hash
         string state
@@ -55,7 +59,7 @@ erDiagram
         string admission
         string runtime_status
     }
-    CHAT_ITEM {
+    AGENT_ITEM {
         string id PK
         string session_id FK
         string run_id FK
@@ -63,19 +67,19 @@ erDiagram
         string state
         json content_json
     }
-    CHAT_PROVIDER_RESPONSE {
+    AGENT_MODEL_RESPONSE {
         string run_id PK,FK
         int ordinal PK
         int through_sequence
         json response_json
     }
-    CHAT_MODEL_REQUEST {
+    AGENT_MODEL_REQUEST {
         string run_id PK,FK
         int ordinal PK
         json metadata_json
         json activations_json
     }
-    CHAT_REACT_CYCLE {
+    AGENT_REACT_CYCLE {
         string run_id PK,FK
         int cycle_index PK
         string status
@@ -169,19 +173,23 @@ erDiagram
     GENERATION_RUN {
         string id PK
         string job_id
-        string status
-        string stage
-        string language
+        string agent_run_id FK,UK
+        string state
+        int state_version
+        int rewrite_revision
         json input_snapshot_json
-        json scores_json
-        json gate_json
-        json selection_json
-        json draft_json
-        json polished_json
         json assembled_json
-        string optimization_hash
+        json legacy_payload_json
         json config_json
         text error
+    }
+    RESUME_BULLET_REWRITE {
+        string run_id PK,FK
+        string request_id PK
+        string request_hash
+        string bullet_id
+        int rewrite_revision
+        boolean changed
     }
     ARTIFACT {
         string id PK

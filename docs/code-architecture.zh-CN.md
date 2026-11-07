@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界及交付约束。状态：App/路由、工作区/浏览器分离导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
+用途：定义源码职责、依赖边界及交付约束。状态：App/路由、工作区/浏览器分离导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume V3 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -137,13 +137,13 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared Agent 契约](../src/shared/agent/index.ts)管理 AgentModel/AgentTools。[Platform Tools](../src/platform/tools/index.ts)是唯一公共 MCP Registry，ToolScope 只属于 Server。只有 platform/mcp 和 platform/mcp-server 导入 MCP SDK。Agent 模块可导入纯 Domain 流程/校验，但不得直接或间接导入 Service、Repository、Registry 或数据库适配器。[MCP 架构](mcp-architecture.zh-CN.md)管理能力和会话行为。
 
-[Chat Domain](../src/domain/chat/)管理纯会话契约及人工校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)拥有 FIFO 放行、持久化回调、每轮授权和取消；[AskStore](../src/app/ai/askStore.ts)负责事件投影。platform/agent/pi、context、tools 模块仅接收模型、MCP 客户端及纯回调，不能导入 Repository 或 ToolScope。Provider 分帧留在 platform/ai。仅 Ask 使用 Pi，既有流程引擎保留；CJS 入口通过原生动态 import 加载 Pi ESM。
+[Chat Domain](../src/domain/chat/)管理纯会话契约及人工校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)拥有 FIFO 放行、持久化回调、每轮授权和取消；[AskStore](../src/app/ai/askStore.ts)负责事件投影。platform/agent/pi、context、tools 模块仅接收模型、MCP 客户端及纯回调，不能导入 Repository 或 ToolScope。Provider 分帧留在 platform/ai。[Agent Engine](../src/platform/agent/engine/index.ts)管理 Ask、智能粘贴及 Resume 的共享 Pi 执行；CJS 入口通过原生动态 import 加载 Pi ESM。
 
 [个人资料页面](../src/pages/profile/ProfilePage.tsx)管理表单和导入审核。[导入任务](../src/platform/profile-import/service.ts)管理 PDF 提取、一次模型解析、会话归属和重试。[Candidate Domain](../src/domain/candidate/import.service.ts)负责原子保存与排序。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 
-[Platform Agent](../src/platform/agent/)通过 AgentTools 实现 Resume 内容优化、资料采集和申请动作规划。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
+[Platform Agent](../src/platform/agent/)实现 Resume 要点改写、资料采集和申请动作规划。业务操作通过 AgentTools 协议客户端。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
 
 ## 六、质量与后续交付
 

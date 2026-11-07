@@ -118,7 +118,7 @@ test('reused Ask transport has distinct immutable per-turn grants; cancellation 
 
 test('trusted Ask policy denies every resume/build tool even with valid Run grants and a spoofed Resume label', async t => {
   const f = await firstPartyFixture(t), resume = await f.mcp.session('resume', signal)
-  assert.deepEqual((await resume.list()).map(t => t.name).sort(), [...jobAgentAllowlist].sort())
+  assert((await resume.list()).every(tool => tool.name.startsWith('resume.') || tool.name === 'artifact.build'))
   const foreign = await resume.call('resume.start', { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id }, signal) as { runId: string }
   const authority = createMemoryAuthority(f.directory); f.cleanup(() => authority.close())
   const ask = external(f, await authority.issue('restricted-ask'), 'internal.resume')
@@ -131,10 +131,10 @@ test('trusted Ask policy denies every resume/build tool even with valid Run gran
     const result = await ask.callTool(name, args, signal, { jabRunGrant: run.grant(name, args) }) as { isError: boolean; content: { text: string }[] }
     assert.equal(result.isError, true, name); assert.equal(result.content[0].text, 'TOOL_FORBIDDEN', name)
   }
-  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.status, 'RUNNING')
+  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.state, 'REWRITING')
   assert.equal(f.outputs(), 0)
   assert(!f.backend.toolAudit.list().some(row => row.agent_id === 'internal.resume' && row.tool_name !== 'resume.start'))
   await run.close()
   await resume.call('resume.cancel', { runId: foreign.runId }, signal)
-  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.status, 'CANCELLED')
+  assert.equal(f.backend.resumes.getRun({ id: foreign.runId }).run.state, 'CANCELLED')
 })

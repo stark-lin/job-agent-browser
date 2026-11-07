@@ -18,6 +18,7 @@ export function registerResumeIPC(service: ResumeTasks, rendererPath: string) {
       let value: unknown
       if (method === 'start') value = await service.start(sender.id, input, emit)
       else if (method === 'getTask') value = service.getTask(sender.id, input)
+      else if (method === 'getTrace') value = service.getTrace(sender.id, input)
       else if (method === 'cancel') value = await service.cancel(sender.id, input)
       else if (method === 'retryOutput') value = await service.retryOutput(sender.id, input, emit)
       else if (method === 'getPreview') value = await service.getPreview(input)

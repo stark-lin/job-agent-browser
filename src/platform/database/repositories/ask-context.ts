@@ -16,8 +16,8 @@ export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () =
     context,
     saveProviderResponse(runId: string, response: AgentResponse, throughSequence: number, cycleIndex?: number) {
       transaction(() => {
-        if (db.prepare('SELECT state FROM chat_runs WHERE id=?').get(runId)?.state !== 'running') fail('INVALID_STATE')
-        db.prepare(`INSERT INTO chat_provider_responses SELECT ?,COALESCE(MAX(ordinal),0)+1,?,? FROM chat_provider_responses WHERE run_id=?`)
+        if (db.prepare('SELECT state FROM agent_runs WHERE id=?').get(runId)?.state !== 'running') fail('INVALID_STATE')
+        db.prepare(`INSERT INTO agent_model_responses SELECT ?,COALESCE(MAX(ordinal),0)+1,?,? FROM agent_model_responses WHERE run_id=?`)
           .run(runId, throughSequence, JSON.stringify(response), runId)
         if (cycleIndex !== undefined) recordCalls(runId, cycleIndex, response.toolCalls.map(call => call.id))
       })
@@ -33,10 +33,10 @@ export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () =
       })
     },
     contextTurns(sessionId: string, beforeSequence: number, choice?: ChatChoice): ContextTurn[] {
-      const rows = db.prepare(`SELECT i.run_id,i.sequence,i.content_json,i.state,r.provider_id,r.model_id FROM chat_items i JOIN chat_runs r ON r.id=i.run_id
+      const rows = db.prepare(`SELECT i.run_id,i.sequence,i.content_json,i.state,r.provider_id,r.model_id FROM agent_items i JOIN agent_runs r ON r.id=i.run_id
         WHERE i.session_id=? AND r.state!='running' AND r.id IN
-        (SELECT run_id FROM chat_items WHERE session_id=? AND sequence<? AND json_extract(content_json,'$.type')='user_message')
-        ORDER BY (SELECT MIN(u.sequence) FROM chat_items u WHERE u.run_id=i.run_id),i.sequence`).all(sessionId, sessionId, beforeSequence)
+        (SELECT run_id FROM agent_items WHERE session_id=? AND sequence<? AND json_extract(content_json,'$.type')='user_message')
+        ORDER BY (SELECT MIN(u.sequence) FROM agent_items u WHERE u.run_id=i.run_id),i.sequence`).all(sessionId, sessionId, beforeSequence)
       const turns: ContextTurn[] = []
       const items = rows.map(row => ({ run_id: String(row.run_id), sequence: Number(row.sequence), state: String(row.state),
         provider_id: String(row.provider_id), model_id: String(row.model_id), content: JSON.parse(String(row.content_json)) as ChatContent }))
@@ -48,7 +48,7 @@ export function askContextRepository(db: DatabaseSync, transaction: <T>(op: () =
         if (content.type === 'user_message') {
           const turn: ContextTurn = { sequence: Number(row.sequence), messages: [{ role: 'user', content: content.text }] }
           turns.push(turn); through = 0
-          for (const record of db.prepare('SELECT * FROM chat_provider_responses WHERE run_id=? ORDER BY ordinal').all(row.run_id)) {
+          for (const record of db.prepare('SELECT * FROM agent_model_responses WHERE run_id=? ORDER BY ordinal').all(row.run_id)) {
             const response = JSON.parse(String(record.response_json)) as AgentResponse
             through = Number(record.through_sequence)
             turn.messages.push({ role: 'assistant', content: response.content, toolCalls: response.toolCalls,

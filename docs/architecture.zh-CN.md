@@ -1,6 +1,6 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 组装、工作区/浏览器分离导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、Ask AI V2 及包含 HTML/PDF 的 Tailor Resume 均**已实现**。智能笔记已实现，更多产品流程仍为**规划**。
+用途：记录已验证的运行行为。状态：React 组装、工作区/浏览器分离导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、统一 Agent 运行时及包含 HTML/PDF 的 Resume V3 均**已实现**。智能笔记已实现，更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](architecture.md)
 
@@ -102,7 +102,7 @@ React App → Page → Preload → IPC → Main
 
 [上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts)优先使用 LM Studio 已加载实例限制；未知或低于 64K 的窗口不能运行 Ask AI。Settings 支持填写部署限制。
 
-[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。导入并行许可及独立 Resume/Capture/Application 引擎保持原行为。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
+[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
 
 **已实现模型发现：**[Main 检测服务](../src/platform/ai/models.ts)按用户操作向已保存 Provider 的 `models` 资源发起 `GET`，使用已保存密钥；无需密钥的服务不发送身份验证。不要求已有模型/默认值。服务拒绝重定向，限制 JSON 为 1 MB/10,000 条，校验、去重并排序 ID，使用已保存的模型检测超时，每个窗口最多一个请求、全局最多 16 个。窗口释放/导航或应用退出会中止检测。
 
@@ -124,7 +124,7 @@ React App → Page → Preload → IPC → Main
 
 [申请记录](../src/pages/applications/ApplicationsPage.tsx)支持搜索/状态/归档筛选、25 条分页和手动刷新。详情包含来源、分页事件及[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)。明确指令通过 MCP 执行本地状态/备注/日程/详情/归档动作，缺少信息时追问，部分失败保留已完成动作。保存 Job 后打开其详情。外部日历/邮件动作及重复合并仍为规划。
 
-**已实现定制简历：**[主进程任务](../src/platform/electron/resume-tasks.ts)通过真实 MCP 会话冻结快照、提交一次内容优化、发布并自动编译 HTML/PDF。[定制简历页面](../src/pages/tailor-resume/TailorResumePage.tsx)复用个人资料编辑组件。手工保存只修改当前 Artifact，重新编译无需调用模型。
+**已实现 Resume V3。**[主进程任务](../src/platform/electron/resume-tasks.ts)通过 MCP 复制已保存的个人资料，并使用[共享 Agent Engine](../src/platform/agent/engine/index.ts)改写已有要点。[定制简历页面](../src/pages/tailor-resume/TailorResumePage.tsx)展示业务进度、Agent Trace、历史及 HTML/PDF 预览。手工保存更新 Artifact，重建无需推理。
 
 ## 四、会话、安全与存储
 

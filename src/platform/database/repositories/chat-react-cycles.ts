@@ -19,18 +19,18 @@ export function chatReactCycleWrites(db: DatabaseSync) {
   }
   return {
     start(runId: string, index: number, startedAt: string) {
-      db.prepare("INSERT INTO chat_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,?,'RUNNING',?)").run(runId, index, startedAt)
+      db.prepare("INSERT INTO agent_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,?,'RUNNING',?)").run(runId, index, startedAt)
     },
     linkRequest(runId: string, index: number, ordinal: number) {
-      requireCycle(db.prepare(`UPDATE chat_react_cycles SET model_request_ordinal=?
+      requireCycle(db.prepare(`UPDATE agent_react_cycles SET model_request_ordinal=?
         WHERE run_id=? AND cycle_index=? AND status='RUNNING' AND model_request_ordinal IS NULL`).run(ordinal, runId, index))
     },
     recordCalls(runId: string, index: number, ids: string[]) {
-      requireCycle(db.prepare(`UPDATE chat_react_cycles SET tool_call_ids_json=?
+      requireCycle(db.prepare(`UPDATE agent_react_cycles SET tool_call_ids_json=?
         WHERE run_id=? AND cycle_index=? AND status='RUNNING'`).run(JSON.stringify(ids), runId, index))
     },
     settle(runId: string, index: number, status: SettledCycleStatus, reason: string | null, finishedAt: string) {
-      requireCycle(db.prepare(`UPDATE chat_react_cycles SET status=?,reason=?,finished_at=?
+      requireCycle(db.prepare(`UPDATE agent_react_cycles SET status=?,reason=?,finished_at=?
         WHERE run_id=? AND cycle_index=? AND status='RUNNING'`).run(status, reason, finishedAt, runId, index))
     }
   }

@@ -6,7 +6,7 @@ import { callDigest } from '../../mcp/call-fingerprint'
 import { confirmedArchive, progressKey } from './policies'
 import { ReadProgress } from './read-progress'
 
-export interface TrustedRunContext { chatRunId: string; sessionId: string; signal: AbortSignal }
+export interface TrustedRunContext { agentRunId: string; sessionId: string; kind?: 'ask' | 'resume' | 'resume-controller'; generationRunId?: string; signal: AbortSignal }
 export interface GuardedResult { output?: ToolOutput; error?: ToolError; guard: RunGuardSnapshot }
 const preflightErrors = new Set(['TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY', 'TOOL_CONFLICT'])
 class RunGuard {
@@ -17,7 +17,7 @@ class RunGuard {
   private closed = false
   private tail: Promise<unknown> = Promise.resolve()
   constructor(readonly context: TrustedRunContext) {
-    this.state = { chatRunId: context.chatRunId, status: 'ACTIVE', calls: 0, executedCalls: 0, noProgress: 0, rejections: 0,
+    this.state = { agentRunId: context.agentRunId, status: 'ACTIVE', calls: 0, executedCalls: 0, noProgress: 0, rejections: 0,
       progress: 0, executed: false, effectAlreadyConfirmed: false, effects: [] }
   }
   snapshot() { return structuredClone(this.state) }
@@ -67,7 +67,7 @@ class RunGuard {
           } else {
             const progress = progressKey(tool, args, output.structuredContent)
             if (progress) this.progress(progress)
-            else if (this.state.level === 'recovery') this.unchanged()
+            else if (tool.name === 'resume.rewrite_bullet' || this.state.level === 'recovery') this.unchanged()
           }
         }
         return { output, guard: this.snapshot() }
@@ -92,9 +92,9 @@ export function createRunGuardManager() {
   return {
     forRun(context: TrustedRunContext) {
       if (context.signal.aborted) toolFail('TOOL_CANCELLED')
-      let guard = runs.get(context.chatRunId)
+      let guard = runs.get(context.agentRunId)
       if (guard && guard.context.sessionId !== context.sessionId) toolFail('TOOL_FORBIDDEN')
-      if (!guard) { guard = new RunGuard(context); runs.set(context.chatRunId, guard) }
+      if (!guard) { guard = new RunGuard(context); runs.set(context.agentRunId, guard) }
       return guard
     },
     async close(id: string) { const guard = runs.get(id); if (guard) { await guard.close(); if (runs.get(id) === guard) runs.delete(id) } },

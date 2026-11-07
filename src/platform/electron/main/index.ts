@@ -11,6 +11,7 @@ import { createKnowledgeEmbeddings } from '../../knowledge/rag/model-path'
 import { startKnowledgeBroker } from '../../knowledge/broker'
 import { registerKnowledgeIPC } from './knowledge-ipc'
 import { defaultKnowledgePreferences } from '../../../shared/knowledge-settings'
+import { createAgentEngine } from '../../agent/engine'
 import { createAskAgentTasks, type AskAgentTasks } from '../ask-agent-tasks'
 import { registerAskAgentIPC } from './ask-agent-ipc'
 import { t, i18n } from '../../../shared/i18n'
@@ -115,9 +116,10 @@ app.whenReady().then(async () => {
   firstParty = createFirstPartyRuntime(directory, __dirname)
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAgentModel })
   jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
-  resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
+  const engine = createAgentEngine(backend.chats.agentSnapshot)
+  resumes = createResumeTasks({ backend, mcp: firstParty, engine, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
-  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty,
+  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, engine,
     capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models('internal.ask-ai', choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })

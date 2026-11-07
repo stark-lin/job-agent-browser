@@ -1,5 +1,6 @@
 import { AgentError, type ActivationDiagnostic, type AgentToolDescriptor, type AgentTools } from '../../../shared/agent'
 import { allowedAskTool } from '../../../shared/agent/ask-policy'
+import type { AgentToolset } from './toolset'
 import type { ContextBudget } from '../context/budget'
 import { fingerprint } from '../../ai/agent-request'
 
@@ -8,7 +9,7 @@ export const discoveryTools: AgentToolDescriptor[] = [
   { name: 'tool.activate', description: 'Activate only the tool names needed for this task. Activation never changes authorization. Takes effect at the next model request.', risk: 'READ', inputSchema: { type: 'object', properties: { names: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 16 } }, required: ['names'], additionalProperties: false } }
 ]
 
-export class ToolDiscovery {
+export class ToolDiscovery implements AgentToolset {
   private active: string[] = []
   private desired: string[] = []
   private catalog: readonly AgentToolDescriptor[] = []
@@ -17,9 +18,9 @@ export class ToolDiscovery {
   private searches = new Map<string, number>()
   private current: AgentToolDescriptor[] = []
   private version = 0
-  constructor(private readonly tools: AgentTools, private readonly budget: ContextBudget, private readonly diagnose: (value: ActivationDiagnostic) => void = () => {}) {}
+  constructor(private readonly tools: AgentTools, private readonly budget: ContextBudget, private readonly diagnose: (value: ActivationDiagnostic) => void = () => {}, private readonly allows = allowedAskTool) {}
   async refresh() {
-    const catalog = (await this.tools.list()).filter(t => allowedAskTool(t.name))
+    const catalog = (await this.tools.list()).filter(t => this.allows(t.name))
     const signature = (items: readonly AgentToolDescriptor[]) => fingerprint([...items].sort((a, b) => a.name.localeCompare(b.name)))
     if (signature(catalog) !== signature(this.catalog)) { this.repeats.clear(); this.searches.clear(); this.advertised.clear(); this.version++ }
     this.catalog = catalog
@@ -69,7 +70,7 @@ export class ToolDiscovery {
       this.desired = keep
       return { activeOnNextRequest: keep, alreadyActive, changed, nextAction: `Call ${names.join(', ')} directly on the next request; do not reactivate available tools.` }
     }
-    if (!this.active.includes(name) || !allowedAskTool(name)) throw new AgentError('AGENT_PROTOCOL_ERROR')
+    if (!this.active.includes(name) || !this.allows(name)) throw new AgentError('AGENT_PROTOCOL_ERROR')
     const progress = this.tools.getRunGuardSnapshot?.()?.progress
     const result = await this.tools.call(name, input, signal)
     this.repeats.clear()

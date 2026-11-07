@@ -12,6 +12,8 @@ export function progressKey(tool: ToolDescriptor, args: JsonValue, output: unkno
   const o = object(output), a = object(args)
   if (!o) return
   if (tool.mode !== 'write') return
+  if (tool.name === 'resume.rewrite_bullet' && o.changed === true && typeof o.runId === 'string' && Number.isSafeInteger(o.rewriteRevision))
+    return `rewrite:${callDigest([o.runId, o.rewriteRevision])}`
   if (tool.name.startsWith('resume.') && typeof o.runId === 'string' && typeof o.status === 'string' && typeof o.stage === 'string')
     return `workflow:${callDigest([o.runId, o.status, o.stage])}`
   if ((tool.name.startsWith('profile.') || ['memory.write', 'memory.mkdir', 'knowledge.write', 'knowledge.mkdir'].includes(tool.name)) && (typeof o.revision === 'string' || Number.isSafeInteger(o.revision))) {

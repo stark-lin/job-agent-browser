@@ -9,9 +9,9 @@ app.once('browser-window-created', (_event, window) => window.webContents.once('
   const evaluate = code => window.webContents.executeJavaScript(`(async () => (${code}))()`)
   try {
     const interrupted = await evaluate(`window.data.resumes.getRun({id:${JSON.stringify(receipt.pendingId)}})`)
-    assert.equal(interrupted.value.run.status, 'INTERRUPTED')
+    assert.equal(interrupted.value.run.state, 'INTERRUPTED')
     let task = (await evaluate(`window.resume.getTask({runId:${JSON.stringify(receipt.runId)}})`)).value
-    assert.equal(task.run.status, 'SUCCEEDED'); assert.equal(task.artifact.output.error, 'OUTPUT_INTERRUPTED')
+    assert.equal(task.run.state, 'PUBLISHED'); assert.equal(task.artifact.output.error, 'OUTPUT_INTERRUPTED')
     const retry = await evaluate(`window.resume.retryOutput({artifactId:${JSON.stringify(receipt.artifactId)}})`)
     assert(retry.ok, retry.error)
     const until = Date.now() + 15000

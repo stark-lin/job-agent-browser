@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { compatibleAgentModel } from '../src/platform/ai/agent-model'
 import type { AgentRuntimeEvent } from '../src/shared/agent'
-import { runPiAsk } from '../src/platform/agent/pi/runtime'
+import { runPiAgent } from '../src/platform/agent/pi/runtime'
 import { ContextBudget } from '../src/platform/agent/context/budget'
 import { ContextManager } from '../src/platform/agent/context/manager'
 import type { AgentModelEvent, StreamingAgentModel, AgentTools } from '../src/shared/agent'
@@ -53,7 +53,7 @@ test('Pi preserves interleaving, complete call batches, recoverable errors, fata
   const run = (model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void) => {
     const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
     const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save(value) { return value } })
-    return runPiAsk({ model, tools, system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
+    return runPiAgent({ model, tools, system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
   }
   const model = fixtureModel([activate, first, final('Recovered')]), original = model.stream
   model.stream = input => { observations.push(input.messages); return original(input) }
@@ -91,7 +91,7 @@ test('Pi executes a batch one tool at a time and waits for all results before mo
   } }
   const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: value => value })
-  const pending = runPiAsk({ model, tools, system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
+  const pending = runPiAgent({ model, tools, system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
   await first; assert.equal(requests, 2); assert.deepEqual(order, ['a.md']); assert.equal(active, 1)
   release(); await pending; assert.equal(max, 1); assert.equal(requests, 3)
 })

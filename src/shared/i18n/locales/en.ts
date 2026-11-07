@@ -168,6 +168,7 @@ export const en = {
     "selectResume": "Select resume evidence",
     "draftResume": "Save resume draft",
     "polishResume": "Save polished resume",
+    "resumeBullets": "Read resume bullets",
     "optimizeResume": "Optimize resume content",
     "publishResume": "Publish resume",
     "failResume": "Record resume failure",
@@ -599,7 +600,7 @@ export const en = {
   resume: {
     editTitle: 'Edit this resume', addBullet: 'Add bullet', saveAndBuild: 'Save and rebuild PDF', editSaved: 'Resume changes saved', discardEdit: 'Discard changes', discardEditHelp: 'Unsaved edits to this resume will be lost.',
     "inputs": "Job and profile",
-    "template": "default-v1 · A4 · single column · multiple pages · 500-word budget",
+    "template": "default-v1 · A4 · single column · multiple pages · 500-word target",
     "job": "Job",
     "profile": "Profile",
     "chooseJob": "Choose a saved job",
@@ -617,26 +618,9 @@ export const en = {
     "saved": "PDF saved.",
     "preview": "Resume preview",
     "pages": "Pages: {{count}}",
-    "stages": {
-        optimize: "Optimize content", assemble: "Assemble and validate",
-        "score": "Score evidence",
-        "gate": "Check coverage",
-        "select": "Select evidence",
-        "draft": "Write draft",
-        "validate-draft": "Validate draft",
-        "polish": "Polish",
-        "validate-polish": "Validate polish",
-        "publish": "Publish",
-        "output": "Build HTML / PDF"
-    },
-    "statuses": {
-        "PENDING": "Pending",
-        "RUNNING": "Generating…",
-        "SUCCEEDED": "Resume generated",
-        "FAILED": "Generation failed",
-        "CANCELLED": "Cancelled",
-        "INTERRUPTED": "Interrupted. Generate a new version to retry."
-    },
+    stages: { COPYING: "Copy profile", REWRITING: "Rewrite bullets", VALIDATING: "Validate resume", PUBLISHING: "Publish resume", OUTPUT: "Build HTML / PDF" },
+    statuses: { CREATED: "Created", COPYING: "Copying profile…", REWRITING: "Rewriting bullets…", VALIDATING: "Validating…", PUBLISHING: "Publishing…", PUBLISHED: "Resume published", FAILED: "Generation failed", CANCELLED: "Cancelled", INTERRUPTED: "Interrupted. Generate a new version to retry." },
+    trace: "Agent trace", cycles: "ReAct cycles", requests: "Model requests", traceError: "Trace unavailable.",
     "outputs": {
         "PENDING": "Output pending",
         "RUNNING": "Building preview and PDF…",
@@ -645,6 +629,7 @@ export const en = {
         "CANCELLED": "Output cancelled. Your generated resume is retained."
     },
     "errors": {
+        MISSING_LEGACY_ARTIFACT: "The migrated run has no published artifact.",
         "INVALID_INPUT": "Select a valid job and a profile with saved facts. Check imported content before saving.",
         "INVALID_STATE": "Another task is active or this action is unavailable.",
         "FORBIDDEN": "This task belongs to another window.",
@@ -654,7 +639,7 @@ export const en = {
         "GATE_REJECTED": "The available evidence does not support this job. Review the missing evidence.",
         "PROCESS_INTERRUPTED": "Generation was interrupted. Start a new version.",
         "AGENT_PROTOCOL_ERROR": "The model response or tool protocol is invalid.",
-        "AGENT_STEP_LIMIT": "The model exceeded the 8-call stage limit.",
+        "AGENT_STEP_LIMIT": "The Agent exceeded its request or tool-call limit.",
         "AGENT_TIMEOUT": "The model request timed out.",
         "AGENT_CANCELLED": "Generation cancelled.",
         "PDF_EXPORT_FAILED": "The PDF could not be saved. Choose another location and try again; the application copy is retained.",

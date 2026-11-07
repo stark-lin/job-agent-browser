@@ -186,7 +186,22 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     await data('settings', 'savePreferences', { theme: 'dark' })
     await waitFor(() => notice.webContents.executeJavaScript('document.documentElement.dataset.theme === "dark"'), 'native Banner dark theme')
     await waitBanner('Reading context')
-    await pointer(notice.webContents, 36, 25, 'left')
+    // Activate the native button with trusted input. Pointer hit testing in a resized
+    // WebContentsView can target the surrounding banner on macOS.
+    window.focus()
+    notice.webContents.focus()
+    const bannerInput = notice.webContents.debugger
+    bannerInput.attach()
+    try {
+      assert(await notice.webContents.executeJavaScript(`(() => {
+        const button = document.querySelector('.ui-banner-body')
+        button.focus()
+        return document.activeElement === button && button.getAttribute('aria-disabled') === 'false'
+      })()`))
+      const space = { key: ' ', code: 'Space', windowsVirtualKeyCode: 32 }
+      await bannerInput.sendCommand('Input.dispatchKeyEvent', { ...space, type: 'keyDown', text: ' ' })
+      await bannerInput.sendCommand('Input.dispatchKeyEvent', { ...space, type: 'keyUp' })
+    } finally { bannerInput.detach() }
     await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Banner opens Ask AI')
     final()
     await waitFor(async () => await value(cross) === 'left Answer right', 'background field finishes while viewing Ask AI')

@@ -5,9 +5,9 @@ import { providerMessages, providerTools, parseAgentResponse, stableName } from 
 import { fingerprint, toolSnapshot } from '../src/platform/ai/agent-request'
 import { ToolDiscovery } from '../src/platform/agent/tools/discovery'
 import { ContextBudget } from '../src/platform/agent/context/budget'
-import { observeAskModel } from '../src/platform/agent/pi/request-observer'
+import { observeAgentModel } from '../src/platform/agent/pi/request-observer'
 import { ContextManager } from '../src/platform/agent/context/manager'
-import { runPiAsk } from '../src/platform/agent/pi/runtime'
+import { runPiAgent } from '../src/platform/agent/pi/runtime'
 import type { AgentRuntimeEvent, AgentTools, StreamingAgentModel } from '../src/shared/agent'
 import { DataError } from '../src/domain/common/errors'
 import { activation, capabilities, descriptor, runDisclosure, scriptedModel, signal } from './disclosure-fixture'
@@ -99,7 +99,7 @@ test('multiple pending activations in one batch are not mistaken for advertised 
 for (const corrupt of ['missing-schema', 'changed-schema', 'wrong-alias', 'pi-state'] as const) test(`request ${corrupt} is diagnosed and blocked before transport`, async () => {
   const fixture = scriptedModel(() => 'Must not dispatch'), events: AgentRuntimeEvent[] = []
   const tools = [descriptor()], snapshot = toolSnapshot(tools)
-  const observed = observeAskModel(fixture.model, event => events.push(event))
+  const observed = observeAgentModel(fixture.model, event => events.push(event))
   const expectedTools = corrupt === 'wrong-alias' ? snapshot.map(t => ({ ...t, providerName: 'wrong' })) : snapshot
   const piTools = corrupt === 'pi-state' ? [] : expectedTools
   const actualTools = corrupt === 'missing-schema' ? [] : corrupt === 'changed-schema' ? [{ ...tools[0], inputSchema: { type: 'object' } }] : tools
@@ -113,7 +113,7 @@ for (const corrupt of ['missing-schema', 'changed-schema', 'wrong-alias', 'pi-st
 })
 test('diagnostic persistence failure blocks streaming and summary transport', async () => {
   const fixture = scriptedModel(() => 'Must not dispatch')
-  const model = observeAskModel(fixture.model, () => { throw new DataError('STORAGE_UNAVAILABLE') })
+  const model = observeAgentModel(fixture.model, () => { throw new DataError('STORAGE_UNAVAILABLE') })
   await assert.rejects(async () => { for await (const _event of model.stream({ messages: [], tools: [], signal: signal() })) { /* collect */ } }, /STORAGE_UNAVAILABLE/)
   await assert.rejects(model.complete({ messages: [], tools: [], signal: signal() }), /STORAGE_UNAVAILABLE/)
   assert.equal(fixture.requests.length, 0)
@@ -129,13 +129,13 @@ test('runtime compares Pi schemas with its own loadout before sending the next r
 })
 test('context-summary and agent-turn requests share an ordinal without reinjecting diagnostics', async () => {
   const fixture = scriptedModel(body => body.stream ? 'Answer' : 'Summary'), events: AgentRuntimeEvent[] = []
-  const model = observeAskModel(fixture.model, event => events.push(event))
+  const model = observeAgentModel(fixture.model, event => events.push(event))
   const budget = new ContextBudget(capabilities, 'unknown')
   let summaries = 0
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 },
     turns: Array.from({ length: 10 }, (_, index) => ({ sequence: index + 1, messages: [{ role: 'user' as const, content: 'x'.repeat(5500) }] })),
     memory: '', protectedState: [], compacting() {}, save(value) { summaries++; return value } })
-  await runPiAsk({ model, tools: { list: async () => [], call: async () => ({}) }, system: 'Test', message: 'Current task', budget, context, emit: event => events.push(event), signal: signal(), status() {}, protect() {} })
+  await runPiAgent({ model, tools: { list: async () => [], call: async () => ({}) }, system: 'Test', message: 'Current task', budget, context, emit: event => events.push(event), signal: signal(), status() {}, protect() {} })
   assert(summaries > 0)
   const requests = events.filter(event => event.type === 'model.request.prepared').map(event => event.request)
   assert.deepEqual(requests.map(row => row.ordinal), requests.map((_row, index) => index + 1))
@@ -146,7 +146,7 @@ test('context-summary and agent-turn requests share an ordinal without reinjecti
 })
 test('request observation preserves the default index mapping for callers without stable names', async () => {
   const fixture = scriptedModel(() => 'Summary'), events: AgentRuntimeEvent[] = []
-  const model = observeAskModel(fixture.model, event => events.push(event))
+  const model = observeAgentModel(fixture.model, event => events.push(event))
   await model.complete({ messages: [], tools: [descriptor()], signal: signal() })
   const request = events.find(event => event.type === 'model.request.prepared')
   assert(request?.type === 'model.request.prepared'); assert.equal(request.request.verification, 'matched')
@@ -176,7 +176,7 @@ test('effective activation and confirmed business progress reset repeated search
 
 test('summary and main-loop requests share a hard budget of 64 before model dispatch', async () => {
   let complete = 0, streamed = 0
-  const model = observeAskModel({ complete: async () => { complete++; return { content: 'summary', toolCalls: [] } }, async *stream() {
+  const model = observeAgentModel({ complete: async () => { complete++; return { content: 'summary', toolCalls: [] } }, async *stream() {
     streamed++; yield { type: 'completed', response: { content: 'answer', toolCalls: [] } }
   } }, () => {})
   const input = { messages: [], tools: [], signal: signal() }

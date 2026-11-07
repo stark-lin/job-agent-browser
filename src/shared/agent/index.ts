@@ -35,7 +35,7 @@ export type AgentRuntimeEvent =
   | { type: 'segment.started'; id: string; kind: 'reasoning' | 'assistant_message'; reasoning?: ReasoningInfo }
   | { type: 'segment.delta'; id: string; text: string }
   | { type: 'segment.completed'; id: string }
-  | { type: 'tool.started'; id: string; call: AgentToolCall }
+  | { type: 'tool.started'; id: string; call: AgentToolCall; risk?: AgentToolDescriptor['risk'] }
   | { type: 'tool.completed'; id: string; name: string; result: unknown; durationMs: number; guard?: RunGuardSnapshot }
   | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean; guard?: RunGuardSnapshot }
   | { type: 'model.completed'; response: AgentResponse; cycleIndex?: number }

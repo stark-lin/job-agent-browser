@@ -138,18 +138,26 @@ test('profile receipts and revisions roll back together; a new Run can explicitl
 
 test('Ask profile edits affect dedicated Resume snapshots while prior snapshots remain immutable', async t => {
   const f = await firstPartyFixture(t), tools = await f.askRun(signal()), resume = await f.mcp.session('resume', signal())
-  const first = await resume.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: randomUUID() }, signal()) as { runId: string }
+  const firstRequest = randomUUID(), secondRequest = randomUUID()
+  const first = await resume.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: firstRequest }, signal()) as { runId: string }
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const updated = await tools.call('profile.update', { id: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), changes: { name: 'Updated name' } }, signal()) as Profile
   await tools.call('profile.update_fact', { id: f.fact.id, profileId: profile.id, expectedRevision: updated.revision, requestId: randomUUID(), changes: { content: 'Updated source claim' } }, signal())
-  const second = await resume.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: randomUUID() }, signal()) as { runId: string }
-  const oldContext = await resume.call('resume.get_context', { runId: first.runId }, signal()) as { profile: Profile }
-  const newContext = await resume.call('resume.get_context', { runId: second.runId }, signal()) as { profile: Profile }
-  assert.equal(oldContext.profile.name, f.profile.name); assert.equal(newContext.profile.name, 'Updated name')
-  const oldFacts = await resume.call('resume.list_facts', { runId: first.runId }, signal()) as PageResult<Fact>
-  const newFacts = await resume.call('resume.list_facts', { runId: second.runId }, signal()) as PageResult<Fact>
-  assert.equal(oldFacts.items[0].content, f.fact.content); assert.equal(newFacts.items[0].content, 'Updated source claim')
-  assert([...oldFacts.items, ...newFacts.items].every(fact => !('evidence' in fact)))
+  const second = await resume.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: secondRequest }, signal()) as { runId: string }
+  const read = async (runId: string, requestId: string) => {
+    const { agentRunId } = await resume.call('resume.attach_agent', { runId, requestId, ownerRuntimeId: f.backend.lease.id }, signal()) as { agentRunId: string }
+    const agent = await f.mcp.openAgentRun({ agent: 'resume', agentRunId, generationRunId: runId, sessionId: 'default', signal: signal() })
+    try {
+      const context = await agent.tools.call('resume.get_context', { runId }, signal()) as { profile: Profile }
+      const facts = await agent.tools.call('resume.list_facts', { runId }, signal()) as PageResult<Fact>
+      return { context, facts }
+    } finally { await agent.close() }
+  }
+  const old = await read(first.runId, firstRequest), next = await read(second.runId, secondRequest)
+  assert.equal(old.context.profile.name, f.profile.name); assert.equal(next.context.profile.name, 'Updated name')
+  assert.equal(old.facts.items[0].content, f.fact.content); assert.equal(next.facts.items[0].content, 'Updated source claim')
+  assert([...old.facts.items, ...next.facts.items].every(fact => !('evidence' in fact)))
+
 })
 
 test('migration preserves existing profile data and old receipts and initializes revision without rewriting history', () => {

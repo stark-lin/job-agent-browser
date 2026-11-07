@@ -5,7 +5,7 @@ const object = (v: unknown): Record<string, unknown> | undefined => v && typeof 
 type Coverage = { full: boolean; ranges: [number, number][] }
 const lists: Record<string, string> = {
   'job.list': 'job', 'profile.list': 'profile', 'profile.list_items': 'item', 'profile.list_facts': 'fact',
-  'application.list_events': 'event', 'resume.list_facts': 'snapshot-fact'
+  'application.list_events': 'event', 'resume.list_facts': 'snapshot-fact', 'resume.list_bullets': 'resume-bullet'
 }
 
 /** Run-local evidence, never persisted. Known collections are sets; unknown arrays retain their meaning. */
@@ -20,7 +20,7 @@ export class ReadProgress {
   private entity(kind: string, value: unknown, identity?: unknown): boolean {
     const row = object(value)
     if (!row) return this.add([kind, value])
-    const id = row.id ?? identity
+    const id = row.id ?? row.bulletId ?? identity
     if (typeof id !== 'string') return this.add([kind, row])
     let fresh = this.add(['entity', kind, id])
     for (const [field, content] of Object.entries(row)) {
@@ -86,7 +86,7 @@ export class ReadProgress {
     if (kind && Array.isArray(row.items)) {
       const dataset = input.profileId ?? input.jobId ?? input.runId ?? ''
       if (!row.items.length) return this.add(['empty', kind, dataset])
-      return this.collection(kind === 'snapshot-fact' ? `${kind}:${dataset}` : kind, row.items)
+      return this.collection((kind === 'snapshot-fact' || kind === 'resume-bullet') ? `${kind}:${dataset}` : kind, row.items)
     }
     if (tool.name === 'profile.get') return this.entity('profile', row, input.id)
     if (tool.name === 'job.get') {
