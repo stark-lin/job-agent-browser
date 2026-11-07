@@ -67,6 +67,35 @@ test('generation snapshot is immutable, stage ordering is enforced and duplicate
   assert.ok(value(await f.api.audit.list({ targetId: f.artifact.id })).items.some((e) => e.action === 'DELETE'))
 })
 
+test('human resume edits accept display text and empty statements while malformed payloads remain rejected', async t => {
+  const f = await published(t), content = structuredClone(f.content)
+  content.basics.links = [{ label: '', url: 'my-portfolio.example' }]
+  Object.assign(content.experience[0], { startDate: '2025 年秋季学期', endDate: '待定', isCurrent: true, url: '个人项目，暂无链接' })
+  content.experience[0].bullets[0].text = ''
+  const input = { id: f.artifact.id, title: f.artifact.title, expectedRevision: 1, content }
+  const edited = value(await f.api.resumes.editArtifact(input))
+  assert.equal(edited.content.experience[0].startDate, content.experience[0].startDate)
+  assert.equal(edited.content.experience[0].endDate, '待定')
+  assert.equal(edited.content.experience[0].bullets[0].text, '')
+  assert.deepEqual(edited.content.experience[0].bullets[0].factIds, [])
+  assert.deepEqual(edited.content.basics.links, content.basics.links)
+  for (const malformed of [
+    { ...content, basics: { ...content.basics, phone: 123 } },
+    { ...content, skills: 'invalid array' },
+    { ...content, unexpected: true }
+  ]) {
+    assert.deepEqual(await f.backend.dispatch('resumes', 'editArtifact', { ...input, expectedRevision: 2, content: malformed }), { ok: false, error: 'INVALID_INPUT' })
+  }
+  assert.deepEqual(value(await f.api.resumes.getArtifact({ id: f.artifact.id })).artifact, edited)
+  const omitted = { ...content, basics: { ...content.basics, links: [{}] },
+    experience: content.experience.map(({ url: _url, ...entry }) => entry) }
+  const saved = await f.backend.dispatch('resumes', 'editArtifact', { ...input, expectedRevision: 2, content: omitted })
+  assert.equal(saved.ok, true)
+  const latest = value(await f.api.resumes.getArtifact({ id: f.artifact.id })).artifact
+  assert.deepEqual(latest.content.basics.links, [{ label: '', url: '' }])
+  assert.equal(latest.content.experience[0].url, '')
+})
+
 test('calendar validates ranges and company deletion detaches jobs with audit', async (t) => {
   const f = fixture(t), company = value(await f.api.jobs.registerCompany({ name: 'Company' }))
   const job = value(await f.api.jobs.saveJob({ details: { title: 'Role', companyNameRaw: 'Company', companyId: company.id } }))

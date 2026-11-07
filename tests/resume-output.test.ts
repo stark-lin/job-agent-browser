@@ -23,7 +23,8 @@ test('HTML compiler is deterministic, escaped, local-only and rejects dangerous 
   const template = { id: 'default-v1' as const, fontVersion: 'noto-sc-v1' as const, fontBase64: 'AAAA' }
   const html = compileHTML(document, template)
   assert.equal(html, compileHTML(structuredClone(document), template))
-  assert(!html.includes('<script>')); assert(!html.includes('<img')); assert(!html.includes('javascript:'))
+  assert(!html.includes('<script>')); assert(!html.includes('<img')); assert(!html.includes('href="javascript:'))
+  assert(html.includes('javascript:alert(1)'))
   assert(html.includes('&lt;script&gt;')); assert(html.includes("script-src 'none'")); assert(html.includes('font-src data:'))
   for (const url of ['javascript:alert(1)', 'data:text/html,bad', 'file:///etc/passwd', 'https://user:secret@example.com']) assert.equal(safeLink(url), null)
   assert.equal(safeLink('https://example.com/a'), 'https://example.com/a')
@@ -84,7 +85,10 @@ test('version 18 resume history, managed PDF and provenance survive the upgrade'
 test('failed compilation preserves the edited revision and successful retry uses that content', async t => {
   const f = await published(t), root = mkdtempSync(join(tmpdir(), 'resume-recompile-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  const next = { ...f.content, basics: { ...f.content.basics, name: 'Edited name' },
+  const next = { ...f.content, basics: { ...f.content.basics, name: 'Edited name', links: [{ label: 'Portfolio', url: 'example.com/my work' }] },
+    experience: f.content.experience.map(entry => ({ ...entry, startDate: 'Summer 2020 (part-time)', endDate: '毕业后',
+      url: 'github.com/example/project', title: '', organization: '', isCurrent: true })),
+    summary: { id: randomUUID(), text: '手动填写的个人简介', factIds: [] },
     skills: [{ id: randomUUID(), text: 'Manual skill', factIds: [f.fact.id] }] }
   const edited = f.backend.resumes.editArtifact({ id: f.artifact.id, title: f.artifact.title, expectedRevision: 1, content: next })
   assert.deepEqual(edited.content.experience[0].bullets[0].factIds, [f.fact.id])
@@ -92,7 +96,8 @@ test('failed compilation preserves the edited revision and successful retry uses
   let fail = true
   const output = createResumeOutput(f.backend, root, '', async document => {
     if (fail) throw new Error('Fixture build failed')
-    return { html: document.basics.name, pdf: Buffer.from('PDF'), pages: 1 }
+    assert.deepEqual(document, edited.content)
+    return { html: compileHTML(document, { id: 'default-v1', fontVersion: 'noto-sc-v1', fontBase64: 'AAAA' }), pdf: Buffer.from('PDF'), pages: 1 }
   })
   const signal = new AbortController().signal
   assert.equal((await output.build(f.artifact.id, signal)).output.status, 'FAILED')
@@ -101,5 +106,6 @@ test('failed compilation preserves the edited revision and successful retry uses
   assert.equal((await output.build(f.artifact.id, signal)).output.status, 'READY')
   const preview = await output.read(f.artifact.id, 'HTML')
   assert.equal(preview.revision, 2)
-  assert.equal(preview.bytes.toString(), 'Edited name')
+  const html = preview.bytes.toString()
+  for (const text of ['Edited name', 'Summer 2020 (part-time)', 'example.com/my work', 'github.com/example/project', '手动填写的个人简介', 'Manual skill']) assert(html.includes(text))
 })

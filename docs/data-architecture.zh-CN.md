@@ -69,9 +69,9 @@
 
 [迁移 19](../src/platform/database/migrations/agent-storage.ts)保留聊天与 Trace 身份。[迁移 20](../src/platform/database/migrations/resume-v3.ts)将旧运行中任务标记为中断，保留已发布成品和文件，将退役字段保留为只读历史。升级前关闭应用和 MCP 宿主并备份整个 userData 目录。退回 v18 时，用对应版本的应用和 MCP 恢复备份。
 
-[Artifact 编辑](../src/domain/resume/artifact.service.ts)按 `expectedRevision` 和输出 Lease 核对版本。手工增改表述清空来源引用，未改表述保留。[运行时 Lease](../src/platform/database/runtime-leases.ts)与内容版本一起约束编译提交，排除并发构建及过期进程写入。
+[Artifact 编辑](../src/domain/resume/artifact.service.ts)按 `expectedRevision` 和输出 Lease 核对版本。[手工内容](../src/domain/resume/resume.validation.ts)接受用户填写的日期、链接和表述展示文字，包括空表述。校验对象结构、字段类型、ID 和大小范围。手工增改表述清空来源引用，未改表述保留。[运行时 Lease](../src/platform/database/runtime-leases.ts)与内容版本一起约束编译提交，排除并发构建及过期进程写入。
 
-[输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
+[输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，保留链接展示文字并将有效 HTTP(S) 链接设为可点击，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
 
 | 删除对象 | 结果 |
 | --- | --- |

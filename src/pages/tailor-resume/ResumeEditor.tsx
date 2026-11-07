@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ItemInput } from '../../domain/candidate/candidate.types'
 import type { ResumeDocument, ResumeEntry, ResumeStatement } from '../../domain/resume/resume.types'
-import { importItemDetails, validateItemDates } from '../../domain/candidate/candidate.validation'
 import { EditorDialog, ItemCard } from '../../app/profile-editor/EditorComponents'
 import { ContactFields, ItemFields, StatementField } from '../../app/profile-editor/ProfileFields'
 import { ActionRow, Button, SectionCard } from '../../shared/ui'
@@ -22,8 +21,7 @@ export function ResumeEditor({ value, disabled, onChange, onEditing }: {
 }) {
   const { t } = useTranslation()
   const [item, setItem] = useState<EntryEdit | null>(null), [text, setText] = useState<TextEdit | null>(null)
-  const [invalid, setInvalid] = useState(false)
-  function close() { setItem(null); setText(null); setInvalid(false); onEditing(false) }
+  function close() { setItem(null); setText(null); onEditing(false) }
   function editText(target: TextEdit) { setText(target); onEditing(true) }
   function setStatements(group: TextEdit['group'], parent: string | undefined, update: (blocks: ResumeStatement[]) => ResumeStatement[]) {
     if (group === 'summary') onChange({ ...value, summary: update(value.summary ? [value.summary] : [])[0] ?? null })
@@ -32,20 +30,16 @@ export function ResumeEditor({ value, disabled, onChange, onEditing }: {
   }
   function save() {
     if (item) {
-      try {
-        const entry = importItemDetails(item.value), metadata = entry.metadata
-        validateItemDates(entry)
-        onChange({ ...value, [item.group]: value[item.group].map(original => original.profileItemId !== item.id ? original : {
-          ...original, title: entry.title, organization: entry.organization, role: entry.role, location: entry.location,
-          startDate: metadata.startDateText ?? '', endDate: metadata.endDateText ?? '', isCurrent: metadata.isCurrent ?? false,
-          degree: metadata.degree ?? '', major: metadata.major ?? '', gpa: metadata.gpa ?? '', url: metadata.url ?? ''
-        }) })
-      } catch { setInvalid(true); return }
+      const entry = item.value, metadata = entry.metadata ?? {}
+      onChange({ ...value, [item.group]: value[item.group].map(original => original.profileItemId !== item.id ? original : {
+        ...original, title: entry.title, organization: entry.organization ?? '', role: entry.role ?? '', location: entry.location ?? '',
+        startDate: metadata.startDateText ?? '', endDate: metadata.endDateText ?? '', isCurrent: metadata.isCurrent ?? false,
+        degree: metadata.degree ?? '', major: metadata.major ?? '', gpa: metadata.gpa ?? '', url: metadata.url ?? ''
+      }) })
     }
     if (text) {
-      if (!text.text.trim() && text.group !== 'summary') { setInvalid(true); return }
       setStatements(text.group, text.parent, blocks => {
-        if (!text.text.trim()) return []
+        if (!text.text.trim() && text.group === 'summary') return []
         return text.id ? blocks.map(block => block.id === text.id ? { ...block, text: text.text } : block)
           : [...blocks, { id: crypto.randomUUID(), text: text.text, factIds: [] }]
       })
@@ -79,9 +73,9 @@ export function ResumeEditor({ value, disabled, onChange, onEditing }: {
       })}
     </section>)}
     <SectionCard title={t($ => $.profile.kinds.SKILL)}>{renderStatements('skills', value.skills, t($ => $.profile.add))}</SectionCard>
-    <EditorDialog open={Boolean(item || text)} disabled={disabled} invalid={invalid} onClose={close} onSave={save}>
-      {item && <ItemFields resume value={item.value} disabled={disabled} onChange={value => { setItem({ ...item, value }); setInvalid(false) }} />}
-      {text && <StatementField value={text.text} disabled={disabled} onChange={value => { setText({ ...text, text: value }); setInvalid(false) }} />}
+    <EditorDialog open={Boolean(item || text)} disabled={disabled} onClose={close} onSave={save}>
+      {item && <ItemFields resume value={item.value} disabled={disabled} onChange={value => setItem({ ...item, value })} />}
+      {text && <StatementField value={text.text} disabled={disabled} onChange={value => setText({ ...text, text: value })} />}
     </EditorDialog>
   </div>
 }

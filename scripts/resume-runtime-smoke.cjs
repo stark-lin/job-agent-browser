@@ -79,10 +79,47 @@ app.once('browser-window-created', (_event, window) => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Edited resume contact');
         input.dispatchEvent(new Event('input', { bubbles: true }));
       })()`)
+      await evaluate(`(() => {
+        const region = document.querySelector('section[aria-label="Edit this resume"]');
+        const label = [...region.querySelectorAll('label')].find(element => element.textContent === 'URL');
+        const input = document.getElementById(label.htmlFor);
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'portfolio.example/my work');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+      await click('Edit')
+      await wait(() => evaluate('!!document.querySelector("dialog[open] form")'), 'resume entry dialog')
+      for (const [label, value] of [['Title', '手工编辑的项目名称'], ['Organization', ''], ['Start date', 'Summer 2020 (part-time)'], ['End date', '毕业后'], ['URL', 'github.com/example/project']]) {
+        await evaluate(`(() => {
+          const label = [...document.querySelectorAll('dialog[open] label')].find(element => element.textContent === ${JSON.stringify(label)});
+          const input = document.getElementById(label.htmlFor);
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)});
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`)
+      }
+      await click('Save')
+      await wait(() => evaluate('!document.querySelector("dialog[open]")'), 'manual entry accepted')
+      await wait(() => evaluate(`!document.querySelector('section[aria-label="Work experience"] .profile-facts button').disabled`), 'resume bullet edit available')
+      await evaluate(`document.querySelector('section[aria-label="Work experience"] .profile-facts button').click()`)
+      await wait(() => evaluate('!!document.querySelector("dialog[open] textarea")'), 'resume bullet dialog')
+      await evaluate(`(() => {
+        const input = document.querySelector('dialog[open] textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, '手动修改的要点内容');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+      await click('Save')
+      await wait(() => evaluate('!document.querySelector("dialog[open]")'), 'manual bullet accepted')
       await click('Save and rebuild PDF')
       await wait(() => evaluate('window.resume.getTask({}).then(result => result.ok && !result.value.active && result.value.artifact.revision === 2 && result.value.artifact.output.status === "READY")'), 'edited resume rebuild')
       const edited = (await evaluate('window.resume.getTask({})')).value
       assert.equal(edited.artifact.content.basics.name, 'Edited resume contact')
+      assert.equal(edited.artifact.content.basics.links[0].url, 'portfolio.example/my work')
+      assert.equal(edited.artifact.content.experience[0].startDate, 'Summer 2020 (part-time)')
+      assert.equal(edited.artifact.content.experience[0].endDate, '毕业后')
+      assert.equal(edited.artifact.content.experience[0].url, 'github.com/example/project')
+      assert.equal(edited.artifact.content.experience[0].bullets[0].text, '手动修改的要点内容')
+      assert.deepEqual(edited.artifact.content.experience[0].bullets[0].factIds, [])
+      const rebuilt = (await evaluate(`window.resume.getPreview({artifactId:${JSON.stringify(task.artifact.id)}})`)).value
+      for (const text of ['portfolio.example/my work', 'Summer 2020 (part-time)', '毕业后', 'github.com/example/project', '手动修改的要点内容']) assert(rebuilt.html.includes(text))
       assert.equal((await data('profiles', 'getProfile', { id: profile.id })).name, profile.name)
       assert.equal(server.requests(), before)
       // Document container remains opaque and every UI control uses central components.

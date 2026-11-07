@@ -16,7 +16,7 @@ export function createArtifactService(repo: ResumeRepository, tx: UnitOfWork, ru
     }) },
     editArtifact(input: unknown) {
       return tx.write({ event: 'ARTIFACT_EDIT', action: 'UPDATE', target: 'artifact' }, () => {
-        const args = v.object({ id: v.id, title: v.text(500, 1), expectedRevision: v.integer(1, Number.MAX_SAFE_INTEGER), content: check.content })(input)
+        const args = v.object({ id: v.id, title: v.text(500, 1), expectedRevision: v.integer(1, Number.MAX_SAFE_INTEGER), content: check.editedContent })(input)
         const artifact = repo.getArtifact(args.id)
         if (artifact.revision !== args.expectedRevision) fail('CONFLICT')
         repo.assertArtifactEditable(artifact.id)
