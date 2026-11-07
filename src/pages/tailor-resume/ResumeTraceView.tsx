@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useServices } from '../../app/providers'
 import { AgentTimelineItem } from '../../app/components/AgentTimelineItem'
-import { Button, Collapsible, DetailsList, Drawer, StatusMessage } from '../../shared/ui'
+import { Collapsible, DetailsList, SectionCard, StatusMessage } from '../../shared/ui'
 import type { ResumeTrace } from '../../platform/electron/resume-contract'
 
 export function ResumeTraceView({ runId, active }: { runId: string; active: boolean }) {
@@ -24,9 +24,9 @@ export function ResumeTraceView({ runId, active }: { runId: string; active: bool
     const timer = active ? setInterval(() => void refresh(), 1000) : undefined
     return () => { current = false; clearInterval(timer) }
   }, [open, active, runId, resume])
-  return <>
-    <Button aria-expanded={open} onClick={() => setOpen(true)}>{t($ => $.resume.trace)}</Button>
-    <Drawer open={open} title={t($ => $.resume.trace)} closeLabel={t($ => $.ask.close)} onClose={() => setOpen(false)}>
+  return <SectionCard title={t($ => $.resume.trace)} defaultCollapsed onToggle={event => {
+    if (event.target === event.currentTarget) setOpen(event.currentTarget.open)
+  }}>
       <div className="resume-stack">
         {failed ? <StatusMessage tone="error">{t($ => $.resume.traceError)}</StatusMessage> : !trace ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : <>
           <DetailsList items={[
@@ -42,6 +42,5 @@ export function ResumeTraceView({ runId, active }: { runId: string; active: bool
           {trace.items.map(item => <AgentTimelineItem key={item.id} item={item} run={trace.run} />)}
         </>}
       </div>
-    </Drawer>
-  </>
+  </SectionCard>
 }

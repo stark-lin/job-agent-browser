@@ -36,13 +36,13 @@ export function TailorResumePage() {
       <StatusMessage tone={task.run.state === 'FAILED' ? 'error' : task.run.state === 'PUBLISHED' ? 'success' : 'neutral'}>{t($ => $.resume.statuses[task.run.state])}</StatusMessage>
       <StageProgress stages={stages} current={progress} complete={artifact?.output.status === 'READY'} label={t($ => $.resume.progress)} />
       {task.run.error && <StatusMessage tone="error">{error(task.run.error)}</StatusMessage>}
-      {task.run.agentRunId && <ResumeTraceView key={task.run.id} runId={task.run.id} active={active} />}
       {artifact && <><StatusMessage>{t($ => $.resume.outputs[artifact.output.status])}</StatusMessage>
         {artifact.output.error && <StatusMessage tone="error">{error(artifact.output.error)}</StatusMessage>}
         <ActionRow>{artifact.output.status === 'READY' && <Button variant="primary" disabled={state.busy} onClick={() => void state.exportPdf()}>{t($ => $.resume.export)}</Button>}
           {!active && <Button disabled={state.busy || dirty || editing} onClick={() => void state.retry()}>{t($ => $.resume.retryOutput)}</Button>}</ActionRow>
         {state.saved && <StatusMessage tone="success">{t($ => $.resume.saved)}</StatusMessage>}</>}
     </div></SectionCard>}
+    {task?.run.agentRunId && <ResumeTraceView key={task.run.id} runId={task.run.id} active={active} />}
     {state.preview && artifact?.id === state.preview.artifactId && artifact.revision === state.preview.revision && artifact.output.status === 'READY' && <SectionCard title={t($ => $.resume.preview)} description={t($ => $.resume.pages, { count: state.preview.pages })}><DocumentPreview title={t($ => $.resume.preview)} html={state.preview.html} /></SectionCard>}
     {artifact && <section className="resume-stack" aria-label={t($ => $.resume.editTitle)}>
       <h2 className="profile-group-heading">{t($ => $.resume.editTitle)}</h2>

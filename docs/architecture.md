@@ -124,7 +124,7 @@ Main sends numbered PDF text to the selected model. [Draft parsing](../src/platf
 
 [Applications](../src/pages/applications/ApplicationsPage.tsx) supports search/status/archive filters, 25-row pages and explicit refresh. Details contain sources, paginated events and an [Application Agent panel](../src/pages/applications/ApplicationAgentPanel.tsx). Clear instructions execute local status/note/event/detail/archive actions through MCP; missing details trigger questions, and partial failures retain completed actions. Saving a Job opens its details. External calendar/email actions and duplicate merging remain planned.
 
-**Implemented Resume V3.** [Main tasks](../src/platform/electron/resume-tasks.ts) copy the saved Profile over MCP and use the [shared Agent Engine](../src/platform/agent/engine/index.ts) to tailor existing bullets. [Tailor Resume](../src/pages/tailor-resume/TailorResumePage.tsx) shows business progress, Agent Trace, history and HTML/PDF preview. Manual saves update the Artifact and rebuild without inference.
+**Implemented Resume V3.** [Main tasks](../src/platform/electron/resume-tasks.ts) copy the saved Profile over MCP and use the [shared Agent Engine](../src/platform/agent/engine/index.ts) to tailor existing bullets. [Tailor Resume](../src/pages/tailor-resume/TailorResumePage.tsx) shows business progress, history and HTML/PDF preview, with Agent Trace in a default-collapsed card below progress. Manual saves update the Artifact and rebuild without inference.
 
 ## 4. Session, security and storage
 

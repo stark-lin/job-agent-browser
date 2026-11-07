@@ -30,10 +30,19 @@ app.once('browser-window-created', (_event, window) => {
       const task = (await evaluate('window.resume.getTask({})')).value
       assert.equal(task.run.state, 'PUBLISHED'); assert.equal(task.artifact.content.language, 'zh-CN'); assert.equal(task.artifact.output.status, 'READY')
       assert(task.run.assembled)
-      await click('Agent trace')
+      const traceCard = label => `[...document.querySelectorAll('.resume-content > details')].find(card => card.querySelector('.ui-section-title')?.textContent === ${JSON.stringify(label)})`
+      const trace = traceCard('Agent trace')
+      assert.equal(await evaluate(`${trace}.open`), false)
+      assert.equal(await evaluate(`${trace}.previousElementSibling.querySelector('.ui-section-title').textContent`), 'Generation progress')
+      await evaluate(`${trace}.querySelector('summary').click()`)
       await wait(() => evaluate('document.body.innerText.includes("ReAct cycles") && document.body.innerText.includes("Model requests")'), 'shared trace')
-      await evaluate('document.querySelector(".ui-drawer[open] .ui-drawer-heading button").click()')
-      await wait(() => evaluate('!document.querySelector(".ui-drawer[open]")'), 'close Trace drawer')
+      assert.equal(await evaluate('!!document.querySelector(".ui-drawer[open]")'), false)
+      await evaluate(`${trace}.querySelector('button').click()`)
+      assert.equal(await evaluate(`${trace}.open`), true)
+      await evaluate(`${trace}.querySelector('summary').focus()`)
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' })
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' })
+      await wait(() => evaluate(`!${trace}.open`), 'keyboard collapse trace card')
       assert.equal(task.artifact.content.experience[0].bullets[0].factIds[0], fact.id)
       assert.deepEqual(task.artifact.outputFiles.map(file => file.format), ['HTML', 'PDF'])
       const preview = (await evaluate(`window.resume.getPreview({artifactId:${JSON.stringify(task.artifact.id)}})`)).value
@@ -85,6 +94,14 @@ app.once('browser-window-created', (_event, window) => {
           await wait(() => evaluate(`innerWidth===${width} && document.documentElement.lang===${JSON.stringify(language)} && document.documentElement.dataset.theme===${JSON.stringify(theme)}`), 'resume responsive locale')
           assert.equal(await evaluate('document.querySelector(".resume-page").scrollWidth > document.querySelector(".resume-page").clientWidth'), false)
           writeFileSync(resolve(__dirname, `../.cache/resume-${language}-${theme}-${width}.png`), (await window.capturePage()).toPNG())
+          const localizedTrace = traceCard(language === 'en' ? 'Agent trace' : 'Agent 运行追踪')
+          await evaluate(`${localizedTrace}.querySelector('summary').click()`)
+          await wait(() => evaluate(`${localizedTrace}.open`), 'expanded inline trace')
+          await evaluate(`${localizedTrace}.scrollIntoView({ block: 'start' })`)
+          assert.equal(await evaluate('document.querySelector(".resume-page").scrollWidth > document.querySelector(".resume-page").clientWidth'), false)
+          writeFileSync(resolve(__dirname, `../.cache/resume-trace-${language}-${theme}-${width}.png`), (await window.capturePage()).toPNG())
+          await evaluate(`${localizedTrace}.querySelector('summary').click()`)
+          await wait(() => evaluate(`!${localizedTrace}.open`), 'collapsed inline trace')
         }
       }
       // Simulate a crash after files reached disk but before their metadata was committed.
