@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  ActionRow,
   Button,
   IconButton,
   Glyph,
@@ -195,7 +196,7 @@ export function KnowledgePage() {
     }
   }
   return (
-    <main className="knowledge-page" data-knowledge-page>
+    <main className="knowledge-page" aria-label={t($ => $.navigation.pages.knowledge)} data-knowledge-page>
       <ResizableExplorer
         width={preferences.explorerWidth}
         onWidth={(explorerWidth) => setPreferences((p) => ({ ...p, explorerWidth }))}
@@ -270,7 +271,7 @@ export function KnowledgePage() {
           <div className="knowledge-breadcrumb">
             {k.file ? `${t($ => $.knowledge[k.file?.space === 'memory' ? 'memory' : 'knowledgeSpace'])} › ${k.file.path.split('/').join(' › ')}` : t(($) => $.navigation.pages.knowledge)}
           </div>
-          <div className="knowledge-toolbar-actions">
+          <ActionRow className="knowledge-toolbar-actions">
             {(['edit', 'split', 'preview'] as const).map((mode) => (
               <Button
                 key={mode}
@@ -291,7 +292,7 @@ export function KnowledgePage() {
             <Button size="sm" disabled={busy} onClick={() => void synchronize()}>
               {t(($) => $.knowledge.sync)}
             </Button>
-          </div>
+          </ActionRow>
         </header>
         <div className="knowledge-save-status" aria-live="polite">
           {k.saving
@@ -312,8 +313,10 @@ export function KnowledgePage() {
         {k.conflict && (
           <div className="knowledge-conflict">
             <StatusMessage tone="error">{t(($) => $.knowledge.externalConflict)}</StatusMessage>
-            <Button onClick={() => void k.reload()}>{t(($) => $.knowledge.reload)}</Button>
-            <Button onClick={() => begin('saveAs')}>{t(($) => $.knowledge.saveAs)}</Button>
+            <ActionRow>
+              <Button onClick={() => void k.reload()}>{t(($) => $.knowledge.reload)}</Button>
+              <Button onClick={() => begin('saveAs')}>{t(($) => $.knowledge.saveAs)}</Button>
+            </ActionRow>
           </div>
         )}
         {k.file ? (
@@ -340,7 +343,6 @@ export function KnowledgePage() {
           </div>
         ) : (
           <div className="knowledge-empty">
-            <h1>{t(($) => $.navigation.pages.knowledge)}</h1>
             <p>{t(($) => $.knowledge.empty)}</p>
           </div>
         )}
@@ -371,7 +373,7 @@ export function KnowledgePage() {
         onClose={() => setAction(null)}
         content={
           action?.kind === 'menu' ? (
-            <div className="knowledge-menu">
+            <ActionRow>
               {(['file', 'folder', 'rename', 'delete'] as const).map((kind) => (
                 <Button
                   key={kind}
@@ -391,7 +393,7 @@ export function KnowledgePage() {
                   {t(($) => $.knowledge.createReadme)}
                 </Button>
               )}
-            </div>
+            </ActionRow>
           ) : action?.kind !== 'delete' ? (
             <FormField label={t(($) => $.knowledge.path)}>
               {(props) => (
@@ -428,9 +430,9 @@ export function KnowledgePage() {
                 <strong>{new Date(version.timestamp).toLocaleString()}</strong>
                 <p>{version.reason}</p>
                 <pre>{version.files.join('\n')}</pre>
-                <Button size="sm" onClick={() => setRestore(version)}>
+                <ActionRow><Button size="sm" onClick={() => setRestore(version)}>
                   {t(($) => $.knowledge.restore)}
-                </Button>
+                </Button></ActionRow>
               </article>
             ))}
           </div>

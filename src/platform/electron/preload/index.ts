@@ -1,7 +1,7 @@
 import { createKnowledgeBridge } from './knowledge-bridge'
 import { KNOWLEDGE_CALL, KNOWLEDGE_CHANGED, KNOWLEDGE_FLUSH, KNOWLEDGE_FLUSHED } from '../knowledge-contract'
 import { createAskAgentBridge } from './ask-agent-bridge'
-import { ASK_AGENT_CALL, ASK_AGENT_EVENT } from '../ask-agent-contract'
+import { ASK_AGENT_CALL, ASK_AGENT_EVENT, ASK_AGENT_OPEN_SESSION } from '../ask-agent-contract'
 import type { AgentRunEvent } from '../../../domain/chat/chat.types'
 import { contextBridge, ipcRenderer } from 'electron'
 import { EXTERNAL_MCP_CALL } from '../../../shared/external-mcp'
@@ -22,6 +22,10 @@ import type { ProfileImportAPI, ImportEvent } from '../profile-import-contract'
 import { PROFILE_IMPORT_RETRY, PROFILE_IMPORT_SELECT, PROFILE_IMPORT_START, PROFILE_IMPORT_CANCEL, PROFILE_IMPORT_DISCARD, PROFILE_IMPORT_EVENT } from '../../../shared/profile-import'
 import {
   BROWSER_BACK,
+  BROWSER_RELOAD,
+  BROWSER_COPY_WEBPAGE,
+  BROWSER_COPY_WEBPAGE_RESULT,
+  type Presentation,
   BROWSER_CREATE_TAB,
   BROWSER_ACTIVATE_TAB,
   BROWSER_CLOSE_TAB,
@@ -31,17 +35,25 @@ import {
   BROWSER_NAVIGATE,
   BROWSER_STATE_CHANGED,
   BROWSER_SET_VISIBLE,
+  BROWSER_SET_SIDEBAR_TOOLTIP,
   BROWSER_SET_UNSAVED,
+  BROWSER_PEEK_SELECTION,
+  BROWSER_ACK_SELECTION,
   type BrowserAPI,
   type BrowserState
 } from '../../../shared/browser'
 
 const browserAPI: BrowserAPI = {
+  peekSelection: presentation => ipcRenderer.invoke(BROWSER_PEEK_SELECTION, presentation),
+  ackSelection: input => ipcRenderer.invoke(BROWSER_ACK_SELECTION, input),
   setUnsaved: (unsaved, presentation) => ipcRenderer.invoke(BROWSER_SET_UNSAVED, unsaved, presentation),
   setVisible: (visible, presentation) => ipcRenderer.invoke(BROWSER_SET_VISIBLE, visible, presentation),
+  setSidebarTooltip: tooltip => ipcRenderer.invoke(BROWSER_SET_SIDEBAR_TOOLTIP, tooltip),
   navigate: (input) => ipcRenderer.invoke(BROWSER_NAVIGATE, input),
   back: () => ipcRenderer.invoke(BROWSER_BACK),
   forward: () => ipcRenderer.invoke(BROWSER_FORWARD),
+  reload: () => ipcRenderer.invoke(BROWSER_RELOAD),
+  copyWebpage: () => ipcRenderer.invoke(BROWSER_COPY_WEBPAGE),
   createTab: () => ipcRenderer.invoke(BROWSER_CREATE_TAB),
   activateTab: (id) => ipcRenderer.invoke(BROWSER_ACTIVATE_TAB, id),
   closeTab: (id) => ipcRenderer.invoke(BROWSER_CLOSE_TAB, id),
@@ -55,6 +67,11 @@ const browserAPI: BrowserAPI = {
     const listener = (): void => callback()
     ipcRenderer.on(BROWSER_FOCUS_ADDRESS, listener)
     return () => ipcRenderer.removeListener(BROWSER_FOCUS_ADDRESS, listener)
+  },
+  onCopyWebpageResult: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, presentation: Presentation, copied: boolean): void => callback(presentation, copied)
+    ipcRenderer.on(BROWSER_COPY_WEBPAGE_RESULT, listener)
+    return () => ipcRenderer.removeListener(BROWSER_COPY_WEBPAGE_RESULT, listener)
   }
 }
 
@@ -108,6 +125,10 @@ contextBridge.exposeInMainWorld('askAgent', createAskAgentBridge((method, input)
   const listener = (_event: Electron.IpcRendererEvent, message: AgentRunEvent) => callback(message)
   ipcRenderer.on(ASK_AGENT_EVENT, listener)
   return () => ipcRenderer.removeListener(ASK_AGENT_EVENT, listener)
+}, callback => {
+  const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id)
+  ipcRenderer.on(ASK_AGENT_OPEN_SESSION, listener)
+  return () => ipcRenderer.removeListener(ASK_AGENT_OPEN_SESSION, listener)
 }))
 
 const knowledgeFlushHandlers = new Set<()=>Promise<boolean>>()

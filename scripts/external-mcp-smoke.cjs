@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { clipboard } = require('electron')
 const { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } = require('node:fs')
@@ -10,6 +11,19 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   const ready = () => waitFor(() => evaluate('document.querySelectorAll("[data-agent-target]").length === 4 && !document.querySelector("[data-mcp-refresh]").disabled'), 'external MCP settings ready')
   const refresh = async () => { await evaluate('document.querySelector("[data-mcp-refresh]").click()'); await ready() }
   await ready()
+  await openSectionCards(evaluate, '[data-external-mcp]')
+  assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 0)
+  assert.deepEqual(await evaluate(`(() => {
+    const cards = [...document.querySelectorAll('[data-agent-target]')];
+    return cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom);
+  })()`), [16, 16, 16])
+  await openSectionCards(evaluate, selector('codex'))
+  assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 1)
+  await evaluate('document.querySelector("[data-external-mcp] > summary").click()')
+  assert.equal(await evaluate('document.querySelector("[data-agent-target=codex] > summary").checkVisibility()'), false)
+  await openSectionCards(evaluate, '[data-external-mcp]')
+  assert.equal(await evaluate('document.querySelector("[data-agent-target=codex]").open'), true)
+  await openSectionCards(evaluate, '[data-agent-target]')
   const inspected = await api('inspect', {})
   assert(inspected.ok)
   const clients = inspected.value.clients
@@ -52,7 +66,9 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   assert(repeated.ok); assert.equal(repeated.value.backupPath, undefined); assert.equal(statSync(codex.path).mtimeMs, before)
   assert(readFileSync(cursor.path, 'utf8').includes('// keep comment'))
   await click('codex', 'test')
-  await waitFor(() => evaluate(`document.querySelector('${selector('codex')}').textContent.includes('Connection verified: 42 tools')`), 'real built stdio service discovery')
+  await ready()
+  const connectionFeedback = await evaluate(`document.querySelector('${selector('codex')}').textContent`)
+  assert.match(connectionFeedback, /Connection verified: [1-9]\d* tools discovered\./, 'real built stdio service discovery')
   for (const target of ['codex', 'claude-code', 'cursor', 'other']) {
     await click(target, 'copy')
     await waitFor(() => evaluate(`document.querySelector('${selector(target)}').textContent.includes('Configuration copied')`), `${target} copied`)

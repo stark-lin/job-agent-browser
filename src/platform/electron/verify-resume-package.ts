@@ -1,28 +1,43 @@
-import { randomUUID } from 'node:crypto'
+import { createResumeTasks } from './resume-tasks'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { createBackend } from '../database/backend'
 import type { FirstPartyRuntime } from '../mcp/first-party-client'
 import { extractPdf } from '../import/pdf'
 
-export async function verifyResumePackage(backend: ReturnType<typeof createBackend>, mcp: FirstPartyRuntime, bundleDirectory: string) {
+export async function verifyResumePackage(backend: ReturnType<typeof createBackend>, mcp: FirstPartyRuntime, bundleDirectory: string, directory: string) {
   // These are disposable test fixtures. All workflow operations use the real MCP session.
   const job = backend.jobs.saveJob({ details: { title: 'TypeScript Engineer', companyNameRaw: 'Offline Fixture', description: 'Build reliable services.' } })
   const profile = backend.profiles.createProfile({ name: 'Package Fixture' })
   const item = backend.profiles.addItem({ profileId: profile.id, details: { type: 'EXPERIENCE', title: 'Engineer', organization: 'Fixture' } })
   const fact = backend.profiles.addFact({ profileId: profile.id, profileItemId: item.id, details: { kind: 'ACHIEVEMENT', content: 'Built TypeScript services with automated tests.' } })
-  const signal = AbortSignal.timeout(120000), session = await mcp.session('resume', signal)
-  const call = (name: string, input: unknown) => session.call(name, input, signal)
-  const { runId } = await call('resume.start', { jobId: job.id, profileId: profile.id, requestId: randomUUID() }) as { runId: string }
-  await call('resume.submit_scores', { runId, language: 'en', scores: [{ factId: fact.id, score: 95, reason: 'Direct evidence.' }] })
-  await call('resume.submit_gate', { runId, gate: { passed: true, reason: 'Supported.', missingRequirements: [] } })
-  await call('resume.submit_selection', { runId, selection: { factIds: [fact.id], itemIds: [item.id], wordBudget: 500 } })
-  const writing = { summary: { id: randomUUID(), text: fact.content, factIds: [fact.id] },
-    experience: [{ profileItemId: item.id, bullets: [{ id: randomUUID(), text: fact.content, factIds: [fact.id] }] }], projects: [], education: [], skills: [] }
-  await call('resume.submit_draft', { runId, writing })
-  await call('resume.submit_polished', { runId, writing })
-  const { artifact } = await call('resume.publish', { runId }) as { artifact: { id: string } }
-  const built = await call('artifact.build', { artifactId: artifact.id }) as { output: { status: string; pages: number }; files: { format: string; path: string }[] }
+  const signal = AbortSignal.timeout(120000)
+  const choice = { providerId: 'package-fixture', modelId: 'package-model' }
+  const tasks = createResumeTasks({ backend, mcp, directory: join(directory, 'artifacts'), fonts: join(bundleDirectory, 'fonts'), key: () => null,
+    settings: () => ({ default: choice, providers: [{ id: choice.providerId, name: 'Package Fixture',
+      baseURL: 'https://example.invalid/v1', models: [choice.modelId], defaultModel: choice.modelId, requiresKey: false,
+      capabilities: { [choice.modelId]: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }] }),
+    model: () => ({
+      complete: async () => { throw new Error('Unexpected compaction') },
+      async *stream() {
+        yield { type: 'content.delta', text: 'The source bullet is ready.' }
+        yield { type: 'completed', response: { content: 'The source bullet is ready.', toolCalls: [] } }
+      }
+    }) })
+  let built
+  try {
+    const { runId } = await tasks.start(1, { jobId: job.id, profileId: profile.id }, () => {})
+    let task = tasks.getTask(1, { runId })
+    while (task?.active) {
+      signal.throwIfAborted()
+      await new Promise(resolve => setTimeout(resolve, 20))
+      task = tasks.getTask(1, { runId })
+    }
+    if (task?.run.state !== 'PUBLISHED' || !task.artifact) throw new Error('PACKAGED_RESUME_RUN_FAILED')
+    const artifact = task.artifact
+    const root = join(directory, 'artifacts')
+    built = { output: artifact.output, files: artifact.outputFiles.map(file => ({ format: file.format, path: join(root, file.relativePath) })) }
+  } finally { await tasks.dispose() }
   if (built.output.status !== 'READY') throw new Error('PACKAGED_PDF_BUILD_FAILED')
   const pdfFile = built.files.find(f => f.format === 'PDF'), htmlFile = built.files.find(f => f.format === 'HTML')
   if (!pdfFile || !htmlFile) throw new Error('PACKAGED_OUTPUT_MISSING')

@@ -1,10 +1,16 @@
 ```mermaid
 erDiagram
     direction TB
-    CHAT_SESSION ||--o{ CHAT_RUN : contains
-    CHAT_SESSION ||--o{ CHAT_ITEM : orders
-    CHAT_RUN ||--o{ CHAT_ITEM : records
-    RUNTIME_INSTANCE ||--o{ CHAT_RUN : owns
+    CHAT_SESSION o|--o{ AGENT_RUN : contains
+    CHAT_SESSION o|--o{ AGENT_ITEM : orders
+    AGENT_RUN ||--o{ AGENT_ITEM : records
+    AGENT_RUN ||--o{ AGENT_MODEL_RESPONSE : continues
+    AGENT_RUN ||--o{ AGENT_MODEL_REQUEST : diagnoses
+    AGENT_RUN ||--o{ AGENT_REACT_CYCLE : executes
+    CHAT_SESSION ||--o| CHAT_CONTEXT_CHECKPOINT : projects
+    CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : retains_legacy
+    AGENT_ITEM ||--o| CHAT_MEMORY_PROGRESS : retains_legacy
+    RUNTIME_INSTANCE ||--o{ AGENT_RUN : owns
     COMPANY o|--o{ JOB : owns
     JOB ||--o{ JOB_SOURCE : has
     JOB ||--o{ JOB_EVENT : has
@@ -16,8 +22,11 @@ erDiagram
     FACT o|..o{ OPERATION_RECEIPT : logical_fact
     PROFILE ||--o{ PROFILE_ITEM : contains
     PROFILE ||--o{ FACT : owns
+    PROFILE ||--o| PROFILE_ORDER_COUNTER : reserves
     PROFILE_ITEM o|--o{ FACT : contextualizes
     PROFILE_ITEM o|--o{ PROFILE_ITEM : parent_of
+    AGENT_RUN o|--o| GENERATION_RUN : tailors
+    GENERATION_RUN ||--o{ RESUME_BULLET_REWRITE : receipts
     GENERATION_RUN ||--o| ARTIFACT : produces
     ARTIFACT ||--o{ ARTIFACT_FACT : references
     FACT o|..o{ ARTIFACT_FACT : logical_source
@@ -36,23 +45,62 @@ erDiagram
         string model_id
         datetime updated_at
     }
-    CHAT_RUN {
+    AGENT_RUN {
         string id PK
         string session_id FK
         string owner_runtime_id FK
+        string agent
+        string source
         string request_id UK
         string request_hash
         string state
         int event_sequence
         boolean write_started
+        string admission
+        string runtime_status
     }
-    CHAT_ITEM {
+    AGENT_ITEM {
         string id PK
         string session_id FK
         string run_id FK
         int sequence
         string state
         json content_json
+    }
+    AGENT_MODEL_RESPONSE {
+        string run_id PK,FK
+        int ordinal PK
+        int through_sequence
+        json response_json
+    }
+    AGENT_MODEL_REQUEST {
+        string run_id PK,FK
+        int ordinal PK
+        json metadata_json
+        json activations_json
+    }
+    AGENT_REACT_CYCLE {
+        string run_id PK,FK
+        int cycle_index PK
+        string status
+        string reason
+        int model_request_ordinal
+        json tool_call_ids_json
+        datetime started_at
+        datetime finished_at
+    }
+    CHAT_CONTEXT_CHECKPOINT {
+        string session_id PK,FK
+        text summary
+        int compacted_through_sequence
+        int revision
+        json protected_json
+    }
+    CHAT_MEMORY_PROGRESS {
+        string message_id PK,FK
+        string session_id FK
+        int sequence
+        json progress_json "inactive legacy; no runtime replay"
     }
     OPERATION_RECEIPT {
         string operation PK
@@ -101,6 +149,11 @@ erDiagram
         int revision
         json links_json
     }
+    PROFILE_ORDER_COUNTER {
+        string profile_id PK,FK
+        int next_item
+        int next_fact
+    }
     PROFILE_ITEM {
         string id PK
         string profile_id FK
@@ -115,27 +168,33 @@ erDiagram
         string profile_item_id FK
         string kind
         text content
-        text evidence
+        int sort_order
     }
     GENERATION_RUN {
         string id PK
         string job_id
-        string status
-        string stage
-        string language
+        string agent_run_id FK,UK
+        string state
+        int state_version
         json input_snapshot_json
-        json scores_json
-        json gate_json
-        json selection_json
-        json draft_json
-        json polished_json
+        json assembled_json
+        json legacy_payload_json
         json config_json
         text error
+    }
+    RESUME_BULLET_REWRITE {
+        string run_id PK,FK
+        string request_id PK
+        string request_hash
+        string bullet_id
+        boolean changed
+        int legacy_expected_revision
     }
     ARTIFACT {
         string id PK
         string generation_run_id FK,UK
         json content_json
+        int revision
         json output_json
         json output_files_json
     }

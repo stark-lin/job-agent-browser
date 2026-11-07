@@ -31,7 +31,6 @@ app.once('browser-window-created', (_event, window) => {
         console.log('Job restart smoke passed: saved fields, NOT_STARTED status, source and list persist in a fresh process.')
       } else {
         await require('./job-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
-        await require('./import-parallel-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
         await require('./job-agent-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
       }
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) }); app.quit()

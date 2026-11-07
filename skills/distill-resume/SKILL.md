@@ -17,7 +17,7 @@ Map contact details and the existing personal introduction to Profile; education
 
 Keep personal introductions in the user's original wording, allowing only minor corrections that preserve meaning. Do not replace a saved introduction with a generated summary. Unknown fields stay omitted; never fill missing facts with plausible guesses. Preserve year/month precision with metadata.startDateText/endDateText rather than manufacturing dates. Use metadata.isCurrent for an explicit ongoing item; do not invent an end date.
 
-For each Fact, put provenance in evidence: original filename or genuine source URL, document version/hash when available, page/section and the supporting excerpt. Mark the claim as resume-supplied. Do not manufacture URLs or upload the entire document. Basic fields and item metadata have no separate evidence field; put useful item source context in its summary and report the source in the final result. Ask for a missing name only when creating a new profile requires it.
+Save each Fact with kind, content and optional tags, linked to its owning item when applicable. Do not submit evidence or persist source excerpts, page/section numbers, filenames, document hashes or other source attachments; do not move them into content, tags or item summaries. Summaries contain concise background only. Ask for a missing name only when creating a new profile requires it.
 
 ## Match the intended saved profile
 
@@ -33,4 +33,4 @@ Use discovered tool schemas, not assumed wrappers. Create with profile.create({r
 
 Write sequentially: profile, items, then their facts. Use the latest profile.get revision as expectedRevision and carry forward the revision returned by every write. Each logical write gets a UUID v4 requestId. Keep a ledger of request IDs, exact payloads and returned entity IDs. If a result is uncertain, retry only the identical request; the receipt returns its original result. After replay, reread profile.get because the returned revision may be historical. For a fresh TOOL_CONFLICT, reread and reconcile before using a new request ID. Stop affected writes on persistent errors; report completed and pending records. Do not restart the import blindly or claim the whole import is atomic.
 
-Reread affected records and verify the intended content and associations. Report profile ID, source, added/updated/skipped counts, conflicts and remaining evidence gaps. A repeat import should skip matching data. Existing resume snapshots and published artifacts are not rewritten.
+Reread affected records and verify the intended content and associations. Report profile ID, added/updated/skipped counts, conflicts and remaining factual gaps, without reproducing source attachments. A repeat import should skip matching data. Existing resume snapshots and published artifacts are not rewritten by imports.

@@ -1,3 +1,4 @@
+import { smartPasteSettings } from '../src/shared/smart-paste'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -55,7 +56,7 @@ test('unknown fields, unsupported preferences and unsafe mailbox URLs leave save
   service.savePreferences({ language: 'en' })
   const before = readFileSync(path, 'utf8')
   for (const input of [null, [], { autoSave: true }, { theme: 'sepia' }, { theme: undefined }, { theme: null }, { theme: {} }, { language: 'fr' }, { language: undefined },
-    ...['http://example.com', 'javascript:alert(1)', 'app://home', 'https://user:password@example.com', '', 'https://'].map(url => ({ mailbox: { provider: 'custom', url } })),
+    ...['http://example.com', 'javascript:alert(1)', 'app://ai', 'https://user:password@example.com', '', 'https://'].map(url => ({ mailbox: { provider: 'custom', url } })),
     { mailbox: { provider: 'other', url: 'https://example.com' } }, { mailbox: { provider: 'none', url: 'https://example.com' } }]) {
     assert.throws(() => service.savePreferences(input), { code: 'INVALID_INPUT' })
     assert.equal(readFileSync(path, 'utf8'), before)
@@ -203,18 +204,30 @@ test('timeout settings retain legacy defaults in memory, persist explicit limits
   }
 })
 
-test('parallel model opt-in persists per provider and survives unrelated preference saves', t => {
+test('legacy parallel import settings are ignored on read and dropped on the next save', t => {
   const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
-  const ai = { providers: [
-    { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model', 'other'], defaultModel: 'model', parallelModels: ['model'] },
-    { id: 'second', name: 'Second', baseURL: 'https://second.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
-  ], default: { providerId: 'first', modelId: 'model' } }
-  service.savePreferences({ ai }); service.savePreferences({ language: 'zh-CN', theme: 'dark' })
-  const restored = createPreferences(path).get({})
-  assert.deepEqual(restored.ai.providers[0].parallelModels, ['model']); assert.equal(restored.ai.providers[1].parallelModels, undefined)
-  const before = readFileSync(path, 'utf8')
-  assert.throws(() => service.savePreferences({ ai: { ...ai, providers: [{ ...ai.providers[0], parallelModels: ['absent'] }] } }), /INVALID_INPUT/)
-  assert.equal(readFileSync(path, 'utf8'), before)
-  service.savePreferences({ ai: { ...restored.ai, providers: restored.ai.providers.map(provider => ({ ...provider, parallelModels: [] })) } })
-  assert(service.get({}).ai.providers.every(provider => !provider.parallelModels?.length))
+  const provider = { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
+  service.savePreferences({ ai: { providers: [provider], default: { providerId: 'first', modelId: 'model' } } })
+  const stored = JSON.parse(readFileSync(path, 'utf8'))
+  stored.ai.providers[0].parallelModels = ['model']
+  writeFileSync(path, JSON.stringify(stored))
+  assert.deepEqual(service.get({}).ai.providers[0], provider)
+  assert(readFileSync(path, 'utf8').includes('parallelModels'))
+  service.savePreferences({ language: 'zh-CN' })
+  assert(!readFileSync(path, 'utf8').includes('parallelModels'))
+})
+
+test('Smart Paste defaults follow legacy preferences, while explicit deletion and rejected edits survive reload', t => {
+  const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
+  const id = '312cb02a-05ea-49b6-8b88-4b5a055006ec'
+  assert.equal(smartPasteSettings(service.get({})).configs[0].title, 'Personal introduction')
+  service.savePreferences({ language: 'zh-CN' })
+  assert.equal(smartPasteSettings(createPreferences(path).get({})).configs[0].title, '个人简介')
+  const { smartPaste } = service.savePreferences({ smartPaste: { configs: [{ id, title: ' New title ', prompt: ' Run this. ' }] } })
+  assert.deepEqual(smartPaste?.configs, [{ id, title: 'New title', prompt: 'Run this.' }])
+  assert.throws(() => service.savePreferences({ smartPaste: { configs: [{ id, title: ' ', prompt: 'Run this.' }] } }), { code: 'INVALID_INPUT' })
+  assert.deepEqual(createPreferences(path).get({}).smartPaste, smartPaste)
+  service.savePreferences({ smartPaste: { configs: [] } })
+  service.savePreferences({ language: 'en', theme: 'system' })
+  assert.deepEqual(smartPasteSettings(createPreferences(path).get({})).configs, [])
 })

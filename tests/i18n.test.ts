@@ -21,16 +21,16 @@ test('bundled copy is ready synchronously for startup dialogs and falls back to 
 test('React and isolated translation instances consume their own resource values', () => {
   const instance = createTranslationInstance()
   const other = createTranslationInstance()
-  instance.addResource('en', 'translation', 'navigation.goHome', 'Return to start')
+  instance.addResource('en', 'translation', 'navigation.openSettings', 'Configure workspace')
   instance.addResource('en', 'translation', 'features.notImplemented', 'Feature under construction')
   const markup = renderToStaticMarkup(createElement(I18nextProvider, { i18n: instance },
     createElement(PlaceholderPage, {
       title: 'Example', description: 'Example description',
-      actions: createElement('button', { type: 'button' }, instance.t($ => $.navigation.goHome))
+      actions: createElement('button', { type: 'button' }, instance.t($ => $.navigation.openSettings))
     })))
-  assert.match(markup, />Return to start<\/button>/)
+  assert.match(markup, />Configure workspace<\/button>/)
   assert.match(markup, />Feature under construction<\/p>/)
-  assert.equal(other.t($ => $.navigation.goHome), 'Go home')
+  assert.equal(other.t($ => $.navigation.openSettings), 'Open Settings')
 })
 
 test('Chinese catalog switches existing UI and new settings copy while preserving English fallback', async () => {
@@ -48,11 +48,10 @@ test('complete sentence interpolation preserves external titles and React render
   const instance = createTranslationInstance()
   const title = 'A & B <script>alert("x")</script> {{title}}'
   assert.equal(instance.t($ => $.browser.closeNamedTab, { title }), `Close ${title}`)
-  assert.equal(instance.t($ => $.home.comingSoon, { label: 'A & B' }), 'A & B — Coming soon')
   const tab: BrowserTabState = {
     id: 'tab-1', targetId: 'target-1', title, url: 'https://example.com/',
     destination: { kind: 'web', url: 'https://example.com/' },
-    canGoBack: false, canGoForward: false, isLoading: false, error: ''
+    browserTitle: title, canGoBack: false, canGoForward: false, isLoading: false, error: ''
   }
   const markup = renderToStaticMarkup(createElement(I18nextProvider, { i18n: instance },
     createElement(TabStrip, { tabs: [tab], activeTabId: tab.id, onCreate: () => {}, onActivate: () => {}, onClose: () => {} })))

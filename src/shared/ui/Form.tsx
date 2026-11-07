@@ -1,4 +1,5 @@
-import { useId, type ComponentPropsWithRef, type ReactNode } from 'react'
+import { useId, useState, type ComponentPropsWithRef, type ReactNode } from 'react'
+import { Icon } from './Icon'
 
 interface FieldControl { id: string; 'aria-describedby'?: string; 'aria-invalid'?: true }
 export function FormField({ label, help, error, children }: {
@@ -16,16 +17,36 @@ export function Select({ className = '', ...props }: ComponentPropsWithRef<'sele
   return <select {...props} className={`ui-select ${className}`.trim()} />
 }
 
-export function SectionCard({ title, description, children, ...props }: Omit<ComponentPropsWithRef<'section'>, 'title'> & { title: string; description?: string; children: ReactNode }) {
-  const id = useId()
-  return <section {...props} className="ui-section-card" aria-labelledby={id}>
-    <div className="ui-section-heading"><h2 id={id}>{title}</h2>{description && <p>{description}</p>}</div>
-    {children}
-  </section>
+export function SectionCard({ title, description, defaultCollapsed = false, children, onToggle, onInvalidCapture, ...props }:
+  Omit<ComponentPropsWithRef<'details'>, 'title' | 'open' | 'name'> & {
+    title: string; description?: string; defaultCollapsed?: boolean; children: ReactNode
+  }) {
+  const id = useId(), [open, setOpen] = useState(!defaultCollapsed)
+  return <details {...props} className="ui-section-card" aria-labelledby={id} open={open}
+    onToggle={event => {
+      if (event.target === event.currentTarget) setOpen(event.currentTarget.open)
+      onToggle?.(event)
+    }}
+    onInvalidCapture={event => {
+      event.currentTarget.open = true
+      onInvalidCapture?.(event)
+    }}>
+    <summary className="ui-section-heading">
+      <h2 id={id}>
+        <span className="ui-section-title" title={title}>{title}</span>
+        <Icon className="ui-section-chevron"><path d="m9 6 6 6-6 6" /></Icon>
+      </h2>
+    </summary>
+    {description && <p className="ui-section-description">{description}</p>}
+    <div className="ui-section-body">{children}</div>
+  </details>
 }
 
-export function PageHeading({ title, description }: { title: string; description?: string }) {
-  return <header className="ui-page-heading"><h1>{title}</h1>{description && <p>{description}</p>}</header>
+export function revealSectionCards(target: Element) {
+  for (let card = target.closest<HTMLDetailsElement>('details.ui-section-card'); card;
+    card = card.parentElement?.closest<HTMLDetailsElement>('details.ui-section-card') ?? null) {
+    card.open = true
+  }
 }
 
 export function StatusMessage({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'success' | 'error' | 'info' }) {

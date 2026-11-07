@@ -1,7 +1,6 @@
 # V1 数据架构与 API
 
-用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位采集/申请 Agent以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume Agent V1 均**已实现**。其余产品流程为**规划**。
-
+用途：定义已实现的本地存储及业务 API 边界。状态：事务 SQLite/审计、配置/密钥、个人资料编辑/导入、职位采集/申请 Agent以及包含不可变证据、HTML/PDF 输出及异步 IPC 的 Resume V3 均**已实现**。其余产品流程为**规划**。
 语言：简体中文 · [English](data-architecture.md)
 
 ## 一、运行与存储
@@ -22,13 +21,16 @@
 | `capability_audit` | read/write 能力管理的不含内容的访问/执行审计；[版本 3 结构](../src/platform/database/migrations/capability-audit.ts) |
 | `runtime_instances`, `runtime_work`, `invocation_owners`, `resume_start_receipts` | 进程/任务归属、调用归属及原子启动回执；[版本 4 结构](../src/platform/database/migrations/runtime-leases.ts) |
 | `operation_receipts` | 跨会话写入回执；[版本 5 迁移](../src/platform/database/migrations/operation-receipts.ts)和[版本 8 扩展](../src/platform/database/migrations/profile-writes.ts) |
-| `chat_sessions`, `chat_runs`, `chat_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[增量版本 6 结构](../src/platform/database/migrations/chat.ts) |
+| `chat_sessions`, `agent_runs`, `agent_items` | Main 自有会话/模型快照、请求回执及有序可见 Item；[迁移 19](../src/platform/database/migrations/agent-storage.ts) |
+| `chat_context_checkpoints`, `chat_memory_progress` | 私有上下文检查点及停用的旧 Memory 进度；[版本 11](../src/platform/database/migrations/ask-runtime.ts)，由[版本 13](../src/platform/database/migrations/ask-serial.ts)停用 |
+| `agent_model_responses`, `agent_model_requests` | Host 专属续传数据（[版本 12](../src/platform/database/migrations/chat-protocol.ts)）及可删除请求诊断（[版本 14](../src/platform/database/migrations/chat-model-requests.ts)） |
+| `agent_react_cycles` | Run 下按序保存的执行状态和诊断关联，随 Run 级联删除 |
 
 ## 二、业务规则
 
 [职位用例](../src/domain/job/job.service.ts) 接收白名单详情。来源 URL 移除片段并排序查询参数，清洗内容计算哈希；公开 URL 提取已实现，重复匹配/合并仍为规划。归档独立于申请状态。删除 Company 会解除 Job 关联并保留原始公司名称。
 
-[新增工作](../src/pages/find-jobs/AddJobPage.tsx)的手工保存使用 typed IPC，经审核的 Agent 草稿使用 MCP job.import，二者均原子复用 jobs.saveJob。名称和公司必填，新职位为 NOT_STARTED，申请/关闭时间为空且不创建事件。URL/文本/PDF 解析不写业务表，保存时才保留可选真实网页来源；无 URL 的文本/PDF 使用 source:null。持久化 receipt 见下文。
+[新增工作](../src/pages/find-jobs/AddJobPage.tsx)的手工保存使用 typed IPC，经审核的 Agent 草稿使用 MCP job.import，二者均原子复用 jobs.saveJob。名称和公司必填，新职位为 NOT_STARTED，申请/关闭时间为空且不创建事件。URL/文本/PDF 解析不写业务表，保存时才保留可选真实网页来源；手工文本/PDF 使用 source:null。浏览器预填文本在保存时使用现有 SourceDetails 保留净化后的顶层网址、标题、主机名和最终编辑文本，即使解析返回 source:null 也不会丢失；切换来源模式会清除该绑定。持久化 receipt 见下文。
 
 [申请用例](../src/domain/application/application.service.ts) 原子写入状态变化及时间线事件。允许的状态转换如下：
 
@@ -49,27 +51,27 @@
 
 [MCP 资料命令](../src/domain/candidate/write.service.ts)提供创建及部分更新，沿用同资料引用、日期和条目类型限制；对历史导入的空值，更新无关字段时保留。新增资料/条目/事实仍要求姓名/名称/内容。`Profile.revision` 由[版本 8 迁移](../src/platform/database/migrations/profile-writes.ts)初始化为 1，数据库触发器在基本资料、条目或事实的实际变更（包括 UI、导入、删除/级联）时单调推进。MCP 更新/新增条目和事实必须提交 expectedRevision；同一 BEGIN IMMEDIATE 事务内校验版本、写业务数据及 receipt，无实际变化不推进版本。receipt 重放先于版本检查，返回原结果及历史 revision，之后应重新读取当前版本。版本只约束带 expectedRevision 的 MCP 写入，既有人工表单仍按原 IPC 语义保存。
 
-每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。
+每个 `ProfileItem` 对应零到多个可独立选择的 Fact；每个 Fact 属于一个 Profile，可选关联该 Profile 中的一个条目。`parentItemId` 表达条目之间的关系。独立技能/语言使用空 `profileItemId`，事实类别不决定归属。`summary` 保存背景，职责/成果分别保存为 Fact。[事实服务](../src/domain/candidate/fact.service.ts)校验编辑及归属。[迁移 15](../src/platform/database/migrations/remove-fact-evidence.ts)删除 `facts.evidence` 以及历史快照 Fact 和事实回执结果中的同名字段，保留其他业务值、修订号、时间和审计行；在迁移事务内恢复快照不可变及写入保护。旧请求哈希不变；升级前的新增请求重放可能冲突，应重新读取已保存记录后核对。
 
 [条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。新数据库世代通过 JSON metadata 保留部分日期精度。
 
 [显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦具体无效字段。忽略父项会排除其事实。导入允许姓名、名称、事实内容和链接名称/URL 留空或省略；已填值仍校验格式、日期范围和长度。手动创建资料仍需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
 
-导入为每条变更记录生成 `PROFILE_IMPORT` 审计，使用共享请求/事务；失败回滚全部业务行及成功审计。会话/窗口归属/重放校验发生在业务分发前，不生成业务审计；已接受的事务失败使用普通失败审计。[PDF 解析](../src/platform/profile-import/draft.ts)接受含 `kind`、可选 `content` 及可选 `tags` 的事实，拒绝已移除的 `source.page`/`source.quote`，不做引用匹配。空的可选字段可省略，由本地补齐默认值。导入事实的 `evidence` 为空；已有/手工证据和生成表述到 Fact 的关联继续支持。PDF 字节、完整文字、草稿及重试缓存只存内存。AI 审计继续只表示请求启动。
+导入在同一事务写入业务记录和 `PROFILE_IMPORT` 审计。[导入服务](../src/domain/candidate/import.service.ts)为每次导入预留经历和 Fact 的序号，分批保存使用原位置。[迁移 18](../src/platform/database/migrations/resume-module.ts)新增排序和版本字段，历史 Fact 保留时间顺序。PDF 页码与行号用于本次审核，随草稿缓存释放。
 
 ## 三、生成、成品与删除
 
-[简历请求](../src/domain/resume/resume.service.ts)原子快照 Job、Profile、全部 Fact 和相关条目；空事实资料及归档职位失败。配置固定模板/预算和 Server 运行时类型，可选 Provider/模型是调用方声明的溯源元数据，不构成权限或凭据。历史配置继续可读。[MCP 能力](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)服务内部与外部 Agent，[Resume 推理](../src/platform/agent/resume.ts)位于 Domain 持久化层之外。
+[简历启动](../src/domain/resume/resume.service.ts)在同一事务冻结已保存的 Job、Profile、Item、Fact 和配置，并复制为 [ResumeDocument](../src/domain/resume/document.ts)。联系方式和个人简介分别填入基础信息及摘要。条目元数据与顺序来自快照。含正文的 Fact 保持原有顺序，不重复的 Item 摘要置于其 Fact 之前。未关联条目的 SKILL Fact 进入技能栏，其余游离 Fact 和导入时留空的 Fact 保存在快照中。
 
-[内置提示词](../src/platform/agent/resume.ts)和[外部技能](../skills/tailor-resume/SKILL.zh-CN.md)要求将已填简介作为 summary，仅作局部小修，保留原意、表达、重点和语言。选材预留相关证据与预算；冲突应在 Gate 拒绝，不能悄悄改写。[校验](../src/domain/resume/resume.validation.ts)拒绝删除该 summary，继续执行 Fact 溯源检查。语义保留属于模型指令，并非确定性保证；缺失该字段的历史快照沿用原流程。
+[生成状态](../src/domain/resume/state-machine.ts)按 `CREATED → COPYING → REWRITING → VALIDATING → PUBLISHING → PUBLISHED` 前进。未发布的任务可进入 `FAILED`、`CANCELLED` 或 `INTERRUPTED`。状态变化递增 `stateVersion`。每条要点在一个 GenerationRun 内最多改动一次，原文提交不消耗机会。文档、回执和既有改写检查在同一 BEGIN IMMEDIATE 事务内提交。相同请求 ID 与内容重放原回执，对已改动要点的新请求返回冲突。[迁移 21](../src/platform/database/migrations/resume-once.ts)移除共享改写版本，保留历史回执及其哈希输入，包括同一要点曾有多次改写的记录。Fact ID 和其余字段均固定。字数目标指导改写，结构与大小校验无法证明措辞准确。[生成服务](../src/domain/resume/generation.service.ts)
 
-可信 [GenerationService](../src/domain/resume/generation.service.ts)持久化 `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED / INTERRUPTED`。内部模型只获得读取工具；可信 controller 和 Codex 使用共享阶段能力。门控拒绝持久化缺失证据并停止。发布创建唯一 Artifact 并标记 `SUCCEEDED`；输出失败保留发布结果。启动回执及阶段 handler 支持相同重试，冲突提交失败。
+发布同时提交 Artifact、Fact 溯源链接及 `PUBLISHED`。文件输出可独立失败。桌面任务在推理前绑定 Agent Run，外部宿主复用业务状态且无本地 Agent Run。[MCP 契约](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)
 
-[运行租约](../src/platform/database/runtime-leases.ts)每 5 秒续期，30 秒后过期，并检测已退出的本地 PID。启动及后台恢复仅中断无归属/失效实例的任务和未结束审计。Repository 阻止过期/其他实例的生成写入；输出使用独立尝试 Token 及独立目录，排斥并发编辑/构建，并隔离文件替换。[共享输出服务](../src/platform/resume-output/service.ts)记录文件前校验 Token/内容。UI 查询只读并轮询外部活动；其他会话不能接管中断生成。
+[迁移 19](../src/platform/database/migrations/agent-storage.ts)保留聊天与 Trace 身份。[迁移 20](../src/platform/database/migrations/resume-v3.ts)将旧运行中任务标记为中断，保留已发布成品和文件，将退役字段保留为只读历史。升级前关闭应用和 MCP 宿主并备份整个 userData 目录。退回 v18 时，用对应版本的应用和 MCP 恢复备份。
 
-[ResumeDocument](../src/domain/resume/resume.types.ts)是 draft/polished/Artifact 唯一结构：语言、应用复制的基本信息及条目元数据、summary、experience/projects/education bullet 及 skills。每条生成表述包含稳定 UUID、文字和非空 `factIds`。[校验](../src/domain/resume/resume.validation.ts)强制唯一 ID、入选快照引用、条目归属、基本信息不变及语言感知预算；中日韩字符逐字计数。导入条目的标题可以在简历中保持为空；元数据仍须与冻结快照完全一致，不得补造占位文本。润色不能新增表述 ID、条目或扩大草稿表述的引用。`artifact_facts` 从表述派生，调用方不再提交独立溯源。引用合法不代表语义真实；[人工核对样本](../tests/fixtures/resume-evidence.json)明确将虚构数字及扩张职责标为无证据支持。
+[Artifact 编辑](../src/domain/resume/artifact.service.ts)按 `expectedRevision` 和输出 Lease 核对版本。[手工内容](../src/domain/resume/resume.validation.ts)接受用户填写的日期、链接和表述展示文字，包括空表述。校验对象结构、字段类型、ID 和大小范围。[PDF worker](../src/platform/resume-output/worker.ts)对桌面和 MCP 重编译使用相同的手工内容契约。手工增改表述清空来源引用，未改表述保留。[运行时 Lease](../src/platform/database/runtime-leases.ts)与内容版本一起约束编译提交，排除并发构建及过期进程写入。
 
-[输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
+[输出](../src/platform/resume-output/exporter.ts)内嵌固定版本且有许可的 [Noto 字体](../resources/fonts/version.json)，保留链接展示文字并将有效 HTTP(S) 链接设为可点击，编译转义的自包含 HTML，在隔离的 Electron world 等待字体后固定 A4 分页，并将同一 HTML 打印为 PDF。条目/bullet 优先完整分页，超长文字跨页拆分，不缩小或裁切。[文件写入](../src/platform/resume-output/files.ts)使用私有临时文件、原子替换及 `userData/artifacts/` 下的 HTML/PDF 相对路径记录。输出状态独立，中断/缺失输出可无模型调用重建。DOCX 未实现。硬删除保留快照/成品，不等于隐私清除；历史引用根据删除审计返回 `ACTIVE / DELETED`。
 
 | 删除对象 | 结果 |
 | --- | --- |
@@ -77,7 +79,7 @@
 | Profile | 删除全部条目/事实；保留生成历史 |
 | ProfileItem | 删除后代子树及关联事实 |
 | Fact | 删除来源事实；保留历史成品引用 |
-| GenerationRun | 删除其成品及成品溯源 |
+| GenerationRun | 删除成品、Fact 溯源、改写回执及关联的 Resume Trace |
 | Artifact | 删除其溯源；保留任务 |
 
 `generation_runs.job_id` 和 `artifact_facts.fact_id` 使用稳定的逻辑引用，允许历史来源被删除。快照 ID 同样属于逻辑引用。其他归属关系使用外键。审计在所有业务删除后保留；没有实现审计清空或磁盘文件清理 API。
@@ -119,13 +121,25 @@
 
 ### Ask AI 会话存储
 
-[Chat Repository](../src/platform/database/repositories/chats.ts)在首次发送时原子创建 Session/Run/User Item，以请求 UUID 及输入哈希作为回执。部分唯一索引保证每 Session 一个运行中 Run，复合外键绑定 Item 所属 Run/Session。Session 保存模型选择并复制到各 Run，新会话草稿只在 Renderer 内存中。删除会话要求无活动 Run，级联移除会话记录及回执，不撤销业务修改或清除审计。
+[统一 Agent 存储](../src/platform/database/repositories/chats.ts)为两个定义保存有序 Item、请求回执和诊断。Ask Run 关联 Session 并复用会话序号和检查点。隔离的 Resume Run 的 Session 为空，Item 在本 Run 内排序。聊天仍限制每个 Session 只有一个已放行 Run。删除时级联清理私有记录。智能粘贴的来源标记保留历史并禁用通用重试。
 
-只有 [Main 记录器](../src/platform/electron/ask-agent-recorder.ts)追加模型/工具 Item。保存可见文字、明确公开的思考摘要、允许的标量工具摘要及固定错误码；不保存原始工具参数/结果、系统提示词、隐藏推理、凭据或原始异常。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。
+只有 [Main 记录器](../src/platform/electron/agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。会话内容与不含内容的审计分开。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。 工具条目还保存经白名单解析的 Guard 计数、原因、执行标记、已确认归档效果，以及可选告警/恢复级别与固定 nextAction，不含凭证或证据指纹；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/app/components/AgentTimelineItem.tsx)展示这些字段。复用现有 JSON 存储，无需迁移，历史快照可缺少新增字段。派发前跳过的调用不创建工具 Item 或不确定写入。
 
-Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner，活跃 MCP Server 启动不能中断 Main 任务。未完成文字标记 interrupted，工具标记 uncertain，不自动续跑。事件快照包含内存片段及递增水位以支持重新订阅。历史最多取 40 个已完成 user/assistant Item、256 KiB，并从用户消息边界开始；当前 Run 工具观察另限制为 2 MiB。不重放历史工具/思考内容。
+提供商续传数据与普通聊天投影 IPC 分离，保存含签名/加密推理的已校验 assistant 消息，随会话删除级联清除。历史重建 assistant/tool 消息但不执行工具；切换提供商/模型后不附带续传元数据，压缩提示词也排除这些数据。旧 Item 继续可读，不补造缺失的历史详情。
 
-[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。
+**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 agent_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item 或审计，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据和审计。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
+
+Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。 [迁移 16 和 17](../src/platform/database/migrations/chat-react-cycles.ts)保存以 `(run_id, cycle_index)` 标识的 Cycle，约束单个活动 Cycle、连续编号和已结算记录不可变。模型请求 ordinal 和工具 ID 在派发前分别随其诊断和响应保存。最终 Cycle、Run 和会话内容原子结算。历史 Run 不补造记录，恢复保留最后已保存的 Cycle。
+
+[Ask IPC](../src/platform/electron/ask-agent-contract.ts)提供 start/cancel/getRun/listActive/onEvent，校验可信 frame 和窗口归属。人工 Chat CRUD 使用 typed data IPC，Renderer 不能伪造 Run 或输出 Item。重试创建新 Run，尝试过写入的 Run 引导核对状态，不自动重放。[存储测试](../tests/chat.test.ts)覆盖约束/恢复，[投影测试](../tests/ask-store.test.ts)覆盖快照竞争/事件缺口。 [迁移 13](../src/platform/database/migrations/ask-serial.ts)保留旧 Memory 进度供导出，并停用其执行生命周期。
+
+### Copy Debug JSON
+
+**已实现：**`data.chats.copyDebugJson({ sessionId })` 经现有白名单 [Data Bridge](../src/platform/electron/preload/data-bridge.ts)、可信 `DATA_CALL` Handler 及 backend dispatcher 返回 `Result<null, ErrorCode>`。独立 [Domain 用例](../src/domain/chat/chat-debug.service.ts)先校验参数再读取；缺少可选宿主输出时返回 `NOT_IMPLEMENTED`，不读取数据。
+
+[Repository](../src/platform/database/repositories/chat-debug-export.ts)在一个显式快照事务中读取当前 Session 的全部八张聊天表，不分页、不截断。Run 按 `created_at,id`、Item 按 `sequence`、请求/响应按 `ordinal`、Memory Progress 按 `sequence,message_id` 升序排列。保留原始列名、ID、数值标记、null 和 `*_json` 字符串；缺少检查点输出 `null`，空集合输出 `[]`。运行中/Pending 及终态 Run 均只包含持久化记录：不刷新流缓存、不恢复任务、不调用 MCP、不写业务/审计、不重建内容，也不二次脱敏。
+
+[v2 Schema](../src/domain/chat/chat-debug.v2.schema.json)在每个 Run 条目加入按 `cycle_index` 升序排列的 `cycles` 和最新状态 `cycleStatus`。零 Cycle 输出 `[]` 和 `null`。[v1 Schema](../src/domain/chat/chat-debug.v1.schema.json)继续描述旧导出，读取端通过 `schemaVersion` 识别版本。[Main 输出](../src/platform/electron/main/chat-debug-output.ts)等待剪贴板写入并精确回读。导出包含 Electron 版本、平台及可空的构建时 commit。Renderer 只接收成功/null 或固定错误。导出包含私有会话与 Provider 数据，继续显示分享前隐私提醒。验证见[导出测试](../tests/chat-debug-export.test.ts)及 [Electron smoke](../scripts/chat-debug-smoke.cjs)。
 
 ## 五、API 契约与访问
 
@@ -133,15 +147,13 @@ Run 通过 runtime_instances 记录 owner。恢复仅中断失效/过期 owner�
 
 每个方法接收一个输入对象，返回 `{ ok: true, value }` 或 `{ ok: false, error }`。已实现的业务接口拒绝未知字段，包括注入的审计/事务字段。详情编辑方法替换允许的详情，应用类型约定的默认值，不是任意字段 patch。列表使用 `limit`（默认 25，最大 100）及 `offset`（默认 0，最大 1000000），返回 `{ items, total }` 并稳定排序。多表读取使用一致性读事务。
 
-可选详情文本及可选 URL 默认空字符串，数组默认空数组，可空 ID/日期/薪资默认空值，条目顺序默认 0。必填来源/联系方式链接 URL 必须使用 HTTP(S) 且不含凭据。ResumeDocument 至少包含一条有来源表述；预算使用统一的语言感知计数函数。具体结构及上限由 Domain 校验模块执行。
-
 | 命名空间 | 已实现职责；完整签名归属 [DataContract](../src/platform/electron/data-contract.ts) |
 | --- | --- |
 | `jobs` | 职位/公司 CRUD、来源关联、归档及分页查询 |
 | `profiles` | 联系方式/条目/事实 CRUD 与明确审核的导入 |
 | `applications` | 合法状态变更、备注、日程及事件/日历查询 |
 | `resumes` | 人工 Run/Artifact CRUD 与来源查询；Agent 阶段经过 MCP |
-| `chats` | Session 列表/读取/重命名/模型/删除、Item 与 Run 分页；不能创建模型输出 |
+| `chats` | Session CRUD、分页 Item/Run/诊断及确认后的 Main 专属调试剪贴板复制 |
 | `audit` | 只读且不含业务内容的审计查看 |
 | `settings`, `secrets` | 校验后的文件偏好及密钥状态/保存/删除；不返回密钥 |
 
@@ -149,11 +161,11 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 [固定错误码](../src/domain/common/errors.ts)覆盖非法输入、缺失或冲突状态、存储或审计不可用、拒绝调用方、加密及 AI 失败。IPC 只传递错误码，不传递原始数据库消息。
 
-[PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)暴露 `window.profileImport.selectPdf/start/retry/cancel/discard/onEvent`，不提供路径读取。两种导入的 `start` 均接受可选 `mode`（默认 `single`）；事件包含携带分组状态及 `queueMs`/`elapsedMs` 的 `progress.groups`，`failed.retryable` 表示可用缓存重试失败组。PDF 的 `retry({sessionId})` 保留会话并返回新 `taskId`。文件/网络操作与同步业务事务分离。
+[PDF 导入桥接](../src/platform/electron/profile-import-contract.ts)提供选择、启动、重试、取消和丢弃。解析重试保留 sessionId，产生新 taskId，并复用已提取的文本。
 
 独立的 [AI API](../src/shared/ai.ts)保留非 Agent 流式任务。[简历 IPC](../src/platform/electron/resume-contract.ts)暴露 `window.resume.start/getTask/cancel/retryOutput/getPreview/exportPdf/onEvent`；事件携带 run ID 和递增序号，不显示隐藏推理。每个窗口只允许一个活动任务；页面导航保留任务，窗口释放取消。发布前取消终止 run，发布后只停止输出。导出打开系统保存对话框并复制已有 PDF；`PDF_EXPORT_FAILED` 保留应用内文件，允许再次另存。
 
-[职位导入桥接](../src/platform/electron/job-import-contract.ts) 暴露 `window.jobImport.start/retry/cancel/onEvent`，与同步业务分发分离。职位的 `retry({taskId})` 保留该任务 ID；两种重试均要求归属匹配且批次处于可重试失败状态。新读取/解析错误仅属于桥接。每次提交的 AI 分组分别产生启动审计；重试时缓存成功组不产生新请求/审计，内容不进入审计。
+[职位导入桥接](../src/platform/electron/job-import-contract.ts)的重试保留 taskId，并从缓存的来源重新解析。两条桥接均按窗口检查任务所有权。
 
 ## 六、配置、密钥与待完成工作
 
@@ -161,20 +173,15 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理、审计写入或
 
 可选的 Main 专用 [MCP 配置](../src/platform/storage/mcp-config.ts)读取版本 1 `userData/mcp.json`，不创建或重置文件。配置包含审核后的 stdio 可执行文件/参数及工具清单，不接受环境变量/凭据字段，也不进入 Renderer 偏好。MCP 凭据/OAuth 仍为规划，命令参数不得放入 Secret。[MCP 文档](mcp-architecture.zh-CN.md#三内部与第三方-client)管理配置示例和限制。
 
-[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。
+[偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。智能粘贴配置保存 ID、标题和提示词。缺少配置时使用本地化默认项，保存的空列表保持为空。
 
-[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。每个 Provider 可选的 `parallelModels` 只能包含其 `models` 内不重复的 ID；缺省/空列表表示关闭，无效写入原子拒绝。保存其他偏好保留该列表；在设置中移除模型 ID 时同步移除其许可。Endpoint 保留路径前缀，拒绝凭据、查询参数和片段。旧版本 1 文件在内存中补齐缺少的 AI/超时默认值，保存前不改写。移除 Provider 前须先删除其密钥。模型检测、导入模式选择及任务生命周期归属[当前架构](architecture.zh-CN.md)。
+[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。endpoint 可保留路径前缀，不接受凭据、查询或片段。读取时忽略旧 `parallelModels` 字段，下次保存时清除。缺失的 AI 与超时设置使用默认值，移除 Provider 前需先删除密钥。
 
 [超时设置](../src/shared/ai.ts)保存全局 `ai.timeouts.requestSeconds`、`pageSeconds` 和 `modelsSeconds`，默认分别为 120、20 和 15 秒。每项允许 1–3600 的整数秒数；无效写入保留原文件。AI 超时覆盖对话、职位/资料解析和 Resume Agent 的每次调用；网页读取及模型检测各自独立。编辑/移除 Provider 或保存其他偏好均保留这些值。[设置测试](../tests/settings.test.ts)验证旧配置读取、持久化及无效写入的原子拒绝。
 
 [密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照或审计；文件偏好/密钥操作不追加业务审计。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
 
-[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 仅在后端未组装文件服务时返回 `NOT_IMPLEMENTED`。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。严格结构化输出协商、登录态网页提取/查重、其余业务 UI 和完整隐私清除尚未实现。简历 Provider 兼容性通过本地样本验证，真实 Provider 仍未验证。
-
-- [当前架构](architecture.zh-CN.md)：运行初始化与进程边界。
-- [代码架构](code-architecture.zh-CN.md)：源码归属与质量检查。
-- [产品架构](product-architecture.zh-CN.md)：规划的产品范围。
-- [README](../README.zh-CN.md)：验证命令与文档索引。
+[设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 缺少文件服务时返回 `NOT_IMPLEMENTED`；调试复制另需宿主输出。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。严格结构化输出协商、登录态网页提取/查重、其余业务 UI 和完整隐私清除尚未实现。简历 Provider 兼容性通过本地样本验证，真实 Provider 仍未验证。
 
 ## 智能笔记存储与 Memory v1
 

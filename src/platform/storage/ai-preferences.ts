@@ -1,5 +1,5 @@
 import { fail } from '../../domain/common/errors'
-import { defaultAITimeouts, type AISettings, type AIProvider, type AITimeouts } from '../../shared/ai'
+import { defaultAITimeouts, type AISettings, type AIProvider, type AITimeouts, type ModelCapabilities } from '../../shared/ai'
 import { object } from './validation'
 
 export function providerId(input: unknown): string {
@@ -32,13 +32,22 @@ export function aiPreferences(input: unknown): AISettings {
   }
   if (!Array.isArray(value.providers) || value.providers.length > 20) return fail('INVALID_INPUT')
   const providers = value.providers.map((entry): AIProvider => {
-    const p = object(entry, ['id', 'name', 'baseURL', 'requiresKey', 'models', 'defaultModel', 'parallelModels'])
+    const p = object(entry, ['id', 'name', 'baseURL', 'requiresKey', 'models', 'defaultModel', 'parallelModels', 'capabilities'])
     if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || typeof p.requiresKey !== 'boolean' || !Array.isArray(p.models) || p.models.length > 100) return fail('INVALID_INPUT')
     const models = p.models.map(modelId)
     if (new Set(models).size !== models.length || typeof p.defaultModel !== 'string' || (p.defaultModel !== '' && !models.includes(p.defaultModel))) return fail('INVALID_INPUT')
-    const parallelModels = p.parallelModels === undefined ? [] : p.parallelModels
-    if (!Array.isArray(parallelModels) || parallelModels.some(model => typeof model !== 'string' || !models.includes(model)) || new Set(parallelModels).size !== parallelModels.length) return fail('INVALID_INPUT')
-    return { ...(parallelModels.length ? { parallelModels } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
+    const capabilities: Record<string, ModelCapabilities> = Object.create(null)
+    if (p.capabilities !== undefined) {
+      const configured = object(p.capabilities, models)
+      for (const [id, raw] of Object.entries(configured)) {
+        const c = object(raw, ['contextWindow', 'maxOutputTokens', 'source', 'verified'])
+        if (!Number.isSafeInteger(c.contextWindow) || Number(c.contextWindow) < 1 || Number(c.contextWindow) > 100000000
+          || !Number.isSafeInteger(c.maxOutputTokens) || Number(c.maxOutputTokens) < 1 || Number(c.maxOutputTokens) > Number(c.contextWindow)
+          || !['catalog', 'provider', 'runtime', 'manual'].includes(String(c.source)) || typeof c.verified !== 'boolean') return fail('INVALID_INPUT')
+        capabilities[id] = { contextWindow: Number(c.contextWindow), maxOutputTokens: Number(c.maxOutputTokens), source: c.source as ModelCapabilities['source'], verified: c.verified }
+      }
+    }
+    return { ...(Object.keys(capabilities).length ? { capabilities } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
   })
   if (new Set(providers.map(p => p.id)).size !== providers.length) return fail('INVALID_INPUT')
   if (value.default === null) return { providers, default: null, timeouts }

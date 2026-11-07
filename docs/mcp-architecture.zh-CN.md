@@ -21,15 +21,29 @@ UI    → typed IPC → Domain
 
 [Registry 策略](../src/shared/tools/policy.ts)必须提供 allowlist，deny 优先，只支持命名空间尾部通配。公共能力风险上限为 WRITE，不包含公司写入、SQL、设置、密钥、Provider 配置、浏览器控制、邮件或外部动作。已有 Scope 不会静默加入新描述符；被移除或替换的条目会撤销。
 
-[AgentLoop](../src/platform/agent/loop.ts)每阶段最多八轮顺序模型调用，检查完整的 assistant 调用批次并保留固定错误码。取消/审计失败立即终止。[AgentModel 适配](../src/platform/ai/agent-model.ts)支持普通及流式兼容 Chat Completions，对带点工具名进行唯一映射，并记录不含内容的请求结果审计。模型设置和凭据保留在 Main。
+[Agent Engine](../src/platform/agent/engine/index.ts)用共享 Pi 循环执行 Ask 和 Resume，串行调用工具并校验请求。[AgentModel 适配](../src/platform/ai/agent-model.ts)映射逻辑工具名，并记录不含内容的模型结果。[职位采集](../src/platform/agent/capture.ts)和[申请管理](../src/platform/agent/application.ts)使用单次无工具模型请求，由 Controller 通过 MCP 派发已授权并绑定的写入。
 
-[Resume](../src/platform/agent/resume.ts)执行 score/gate/select/draft/polish，模型只看到绑定当前 run 的不可变快照读取工具。[职位采集](../src/platform/agent/capture.ts)在理解期间不读取 JAB 工具，审核后才保存。[申请管理](../src/platform/agent/application.ts)先读取当前 Job/状态/事件，再生成经校验的动作计划；Main 将动作绑定当前 Job 并顺序执行。缺少信息时追问，部分失败保留已完成动作和请求 ID。
+[Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)。初始 loadout 只有 tool.search/tool.activate；[目录](../src/platform/agent/tools/discovery.ts)索引获授权的 MCP 描述及风险，包括五个 Memory 工具。搜索最多返回八个摘要；激活默认最多八个工具、Schema 软预算为 8%/8,192 Tokens，同时受硬上下文预算约束。Loadout 在请求边界切换，执行使用 MCPAgentTools.call。整批校验后串行执行，等待每个结果后才进入下一次推理，每 Run 的主循环及上下文摘要合计最多 64 次 Provider 请求；取消、审计失败或不确定写入终止执行。
 
-[Ask Agent](../src/platform/agent/ask.ts)直接接收完整 first-party MCP 发现结果，使用公共契约及经认证的 Memory 能力：职位导入/读取/更新/归档、资料读取/写入、申请管理、完整 Resume 流程及产物读取/构建。客户端不再通过第二份允许列表缩小范围，服务端策略仍为权限依据。[流式循环](../src/platform/agent/stream-loop.ts)为 Ask AI 提供 64 轮模型调用（其他调用者默认八轮），支持分页证据和顺序提交；共享[简历策略](../src/platform/agent/resume-policy.ts)保留证据和个人介绍规则。第三方工具及委派仍不开放。完整批次校验后顺序执行工具，普通失败成为观察结果，取消或审计失败终止 Run。展示摘要不含原始输入/结果。只有 Main 记录会话事件；记录器不是 Agent 业务 API，不能绕过 MCP 写业务数据。
+**已实现激活保护：**激活保留 activeOnNextRequest，增加 alreadyActive/changed/nextAction。仅仍获授权且已在组装请求中通过校验的工具计为已激活；名称换序/重复不构成进展。同一规范化工具组容忍一次冗余激活，第二次以 AGENT_STEP_LIMIT 结束 Run，阻止同批后续工具和推理。搜索不清除计数；业务调用成功、有效 loadout 变化或目录变化会清除。同批尚未生效的激活及淘汰后重激活不算冗余。[运行时架构](architecture.zh-CN.md)管理请求校验，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理独立于审计的可删除诊断。[回归测试](../tests/agent-disclosure.test.ts)覆盖保护及同步失败。
+
+[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 非删除操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume 和外部 MCP 使用各自的策略。
+
+智能粘贴复用 Ask Run 和 RunGuard，并建立独立的认证连接。[服务端](../src/platform/mcp-server/runtime.ts) 在现有 Ask 允许列表内将发现和执行的风险上限设为 COMPUTE。智能粘贴 Run 收尾时关闭该连接。之后在同一会话中发出的普通 Ask 请求使用常规 Ask 连接。[客户端](../src/platform/mcp/first-party-client.ts) · [集成测试](../tests/smart-paste.test.ts)
+
+### Agent Run 保护
+
+[openAgentRun](../src/platform/mcp/first-party-client.ts)为每个已放行的 Run 绑定可取消工具视图。Main 发放有效期 30 秒的一次性授权，绑定认证连接、Run、操作及规范化参数。Ask 写入 Memory 还需来源授权。桌面 Resume 连接分别使用 Controller 和模型授权，只有 Controller 可启动、绑定、校验、发布、结算或构建。模型授权绑定 Agent Run 和 GenerationRun，固定开放快照读取、要点改写以及只读 Memory 和 Knowledge。Server 校验活动绑定和生成归属。外部宿主使用公开工具，并通过原会话拥有生命周期写入权限。
+
+[Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在审计和 Domain 之前拒绝。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。 [Ask AI Cycle 状态机](agent-runtime.zh-CN.md)根据可信快照控制后续 Pi 请求，进展判定与能力安全仍由 MCP Server 负责。
+
+[读取进展](../src/platform/mcp-server/run-guard/read-progress.ts)累计实体/字段证据及各空间文件版本与覆盖行范围。旧结果换序、重组或取子集，以及查询、分数、展示变化不算进展；新分页、Facts、片段和版本算进展。空结果按数据集只计一次。未知 READ 使用规范化结构结果或文本，保留未知字段和数组顺序。读取失败计为无进展；已确认的已知业务修改也贡献进展。连续两次无进展告警，三次进入恢复，之后首个仍无进展的业务结果以 NO_PROGRESS_LOOP 熔断；新证据清零连续计数。发现和激活工具不重置该状态。
+
+[Pi 适配器](../src/platform/agent/pi/runtime.ts)将固定告警/恢复提示与原始业务结果分开传递，压缩后也在模型系统上下文更新提示。恢复时 beforeToolCall 在 tool.started 前非致命地跳过旧批次余项，让模型重新决策；跳过调用不产生执行审计或不确定写入。Run 熔断时保留触发检测的成功结果，再停止后续调用/推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止工作、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 保持未启用 Guard 的行为；外部 Run 边界和第三方出站保护仍为规划。[Guard 测试](../tests/mcp-run-guard.test.ts)与[进展测试](../tests/mcp-run-progress.test.ts)覆盖这些契约，诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
 
 ## 三、内部与第三方 Client
 
-[first-party runtime](../src/platform/mcp/first-party-client.ts)按流程惰性创建真实 stdio 会话（Ask AI 按聊天隔离），复用到断连/关闭。它使用 Electron 可执行文件的 Node 模式启动构建产物，显式传入 userData；同一 Resume run 始终使用原会话。会话丢失后不会回退本地服务或接管旧 run，后续新任务可创建新会话。
+[first-party runtime](../src/platform/mcp/first-party-client.ts)按流程/Ask 聊天惰性创建并复用真实 stdio 会话。每个已放行的 Ask 轮次获得上文定义的独立 Run 授权视图；关闭/取消后的视图不能替后续轮次调用。不再存在独立 Memory 会话。通过 Electron Node 模式和显式 userData 启动构建后的 Server。同一 Resume run 保留原会话，丢失会话不能回退本地服务或接管旧 Run。
 
 [Client](../src/platform/mcp/client.ts)只允许可信组合入口传入 processEnv，userData/mcp.json 不接受任意环境变量配置。内部标识为 internal.resume、internal.job-capture、internal.application 和 internal.ask-ai。[Caller 校验](../src/platform/mcp-server/caller.ts)遵循审计标识格式，无效值回退为 mcp-client。JOB_BROWSER_MCP_CALLER 不改变权限、schema、工具列表或语义。
 
@@ -76,7 +90,7 @@ JOB_BROWSER_USER_DATA = "/absolute/path/existing-user-data"
 JOB_BROWSER_MCP_CALLER = "codex"
 ```
 
-内部工作流与外部宿主共享以下公共契约；只有已认证的 Ask AI 额外发现 Memory：
+以下公开契约面向独立流程与外部宿主；已认证 Ask AI 仅获得上文显式子集及 Memory：
 
 | 公共能力 | 契约 |
 | --- | --- |
@@ -89,25 +103,26 @@ JOB_BROWSER_MCP_CALLER = "codex"
 | application.list_events, application.add_note | 分页时间线，带 receipt 的备注也可写入归档职位 |
 | application.schedule_event, application.reschedule_event | 本地 UTC 日程，创建 receipt、事件/Job 归属及归档校验 |
 | resume.start | 原子快照/启动与同会话请求 UUID receipt，可声明 Provider/模型元数据 |
-| resume.get_context, resume.list_facts | 快照/进度/文档及分页事实 |
-| resume.submit_scores, resume.submit_gate, resume.submit_selection | 有序阶段与相同输入重试 |
-| resume.submit_draft, resume.submit_polished | 经校验的写作、应用复制的快照元数据与派生溯源 |
+| resume.get_context, resume.list_facts, resume.list_bullets | 不可变上下文、分页 Fact 及带 rewritten 标记的当前要点分页 |
+| resume.rewrite_bullet | 按要点 ID 和请求回执改写，每个运行内每条要点最多改动一次 |
 | resume.publish, resume.fail, resume.cancel | 发布或以固定错误码失败/取消本运行时拥有的 run |
 | artifact.get, artifact.build | 内容/溯源或无需模型的 HTML/PDF 输出和本地路径 |
 
-[资料写入工具](../src/platform/tools/profile.ts)只持久化宿主已理解的数据，不抓取或解析简历/仓库。省略更新字段保留原值，空字符串/数组明确清空；数组整体替换，metadata 按字段合并，关联字段 null 明确解除。版本、事务和 receipt 规则由[数据架构](data-architecture.zh-CN.md#二业务规则)管理。资料写入输入上限 256 KiB。
+[资料写入工具](../src/platform/tools/profile.ts)只持久化宿主已理解的数据，不抓取或解析简历/仓库。省略更新字段保留原值，空字符串/数组明确清空；数组整体替换，metadata 按字段合并，关联字段 null 明确解除。版本、事务和 receipt 规则由[数据架构](data-architecture.zh-CN.md#二业务规则)管理。资料写入输入上限 256 KiB。Fact 输入和结果不含 `evidence`，提交此已移除字段按未知字段拒绝。蒸馏 Skills 保存简洁事实和标签，不保存来源附件，也不转存到其他字段。
 
-Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、每事实 8 KiB；每页最多 100 个事实。冲突/乱序提交失败，语义真实性仍需核对证据。中断生成不能由其他 Server 会话继续接管。
+[改写 schema](../src/platform/tools/resume-schema.ts)接受 runId、bulletId、text 和 requestId，返回 runId、bulletId 和 changed。要点列表返回 rewritten 标记。已退役的 expectedRevision 输入按未知字段拒绝。业务回执及单要点单次改写规则归[数据架构](data-architecture.zh-CN.md#三生成成品与删除)管理。
 
-[输出生命周期](../src/platform/resume-output/service.ts)管理受控文件与状态；构建使用可取消的 [Electron Worker](../src/platform/resume-output/worker-client.ts)，需要图形环境但不需要主应用窗口。JOB_BROWSER_ELECTRON 可指定 Electron 二进制文件。失败输出可独立于模型调用重建。
+快照上限为 1,000 个 Fact、200 个 Item、256 KiB 上下文及每条 Fact 8 KiB。列表每次最多接受 100 条请求，要点分页可因响应大小返回更少。确认改动的 (runId, bulletId) 组合只计一次 RunGuard 进展，重复分页和无变化改写不计入。
+
+[输出生命周期](../src/platform/resume-output/service.ts)管理受控文件与状态；构建使用可取消的 [Electron Worker](../src/platform/resume-output/worker-client.ts)，需要图形环境但不需要主应用窗口。JOB_BROWSER_ELECTRON 可指定 Electron 二进制文件。失败输出可独立于模型调用重建。artifact.get 读取当前已保存的 Artifact 版本及输出状态，artifact.build 通过与桌面输出共用的 worker 重建该版本。桌面手工修改使用类型化 IPC，其[展示文字校验](data-architecture.zh-CN.md#三生成成品与删除)同样适用于 worker 边界。
 
 双语 [distill-resume](../skills/distill-resume/SKILL.zh-CN.md)从简历提取资料、条目和有来源事实；[distill-project](../skills/distill-project/SKILL.zh-CN.md)从项目/仓库提取实现证据，区分文档、代码、实测和用户贡献。两者均先匹配既有记录，通过相同 MCP 写入，遇到实质冲突再追问；批量导入由多次顺序调用组成，不保证整体原子性。
 
-双语 [capture-job](../skills/capture-job/SKILL.zh-CN.md)、[manage-applications](../skills/manage-applications/SKILL.zh-CN.md)、[tailor-resume](../skills/tailor-resume/SKILL.zh-CN.md)是标准推理指南。[skill:link](../scripts/install-skills.cjs)幂等安装六个仓库链接，拒绝覆盖无关目标。运行时 Prompt 实现相同流程，不把 Skill 文本作为业务规则加载。
+双语 [capture-job](../skills/capture-job/SKILL.zh-CN.md)、[manage-applications](../skills/manage-applications/SKILL.zh-CN.md)、[tailor-resume](../skills/tailor-resume/SKILL.zh-CN.md)是标准推理指南。[skill:link](../scripts/install-skills.cjs)幂等安装六个仓库链接，拒绝覆盖无关目标。运行时 Prompt 实现相同流程，不把 Skill 文本作为业务规则加载。Resume Skill 覆盖新生成及重编译既有已发布或手工修改的 Artifact。仓库链接随源码更新，构建资源在 build 时刷新，用户级安装副本需要显式更新/重连 Skills 并重新加载宿主。
 
 ## 六、验证与待交付内容
 
-[资料写入测试](../tests/profile-writes.test.ts)覆盖部分更新、版本、跨会话 receipt、并发、归属、迁移和不可变快照；[业务工具测试](../tests/business-tools.test.ts)、[申请测试](../tests/application-agent.test.ts)、[采集测试](../tests/capture-agent.test.ts)、[Resume 一致性](../tests/resume-runtime-parity.test.ts)和 [lease 测试](../tests/runtime-leases.test.ts)覆盖真实 stdio、共享 SQLite、发现一致性、归属、并发写入、receipt/重启、失败和取消。[Server smoke](../scripts/run-mcp-server-smoke.cjs)使用构建入口和真实 Electron HTML/PDF；[Agent smoke](../scripts/run-agent-smoke.cjs)覆盖生产 UI。命令归属 [README](../README.zh-CN.md)。
+[资料写入测试](../tests/profile-writes.test.ts)覆盖部分更新、版本、跨会话 receipt、并发、归属、迁移和不可变快照；[业务工具测试](../tests/business-tools.test.ts)、[申请测试](../tests/application-agent.test.ts)、[采集测试](../tests/capture-agent.test.ts)、[Resume 一致性](../tests/resume-runtime-parity.test.ts)和 [lease 测试](../tests/runtime-leases.test.ts)覆盖真实 stdio、共享 SQLite、受限发现、归属、并发写入、receipt/重启、失败和取消。[Server smoke](../scripts/run-mcp-server-smoke.cjs)使用构建入口和真实 Electron HTML/PDF，包括重编译手工编辑的日期/链接并核对 PDF 文本。[Agent smoke](../scripts/run-agent-smoke.cjs)覆盖生产 UI。命令归属 [README](../README.zh-CN.md)。
 
 [接入测试](../tests/external-mcp.test.ts)覆盖 MCP 配置保留、备份、冲突、发现与清理。[Skills 测试](../tests/external-skills.test.ts)覆盖独立资源、完整目录一致性、幂等、部分安装/失败、直接替换、符号链接、权限及版本冲突拒绝。[设置接入 smoke](../scripts/external-mcp-smoke.cjs)包含 [Skills smoke](../scripts/external-skills-smoke.cjs)，验证生产 IPC/UI、无备份替换与取消、文件一致性、错误及重载；整套检查在临时 Agent 目录中验证双语响应式主题。[Electron smoke](../scripts/smoke.cjs)拒绝不可信 Skills IPC。真实目标 Agent 发现/重载及 Windows/Linux 宿主兼容性仍未验证。
 
@@ -123,11 +138,11 @@ Resume 快照限制仍为 1000 个事实、200 个条目、256 KiB 上下文、�
 
 [Knowledge 工具](../src/platform/tools/knowledge.ts)保留 knowledge.list/read/search/retrieve/write/mkdir/move/delete 及其 Schema。Memory 仅提供 memory.list/recall/read/write/mkdir，两个命名空间均不接受 space 或物理根目录参数。路径为空间内相对路径，拒绝穿越和符号链接；更新需要当前 SHA-256 Revision（null 仅创建）。Memory 不开放 move/delete/patch。两个命名空间均受[原生保护](../src/shared/tools/policy.ts)。[审计迁移 10](../src/platform/database/migrations/memory-audit.ts)保留旧行并扩展 opaque 目标，不审计正文、查询或凭据。
 
-[Main 启动授权](../src/platform/mcp/memory-authority.ts)仅在内存保存随机一次性凭据，绑定 Main 实例与 Ask AI 聊天。子进程通过 Main 本地控制通道兑换，检查非机密描述文件及父 PID；无效、重放或旧实例启动直接拒绝。认证通道持续保持连接，Main 退出会撤销会话。该凭据独立于磁盘上的 embedding-broker Token。只有成功兑换才注册 Memory 并扩展服务端 Scope，Caller 标签不授予权限。外部 MCP 和其他工作流没有 Memory，直接调用隐藏工具也拒绝。Main 必须先完成工作区迁移与恢复。
+[Main 启动授权](../src/platform/mcp/memory-authority.ts)认证 Ask 会话，Caller 标签不授予权限。一次性启动凭据绑定 Main 实例/会话，30 秒过期；子进程检查描述文件/父 PID，并保持可撤销控制通道。Ask Memory 写入还要求有效期 30 秒、一次性且绑定已认证会话、本轮来源消息 ID、操作和精确输入摘要的授权。授权经 MCP 请求 metadata 传递，不进入模型 Schema/参数；服务端在执行前兑换。外部 MCP 及其他流程不获得 Memory。
 
-[Ask AI 策略](../src/platform/agent/ask.ts)按需召回，不全量预取 Memory 或归档普通聊天，将记忆作为不可信参考，并保持 Job/Profile/Fact 的权威性。写入要求明确的记住请求；Manual 语义授权依赖模型遵循，不是服务端逐轮强制保证。更新前先读取，保留无关内容，冲突或结果不确定时重新读取再协调。Recall 默认使用现有近似 Token 单位 2,000 的预算，沿用限制与截断，不引入未来 Context Manager。活动记录只保存[读取/写入摘要](../src/platform/agent/tool-presentation.ts)，保留取消和未知写入结果审查。
+[Ask AI 策略](../src/platform/agent/ask.ts)将 Core、召回记忆及摘要作为不可信参考，Job/Profile/Fact 保持权威。唯一的 Pi Agent 决定是否保存有依据的长期信息，编辑前读取、保留无关内容，不保存凭据，也不在写入确认前声称成功。memory.recall 默认 2,048 个近似检索单位；memory.read 对缺失文件返回 TOOL_NOT_FOUND。共享[文件锁与 SHA-256 CAS](../src/platform/knowledge/filesystem.ts)跨 Session/进程串行提交；读取、模型推理及 Agent 冲突合并均在锁外完成。结果不确定时先读回核对，不盲目重试。审计不含内容；最小 Memory 路径/Revision/结果引用在压缩后仍保留。
 
-[Embedding Broker](../src/platform/knowledge/broker.ts)将共享查询向量生成交给 Main，stdio 不加载 ONNX，离线降级为词法检索。[构建产物验收](../src/platform/electron/package-verification.ts)通过真实 MCP 检查两个隔离索引并断言唯一模型进程。[Memory MCP 测试](../tests/memory-mcp.test.ts)覆盖权限/重放/路径/隐私；[确定性 Agent Fixture](../tests/memory-agent.test.ts)覆盖明确保存、新聊天召回、普通聊天、冲突及不确定写入。
+[Embedding Broker](../src/platform/knowledge/broker.ts)将共享查询向量生成交给 Main，stdio 不加载 ONNX，离线降级为词法检索。[构建产物验收](../src/platform/electron/package-verification.ts)通过真实 MCP 检查两个隔离索引并断言唯一模型进程。[Memory MCP 测试](../tests/memory-mcp.test.ts)覆盖权限/重放/路径/隐私及每轮授权；[确定性 Agent Fixture](../tests/memory-agent.test.ts)覆盖普通对话、Agent 保存、Core 刷新、FIFO 取消、CAS 合并及不确定写入。
 
 [原生会话环境转发](../src/platform/mcp/native-environment.ts)仅将选定的显示会话与 Windows 系统字段传入 stdio 启动和生成的外部配置，使 Electron PDF worker 能在 Linux/Windows 初始化；仍不支持用户任意环境覆盖。
 

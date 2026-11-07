@@ -11,10 +11,13 @@ function fixture() {
   const callbacks = new Set<(state: BrowserState) => void>()
   const reads: Array<(state: BrowserState) => void> = []
   const api: BrowserAPI = {
+    peekSelection: async () => null, ackSelection: async () => {},
+    copyWebpage: async () => {}, onCopyWebpageResult: () => () => {},
+    setSidebarTooltip: async () => {},
     getState: () => new Promise((resolve) => reads.push(resolve)),
     onStateChange: (callback) => { callbacks.add(callback); return () => { callbacks.delete(callback) } },
     onFocusAddress: () => () => {}, setVisible: async () => {}, setUnsaved: async () => {}, navigate: async () => {},
-    back: async () => {}, forward: async () => {}, createTab: async () => {}, activateTab: async () => {}, closeTab: async () => {}
+    back: async () => {}, reload: async () => {}, forward: async () => {}, createTab: async () => {}, activateTab: async () => {}, closeTab: async () => {}
   }
   return { store: new NavigationStore(api), callbacks, reads }
 }

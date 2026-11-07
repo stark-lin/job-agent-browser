@@ -1,4 +1,4 @@
-import type { ChatChoice, ChatItem, ChatPage, ChatRun, ChatSession } from './chat.types'
+import type { ChatChoice, ChatItem, ChatModelRequest, ChatPage, ChatRun, ChatSession } from './chat.types'
 
 export interface ChatRepository {
   listSessions(limit: number, offset: number): ChatPage<ChatSession>
@@ -9,4 +9,5 @@ export interface ChatRepository {
   deleteSession(id: string): null
   listItems(sessionId: string, limit: number, before?: number): ChatPage<ChatItem>
   listRuns(sessionId: string, limit: number, offset: number): ChatPage<ChatRun>
+  listModelRequests(runId: string, limit: number, offset: number): ChatPage<ChatModelRequest>
 }

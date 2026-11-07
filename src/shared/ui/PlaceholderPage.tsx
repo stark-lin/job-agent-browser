@@ -7,7 +7,7 @@ export function PlaceholderPage({ title, description, actions, children }: {
   const { t } = useTranslation()
   return (
     <main className="feature-page">
-      {actions ? <nav className="page-actions" aria-label={t($ => $.navigation.pageNavigation)}>{actions}</nav> : null}
+      {actions ? <nav className="ui-action-row" aria-label={t($ => $.navigation.pageNavigation)}>{actions}</nav> : null}
       <section className="feature-content" aria-labelledby="feature-heading">
         <p className="feature-status">{t($ => $.features.comingSoon)}</p>
         <h1 id="feature-heading">{title}</h1>

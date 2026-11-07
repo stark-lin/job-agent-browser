@@ -8,6 +8,11 @@ assert(storage, 'The smoke runner must provide disposable storage')
 app.setPath('userData', storage)
 require('./external-mcp-test-home.cjs')(storage)
 const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 165_000)
+// Electron's default uncaught-exception dialog blocks unattended macOS runners.
+process.on('uncaughtException', error => {
+  console.error('Uncaught Electron smoke error:', error)
+  app.exit(1)
+})
 let mainWindowSelected = false
 app.on('browser-window-created', (_event, window) => {
   if (mainWindowSelected) return
@@ -54,6 +59,9 @@ app.on('browser-window-created', (_event, window) => {
       }
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('data:call','profiles','applyImport',{})"), { ok: false, error: 'FORBIDDEN' })
       await assert.rejects(outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('browser:create-tab')"), /Untrusted IPC sender|不可信的 IPC 发送方/)
+      for (const channel of ['browser:peek-selection', 'browser:ack-selection', 'browser:reload']) {
+        await assert.rejects(outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke(${JSON.stringify(channel)},{tabId:'forged',targetId:'forged',id:'forged'})`), /Untrusted IPC sender|不可信的 IPC 发送方/)
+      }
       assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('resume:call','start',{})"), { ok: false, error: 'FORBIDDEN' })
       for (const method of ['inspect', 'install', 'reconnect', 'remove', 'test', 'copy']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('external-mcp:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })

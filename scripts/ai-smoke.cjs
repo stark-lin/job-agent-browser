@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { mkdirSync, writeFileSync } = require('node:fs')
@@ -5,16 +6,28 @@ const { resolve } = require('node:path')
 
 module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   const requests = []
+  let capabilityRequests = 0
   const chunk = (content, finish = null) => `data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: finish }] })}\n\n`
   const server = createServer((request, response) => {
+    if (request.method === 'GET') {
+      response.setHeader('Content-Type', 'application/json')
+      if (request.url === '/v1/models') {
+        response.end(JSON.stringify({ data: [{ id: 'fixture-model' }, { id: 'fixture-other' }] }))
+      } else if (request.url === '/api/v1/models') {
+        capabilityRequests++
+        response.end(JSON.stringify({ models: [{ key: 'fixture-model', loaded_instances: [
+          { id: 'fixture-model', config: { context_length: 65536 } }
+        ] }] }))
+      } else response.writeHead(404).end(JSON.stringify({ error: 'Not found' }))
+      return
+    }
+    if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
+      response.writeHead(404).end()
+      return
+    }
     let text = ''
     request.on('data', data => { text += data })
     request.on('end', () => {
-      if (request.method === 'GET' && request.url === '/v1/models') {
-        response.writeHead(200, { 'Content-Type': 'application/json' })
-        response.end(JSON.stringify({ data: [{ id: 'fixture-model' }, { id: 'fixture-other' }] }))
-        return
-      }
       const body = JSON.parse(text)
       requests.push({ body, path: request.url, auth: request.headers.authorization })
       response.writeHead(200, { 'Content-Type': 'text/event-stream' })
@@ -41,6 +54,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   try {
     await call('navigate', 'app://settings')
     await waitFor(() => evaluate('!!document.querySelector("form[data-ai-config]")'), 'AI provider form')
+    await openSectionCards(evaluate, '[data-ai-config]')
     const timeouts = { requestSeconds: 300, pageSeconds: 60, modelsSeconds: 30 }
     for (const [name, value] of Object.entries(timeouts)) await field(`form[data-ai-config] input[name=${name}]`, String(value))
     await field('form[data-ai-config] input[name=pageSeconds]', '0')
@@ -90,6 +104,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     await evaluate('document.querySelector(".ai-composer").requestSubmit()')
     await waitFor(() => evaluate('document.querySelector("[data-item-type=assistant_message]") && document.body.innerText.includes("Fixture ")'), 'visible SSE delta')
     await waitFor(() => evaluate('document.body.innerText.includes("reply 中文") && !document.querySelector(".ai-page textarea").disabled'), 'stream completed')
+    assert.equal(capabilityRequests, 1, 'Ask resolves the fixture model context before streaming')
     assert.equal(requests.at(-1).path, '/v1/chat/completions')
     assert.equal(requests.at(-1).auth, undefined)
     assert.equal(requests.at(-1).body.model, 'fixture-model')
@@ -116,12 +131,12 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     await evaluate('document.querySelector("button[aria-label=Stop]").click()')
     await waitFor(() => evaluate('document.body.innerText.includes("Stopped. The response may be incomplete.")'), 'cancelled UI')
     await waitFor(async () => (await data('audit', 'list', { targetType: 'ai_request' })).value.total === 3, 'cancel request audited')
-    await call('navigate', 'app://home'); await call('navigate', 'app://ai')
+    await call('navigate', 'app://browser'); await call('navigate', 'app://ai')
     await waitFor(() => evaluate('!!document.querySelector(".ai-page textarea")'), 'return to chat')
     assert((await evaluate('document.querySelectorAll("[data-item-type]").length')) > 0)
     console.log('AI smoke passed: configurable timeouts and validation, bare endpoints, model detection/selection, saved defaults, connection test, actual SSE through production IPC, cancellation, audit privacy and responsive settings/chat.')
   } finally {
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://browser')
     await data('settings', 'savePreferences', { ai: original })
     server.closeAllConnections()
     await new Promise(resolve => server.close(resolve))

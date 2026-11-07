@@ -19,7 +19,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
       Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(text)});
       input.dispatchEvent(new Event('input', {bubbles:true})); })()`); await frame()
   }
-  let aiCalls = 0, malformed = false, slow = false, headers
+  let aiCalls = 0, reads = 0, malformed = false, slow = false, headers
   const parsed = { title: 'Imported engineer', companyNameRaw: 'Imported company', description: 'Build reliable services.', locationText: 'Sydney', employmentType: 'Full-time',
     locations: [{ text: 'Sydney', city: 'Sydney', state: 'NSW', country: 'Australia', mode: 'HYBRID' }],
     salary: { min: 120000, max: 150000, currency: 'AUD', text: 'AUD 120k–150k', period: 'YEAR' },
@@ -27,6 +27,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
   const server = createServer((request, response) => {
     if (request.url === '/restricted') { response.writeHead(403); response.end('Restricted'); return }
     if (request.url === '/job') {
+      reads++
       headers = request.headers; response.writeHead(200, { 'Content-Type': 'text/html' })
       response.end('<title>Public engineer</title><main><h1>Engineer</h1><p>Build reliable TypeScript services in Sydney with a collaborative team. Salary AUD 120000 to 150000 per year.</p></main>'); return
     }
@@ -47,13 +48,16 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await field('title', 'Manual engineer'); await field('companyNameRaw', 'Manual company'); await field('notes', 'Keep these notes')
     // Invalid required fields never dispatch a save.
     await field('companyNameRaw', '')
+    await evaluate('document.querySelector("[name=companyNameRaw]").closest("details").querySelector("summary").click()')
     await evaluate('document.querySelector(".job-page form").requestSubmit()'); await frame()
+    assert.equal(await evaluate('document.querySelector("[name=companyNameRaw]").closest("details").open'), true)
+    assert.equal(await evaluate('document.activeElement.name'), 'companyNameRaw')
     assert.equal((await data('listJobs')).value.items.some(job => job.title === 'Manual engineer'), false)
     await field('companyNameRaw', 'Manual company')
     // A cancelled navigation keeps the in-memory job draft.
     let prompts = 0
     dialog.showMessageBox = async () => { prompts++; return { response: 0, checkboxChecked: false } }
-    await call('navigate', 'app://home'); assert.equal(active(await read()).destination.page, 'find'); assert.equal(prompts, 1)
+    await call('navigate', 'app://ai'); assert.equal(active(await read()).destination.page, 'find'); assert.equal(prompts, 1)
     dialog.showMessageBox = oldMessage
     await button('Save job')
     await waitFor(async () => active(await read()).destination.page === 'applications', 'manual job saved and navigated')
@@ -72,10 +76,13 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await field('jobUrl', `${origin}/job`); malformed = true
     await button('Parse with AI'); await waitFor(() => evaluate('document.body.innerText.includes("does not match the job fields")'), 'invalid AI output error')
     assert.equal(await evaluate('document.querySelector("[name=title]").value'), 'Keep manual title')
+    assert.equal(aiCalls, 1); assert.equal(reads, 1)
     malformed = false; slow = true
-    await button('Parse with AI'); await waitFor(() => Promise.resolve(aiCalls === 2), 'in-flight parsing')
+    await button('Retry parsing'); await waitFor(() => Promise.resolve(aiCalls === 2), 'in-flight parsing')
+    assert.equal(reads, 1)
     await button('Cancel parsing'); slow = false
     await button('Parse with AI'); await waitFor(() => evaluate('document.querySelector("[name=companyNameRaw]").value === "Imported company"'), 'AI fills draft')
+    assert.equal(aiCalls, 3); assert.equal(reads, 2)
     assert.equal(await evaluate('document.querySelector("[name=title]").value'), 'Keep manual title')
     assert.equal(await evaluate('document.querySelector("[name=notes]").value'), 'Keep manual notes')
     assert.equal(headers.cookie, undefined)
@@ -92,8 +99,17 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await waitFor(() => evaluate('document.querySelector("tbody")?.innerText.includes("Manual engineer")'), 'job search')
     assert.equal(await evaluate('document.querySelector("tbody").innerText.includes("Imported company")'), false)
     await field('jobSearch', ''); await button('Apply filters')
-    for (let index = 0; index < 25; index++) await data('saveJob', { details: { title: `Pagination role ${index}`, companyNameRaw: 'Pages company' } })
+    for (let index = 0; index < 25; index++) {
+      const title = index === 24 ? 'Pagination role 24\nHidden second line' : `Pagination role ${index}`
+      await data('saveJob', { details: { title, companyNameRaw: 'Pages company' } })
+    }
     await button('Refresh'); await waitFor(() => evaluate('document.querySelectorAll("tbody tr").length === 25'), 'job list page one')
+    await evaluate(`(() => {
+      const row = [...document.querySelectorAll('tbody tr')].find(row => row.cells[0].textContent === 'Pagination role 24');
+      row.cells[1].click();
+    })()`)
+    await waitFor(() => evaluate('document.querySelector("dialog[open]")?.textContent.includes("Hidden second line")'), 'row opens the full multiline job')
+    await button('Close', 'document.querySelector("dialog[open]")')
     await button('Next'); await waitFor(() => evaluate('document.querySelectorAll("tbody tr").length < 25'), 'job list page two')
     await button('Previous')
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded
@@ -116,7 +132,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     dialog.showMessageBox = oldMessage
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)
     await preferences({ ai: original.ai, language: original.language, theme: original.theme })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
   }
 }

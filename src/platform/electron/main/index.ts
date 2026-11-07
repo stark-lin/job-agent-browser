@@ -1,3 +1,7 @@
+import { BannerService } from '../../banner/bannerService'
+import { SmartPasteService } from '../../smart-paste/service'
+import { createChatDebugOutput } from './chat-debug-output'
+import { buildCommit } from './build-info'
 import { npmMCPLaunch } from '../../npm/distribution'
 import { verifyPackageRuntime } from '../package-verification'
 import { SmartNoteWorkspace } from '../../knowledge/workspace'
@@ -7,10 +11,11 @@ import { createKnowledgeEmbeddings } from '../../knowledge/rag/model-path'
 import { startKnowledgeBroker } from '../../knowledge/broker'
 import { registerKnowledgeIPC } from './knowledge-ipc'
 import { defaultKnowledgePreferences } from '../../../shared/knowledge-settings'
+import { createAgentEngine } from '../../agent/engine'
 import { createAskAgentTasks, type AskAgentTasks } from '../ask-agent-tasks'
 import { registerAskAgentIPC } from './ask-agent-ipc'
 import { t, i18n } from '../../../shared/i18n'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, safeStorage, shell } from 'electron'
 import { createExternalSkillsInstaller } from '../../skills/install'
 import { registerExternalSkillsIPC } from './external-skills-ipc'
 import { createExternalMCPInstaller, type ExternalMCPInstaller } from '../../mcp/external-install'
@@ -22,6 +27,7 @@ import { pathToFileURL } from 'node:url'
 import { createBackend } from '../../database/backend'
 import { trustedDataSender, registerDataIPC } from './data-ipc'
 import { createAgentModels } from '../../ai/agent-factory'
+import { resolveAskCapabilities } from '../../ai/ask-capabilities'
 import { createAIService, type AIService } from '../../ai'
 import { registerAIIPC } from './ai-ipc'
 import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
@@ -34,20 +40,8 @@ import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
 import { defaultAITimeouts } from '../../../shared/ai'
 import { registerJobImportIPC } from './job-import-ipc'
-import type { ImportSaved } from '../../../domain/candidate/import.types'
-import type { Result } from '../../../shared/ipc'
-import {
-  BROWSER_BACK,
-  BROWSER_CREATE_TAB,
-  BROWSER_ACTIVATE_TAB,
-  BROWSER_CLOSE_TAB,
-  BROWSER_FORWARD,
-  BROWSER_GET_STATE,
-  BROWSER_NAVIGATE,
-  BROWSER_SET_VISIBLE,
-  BROWSER_SET_UNSAVED
-} from '../../../shared/browser'
 import { createMainWindow } from './window'
+import { registerBrowserIPC } from './browser-ipc'
 import { applyTheme } from './theme'
 import type { BrowserManager } from '../../browser/browserManager'
 import { createToolRuntime, type ToolRuntime } from '../../mcp/runtime'
@@ -93,7 +87,7 @@ app.whenReady().then(async () => {
     available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)
   })
-  backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets })
+  backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets }, 'internal', { chatDebugOutput: createChatDebugOutput(clipboard, { version: app.getVersion(), commit: buildCommit, platform: process.platform }) })
   const knowledgePreferences = () => preferences.get({}).knowledge ?? defaultKnowledgePreferences
   const githubKey = 'knowledge-github-backup'
   let embeddings: ReturnType<typeof createKnowledgeEmbeddings> | undefined
@@ -118,13 +112,15 @@ app.whenReady().then(async () => {
   // Optional external capabilities never delay window creation or reject the application startup.
   void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
-  profileImporter = createProfileImporter({ ai, settings: () => preferences.get({}).ai, apply: input => backend!.dispatch('profiles', 'applyImport', input) as Result<ImportSaved> })
+  profileImporter = createProfileImporter({ ai, apply: (input, order) => backend!.applyProfileImport(input, order) })
   firstParty = createFirstPartyRuntime(directory, __dirname)
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAgentModel })
-  jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, settings: () => preferences.get({}).ai, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
-  resumes = createResumeTasks({ backend, mcp: firstParty, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
+  jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
+  const engine = createAgentEngine(backend.chats.agentSnapshot)
+  resumes = createResumeTasks({ backend, mcp: firstParty, engine, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
-  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, model: choice => models('internal.ask-ai', choice) })
+  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, engine,
+    capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models('internal.ask-ai', choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })
   registerApplicationIPC(applicationTasks, join(__dirname, '../renderer/index.html'))
@@ -140,12 +136,15 @@ app.whenReady().then(async () => {
     contents.on('render-process-gone', disposeOwner)
     contents.on('did-navigate', disposeOwner)
   })
-  const created = createMainWindow(getInboxURL)
+  const banner = new BannerService()
+  const smartPaste = { banner, service: new SmartPasteService(() => preferences.get({}), askAgent, banner),
+    hasSession(id: string) { try { return Boolean(backend?.chats.getSession(id)) } catch { return false } } }
+  const created = createMainWindow(getInboxURL, smartPaste)
   browser = created.browser
 
   app.on('activate', () => {
     if (browserWindowCount() === 0) {
-      const next = createMainWindow(getInboxURL)
+      const next = createMainWindow(getInboxURL, smartPaste)
       browser = next.browser
     }
   })
@@ -165,57 +164,7 @@ app.on('will-quit', event => {
   void Promise.allSettled([localModels?.close(), knowledge?.close(), stopKnowledgeBroker?.(), externalMCP?.dispose(), ai?.dispose(), resumes?.dispose(), jobImporter?.dispose(), applicationTasks?.dispose(), askAgent?.dispose()]).then(() => firstParty?.dispose()).then(() => tools?.dispose()).finally(() => { backend?.close(); backend = undefined; app.quit() })
 })
 
-ipcMain.handle(BROWSER_NAVIGATE, async (event, input: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof input !== 'string') throw new Error(t($ => $.errors.navigationInput))
-  await requireBrowser().navigate(input)
-})
-ipcMain.handle(BROWSER_BACK, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().back()
-})
-ipcMain.handle(BROWSER_FORWARD, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().forward()
-})
-ipcMain.handle(BROWSER_GET_STATE, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().getState()
-})
-ipcMain.handle(BROWSER_SET_VISIBLE, (event, visible: unknown, presentation: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof visible !== 'boolean') throw new Error(t($ => $.errors.visibilityInput))
-  if (!presentation || typeof presentation !== 'object' ||
-    !('tabId' in presentation) || typeof presentation.tabId !== 'string' ||
-    !('targetId' in presentation) || typeof presentation.targetId !== 'string') {
-    throw new Error(t($ => $.errors.presentationInput))
-  }
-  requireBrowser().setVisible(visible, { tabId: presentation.tabId, targetId: presentation.targetId })
-})
-
-ipcMain.handle(BROWSER_SET_UNSAVED, (event, unsaved: unknown, presentation: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof unsaved !== 'boolean' || !presentation || typeof presentation !== 'object' ||
-    !('tabId' in presentation) || typeof presentation.tabId !== 'string' || !('targetId' in presentation) || typeof presentation.targetId !== 'string') {
-    throw new Error(t($ => $.errors.presentationInput))
-  }
-  requireBrowser().setUnsaved(unsaved, { tabId: presentation.tabId, targetId: presentation.targetId })
-})
-
-ipcMain.handle(BROWSER_CREATE_TAB, (event) => {
-  assertTrustedRenderer(event)
-  return requireBrowser().createTab()
-})
-ipcMain.handle(BROWSER_ACTIVATE_TAB, (event, id: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof id !== 'string') throw new Error(t($ => $.errors.tabIdInput))
-  return requireBrowser().activateTab(id)
-})
-ipcMain.handle(BROWSER_CLOSE_TAB, (event, id: unknown) => {
-  assertTrustedRenderer(event)
-  if (typeof id !== 'string') throw new Error(t($ => $.errors.tabIdInput))
-  return requireBrowser().closeTab(id)
-})
+registerBrowserIPC(requireBrowser, assertTrustedRenderer)
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

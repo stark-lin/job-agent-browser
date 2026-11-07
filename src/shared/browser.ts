@@ -1,14 +1,24 @@
 import type { Destination } from './navigation'
 import type { ResolvedTheme } from './settings'
+import type { WebSelection } from './browser-selection'
 
 export interface Presentation {
   tabId: string
   targetId: string
 }
 
+export interface SidebarTooltip {
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface BrowserTabState {
   id: string
   title: string
+  browserTitle: string
   url: string
   destination: Destination
   targetId: string
@@ -27,25 +37,37 @@ export interface BrowserState {
 }
 
 export interface BrowserAPI {
+  peekSelection(presentation: Presentation): Promise<WebSelection | null>
+  ackSelection(input: Presentation & { id: string }): Promise<void>
   setUnsaved(unsaved: boolean, presentation: Presentation): Promise<void>
   setVisible(visible: boolean, presentation: Presentation): Promise<void>
+  setSidebarTooltip(tooltip: SidebarTooltip | null): Promise<void>
   navigate(input: string): Promise<void>
   back(): Promise<void>
   forward(): Promise<void>
+  reload(): Promise<void>
+  copyWebpage(): Promise<void>
   createTab(): Promise<void>
   activateTab(id: string): Promise<void>
   closeTab(id: string): Promise<void>
   getState(): Promise<BrowserState>
   onStateChange(callback: (state: BrowserState) => void): () => void
   onFocusAddress(callback: () => void): () => void
+  onCopyWebpageResult(callback: (presentation: Presentation, copied: boolean) => void): () => void
 }
 
 export const BROWSER_STATE_CHANGED = 'browser:state-changed'
+export const BROWSER_PEEK_SELECTION = 'browser:peek-selection'
+export const BROWSER_ACK_SELECTION = 'browser:ack-selection'
 export const BROWSER_NAVIGATE = 'browser:navigate'
 export const BROWSER_BACK = 'browser:back'
 export const BROWSER_FORWARD = 'browser:forward'
+export const BROWSER_RELOAD = 'browser:reload'
+export const BROWSER_COPY_WEBPAGE = 'browser:copy-webpage'
+export const BROWSER_COPY_WEBPAGE_RESULT = 'browser:copy-webpage-result'
 export const BROWSER_GET_STATE = 'browser:get-state'
 export const BROWSER_SET_VISIBLE = 'browser:set-visible'
+export const BROWSER_SET_SIDEBAR_TOOLTIP = 'browser:set-sidebar-tooltip'
 export const BROWSER_SET_UNSAVED = 'browser:set-unsaved'
 export const BROWSER_CREATE_TAB = 'browser:create-tab'
 export const BROWSER_ACTIVATE_TAB = 'browser:activate-tab'

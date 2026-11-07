@@ -4,46 +4,43 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { seed, published, value } from './helpers'
-import { countWords, materializeDocument, documentProvenance, statements } from '../src/domain/resume/document'
-import { validateContent, content } from '../src/domain/resume/resume.validation'
+import { createResumeFromProfile, countWords, documentProvenance, statements } from '../src/domain/resume/document'
+import { validateGeneratedResume } from '../src/domain/resume/resume.validation'
 
-test('documents copy basics and item information from snapshot and derive all artifact links from statements', async t => {
-  const f = await published(t), current = value(await f.api.resumes.getRun({ id: f.run.id })).run
-  assert.deepEqual(f.artifact.content.basics, { name: f.profile.name, email: f.profile.email, phone: f.profile.phone, location: f.profile.location, links: f.profile.links })
-  const body = materializeDocument(current.inputSnapshot, 'en', { summary: null, experience: [{ profileItemId: f.item.id, bullets: [{ id: randomUUID(), text: 'Source evidence', factIds: [f.fact.id] }] }], projects: [], education: [], skills: [] })
-  validateContent(current, content(body))
-  assert.equal(body.experience[0].title, f.item.title)
-  assert.deepEqual(documentProvenance(body), statements(body).map(block => ({ blockId: block.id, factIds: block.factIds })))
-  const links = f.database.connection.prepare('SELECT block_id, fact_id FROM artifact_facts WHERE artifact_id=?').all(f.artifact.id)
-  assert.deepEqual(links.map(link => ({ ...link })), [{ block_id: f.content.summary.id, fact_id: f.fact.id }])
-})
-test('draft and polish reject empty, foreign, unselected and wrong-item references before persistence', async t => {
+test('profile copy preserves basics, section order, Item summaries and Fact provenance', async t => {
   const f = await seed(t)
-  const second = value(await f.api.profiles.addItem({ profileId: f.profile.id, details: { type: 'PROJECT', title: 'Other project' } }))
-  const otherFact = value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: second.id, details: { kind: 'SKILL', content: 'SQL' } }))
-  const run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
-  const generation = f.backend.generation
-  generation.start({ id: run.id }); generation.recordScores({ id: run.id, language: 'en', scores: run.inputSnapshot.facts.map(fact => ({ factId: fact.id, score: 90, reason: '' })) })
-  generation.recordGate({ id: run.id, gate: { passed: true, reason: '', missingRequirements: [] } })
-  generation.selectEvidence({ id: run.id, selection: { factIds: [f.fact.id, otherFact.id], itemIds: [f.item.id, second.id], wordBudget: 100 } })
-  const body = materializeDocument(run.inputSnapshot, 'en', { summary: { id: randomUUID(), text: 'Supported', factIds: [f.fact.id] }, experience: [], projects: [], education: [], skills: [] })
-  for (const factIds of [[], [randomUUID()], [f.fact.id, f.fact.id]]) assert.throws(() => generation.saveDraft({ id: run.id, content: { ...body, summary: { ...body.summary, factIds } } }))
-  assert.throws(() => generation.saveDraft({ id: run.id, content: { ...body, basics: { ...body.basics, name: 'Invented' } } }), { code: 'CONFLICT' })
-  const wrong = materializeDocument(run.inputSnapshot, 'en', { summary: null, experience: [{ profileItemId: f.item.id, bullets: [{ id: randomUUID(), text: 'SQL', factIds: [otherFact.id] }] }], projects: [], education: [], skills: [] })
-  assert.throws(() => generation.saveDraft({ id: run.id, content: wrong }), { code: 'CONFLICT' })
-  generation.saveDraft({ id: run.id, content: body })
-  assert.throws(() => generation.savePolished({ id: run.id, content: { ...body, summary: { ...body.summary, factIds: [otherFact.id] } } }), { code: 'CONFLICT' })
-  assert.throws(() => generation.savePolished({ id: run.id, content: { ...body, summary: { ...body.summary, id: randomUUID() } } }), { code: 'CONFLICT' })
-  assert.equal(value(await f.api.resumes.getRun({ id: run.id })).run.polished, null)
+  const second = value(await f.api.profiles.addItem({ profileId: f.profile.id, details: { type: 'EXPERIENCE', title: 'Second', summary: 'Saved summary' } }))
+  const fact = value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'ACHIEVEMENT', content: 'Second bullet' } }))
+  const skill = value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'SKILL', content: 'TypeScript' } }))
+  value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'OTHER', content: 'Stays in snapshot' } }))
+  const run = f.backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
+  const snapshot = structuredClone(run.inputSnapshot)
+  snapshot.items[0].summary = f.fact.content
+  snapshot.profile.introduction = 'Saved introduction'
+  const body = createResumeFromProfile(snapshot, randomUUID)
+  validateGeneratedResume({ ...run, inputSnapshot: snapshot }, body)
+  assert.equal(body.basics.name, f.profile.name)
+  assert.equal(body.summary?.text, 'Saved introduction')
+  assert.deepEqual(body.summary?.factIds, [])
+  assert.deepEqual(body.experience.map(entry => entry.title), [f.item.title, second.title])
+  assert.deepEqual(body.experience[0].bullets.map(bullet => bullet.text), [f.fact.content, fact.content])
+  assert.deepEqual(body.experience[1].bullets.map(bullet => ({ text: bullet.text, factIds: bullet.factIds })), [{ text: 'Saved summary', factIds: [] }])
+  assert.deepEqual(body.skills[0].factIds, [skill.id])
+  assert.deepEqual(documentProvenance(body), statements(body).map(block => ({ blockId: block.id, factIds: block.factIds })))
 })
-test('Chinese budget counts characters, mixed text counts both scripts and budgets apply before draft saves', async t => {
+
+test('Chinese word targets are advisory and the saved introduction is required', async t => {
   assert.equal(countWords('中文能力 TypeScript testing', 'zh-CN'), 6)
-  assert.equal(countWords('中文能力 TypeScript testing', 'en'), 6)
-  const f = await published(t), run = value(await f.api.resumes.getRun({ id: f.run.id })).run
-  const body = { ...f.content, language: 'zh-CN' as const, summary: { ...f.content.summary, text: '中'.repeat(501) } }
-  assert.throws(() => validateContent({ ...run, language: 'zh-CN' }, body), { code: 'CONFLICT' })
+  const f = await published(t)
+  const snapshot = structuredClone(f.run.inputSnapshot)
+  snapshot.profile.introduction = '中'.repeat(501)
+  const body = createResumeFromProfile(snapshot, randomUUID)
+  assert.equal(body.language, 'zh-CN')
+  validateGeneratedResume({ ...f.run, inputSnapshot: snapshot }, body)
+  assert.throws(() => validateGeneratedResume({ ...f.run, inputSnapshot: snapshot }, { ...body, summary: null }), { code: 'CONFLICT' })
 })
-test('snapshot includes every saved fact atomically and live edits cannot mutate historical basics or evidence', async t => {
+
+test('snapshot includes every saved fact and live edits cannot mutate historical basics or evidence', async t => {
   const f = await seed(t)
   const second = value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'SKILL', content: '中文 TypeScript' } }))
   const run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
@@ -51,39 +48,21 @@ test('snapshot includes every saved fact atomically and live edits cannot mutate
   value(await f.api.profiles.editFact({ id: second.id, details: { kind: 'SKILL', content: 'Changed live' } }))
   value(await f.api.profiles.editContact({ id: f.profile.id, details: { name: 'Changed live' } }))
   const saved = value(await f.api.resumes.getRun({ id: run.id })).run
-  assert.equal(saved.inputSnapshot.profile.name, 'PRIVATE_PERSON')
+  assert.equal(saved.inputSnapshot.profile.name, f.profile.name)
   assert.equal(saved.inputSnapshot.facts.find(fact => fact.id === second.id)?.content, '中文 TypeScript')
-  assert.deepEqual(f.backend.dispatch('resumes', 'createRun', { jobId: f.job.id, profileId: f.profile.id, factIds: [second.id] }), { ok: false, error: 'INVALID_INPUT' })
 })
 
-test('reviewed semantic fixtures document that valid fact IDs cannot certify metrics or responsibility claims', async t => {
-  const f = await published(t), run = value(await f.api.resumes.getRun({ id: f.run.id })).run
+test('reviewed evidence examples distinguish semantic accuracy from structural validation', async t => {
+  const f = await published(t)
   const reviewed = JSON.parse(readFileSync(resolve('tests/fixtures/resume-evidence.json'), 'utf8')) as { cases: { fact: string; supported: string; unsupported: string; issues: string[] }[] }
   for (const example of reviewed.cases) {
-    const snapshot = { ...run.inputSnapshot, facts: [{ ...f.fact, content: example.fact }] }
-    const grounded = { ...f.content, summary: { ...f.content.summary, text: example.supported } }
-    const unsupported = { ...grounded, summary: { ...grounded.summary, text: example.unsupported } }
+    const snapshot = { ...f.run.inputSnapshot, facts: [{ ...f.fact, content: example.fact }] }
+    const body = createResumeFromProfile(snapshot, randomUUID)
     assert(example.issues.length > 0)
-    assert.doesNotThrow(() => validateContent({ ...run, inputSnapshot: snapshot }, grounded))
-    // This intentionally passes structural checks. The reviewed example must remain marked unsupported.
-    assert.doesNotThrow(() => validateContent({ ...run, inputSnapshot: snapshot }, unsupported))
+    for (const text of [example.supported, example.unsupported]) {
+      body.experience[0].bullets[0].text = text
+      validateGeneratedResume(f.run, body)
+      assert.deepEqual(body.experience[0].bullets[0].factIds, [f.fact.id])
+    }
   }
-})
-
-
-test('a supplied introduction requires a summary in draft and polish while historical snapshots remain valid', async t => {
-  const f = await published(t), run = value(await f.api.resumes.getRun({ id: f.run.id })).run
-  const body = materializeDocument(run.inputSnapshot, 'en', { summary: null, experience: [], projects: [], education: [],
-    skills: [{ id: randomUUID(), text: f.fact.content, factIds: [f.fact.id] }] })
-  const historical = structuredClone(run)
-  delete (historical.inputSnapshot.profile as { introduction?: string }).introduction
-  validateContent(historical, content(body))
-  run.inputSnapshot.profile.introduction = f.fact.content
-  assert.throws(() => validateContent(run, content(body)), { code: 'CONFLICT' })
-  assert.throws(() => validateContent(run, content(body), true), { code: 'CONFLICT' })
-  const preserved = { ...body, skills: [], summary: { id: randomUUID(), text: f.fact.content, factIds: [f.fact.id] } }
-  validateContent(run, content(preserved))
-  run.draft = preserved
-  validateContent(run, content(preserved), true)
-  assert(!('introduction' in preserved.basics))
 })

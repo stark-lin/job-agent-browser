@@ -39,7 +39,7 @@ function prepare() {
   }
   const output = join(root, 'dist/npm')
   fs.rmSync(output, { recursive: true, force: true }); fs.mkdirSync(output, { recursive: true })
-  for (const name of ['main/index.js', 'main/application-main.js', 'main/job-agent-mcp.js', 'main/resume-output-worker.js', 'main/embedding-process.js', 'main/pdf-worker.mjs', 'main/fonts/NotoSansSC.ttf', 'main/skills', 'preload/index.js', 'renderer/index.html']) {
+  for (const name of ['main/index.js', 'main/application-main.js', 'main/job-agent-mcp.js', 'main/resume-output-worker.js', 'main/embedding-process.js', 'main/pdf-worker.mjs', 'main/fonts/NotoSansSC.ttf', 'main/skills', 'preload/index.js', 'preload/browser-gestures.js', 'renderer/index.html']) {
     if (!fs.existsSync(join(root, 'out', name))) throw new Error('BUILD_RESOURCE_MISSING: ' + name)
   }
   for (const name of ['out', 'packages/npm/bin']) fs.cpSync(join(root, name), join(output, name === 'out' ? name : 'bin'), { recursive: true })

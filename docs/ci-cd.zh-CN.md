@@ -12,7 +12,9 @@
 
 ## 验证与原生打包
 
-[验证](../.github/workflows/validate.yml) 固定 Node 24.22.1，在 `macos-15` ARM64 上运行。显式安装 Electron，运行 `check`、发布脚本测试、不含模型的 npm 内容校验和 Electron/Knowledge 冒烟测试。普通验证不下载模型。[范围检测](../scripts/ci-scope.cjs) 为受影响源码、依赖、资源、打包和工作流增加原生/发行验证。
+[验证](../.github/workflows/validate.yml) 固定 Node 24.22.1，在 `macos-15` ARM64 上运行。显式安装 Electron，运行 `check`、发布脚本测试、不含模型的 npm 内容校验以及构建后的 Electron、Knowledge、Ask AI、智能粘贴、Resume 和外部集成冒烟测试。普通验证不下载模型。[范围检测](../scripts/ci-scope.cjs) 为受影响源码、依赖、资源、打包和工作流增加原生/发行验证。
+
+[Electron 冒烟测试](../scripts/smoke.cjs) 记录 Main 未捕获异常并立即退出，避免错误弹窗阻塞无人值守运行。其 [AI fixture](../scripts/ai-smoke.cjs) 提供模型发现、运行时上下文元数据和流式回复；Ask 在推理前验证 fixture 的实际部署上下文。独立的[智能粘贴与全局通知冒烟测试](../scripts/smart-paste-smoke.cjs)先于通用 Electron 冒烟测试运行。
 
 [打包](../.github/workflows/package.yml) 包含两个作业：附带已校验离线 Seed/推理的 Full DMG，以及经过干净安装/运行时冒烟测试的不含模型 npm tarball。两者使用相同发布元数据。不接受跨架构运行结果。Windows、Linux 和 macOS x64 仍为**脚手架**，不参与发布。
 
@@ -84,6 +86,8 @@ jab --version
 操作者需拥有 npm scope `@stark-lin`，必要时完成包首次创建，并为本仓库、`release.yml` 和 `npm-release` environment 配置 GitHub Trusted Publisher。显式允许直接 `npm publish`：新配置可能默认只允许 staged 权限。使用 GitHub-hosted runner 和 npm 11.5.1+（[npm 要求](https://docs.npmjs.com/trusted-publishers/)）；不保存长期 npm Token。GitHub 的 `release` environment 独立授权预发行版创建。账号/证书供应和 environment 审批仍由操作者负责。
 
 ## 兼容性门槛与剩余限制
+
+Ask V2 在运行锁文件中固定 Pi Agent Core/AI 和 tokenizer。[分发验收](../src/platform/electron/verify-ask-package.ts)不使用付费模型，验证 CJS 原生加载 ESM、逐步激活及真实 first-party MCP；干净 npm 安装门禁在仓库外运行同一验收。
 
 公开推荐 npm 前，在干净 macOS ARM64 账号上测试：首次 GUI/运行时下载、可选模型安装、离线重启、取消/修复、更新/重装、Gatekeeper 提示、safeStorage 重开和 npm/DMG 凭据互通。不能从同用户 CI 推断这些结果。解密失败后不自动迁移、丢弃或覆盖密钥。模型共享不代表凭据可移植。
 

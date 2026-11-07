@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { ActionRow } from './Button'
 
 export function Dialog({ open, title, description, onClose, content, children }: {
-  open: boolean; title: string; description: string; onClose: () => void; content?: ReactNode; children: ReactNode
+  open: boolean; title: string; description?: string; onClose: () => void; content?: ReactNode; children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null), id = useId()
   useEffect(() => {
@@ -9,10 +10,11 @@ export function Dialog({ open, title, description, onClose, content, children }:
     if (open && !dialog?.open) dialog?.showModal()
     if (!open && dialog?.open) dialog.close()
   }, [open])
-  return <dialog ref={ref} className="ui-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
+  return <dialog ref={ref} className="ui-dialog" aria-labelledby={`${id}-title`} aria-describedby={description ? `${id}-description` : undefined}
     onCancel={event => { event.preventDefault(); onClose() }}>
-    <h2 id={`${id}-title`}>{title}</h2><p id={`${id}-description`}>{description}</p>
+    <h2 id={`${id}-title`}>{title}</h2>
+    {description && <p id={`${id}-description`}>{description}</p>}
     {content && <div className="ui-dialog-content">{content}</div>}
-    <div className="ui-dialog-actions">{children}</div>
+    <ActionRow className="ui-dialog-actions">{children}</ActionRow>
   </dialog>
 }

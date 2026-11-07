@@ -70,9 +70,11 @@ module.exports = async function jobAgentSmoke({ window, call, evaluate, waitFor 
     const baseline = (await jobs()).total
     await call('navigate', 'app://find')
     await waitFor(() => evaluate('!!document.querySelector("[name=captureSource]")'), 'capture source selector')
+    const beforeText = modelCalls
     await field('captureSource', 'text'); await field('jobText', 'Text source engineer at Agent capture company. Build reliable services.')
     await button('Parse with AI')
     await waitFor(() => evaluate('document.querySelector("[name=title]").value === "Text source engineer"'), 'text draft ready')
+    assert.equal(modelCalls, beforeText + 1)
     assert.equal((await jobs()).total, baseline)
     await field('title', 'Reviewed text source engineer'); await button('Save job')
     await waitFor(() => evaluate('!!document.querySelector("[name=applicationInstruction]")'), 'application Agent in saved details')
@@ -93,14 +95,16 @@ module.exports = async function jobAgentSmoke({ window, call, evaluate, waitFor 
     await button('Close')
     await evaluate('document.querySelector("[name=archivedJobs]").click()'); await button('Apply filters')
     await waitFor(() => evaluate('document.querySelector("tbody")?.innerText.includes("Reviewed text source engineer")'), 'archived Job filter')
-    await button('View details')
+    await evaluate('[...document.querySelectorAll("tbody tr")].find(row => row.innerText.includes("Reviewed text source engineer")).click()')
     await waitFor(() => evaluate('!!document.querySelector("[name=applicationInstruction]")'), 'archived details')
     await requestAction('Restore job')
     await button('Close')
     await call('navigate', 'app://find')
     await waitFor(() => evaluate('!!document.querySelector("[name=captureSource]")'), 'PDF capture source')
+    const beforePdf = modelCalls
     await field('captureSource', 'pdf'); await button('Choose PDF'); await button('Parse with AI')
     await waitFor(() => evaluate('document.querySelector("[name=title]").value === "PDF source engineer"'), 'PDF draft ready')
+    assert.equal(modelCalls, beforePdf + 1)
     assert.equal((await jobs()).total, baseline + 1)
     await button('Save job')
     await waitFor(async () => (await jobs()).total === baseline + 2, 'PDF saved')
@@ -121,7 +125,7 @@ module.exports = async function jobAgentSmoke({ window, call, evaluate, waitFor 
     dialog.showOpenDialog = oldOpen; dialog.showMessageBox = oldMessage
     window.setMinimumSize(...minimum); window.setContentSize(...size)
     await preferences({ ai: previous.ai, language: previous.language, theme: previous.theme })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
   }
 }

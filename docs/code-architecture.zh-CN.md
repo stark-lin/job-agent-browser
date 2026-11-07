@@ -1,6 +1,6 @@
 # 代码架构
 
-用途：定义源码职责、依赖边界及交付约束。状态：App/路由、混合导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
+用途：定义源码职责、依赖边界及交付约束。状态：App/路由、工作区/浏览器分离导航、Platform 入口、对话/AI、分层存储、Profile 流程、职位采集/申请 Agent及带 HTML/PDF 的 Resume V3 均**已实现**。智能笔记已实现；更多流程为**规划**。已验证行为归属[当前架构](architecture.zh-CN.md)。
 
 语言：简体中文 · [English](code-architecture.md)
 
@@ -11,12 +11,12 @@
 | 层 | 职责 | 现有依据 |
 | --- | --- | --- |
 | App | React 组装、路由、Provider、导航投影与上下文 | [App](../src/app/App.tsx)、[Provider](../src/app/providers.tsx)、[主题投影](../src/app/theme.tsx) |
-| Pages | UI、局部组件/hooks/状态与页面流程 | [Home](../src/pages/home/HomePage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
+| Pages | UI、局部组件/hooks/状态与页面流程 | [Ask AI](../src/pages/ai/AskAIPage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | 实体、校验、用例与能力/Repository 接口 | [Job 用例](../src/domain/job/job.service.ts) |
 | Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
 | Shared | 无框架契约及不含业务语义的 UI/工具/hooks | [导航契约](../src/shared/navigation.ts)、[占位布局](../src/shared/ui/PlaceholderPage.tsx) |
 
-[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。包入口保持 `out/main/index.js`；同时构建独立 Node MCP 及 Electron 输出 Worker 入口。
+[构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。包入口保持 `out/main/index.js`；同时构建独立 Node MCP 及 Electron 输出 Worker 入口。独立沙箱中的 `browser-gestures` Preload 管理网页滚动输入，不暴露可信应用桥接。
 
 所有 UI 组件必须组合[中央组件库入口](../src/shared/ui/index.ts)提供的基础组件；缺少变体时先扩展中央库再用于页面。页面保留布局与事件行为。[设计规范](design-system.zh-CN.md#二必须复用中央组件库)管理完整复用规则。
 
@@ -31,7 +31,6 @@ src/
 │   ├── navigation/
 │   └── context/
 ├── pages/
-│   ├── home/
 │   ├── find-jobs/
 │   ├── tailor-resume/
 │   ├── knowledge/
@@ -80,7 +79,7 @@ src/
     └── tools/
 ```
 
-Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。
+Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications 和 Tailor Resume 已实现；Smart Note 已实现。局部模块按需创建，目录/文件本身不代表行为实现。
 
 ## 三、依赖与进程组装
 
@@ -94,6 +93,8 @@ Home、Browser、Inbox、Ask AI、Profile、Settings、Add Job、Applications �
 
 Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Repository/事务。Domain 依赖接口，由[后端组装](../src/platform/database/backend.ts)注入具体适配器。概念上的 Page → Domain → Platform 流程不允许 UI 导入服务端业务服务。
 
+Ask AI 的[纯 Cycle 状态机](../src/platform/agent/react-cycle/machine.ts)负责状态转换和执行决策。[Pi 适配器](../src/platform/agent/pi/runtime.ts)将决策应用于模型和工具派发；Main 通过可信事件负责持久化。执行契约见 [Agent 运行时](agent-runtime.zh-CN.md)。
+
 数据库访问仅在受控 Main/Node 运行时。配置、密钥、AI 请求和编译由 Main 或受控服务执行。保留沙盒、上下文隔离、第三方页面分离，以及精确可信文档/顶层 frame 的 IPC 校验。
 
 [共享 i18n 模块](../src/shared/i18n/)管理无框架的资源、配置、selector 类型和翻译初始化，不导入 React 或 Electron。[App](../src/app/i18n.tsx)管理 React Provider 集成和文档元数据。Pages 在渲染时取词，Platform 为应用自有的原生文案取词。新增可见文字放入文案资源，包括完整的插值句子，并使用类型化 selector。运行行为及后续语言支持由[当前架构](architecture.zh-CN.md#五国际化)管理。
@@ -102,20 +103,20 @@ Renderer 流程调用类型化桥接，Main 组装 Domain 服务和 Platform Rep
 
 [App 导航](../src/app/navigation/)提供 Main 快照的订阅投影和统一导航 hook。React Context 注入依赖，`useSyncExternalStore` 读取稳定快照，不增加路由/状态库。Provider 生命周期管理订阅、初始化竞争和清理；页面局部状态仍在页面 hooks/components 中。
 
-无框架的 [Destination](../src/shared/navigation.ts) 契约跨进程共享。[Main 浏览器管理](../src/platform/browser/browserManager.ts)拥有标签和权威混合历史；[MixedHistory](../src/platform/browser/mixedHistory.ts) 组合内部项与原生历史段，[WebSegment](../src/platform/browser/webSegment.ts) 管理视图事件、原生回放和释放。App 路由不改变可信文档 URL。
+无框架的 [Destination](../src/shared/navigation.ts) 契约跨进程共享。[Main 浏览器管理](../src/platform/browser/browserManager.ts)拥有标签和权威导航状态；[TabNavigation](../src/platform/browser/tabNavigation.ts) 分离工作区目标与保留的原生视图，[WebSegment](../src/platform/browser/webSegment.ts) 管理视图事件、原生回放和释放。App 路由不改变可信文档 URL。
 
 Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览器栏和全部内部 URL。Browser 和 Inbox 通过[展示 hook](../src/app/navigation/useNativePresentation.ts) 确认各自原生视图，携带活动标签与目标，避免旧确认覆盖其他页面。Inbox 不渲染 Browser 控件。UI URL 和历史规则由产品架构管理，运行细节由当前架构管理。
 
 [App 上下文](../src/app/context/)保存当前页面元数据及可空 Job/Profile/Artifact ID，不复制记录，通过业务桥接解析实体。Applications 使用 Job ID，不另存 Application 实体。Profile 解析并更新当前 Profile ID；新增工作保存及申请记录选择会更新 Job ID；定制简历同步 Artifact ID；自动页面内容/选区捕获仍为规划。
 
-Home 只发起导航。跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
+跨页面业务规则归 Domain，导航及上下文切换仍由 App/Page 管理。
 
 ### 页面按钮归属
 
 - App 管理常驻工作区侧栏和功能导航元数据；Pages 管理各自流程按钮、位置、启用/加载状态及处理函数。侧栏复用相同导航 API 和离开保护，不提供全局 Back/Next/Forward 栏。
-- Home 只显示功能入口，不显示 Back 按钮。其他业务页面的页面历史导航按钮只保留回到主页（Ask AI V2 使用常驻侧栏的主页入口），不添加跨页面 Back/Next/Forward 控件。Browser 自行管理现有 Home/Back/Forward 工具栏。
-- 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用混合页面历史。业务操作和链接仍由所属页面管理。
-- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作和回到主页按钮，[InboxPage](../src/pages/inbox/InboxPage.tsx) 还管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
+- 工作区目标由常驻侧栏提供。Browser 自行管理用于网页导航的后退、前进和刷新工具栏。
+- 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用浏览器历史。业务操作和链接仍由所属页面管理。
+- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作，[InboxPage](../src/pages/inbox/InboxPage.tsx) 管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
 ## 五、数据与能力归属
 
@@ -136,13 +137,13 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [Shared Agent 契约](../src/shared/agent/index.ts)管理 AgentModel/AgentTools。[Platform Tools](../src/platform/tools/index.ts)是唯一公共 MCP Registry，ToolScope 只属于 Server。只有 platform/mcp 和 platform/mcp-server 导入 MCP SDK。Agent 模块可导入纯 Domain 流程/校验，但不得直接或间接导入 Service、Repository、Registry 或数据库适配器。[MCP 架构](mcp-architecture.zh-CN.md)管理能力和会话行为。
 
-[Chat Domain](../src/domain/chat/)管理纯会话契约及人工 CRUD 校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)管理 Run 生命周期并注入私有 SQLite 记录器；[AskStore](../src/app/ai/askStore.ts)管理 App 生命周期内的事件投影，Pages 组合中央控件。Agent 代码仅接收模型、MCP 工具及纯事件回调，不导入会话 Repository。流式协议/分帧位于 platform/ai，工具/模型状态机位于 platform/agent。
+[Chat Domain](../src/domain/chat/)管理纯会话契约及人工校验。[Main Ask 任务](../src/platform/electron/ask-agent-tasks.ts)拥有 FIFO 放行、持久化回调、每轮授权和取消；[AskStore](../src/app/ai/askStore.ts)负责事件投影。platform/agent/pi、context、tools 模块仅接收模型、MCP 客户端及纯回调，不能导入 Repository 或 ToolScope。Provider 分帧留在 platform/ai。[Agent Engine](../src/platform/agent/engine/index.ts)管理 Ask、智能粘贴及 Resume 的共享 Pi 执行；CJS 入口通过原生动态 import 加载 Pi ESM。
 
-[Profile](../src/pages/profile/ProfilePage.tsx)管理表单、事实分组和可编辑导入草稿；Candidate Domain 管理[原子导入](../src/domain/candidate/import.service.ts)；[Platform 导入](../src/platform/profile-import/service.ts)管理 Worker 提取、AI 协调、会话归属和重放回执；[共用导入层](../src/platform/import/batch.ts)管理有界批次、取消和成功结果缓存，[策略](../src/platform/import/policy.ts)在 Main 校验模式许可；各导入适配器保留自己的提示词、字段校验和合并规则。业务 DTO 属于 Candidate 和[类型化 IPC](../src/platform/electron/profile-import-contract.ts)，通用通道名及[模式/分组进度类型](../src/shared/import.ts)保留在 Shared。
+[个人资料页面](../src/pages/profile/ProfilePage.tsx)管理表单和导入审核。[导入任务](../src/platform/profile-import/service.ts)管理 PDF 提取、一次模型解析、会话归属和重试。[Candidate Domain](../src/domain/candidate/import.service.ts)负责原子保存与排序。
 
 新增工作和 Profile 复用 App 层的[未保存保护](../src/app/navigation/useUnsavedGuard.ts)；职位表单、空字段回填和申请记录查询留在所属页面。
 
-[Platform Agent](../src/platform/agent/)通过 AgentTools 实现 Resume 五阶段推理、资料采集和申请动作规划。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
+[Platform Agent](../src/platform/agent/)实现 Resume 要点改写、资料采集和申请动作规划。业务操作通过 AgentTools 协议客户端。Domain 保留机器强制的流程契约，提示词属于 Agent 适配器。platform/electron 下的 Main 任务服务管理窗口生命周期、typed IPC 和 UI 投影；platform/ai 下的模型适配器管理 Provider 访问。Node MCP Server 管理业务能力和 Electron 输出 Worker 构建，UI 预览/导出不构成 Agent 能力捷径。
 
 ## 六、质量与后续交付
 

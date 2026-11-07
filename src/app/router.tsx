@@ -2,7 +2,6 @@ import { KnowledgePage } from '../pages/knowledge'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import { useNavigation } from './navigation/navigate'
-import { HomePage } from '../pages/home/HomePage'
 import { BrowserPage } from '../pages/browser'
 import { AddJobPage } from '../pages/find-jobs'
 import { TailorResumePage } from '../pages/tailor-resume'
@@ -22,15 +21,13 @@ const featurePages = {
 
 export function AppRouter() {
   const { t } = useTranslation()
-  const { active, error, openPage } = useNavigation()
+  const { active, error } = useNavigation()
   if (!active) return <main className="feature-page" role={error ? 'alert' : 'status'}>{error || t($ => $.app.loadingWorkspace)}</main>
   const destination = active.destination
   let page: ReactNode
   if (isInboxDestination(destination)) page = <InboxPage />
   else if (isBrowserDestination(destination)) page = <BrowserPage />
-  else if (destination.kind === 'internal' && destination.page === 'home') {
-    page = <HomePage onNavigate={(target) => void openPage(target)} />
-  } else if (destination.kind === 'internal' && destination.page !== 'browser' && destination.page !== 'home') {
+  else if (destination.kind === 'internal' && destination.page !== 'browser') {
     const Page = featurePages[destination.page]
     page = <Page key={active.targetId} />
   }

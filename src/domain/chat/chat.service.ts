@@ -13,6 +13,7 @@ export function createChatService(repo: ChatRepository, validateChoice: (choice:
       repo.getSession(p.sessionId); return repo.listItems(p.sessionId, p.limit, p.beforeSequence)
     },
     listRuns(input: unknown) { const p = v.object({ sessionId: v.id, ...v.pageFields })(input); repo.getSession(p.sessionId); return repo.listRuns(p.sessionId, p.limit, p.offset) },
+    listModelRequests(input: unknown) { const p = v.object({ runId: v.id, ...v.pageFields })(input); repo.getRun(p.runId); return repo.listModelRequests(p.runId, p.limit, p.offset) },
     renameSession(input: unknown) { const p = v.object({ id: v.id, title: v.text(120, 1) })(input); return repo.renameSession(p.id, p.title.trim()) },
     setModel(input: unknown) { const p = v.object({ id: v.id, choice: chatChoice })(input); validateChoice(p.choice); return repo.setModel(p.id, p.choice) },
     deleteSession(input: unknown) { return repo.deleteSession(v.byId(input).id) }

@@ -3,7 +3,7 @@ import type { SpaceId } from '../../shared/smart-note'
 import { LocalModelSettings } from './LocalModelSettings'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput, Select } from '../../shared/ui'
+import { ActionRow, Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput, Select } from '../../shared/ui'
 import { defaultKnowledgePreferences } from '../../shared/knowledge-settings'
 export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => void }) {
   const { t } = useTranslation(),
@@ -68,7 +68,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
     setNotice(result.ok ? result.value.error ?? result.value.state : result.error)
   }
   return (
-    <SectionCard title={t(($) => $.knowledge.settingsTitle)} description={t(($) => $.knowledge.settingsHelp)}>
+    <SectionCard defaultCollapsed title={t(($) => $.knowledge.settingsTitle)} description={t(($) => $.knowledge.settingsHelp)}>
       <div className="settings-stack">
         <FormField label={t(($) => $.knowledge.remote)}>
           {(props) => (
@@ -107,7 +107,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
             />
           )}
         </FormField>
-        <div className="settings-actions">
+        <ActionRow>
           <Button
             disabled={!key || busy}
             onClick={() =>
@@ -139,7 +139,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
           >
             {t(($) => $.knowledge.removeToken)}
           </Button>
-        </div>
+        </ActionRow>
         <Checkbox
           label={t(($) => $.knowledge.semanticEnable)}
           checked={draft.semanticEnabled}
@@ -155,7 +155,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
             <option value="memory">{t($ => $.knowledge.memory)}</option>
           </Select>}
         </FormField>
-        <div className="settings-actions">
+        <ActionRow>
           <Button
             variant="primary"
             disabled={!ready || busy}
@@ -195,7 +195,7 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
           >
             {t(($) => $.knowledge.rebuild)}
           </Button>
-        </div>
+        </ActionRow>
         {notice && (
           <StatusMessage tone={['saved', 'synced', 'local', 'rebuilt'].includes(notice) ? 'success' : 'error'}>
             {['saved', 'synced', 'local', 'rebuilt', 'conflict', 'failed'].includes(notice)

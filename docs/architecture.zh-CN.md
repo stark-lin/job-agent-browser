@@ -1,16 +1,16 @@
 # 当前运行架构
 
-用途：记录已验证的运行行为。状态：React 组装、混合导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、Ask AI V2 及包含 HTML/PDF 的 Resume Agent V1 均**已实现**。智能笔记已实现，更多产品流程仍为**规划**。
+用途：记录已验证的运行行为。状态：React 组装、工作区/浏览器分离导航、设置、个人资料编辑/PDF 导入、职位采集/申请 Agent、统一 Agent 运行时及包含 HTML/PDF 的 Resume V3 均**已实现**。智能笔记已实现，更多产品流程仍为**规划**。
 
 语言：简体中文 · [English](architecture.md)
 
 ## 一、运行入口与进程边界
 
-[构建配置](../electron.vite.config.ts) 使用 [Main](../src/platform/electron/main/index.ts)、[Preload](../src/platform/electron/preload/index.ts) 和 [Renderer HTML 入口](../src/renderer/index.html)。[包入口](../package.json) 保持 `out/main/index.js`。
+[构建配置](../electron.vite.config.ts) 使用 [Main](../src/platform/electron/main/index.ts)、[Preload](../src/platform/electron/preload/index.ts)、隔离的 [Browser 手势 Preload](../src/platform/electron/preload/browser-gestures.ts) 和 [Renderer HTML 入口](../src/renderer/index.html)。[包入口](../package.json) 保持 `out/main/index.js`。
 
 ```text
 React App → Page → Preload → IPC → Main
-                                  ├── Mixed history + WebContentsView → Session
+                                  ├── Tab navigation + WebContentsView → Session
                                   ├── Domain services → SQLite + audit
                                   ├── AI service → Provider SSE
                                   └── MCP Client → stdio Server → ToolScope → audited capability → Domain
@@ -18,33 +18,63 @@ React App → Page → Preload → IPC → Main
 
 [Renderer 启动代码](../src/renderer/main.tsx) 在 StrictMode 中挂载唯一 [App](../src/app/App.tsx)。[Provider](../src/app/providers.tsx) 注入受限浏览器/数据/AI 桥接和上下文；[导航 store](../src/app/navigation/navigationStore.ts) 在每次 Provider 生命周期中订阅一次，忽略旧快照及已清理的初始化读取。[路由](../src/app/router.tsx) 根据 Main 的当前目标选择 React 页面，不导航可信文档。
 
-只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。Home 和业务页面不显示浏览器栏或内部 URL。[HomeGrid](../src/pages/home/HomeGrid.tsx) 启用全部九个卡片。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现持久化多会话流式 Agent。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；智能笔记已实现。
+只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。其他工作区页面隐藏浏览器栏和内部 URL。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现持久化多会话流式 Agent。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；智能笔记已实现。
 
-## 二、路由与混合历史
+## 二、工作区路由与浏览器历史
 
-[目标契约](../src/shared/navigation.ts) 白名单包含 `app://home`、`app://find`、`app://resume`、`app://knowledge`、`app://applications`、`app://inbox`、`app://profile`、`app://browser`、`app://ai` 和 `app://settings`。内部 URL 是导航标识，不是已注册的操作系统协议或 Chromium 加载的文档。未知内部目标在修改历史前拒绝。公开 URL 由[产品架构](product-architecture.zh-CN.md)管理。
+[目标契约](../src/shared/navigation.ts) 白名单包含 `app://find`、`app://resume`、`app://knowledge`、`app://applications`、`app://inbox`、`app://profile`、`app://browser`、`app://ai` 和 `app://settings`。内部 URL 是导航标识，不是已注册的操作系统协议或 Chromium 加载的文档。未知内部目标在修改历史前拒绝。公开 URL 由[产品架构](product-architecture.zh-CN.md)管理。
 
-[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。每个标签从 Home 开始。Home 新增内部历史项；新建或关闭最后一个标签后创建新的 Home。选择 Browser 新增空白浏览器工作区，地址框为空。切换标签不新增历史；关闭活动标签选择右侧邻居，无右侧时选择左侧。
+[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。启动时打开 Ask AI（`app://ai`）；新建或关闭最后一个标签后打开空白 Browser 工作区。选择 Browser 恢复保留的网页或空白工作区。在 Browser 切换标签始终停留在 Browser，即使目标标签上次显示业务页面。关闭活动标签选择右侧邻居，无右侧时选择左侧。
 
-[MixedHistory](../src/platform/browser/mixedHistory.ts) 将内部历史项与连续网页历史段组合。每个 [WebSegment](../src/platform/browser/webSegment.ts) 保留自己的原生视图与 Chromium 历史。Back/Forward 先遍历段内原生索引，再跨越内部项/网页段。进入内部页面只隐藏现有视图，不导航或销毁它，直接返回时保留当前网页状态。正常 Chromium 历史回放可能重新加载较早文档。
+[TabNavigation](../src/platform/browser/tabNavigation.ts) 将当前工作区目标与保留的 Browser、Inbox 视图分离。每个 [WebSegment](../src/platform/browser/webSegment.ts) 保留原生视图与 Chromium 历史。Back/Forward 只操作当前 Browser 视图，在首项/末项停止。工作区页面和 Inbox 将两个控件标记为不可用并忽略历史请求。访问工作区页面保留浏览器位置、前进项及当前网页状态；Chromium 历史回放可能重新加载较早文档。
 
-后退后发起新导航会裁剪应用前进栈和当前段的原生前进项。不可达段被关闭；关闭标签/窗口释放全部保留视图。网站链接、重定向和 SPA 导航更新原生历史，历史回放及替换不新增应用项。重复 URL 保留原生项身份。私有 [Chromium 历史观察器](../src/platform/browser/nativeHistory.ts)通过内部调试协议读取稳定项 ID，区分新访问与网站自身的历史回放，不注入页面脚本或暴露调试桥接。加载/错误事件归属原段，不会激活后台标签或内部页面。
+后退后打开新网址会裁剪该视图的原生前进项；切换工作区页面不会裁剪。每个标签最多保留一个 Browser 和一个 Inbox 视图；关闭标签/窗口时释放两者。网站链接、重定向和 SPA 导航更新原生历史，历史回放及替换不新增应用项。重复 URL 保留原生项身份。私有 [Chromium 历史观察器](../src/platform/browser/nativeHistory.ts)通过内部调试协议读取稳定项 ID，区分新访问与网站自身的历史回放，不注入页面脚本或暴露调试桥接。加载/错误事件归属原段，不会激活后台标签或内部页面。
 
-[网页输入解析](../src/platform/browser/navigationManager.ts) 保留 HTTP(S)，识别域名/IP/localhost，其他输入使用 Google 搜索。裸地址默认 HTTPS，localhost 和回环地址默认 HTTP。空输入、无效显式网址及其他协议被拒绝。[测试](../tests/navigation.test.ts) 保留这些规则；[混合历史测试](../tests/mixed-history.test.ts) 覆盖内部路由与段间回放/分叉。
+[网页输入解析](../src/platform/browser/navigationManager.ts) 保留 HTTP(S)，识别域名/IP/localhost，其他输入使用 Google 搜索。裸地址默认 HTTPS，localhost 和回环地址默认 HTTP。空输入、无效显式网址及其他协议被拒绝。[测试](../tests/navigation.test.ts) 保留这些规则；[标签导航测试](../tests/tab-navigation.test.ts) 覆盖工作区隔离、前进历史保留、Inbox 分离及原生历史边界。
+
+### 复制网页文本
+
+**已实现。** Browser 工具栏和原生右键菜单在触发时复制当前活动 Browser 网页。工具栏调用通过[可信 Renderer IPC](../src/platform/electron/main/browser-ipc.ts)。[WebSegment](../src/platform/browser/webSegment.ts) 在隔离环境解析主文档的实时 HTML 快照，将整理后的 `<body>` 文本写入系统剪贴板。保留隐藏文本，排除脚本、样式、嵌入 Frame 和 Shadow DOM 的内容。空白标签页、加载失败和空结果均保留原剪贴板。[Electron Smoke](../scripts/browser-copy-smoke.cjs) 覆盖两个入口、标签切换、网页复制限制、动态文本和空结果。
+
+### 网页选区交接
+
+**已实现：**[WebSegment](../src/platform/browser/webSegment.ts) 为普通 Browser 选区（包括 Frame）提供原生右键菜单，并保留原生编辑操作。Inbox、表单控件和可编辑区域不显示业务入口。点击时重新校验活动标签页/目标、源文档导航代次和存活 Frame；重载、导航或切换标签页会使旧菜单失效。[选区校验](../src/shared/browser-selection.ts) 保留最多 60,000 个 UTF-16 单元的原文，限制网址/标题长度，并净化来源网址的凭据、片段及已知认证查询参数。来源统一使用顶层网址和标题。
+
+[BrowserManager](../src/platform/browser/browserManager.ts) 在发布当前标签页的内部目标前，写入 UUID 绑定的[内存交接](../src/platform/browser/selectionHandoff.ts)。可信主 Frame IPC 按标签页/目标/页面读取，输入状态提交后 ACK。五分钟内可重试；离开目标、关闭标签页及退出时清理。内容不进入网址、BrowserState、日志或审计。[消费逻辑](../src/app/navigation/useWebSelection.ts) 忽略过期/卸载后的返回并防止重复填入。Ask 追加到未发送的新对话草稿，不覆盖会话草稿或启动 Run；进行中的发送不会抢回该草稿。Add Job 切至文本，等待用户解析/保存。交接等同用户输入，后续沿用普通持久化和导出规则。来源保存由[数据架构](data-architecture.zh-CN.md#二业务规则)说明。
+
+现有 `persist:job-agent-browser` Session 继续在原生视图间共享。[选区 Smoke](../scripts/browser-selection-smoke.cjs) 覆盖真实右键事件、Frame、来源保存、显式 AI 操作、登录复用/过期/退出；[重启 Smoke](../scripts/settings-restart-smoke.cjs) 在新的生产进程中通过同一本地来源验证持久 Cookie 和 localStorage。JAB 不续期已过期的网站会话；真实提供方的登录兼容性仍未经验证。
+
+### 智能粘贴与全局通知
+
+**已实现：** Browser 和 Inbox 的原生右键菜单可在受支持的文本字段中选择已保存的智能粘贴提示词，覆盖同源和跨源 HTTP(S) frame。[隔离 preload](../src/platform/electron/preload/web-field.ts) 锁定实际元素与选区。[宿主任务](../src/platform/smart-paste/service.ts) 使用已保存的默认模型创建后台 Ask AI 会话，并将助手文本流式写入该范围。工具轮的临时文本会撤回。失败和取消保留已写入的部分回答。用户编辑、字段被替换或 frame 导航时停止写入。切换工作区页面时，仍存活的目标可继续写入。网页接收 input 事件并自行管理表单。[智能粘贴 smoke](../scripts/smart-paste-smoke.cjs)可通过 `npm run test:smoke -- --smart-paste` 单独运行。
+
+[Main 通知](../src/platform/banner/bannerView.ts) 使用一个 View，置于原生网页视图上方，并经导航守卫打开关联的 Ask AI 会话。[数据架构](data-architecture.zh-CN.md) 说明设置与会话留存。[MCP 架构](mcp-architecture.zh-CN.md) 说明智能粘贴工具权限。
 
 ## 三、展示与交互
 
-[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 常驻每个页面左侧，提供主页、九个功能、翻译后的无障碍分组及唯一当前状态，统一使用图标栏。原有 Home / Job search / Manage / Tools / Settings 分区及顺序保持不变，按照[设计规范](design-system.zh-CN.md#五交互与无障碍)用短横线分隔。悬停提示显示翻译后的目标名称；已移除侧栏品牌头部及 Home 标题上方的品牌文字。共享[功能元数据](../src/app/navigation/features.ts)管理侧栏及 Home 的图标/顺序。切换功能使用相同导航 API 和未保存设置保护；点击当前功能不新增历史。[HomePage](../src/pages/home/HomePage.tsx) 显示功能入口，不显示 Back 按钮。其他业务页面的页面导航只提供回到主页按钮（Ask AI V2 使用常驻侧栏的主页入口），不显示跨页面 Back/Next/Forward 控件。占位页面通过[占位布局](../src/shared/ui/PlaceholderPage.tsx)的 actions 插槽提供自己的按钮和处理函数，布局不定义导航行为。[Browser 控件](../src/pages/browser/BrowserControls.tsx)保留 Home、Back 和 Forward。按钮归属规范见[代码架构](code-architecture.zh-CN.md#页面按钮归属)。
+[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 将 Ask AI 放在常驻图标栏首位，之后是管理、求职、工具分组及底部的设置。各组以短横线分隔，悬停时显示翻译后的名称。切换目标使用共享导航 API 和离开保护。在任意工作区页面均可从侧栏打开 Ask AI。[Browser 控件](../src/pages/browser/BrowserControls.tsx)提供后退、前进和刷新。参见[设计规范](design-system.zh-CN.md#五交互与无障碍)及[页面按钮归属](code-architecture.zh-CN.md#页面按钮归属)。
 
-**已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为 [Home](../src/pages/home/home.css) 和[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
+**已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
 
-只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[生成尺寸](../src/shared/ui/geometry.ts)：所有窗口宽度下均为 64px。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。侧栏主页入口替代邮箱退出区域。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 切换创建独立网页段。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标/历史，不将标签重置为 Home。
+只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[生成尺寸](../src/shared/ui/geometry.ts)：所有窗口宽度下均为 64px。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标及历史。
 
-[TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。内部目标以页面标题作为标签名称，不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
+[TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。标签名称使用保留的浏览器标题或翻译后的“新建标签页”，包括上次显示业务页面的后台标签；不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 
-[快捷键](../src/platform/browser/shortcuts.ts) 在可信 Renderer 和原生网页中生效：macOS 的 `Cmd+T/W` 或其他平台的 `Ctrl+T/W` 新建/关闭标签；`Ctrl+Tab` 和 `Ctrl+Shift+Tab` 切换标签。`Cmd+L`/`Ctrl+L` 仅在 Browser 聚焦并选择地址。`Alt+Left/Right` 遍历混合历史，也适用于没有浏览器栏的内部页面。
+[快捷键](../src/platform/browser/shortcuts.ts) 在可信 Renderer 和原生网页中生效：macOS 的 `Cmd+T` 或其他平台的 `Ctrl+T` 可从任意页面新建 Browser 标签，并遵守离开保护。`Cmd+W`/`Ctrl+W` 关闭标签及 `Ctrl+Tab`/`Ctrl+Shift+Tab` 切换标签仅在 Browser 生效。`Cmd+L`/`Ctrl+L` 仅在 Browser 聚焦并选择地址。`Alt+Left/Right` 仅遍历 Browser 网页历史，在工作区页面和 Inbox 不执行操作。
 
-[Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、历史遍历、标签切换/关闭及窗口关闭前确认放弃未保存的设置和个人资料；通过标签/目标标识忽略过期草稿登记。刷新保护在导航提交前保留当前目标/草稿，取消刷新保留导入会话，已确认关闭不重复询问。已配置的 `app://inbox` 在写入历史前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
+### Browser 历史手势
+
+**已实现：**[HistoryDrag](../src/platform/browser/historyDrag.ts) 统一右键拖动与触控板横向滚动手势。向右手势表示后退、向左手势表示前进；松手时距离达到 96px（窄视口为宽度的四分之一）则导航一次。网页、视口和工具栏始终固定。沙箱中的[原生指示器](../src/platform/browser/historyIndicator.ts)在内容对应边缘显示中央箭头组件，达到阈值后高亮，不可用方向保持弱化。短距离或反向收回的手势直接隐藏箭头，不导航也不回弹。箭头尺寸/边距和手势阈值复用生成的 Token 尺寸；所有偏好下均无手势动画，包括减少动态效果偏好。成功手势立即进入现有纯灰遮罩。失焦、缩放、导航、切换标签及释放时取消待完成手势。
+
+隔离的[手势 Preload](../src/platform/electron/preload/browser-gestures.ts) 处理顶层文档的可信像素滚轮事件，将纵向/带修饰键滚动、可编辑字段、可横向滚动区域和 CSS 滚动边界限制留给网站。连续滚动在 120ms 无事件后结束，尾部抑制限制重复导航。从子 Frame 内开始的滚动仍由网站处理。没有横向拖动的右键点击保留原生菜单；纵向鼠标拖动不导航。Inbox 和工作区页面不提供历史手势。
+
+[历史展示](../src/platform/browser/historyPresentation.ts) 在两个隔离环境动画帧和合成器截图完成前持续遮住旧文档/尚未绘制好的文档，然后直接显示，不淡入或继续移出。后续导航使较早的就绪结果失效。Browser 顶部 Back/Forward 使用相同遮罩，目标确认期间不隐藏原生视口。中性浅色/暗色色值归属[设计规范](design-system.zh-CN.md)。
+
+顶部[刷新](../src/pages/browser/BrowserControls.tsx) 位于 Forward 右侧，空白/加载中的标签不可用。沙箱命名 [reload IPC](../src/platform/electron/main/browser-ipc.ts) 仅刷新当前 Browser 网页。Browser/Inbox 原生右键菜单也提供翻译后的刷新，拒绝过期/隐藏页面的点击，使用相同的纯灰到就绪展示，不重载可信应用文档。
+
+[滚动 IPC](../src/platform/browser/historyGesture.ts) 仅接受所属视图顶层 Preload 的有界增量和当前文档代次，并要求其 Browser 目标处于活动状态，不向网站暴露 API。[手势测试](../tests/history-drag.test.ts) 覆盖方向/阈值/反向、边界、窄视口阈值及过期取消。[手势 Smoke](../scripts/history-gesture-smoke.cjs) 回放原生鼠标钩子（Electron 合成鼠标输入绕过该钩子），并发送真实 Chromium 滚轮事件，验证导航、边缘箭头/触发状态、固定内容及工具栏、等待首帧的纯灰展示、顶部/菜单刷新、网页滚动和取消。物理设备手感及不同系统的惯性仍需人工验证。
+
+[Settings hook](../src/pages/settings/useSettings.ts) 管理独立草稿及保存反馈。Main 在导航、标签切换/关闭及窗口关闭前确认放弃未保存的设置和个人资料；通过标签/目标标识忽略过期草稿登记。刷新保护在导航提交前保留当前目标/草稿，取消刷新保留导入会话，已确认关闭不重复询问。已配置的 `app://inbox` 在激活视图前解析为带 Inbox 视图标识的 HTTPS 网页邮箱地址；未配置时显示设置引导。邮箱加载失败时隐藏原生视图，显示页面管理的重试/设置操作。存储语义由[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)管理。
 
 **已实现外部 Agent 接入：**[设置页面](../src/pages/settings/ExternalMCPSettings.tsx)通过独立宿主 IPC 提供全局 MCP 安装、确认替换、剪贴板导出、独立连接检查、MCP 重新连接与删除，以及单独的内置 Skills 安装、重新连接和按项删除。Skills 显示逐项状态，确认后无备份替换，也可打开文件夹以手动复制到其他 Agent；不改变偏好草稿。宿主边界、安装目录与限制归属 [MCP 架构](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)。
 
@@ -62,9 +92,17 @@ React App → Page → Preload → IPC → Main
 
 [旧 AI IPC](../src/platform/electron/main/ai-ipc.ts)暴露启动/取消及模型发现，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，对话使用已保存的 AI 请求超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
-[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 任务](../src/platform/electron/ask-agent-tasks.ts)、流式 Agent 循环及限定的 first-party MCP 会话。每 Session 一个活动 Run，每窗口最多四个、全局十六个。切换会话及内部页面保留任务；停止、Renderer 丢失及退出会取消任务。[App 投影](../src/app/ai/askStore.ts)先订阅再加载快照，对递增事件去重并在缺口时重同步。Session 保存模型选择，各 Run 独立捕获配置/凭据。已实现重命名/删除、草稿、历史分页和安全的手动重试；尝试过写入的 Run 引导核对当前状态，不自动重放。存储/隐私归属[数据架构](data-architecture.zh-CN.md)，工具范围归属 [MCP 架构](mcp-architecture.zh-CN.md)。
+[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)，每个活跃 Run 只有一个 [Pi Agent](../src/platform/agent/pi/runtime.ts)。同一 Session 按 FIFO 完成能力解析、Core 加载、上下文准备、串行推理/工具及终态持久化，不同 Session 可以并发。后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止取消当前链路，保留部分内容与已提交写入；中断 Run 不续跑。仅恢复宿主记录落盘时保持该 Session 队列屏障，不重放工具。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿及分页。存储与 MCP 权限由所属文档管理。 每次准入 Send 具有独立可信的 MCP Run 身份；[MCP 架构](mcp-architecture.zh-CN.md#ask-run-保护)拥有防护及终止策略，[模型观察器](../src/platform/agent/pi/request-observer.ts)将主循环和摘要请求合计限制为 64 次。 每个 Pi 决策及其工具批次由 [Cycle 状态机](agent-runtime.zh-CN.md)控制，执行状态取自最新 Cycle。
 
-[流式适配](../src/platform/ai/agent-stream.ts)规范化正文及明确公开的 `reasoning_summary` 字符串增量。忽略未分类的 `reasoning`/`reasoning_content` 字段；不提供摘要的模型显示处理中及工具活动。工具调用整批组装、校验及审计成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、并发、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
+**已实现请求校验：**[稳定 Provider 名称](../src/platform/ai/agent-protocol.ts)保留语义化名称片段、短哈希及 Description 中的逻辑名称前缀。[Pi 适配器](../src/platform/agent/pi/model-adapter.ts)在发送前核对运行时 loadout、Pi 声明和已组装的 Provider 名称/完整输入 Schema 指纹；不一致时以 AGENT_PROTOCOL_ERROR 停止。[MCP 架构](mcp-architecture.zh-CN.md)管理激活循环限制，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除的逐请求诊断。[披露集成测试](../tests/ask-disclosure.test.ts)通过真实 HTTP 与第一方 MCP 验证链路，不使用自动激活辅助层；真实模型的工具选择质量仍未验证。
+
+[流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装、校验及审计成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、并发、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
+
+[SessionSidebar](../src/pages/ai/SessionSidebar.tsx)确认后通过 App 注入的 Data IPC 复制调试 JSON；完整持久化快照留在 Main，回读剪贴板一致后才成功，详见[数据架构](data-architecture.zh-CN.md#copy-debug-json)。
+
+[上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts)优先使用 LM Studio 已加载实例限制；未知或低于 64K 的窗口不能运行 Ask AI。Settings 支持填写部署限制。
+
+[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
 
 **已实现模型发现：**[Main 检测服务](../src/platform/ai/models.ts)按用户操作向已保存 Provider 的 `models` 资源发起 `GET`，使用已保存密钥；无需密钥的服务不发送身份验证。不要求已有模型/默认值。服务拒绝重定向，限制 JSON 为 1 MB/10,000 条，校验、去重并排序 ID，使用已保存的模型检测超时，每个窗口最多一个请求、全局最多 16 个。窗口释放/导航或应用退出会中止检测。
 
@@ -74,52 +112,32 @@ React App → Page → Preload → IPC → Main
 
 [导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
 
-Main 将 PDF 文字发送给已展示的全局默认 Provider/模型，复用 AI 超时、取消和启动审计。[草稿解析](../src/platform/profile-import/draft.ts)校验 JSON，将多个事实归入同一条目。导入输出不包含原文引用、页码及证据校验，可省略空的可选字段；已保存事实仍支持 Resume Agent 表述关联。原始流不作为已解析资料展示，重试由用户手动发起。原始 PDF、完整文字和未保存草稿不持久化，离页、刷新、崩溃和窗口销毁会释放会话。OCR、原始文件管理和真实第三方 Provider 兼容性认证尚未实现。
+主进程向已选模型提交带页码和行号的 PDF 提取文本。[草稿解析](../src/platform/profile-import/draft.ts)校验位置，按来源排序并对 Fact 去重。未归类原文供人工分配字段、转换为 Fact 或忽略。原始 PDF、全文和未保存草稿留在内存。
 
-**已实现导入模式：**两种导入默认使用普通模式（`single`，一个 AI 请求）。在设置中选择 Provider，再在“配置并行导入的模型”中选择模型，勾选“允许此模型并行导入”并保存；随后在 PDF 或 URL 导入页面各自选择并行模式（`parallel`）。许可属于 Provider/模型组合，不是模型 API 参数。导入模式只存于页面/会话，不是持久化全局偏好；缺少许可时并行选项不可用，Main 也拒绝绕过界面的调用。见[模型控件](../src/pages/settings/ModelImportSettings.tsx)、[模式控件](../src/app/ai/ImportControls.tsx)和 [Main 策略](../src/platform/import/policy.ts)。
-
-AI 工作前仅下载/清洗一次网页，或提取一次 PDF 文字。[职位分组](../src/platform/job-import/parts.ts)和[资料分组](../src/platform/profile-import/parts.ts)读取相同完整来源，不按页切分文档。普通与并行 PDF 导入使用同一精简事实结构，详见[数据架构](data-architecture.zh-CN.md#二业务规则)。
-
-| 导入 | 分组 | 提取内容 |
-| --- | --- | --- |
-| 职位 URL | `basics` | 职位名称、公司原名、地点文字/列表、雇佣类型及薪资 |
-| 职位 URL | `description` | 职位描述 |
-| 职位 URL | `requirements` | 要求原文、类别及关键词 |
-| PDF 资料 | `contact` | 包含个人简介的基本信息、链接及独立事实 |
-| PDF 资料 | `experience` | 工作经历条目及所属事实 |
-| PDF 资料 | `projects` | 项目条目及所属事实 |
-| PDF 资料 | `education` | 教育条目及所属事实 |
-
-并行模式下职位备注默认为空，来源元数据由本地组装。[共用批次](../src/platform/import/batch.ts)最多并发三组，PDF 的第四组等待空闲位置。每组只能返回分配的字段/条目类型；所有组成功后按固定顺序合并。资料合并按事实类别/内容去除同一父项内的重复及独立事实对条目事实的重复；不同父项下的相同事实分别保留。
-
-[AI 服务](../src/platform/ai/service.ts)为 Profile 导入排队，每窗口四个/全局十六个活动请求，活动与排队合计最多八十个。职位采集通过 AgentModel 在每个窗口任务内最多并发三组。各组报告仅存内存的排队/处理耗时；[共用批次](../src/platform/import/batch.ts)使用单调时钟每 100 毫秒刷新，保留终态耗时，重试只重置失败组，完成/失败/取消释放计时器。
-
-分组失败时，成功结果留在内存；只有任务返回 `retryable`，页面才提供“重试失败部分”。重试复用原来源、模型选择、模式和成功结果，不重新下载/提取，也不写业务数据。读取/提取失败，或没有失败组的最终合并失败，需要重新解析。替换、放弃、导航/窗口释放和进程退出会释放对应任务/缓存。重试标识规则见[数据架构](data-architecture.zh-CN.md#五api-契约与访问)。
-
-每组接收完整输入，因此输入 token/费用可能增加。较短输出和并发请求可以减少等待，但效果取决于服务商并发、模型吞吐及网络延迟；本地样本测试不代表真实服务提速。
+[导入请求](../src/platform/import/request.ts)在每次解析中发送一次模型请求。解析失败后手工重试复用已读取的来源，并重新执行整次解析。任务取消、替换或关闭窗口后释放对应缓存。
 
 **已实现新增工作：**[页面](../src/pages/find-jobs/AddJobPage.tsx)支持手工录入及 URL/文本/PDF [采集 Agent](../src/platform/agent/capture.ts)。解析仅回填空字段，保留已有数组/薪资并显示所选模型。读取和理解期间不调用 JAB MCP，审核编辑后的草稿通过 job.import 保存；人工表单保留 typed IPC。[未保存保护](../src/app/navigation/useUnsavedGuard.ts)与 Profile 共用，存储规则归属[数据架构](data-architecture.zh-CN.md)。
 
 [公开 URL 读取器](../src/platform/job-import/url-reader.ts)在 Main 读取 HTTP(S) HTML，不发送网站 Cookie，不执行网页脚本；使用已保存的网页读取超时，最多 5 次重定向、2 MB HTML、60,000 个正文字符及 40,000 个 JobPosting 元数据字符。[HTML 解析](../src/platform/job-import/html.ts)使用 htmlparser2 去除脚本/导航等内容；HTTP 拒绝、登录/验证页及无可读内容返回固定错误。仅脚本生成或无法识别的限制页可能无法解析，不保证所有招聘网站兼容。
 
-[采集任务](../src/platform/job-import/service.ts)按窗口管理原始字节、草稿、重试和稳定保存 requestId。[通用 PDF 读取](../src/platform/import/pdf.ts)与 Profile 共用 Worker 和上限。职位解析使用 AgentModel；[分组解析](../src/platform/job-import/parts.ts)拒绝受控字段，保留成功分组供重试。窗口释放阻止迟到结果。登录态 Browser 采集、登录/验证码、OCR 和原文件管理仍未实现。
+[采集任务](../src/platform/job-import/service.ts)按窗口管理来源、草稿、重试和稳定的保存 requestId。[职位解析](../src/platform/agent/capture.ts)使用 AgentModel，并在关闭窗口时抑制迟到的结果。PDF 读取与个人资料导入共用 Worker 和上限。
 
 [申请记录](../src/pages/applications/ApplicationsPage.tsx)支持搜索/状态/归档筛选、25 条分页和手动刷新。详情包含来源、分页事件及[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)。明确指令通过 MCP 执行本地状态/备注/日程/详情/归档动作，缺少信息时追问，部分失败保留已完成动作。保存 Job 后打开其详情。外部日历/邮件动作及重复合并仍为规划。
 
-**已实现 Resume Agent V1：**[Main 任务](../src/platform/electron/resume-tasks.ts)组装固定五阶段的 [Resume Agent](../src/platform/agent/resume.ts)与真实 first-party stdio MCP 会话。不可变 start/read/submit/publish/fail/cancel/build 均经过 MCP，UI 查询/预览/导出属于独立 Main 操作。[异步桥接](../src/platform/electron/resume-contract.ts)驱动定制简历，保留历史、每窗口限制一个活动任务，并取消被销毁窗口的工作。[数据架构](data-architecture.zh-CN.md#三生成成品与删除)管理持久化/输出，[MCP 架构](mcp-architecture.zh-CN.md)管理 Agent 边界。
+**已实现 Resume V3。**[主进程任务](../src/platform/electron/resume-tasks.ts)通过 MCP 复制已保存的个人资料，并使用[共享 Agent Engine](../src/platform/agent/engine/index.ts)改写已有要点。[定制简历页面](../src/pages/tailor-resume/TailorResumePage.tsx)展示业务进度、历史及 HTML/PDF 预览，Agent Trace 位于进度下方的默认折叠卡片中。手工保存更新 Artifact，重建无需推理。
 
 ## 四、会话、安全与存储
 
 远程视图共享 `persist:job-agent-browser`，网站存储跨重启保留。权限请求被拒绝；没有多资料选择器。
 
 - [可信窗口](../src/platform/electron/main/window.ts)和[远程视图](../src/platform/browser/webSegment.ts)禁用 Node 集成，启用上下文隔离和沙盒；远程网页安全检查保持启用。
-- 浏览器、数据及 AI IPC 要求自有可信文档及顶层 frame，并校验输入。[Preload](../src/platform/electron/preload/index.ts) 只暴露命名操作，不暴露原始 `ipcRenderer`。
+- 业务浏览器、数据及 AI IPC 要求自有可信文档及顶层 frame，并校验输入。[Preload](../src/platform/electron/preload/index.ts) 只暴露命名操作，不暴露原始 `ipcRenderer`。
 - 远程主 frame 导航/重定向只允许 HTTP(S)。HTTP(S) 弹窗新建应用标签；原生弹窗和其他协议被拒绝。远程页面不能进入内部路由或访问浏览器/数据桥接。
 - [可信 HTML](../src/renderer/index.html) 保持 CSP。可信 UI 外部链接通过窗口创建逻辑使用操作系统浏览器。
 
 Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存储，启动失败时报告错误且不重置数据。[后端组装](../src/platform/database/backend.ts) 注入 Repository/事务并恢复中断生成任务。[数据架构](data-architecture.zh-CN.md)管理已实现的 SQLite、业务校验、持久化及不含内容的审计。
 
-**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)分别管理可选第三方能力消费与 [first-party 会话](../src/platform/mcp/first-party-client.ts)。四个内部 Agent 与外部宿主共用提供 42 个工具的 [Node Server](../src/platform/mcp-server/runtime.ts)，Caller 标识仅影响审计。Renderer 只暴露命名流程 IPC，不开放通用工具执行。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、上限和退出，数据架构管理多进程恢复。
+**已实现工具/MCP：**[Main](../src/platform/electron/main/index.ts)分别管理可选第三方能力消费与 [first-party 会话](../src/platform/mcp/first-party-client.ts)。内部流程与外部宿主通过限定 Scope 共用业务能力，使用同一 [Node Server](../src/platform/mcp-server/runtime.ts)，Caller 标识仅影响审计。Renderer 只暴露命名流程 IPC，不开放通用工具执行。[MCP 架构](mcp-architecture.zh-CN.md)管理注册、上限和退出，数据架构管理多进程恢复。
 
 ## 五、国际化
 
@@ -131,11 +149,11 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 六、验证与限制
 
-[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、精简草稿、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、混合回放、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、固定图标栏尺寸、提示名称及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、精简草稿、PDF 限制与错误。[审计查看器 smoke](../scripts/audit-viewer-smoke.cjs)验证生产 IPC、筛选/分页/详情、只读语义、加载/失败/空状态、过期响应拒绝、键盘关闭及 320/640/1200px 布局；[查看器测试](../tests/audit-viewer.test.ts)覆盖 ID/时间校验、夏令时转换、包含边界的范围及筛选分页。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、仅启动审计、取消、Provider 配置及真实 IPC。[集成测试](../tests/audit.test.ts) 验证存储/隐私保证；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、工作区/历史分离、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、固定图标栏尺寸、提示名称及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
 标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获仍未实现；打包及其验收状态归属 [CI/CD](ci-cd.zh-CN.md)。
 
-[职位导入测试](../tests/job-import.test.ts)覆盖 HTML 清洗、访问限制、超时/取消、字段白名单、手工值保留及初始状态；[新增工作 smoke](../scripts/job-smoke.cjs)通过本地 HTML/SSE 服务验证真实桥接、保存跳转、申请记录及双语主题布局。[并行导入测试](../tests/import-parallel.test.ts)、[排队测试](../tests/ai-queue.test.ts)和[生产 smoke](../scripts/import-parallel-smoke.cjs)验证分组隔离、有界调度、重试/取消、模型许可及双语布局。真实第三方招聘站点和账号兼容性未验证。
+[职位导入测试](../tests/job-import.test.ts)和[职位 smoke](../scripts/job-smoke.cjs)覆盖 URL、文本、PDF、单次解析和人工保存。真实第三方招聘站点和账号兼容性尚未验证。
 
 ## 七、相关文档
 
@@ -150,7 +168,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 [工作区队列](../src/platform/knowledge/workspace-embedding.ts)串行调度唯一共享 Provider，限制排队并优先查询。重建单个索引仅等待自身任务，不取消或释放共享模型；全局配置/移除/退出协调两个视图。[Broker](../src/platform/knowledge/broker.ts)仅依赖共享查询向量生成能力，不依赖任一空间索引。独立 MCP 不加载模型，Main 或模型不可用时保留词法检索。
 
-[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md#智能笔记知识库)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及手动记忆策略。自动记忆、Pi 和 Context Budget 仍为**规划**。
+[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md#智能笔记知识库)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及 Ask Memory 写入授权。Ask V2 Runtime 行为见上文。
 
 [本地 embedding](../src/platform/knowledge/rag/local-embedding.ts) 按需调度单个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，优先处理查询、限制队列并拒绝取消/超时/崩溃请求。Worker 禁止远程加载和 fetch，只读取用户模型存储中完整校验过的 revision。Main 的 [Model Manager](../src/platform/models/manager.ts) 管理下载/Seed 导入、重试/取消、校验、原子提交和删除；[路径](../src/platform/models/paths.ts) 独立于安装位置和 cwd。GUI 启动不等待模型校验或导入；模型不可用时保留关键词搜索。激活后立即调度缺失向量，删除权重前停止本实例推理。跨进程读取租约阻止替换或删除其他实例正在使用的模型。[打包](ci-cd.zh-CN.md) 负责发行检查。
 

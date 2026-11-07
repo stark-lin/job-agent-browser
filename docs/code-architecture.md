@@ -1,6 +1,6 @@
 # Code Architecture
 
-Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, mixed navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume Agent V1 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
+Purpose: define source ownership, dependency boundaries and delivery constraints. Status: **Implemented** App/router, separate workspace/browser navigation, Platform entries, chat/AI, layered storage, Profile workflows, Job Capture/Application Agents and Resume V3 with HTML/PDF. Smart Note is **Implemented**; additional workflows are **Planned**. Verified behavior belongs to [current architecture](architecture.md).
 
 Language: English · [简体中文](code-architecture.zh-CN.md)
 
@@ -11,12 +11,12 @@ Organize product code by Page, business rules by Domain and technical adapters b
 | Layer | Ownership | Existing reference |
 | --- | --- | --- |
 | App | React composition, routing, providers, navigation projection and context | [App](../src/app/App.tsx), [providers](../src/app/providers.tsx), [theme projection](../src/app/theme.tsx) |
-| Pages | UI, local components/hooks/state and page workflows | [Home](../src/pages/home/HomePage.tsx), [Browser](../src/pages/browser/BrowserPage.tsx) |
+| Pages | UI, local components/hooks/state and page workflows | [Ask AI](../src/pages/ai/AskAIPage.tsx), [Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | Entities, validation, use cases and capability/repository interfaces | [Job use cases](../src/domain/job/job.service.ts) |
 | Platform | Electron, browser, database, filesystem, AI and settings adapters | [Browser manager](../src/platform/browser/browserManager.ts), [SQLite](../src/platform/database/sqlite.ts) |
 | Shared | Framework-free contracts and business-free UI/utilities/hooks | [Navigation contract](../src/shared/navigation.ts), [placeholder UI](../src/shared/ui/PlaceholderPage.tsx) |
 
-[Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. The package entry remains `out/main/index.js`; additional Node MCP and Electron output-worker entries are built alongside it.
+[Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. The package entry remains `out/main/index.js`; additional Node MCP and Electron output-worker entries are built alongside it. A separate sandboxed `browser-gestures` preload owns webpage wheel input without exposing the trusted application bridge.
 
 All UI components must compose primitives from the [central library entry](../src/shared/ui/index.ts); add missing variants centrally before page use. Pages keep layout and event behavior. The [design specification](design-system.md#2-mandatory-central-component-reuse) owns the full reuse rule.
 
@@ -31,7 +31,6 @@ src/
 │   ├── navigation/
 │   └── context/
 ├── pages/
-│   ├── home/
 │   ├── find-jobs/
 │   ├── tailor-resume/
 │   ├── knowledge/
@@ -80,7 +79,7 @@ src/
     └── tools/
 ```
 
-Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior.
+Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailor Resume are implemented. Smart Note is implemented. Local modules are created only when used; files/directories alone do not establish behavior.
 
 ## 3. Dependencies and process composition
 
@@ -94,6 +93,8 @@ Home, Browser, Inbox, Ask AI, Profile, Settings, Add Job, Applications and Tailo
 
 Renderer workflows call typed bridge operations; Main composes Domain services with Platform repositories and transactions. Domain depends on interfaces, with concrete adapters injected by [backend composition](../src/platform/database/backend.ts). The conceptual Page → Domain → Platform flow does not permit importing server services into UI.
 
+The [pure Ask AI Cycle state machine](../src/platform/agent/react-cycle/machine.ts) owns transitions and execution decisions. The [Pi adapter](../src/platform/agent/pi/runtime.ts) applies them before model and tool dispatch. Main persists trusted events. See the [Agent runtime contract](agent-runtime.md).
+
 Database access remains inside controlled Main/Node runtimes. Settings, secrets, AI requests and compilation are reserved for Main or controlled services. Preserve sandboxing, context isolation, third-party page separation and exact trusted-document/top-frame IPC validation.
 
 The [shared i18n module](../src/shared/i18n/) owns framework-independent resources, configuration, selector types and translation initialization; it imports neither React nor Electron. [App](../src/app/i18n.tsx) owns React provider integration and document metadata. Pages translate at render time; Platform translates application-owned native copy. Keep new visible text in the catalog, including complete interpolated sentences, and use typed selectors. Runtime behavior and remaining language support are owned by [current architecture](architecture.md#5-internationalization).
@@ -102,20 +103,20 @@ The [shared i18n module](../src/shared/i18n/) owns framework-independent resourc
 
 [App navigation](../src/app/navigation/) provides a subscribed projection of Main snapshots and a unified navigation hook. React Context supplies dependencies and `useSyncExternalStore` reads stable snapshots. No routing/state library is added. Provider lifecycle owns subscriptions, initialization races and cleanup; page-local state remains in page hooks/components.
 
-The framework-free [Destination](../src/shared/navigation.ts) contract is shared across processes. [Main browser management](../src/platform/browser/browserManager.ts) owns tabs and authoritative mixed histories; [MixedHistory](../src/platform/browser/mixedHistory.ts) joins internal entries and native-history segments, while [WebSegment](../src/platform/browser/webSegment.ts) owns view events, native traversal and disposal. App routing never changes the trusted document URL.
+The framework-free [Destination](../src/shared/navigation.ts) contract is shared across processes. [Main browser management](../src/platform/browser/browserManager.ts) owns tabs and authoritative navigation state; [TabNavigation](../src/platform/browser/tabNavigation.ts) separates workspace destinations from retained native surfaces, while [WebSegment](../src/platform/browser/webSegment.ts) owns view events, native traversal and disposal. App routing never changes the trusted document URL.
 
 Browser owns its tab strip/address/controls; other internal pages hide the entire browser bar and all internal URLs. Browser and Inbox acknowledge their own native surfaces through the [presentation hook](../src/app/navigation/useNativePresentation.ts), identifying the active tab and target so old acknowledgments cannot cover another page. Inbox never renders Browser controls. UI URLs and history rules are owned by product architecture; runtime details are owned by current architecture.
 
 [App context](../src/app/context/) holds active-page metadata and nullable Job/Profile/Artifact IDs, not record copies. Resolve entities through the business bridge. Applications uses a Job ID, not a separate persisted Application entity. Profile resolves and updates its current Profile ID; saving Add Job and selecting Applications details update the Job ID. Tailor Resume populates the Artifact ID; automatic page content/selection capture remains planned.
 
-Home invokes navigation only. Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
+Cross-page business rules stay in Domain; navigation and context switching remain App/Page responsibilities.
 
 ### Page button ownership
 
 - App owns the persistent workspace sidebar and feature navigation metadata; Pages own their workflow buttons, placement, enabled/loading state and handlers. The sidebar uses the same navigation API and leave guard, without a global Back/Next/Forward bar.
-- Home displays feature entries without a Back button. Other business pages expose Go home as their only page-history navigation button (Ask AI V2 uses the persistent Home sidebar entry); do not add cross-page Back/Next/Forward controls. Browser owns its existing Home/Back/Forward toolbar.
-- Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than mixed page history. Business actions and links remain page-owned.
-- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and Go home and [InboxPage](../src/pages/inbox/InboxPage.tsx) also owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
+- Workspace destinations belong to the persistent sidebar. Browser owns the Back, Forward and Refresh toolbar for webpage navigation.
+- Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than browser history. Business actions and links remain page-owned.
+- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and [InboxPage](../src/pages/inbox/InboxPage.tsx) owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
 
 ## 5. Data and capability placement
 
@@ -136,13 +137,13 @@ The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types
 
 [Shared Agent contracts](../src/shared/agent/index.ts) own AgentModel/AgentTools. [Platform Tools](../src/platform/tools/index.ts) is the sole public MCP registry; ToolScope is Server-only. Only platform/mcp and platform/mcp-server import the MCP SDK. Agent modules may import pure Domain workflow/validation, but never services, repositories, registries or database adapters, including indirectly. [MCP architecture](mcp-architecture.md) owns capabilities and session behavior.
 
-[Chat Domain](../src/domain/chat/) owns pure transcript contracts and manual CRUD validation. [Main Ask tasks](../src/platform/electron/ask-agent-tasks.ts) own Run lifecycle and inject the private SQLite recorder; [AskStore](../src/app/ai/askStore.ts) owns App-lifetime event projection, while Pages compose central controls. Agent code receives only models, MCP tools and a pure event callback; it never imports transcript repositories. Streaming protocol/framing stays under platform/ai and the tool/model state machine under platform/agent.
+[Chat Domain](../src/domain/chat/) owns pure transcript contracts/manual validation. [Main Ask tasks](../src/platform/electron/ask-agent-tasks.ts) own FIFO admission, persistence callbacks, per-turn authorization and cancellation; [AskStore](../src/app/ai/askStore.ts) owns event projection. Agent modules under platform/agent/pi, context and tools receive models, MCP clients and pure callbacks; they never import repositories or ToolScope. Provider framing stays in platform/ai. The [Agent Engine](../src/platform/agent/engine/index.ts) owns shared Pi execution for Ask, Smart Paste and Resume. CJS entries load Pi ESM through native dynamic import.
 
-[Profile](../src/pages/profile/ProfilePage.tsx) owns forms, grouped facts and editable import drafts. Candidate Domain owns [atomic import](../src/domain/candidate/import.service.ts); [Platform import](../src/platform/profile-import/service.ts) owns Worker extraction, AI orchestration, session ownership and replay receipts; [shared import infrastructure](../src/platform/import/batch.ts) owns bounded batches, cancellation and successful-result caching, while [policy](../src/platform/import/policy.ts) checks mode permission in Main. Each import adapter retains its own prompts, field validation and merging rules. Business DTOs belong to Candidate and [typed IPC](../src/platform/electron/profile-import-contract.ts); generic channel names and [mode/group progress types](../src/shared/import.ts) live in Shared.
+[Profile](../src/pages/profile/ProfilePage.tsx) owns forms and review drafts. [Import tasks](../src/platform/profile-import/service.ts) own PDF extraction, one model parse, session ownership and retry. [Candidate Domain](../src/domain/candidate/import.service.ts) owns atomic saves and ordering.
 
 Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/useUnsavedGuard.ts); job forms, empty-field filling and Applications querying remain page-owned.
 
-[Platform Agents](../src/platform/agent/) implement Resume five-stage reasoning, source capture and application action planning through AgentTools. Domain retains machine-enforced workflow contracts; prompts belong to Agent adapters. Main task services under platform/electron own window lifecycle, typed IPC and UI projection; model adapters under platform/ai own provider access. The Node MCP Server owns business capabilities and Electron output-worker builds. UI preview/export do not become Agent capability shortcuts.
+[Platform Agents](../src/platform/agent/) implement Resume bullet rewriting, source capture and application action planning. AgentTools is the protocol client for business operations. Domain retains machine-enforced workflow contracts; prompts belong to Agent adapters. Main task services under platform/electron own window lifecycle, typed IPC and UI projection; model adapters under platform/ai own provider access. The Node MCP Server owns business capabilities and Electron output-worker builds. UI preview/export do not become Agent capability shortcuts.
 
 ## 6. Quality and future delivery
 
@@ -167,6 +168,6 @@ Update the owning document and both language editions with behavior, interface, 
 
 [Embedding contracts](../src/platform/knowledge/rag/embedding.ts) and the scheduler remain independent of Electron; [model-path](../src/platform/knowledge/rag/model-path.ts) binds the Electron utility transport. The inference entry owns only model/tokenizer/runtime. [Build configuration](../electron.vite.config.ts) emits embedding-process.js alongside Main/MCP/output worker; packaging externalizes native dependencies. Distribution operations belong to [CI/CD](ci-cd.md).
 
-The [bootstrap](../src/platform/electron/main/bootstrap.ts) dispatches packaged child roles before loading Main; the application entry is application-main.js. PDF workers announce readiness before receiving input and use disposable userData removed by the parent. [Package verification](../src/platform/electron/verify-resume-package.ts) also executes a full MCP resume workflow, renders HTML/PDF and extracts text through the bundled PDF worker.
+The [bootstrap](../src/platform/electron/main/bootstrap.ts) dispatches packaged child roles before loading Main; the application entry is application-main.js. PDF workers announce readiness before receiving input and use disposable userData removed by the parent. [Package verification](../src/platform/electron/verify-resume-package.ts) also executes a full MCP resume workflow, renders HTML/PDF and extracts text through the bundled PDF worker. [Ask package verification](../src/platform/electron/verify-ask-package.ts) loads Pi ESM from the installed CJS entry and exercises discovery plus real MCP using a deterministic model.
 
 **Implemented:** [Platform Models](../src/platform/models/manager.ts) owns resource installation/storage and inference leases; [Platform npm](../src/platform/npm/distribution.ts) owns distribution-specific MCP launch adaptation. CLI/build sources live in [packages/npm](../packages/npm/README.md) and [scripts](../scripts/prepare-npm-package.cjs). They reuse the existing Main, business database, MCP server and output workers; Agent boundaries remain unchanged.

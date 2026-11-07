@@ -1,3 +1,4 @@
+import { removeFactEvidenceMigration } from './remove-fact-evidence'
 import { memoryAuditMigration } from './memory-audit'
 import { knowledgeAuditMigration } from './knowledge-audit'
 import type { DatabaseSync } from 'node:sqlite'
@@ -11,11 +12,21 @@ import { operationReceiptMigration } from './operation-receipts'
 import { chatMigration } from './chat'
 import { profileWriteMigration } from './profile-writes'
 import { profileIntroductionMigration } from './profile-introduction'
+import { askRuntimeMigration } from './ask-runtime'
+import { askSerialMigration } from './ask-serial'
+import { chatModelRequestsMigration } from './chat-model-requests'
+import { chatProtocolMigration } from './chat-protocol'
+import { chatReactCyclesMigration, chatReactCycleConstraintsMigration } from './chat-react-cycles'
+
+import { resumeOnceMigration } from './resume-once'
+import { resumeV3Migration } from './resume-v3'
+import { agentStorageMigration } from './agent-storage'
+import { resumeModuleMigration } from './resume-module'
 
 export interface Migration { version: number; sql: string }
 export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration },
   { version: 3, sql: capabilityAuditMigration }, { version: 4, sql: runtimeLeaseMigration }, { version: 5, sql: operationReceiptMigration }, { version: 6, sql: chatMigration },
-  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }, { version: 10, sql: memoryAuditMigration }]
+  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }, { version: 10, sql: memoryAuditMigration }, { version: 11, sql: askRuntimeMigration }, { version: 12, sql: chatProtocolMigration }, { version: 13, sql: askSerialMigration }, { version: 14, sql: chatModelRequestsMigration }, { version: 15, sql: removeFactEvidenceMigration }, { version: 16, sql: chatReactCyclesMigration }, { version: 17, sql: chatReactCycleConstraintsMigration }, { version: 18, sql: resumeModuleMigration }, { version: 19, sql: agentStorageMigration }, { version: 20, sql: resumeV3Migration }, { version: 21, sql: resumeOnceMigration }]
 
 // A new incompatible schema generation. Inspect before any journal/schema writes.
 export const DATABASE_GENERATION = 0x4a415632

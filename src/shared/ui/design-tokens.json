@@ -1,4 +1,6 @@
 {
+  "browser-canvas-bg": "#e5e5e5",
+  "browser-transition-bg": "#303030",
   "bg": "#f7f7f5",
   "panel": "rgba(255,255,255,.72)",
   "panel-solid": "#fbfbfa",
@@ -15,6 +17,7 @@
   "primary-soft": "#eff6ff",
   "primary-line": "#bfdbfe",
   "success": "#16a34a",
+  "success-text": "#166534",
   "success-bg": "#f0fdf4",
   "success-line": "#bbf7d0",
   "warning": "#d97706",

@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { DatabaseSync } from 'node:sqlite'
+import { migrate, migrations } from '../src/platform/database/migrations'
+import { Transactions } from '../src/platform/database/transactions'
+import { Store } from '../src/platform/database/repositories/store'
+import { composeBackend } from '../src/platform/database/backend'
 import { seed, value } from './helpers'
 import { createJobAgentTooling, jobAgentAllowlist } from '../src/platform/tools'
 import type { ToolOutput } from '../src/shared/tools/tool.types'
@@ -35,89 +40,145 @@ test('shared tools freeze reads, isolate model scope, audit trusted identity and
   assert(audit.some(row => row.run_id === f.runId && row.agent_id === 'codex'))
   assert(!JSON.stringify(audit).includes(f.fact.content))
 })
-test('workflow rejects skipped stages and provenance forgery, handles identical retries and publishes once', async t => {
+test('rewrite changes only text, preserves provenance and publishes exactly once', async t => {
   const f = await resumeTools(t), call = (name: string, args = {}) => f.scope.execute(name, { runId: f.runId, ...args })
-  await assert.rejects(call('resume.publish'), { code: 'TOOL_CONFLICT' })
-  const scoring = { language: 'en', scores: [{ factId: f.fact.id, score: 90, reason: 'Relevant' }] }
-  await call('resume.submit_scores', scoring); await call('resume.submit_scores', scoring)
-  await call('resume.submit_scores', { language: 'en', scores: [{ reason: 'Relevant', score: 90, factId: f.fact.id }] })
-  await assert.rejects(call('resume.submit_scores', { language: 'en', scores: [{ reason: ' Relevant ', score: 90, factId: f.fact.id }] }), { code: 'TOOL_CONFLICT' })
-  await assert.rejects(call('resume.submit_scores', { ...scoring, language: 'zh-CN' }), { code: 'TOOL_CONFLICT' })
-  await call('resume.submit_gate', { gate: { passed: true, reason: '', missingRequirements: [] } })
-  await call('resume.submit_selection', { selection: { factIds: [f.fact.id], itemIds: [f.item.id], wordBudget: 500 } })
-  const writing = { summary: { id: randomUUID(), text: f.fact.content, factIds: [f.fact.id] }, experience: [], projects: [], education: [], skills: [] }
-  await assert.rejects(call('resume.submit_draft', { writing: { ...writing, basics: { name: 'FORGED' } } }), { code: 'TOOL_INVALID_INPUT' })
-  await assert.rejects(call('resume.submit_draft', { writing: { ...writing, summary: { ...writing.summary, factIds: [randomUUID()] } } }), { code: 'TOOL_CONFLICT' })
-  await call('resume.submit_draft', { writing }); await call('resume.submit_polished', { writing })
-  const first = data<{ artifact: { id: string; content: { basics: { name: string } } } }>(await call('resume.publish'))
-  const second = data<{ artifact: { id: string } }>(await call('resume.publish'))
-  assert.equal(second.artifact.id, first.artifact.id); assert.equal(first.artifact.content.basics.name, f.profile.name)
-  assert.deepEqual(f.backend.resumes.getArtifact({ id: first.artifact.id }).provenance, [{ blockId: writing.summary.id, factIds: [f.fact.id] }])
+  const before = f.backend.resumes.getRun({ id: f.runId }).run
+  const bullet = before.assembled!.experience[0].bullets[0]
+  const request = { bulletId: bullet.id, text: 'Supported wording', requestId: randomUUID() }
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, factIds: [] }), { code: 'TOOL_INVALID_INPUT' })
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, expectedRevision: 0 }), { code: 'TOOL_INVALID_INPUT' })
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, bulletId: randomUUID() }), { code: 'TOOL_INVALID_INPUT' })
+  const result = await call('resume.rewrite_bullet', request)
+  assert.deepEqual(await call('resume.rewrite_bullet', request), result)
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, text: 'Different' }), { code: 'TOOL_CONFLICT' })
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
+  const after = f.backend.resumes.getRun({ id: f.runId }).run
+  assert.equal(after.stateVersion, before.stateVersion)
+  assert.deepEqual(f.backend.rewrittenBulletIds(f.runId), [bullet.id])
+  bullet.text = request.text
+  assert.deepEqual(after.assembled, before.assembled)
+  const first = data<{ artifact: { id: string; content: unknown } }>(await call('resume.publish'))
+  assert.deepEqual(data(await call('resume.publish')), first)
+  assert.deepEqual(first.artifact.content, before.assembled)
+  assert.deepEqual(f.backend.resumes.getArtifact({ id: first.artifact.id }).provenance, [{ blockId: bullet.id, factIds: [f.fact.id] }])
+  assert.equal(f.backend.resumes.getRun({ id: f.runId }).run.state, 'PUBLISHED')
+  assert.deepEqual(await call('resume.rewrite_bullet', request), result)
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
 })
-test('gate rejection is terminal and cancellation is idempotent', async t => {
+
+test('distinct bullets change independently; no-ops preserve eligibility and receipts stay immutable', async t => {
   const f = await resumeTools(t)
-  await f.scope.execute('resume.submit_scores', { runId: f.runId, language: 'en', scores: [{ factId: f.fact.id, score: 10, reason: '' }] })
-  const gate = { runId: f.runId, gate: { passed: false, reason: 'Missing evidence', missingRequirements: ['Leadership'] } }
-  await f.scope.execute('resume.submit_gate', gate); await f.scope.execute('resume.submit_gate', gate)
-  await assert.rejects(f.scope.execute('resume.publish', { runId: f.runId }), { code: 'TOOL_CONFLICT' })
-  const stopped = data<{ status: string }>(await f.scope.execute('resume.cancel', { runId: f.runId }))
-  assert.equal(stopped.status, 'FAILED'); assert.equal(f.backend.artifactForRun(f.runId), null)
+  value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Second claim' } }))
+  const { runId } = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
+  const call = (name: string, args = {}) => f.scope.execute(name, { runId, ...args })
+  type Page = { items: { bulletId: string; text: string; rewritten: boolean }[]; total: number }
+  const page = data<Page>(await call('resume.list_bullets'))
+  assert(!Object.hasOwn(page, 'revision'))
+  assert(page.items.every(bullet => bullet.rewritten === false))
+  const [first, second] = page.items
+  const noop = { bulletId: first.bulletId, text: first.text, requestId: randomUUID() }
+  const unchanged = await call('resume.rewrite_bullet', noop)
+  assert.equal(data<{ changed: boolean }>(unchanged).changed, false)
+  assert.equal(data<Page>(await call('resume.list_bullets')).items[0].rewritten, false)
+  const rewrite = { ...noop, text: 'First supported rewrite', requestId: randomUUID() }
+  await call('resume.rewrite_bullet', rewrite)
+  await call('resume.rewrite_bullet', { bulletId: second.bulletId, text: 'Second supported rewrite', requestId: randomUUID() })
+  assert(data<Page>(await call('resume.list_bullets')).items.every(bullet => bullet.rewritten))
+  assert.deepEqual(await call('resume.rewrite_bullet', noop), unchanged)
+  await assert.rejects(call('resume.rewrite_bullet', { ...rewrite, text: first.text, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
+  const other = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
+  assert(data<Page>(await f.scope.execute('resume.list_bullets', { runId: other.runId })).items.every(bullet => !bullet.rewritten))
+  assert(!Object.hasOwn(f.backend.generationRun(runId), 'rewriteRevision'))
 })
-test('imported entries with empty titles survive draft, polish and publication unchanged', async t => {
+
+test('version 20 receipts retain replay and eligibility after migration, including multiple historical changes', async t => {
+  const f = await seed(t), db = new DatabaseSync(':memory:'), transactions = new Transactions(db)
+  migrate(db, migrations.slice(0, 20))
+  const store = new Store(db, transactions), tx = transactions.forActor('USER')
+  tx.write({ event: 'LEGACY_FIXTURE', action: 'CREATE', target: 'generation_run' }, () => {
+    store.insert('job', f.job); store.insert('profile', f.profile)
+    store.insert('profile_item', f.item); store.insert('fact', f.fact)
+  })
+  const backend = composeBackend({ connection: db, transactions, close: () => db.close() })
+  t.after(() => backend.close())
+  backend.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Untouched claim' } })
+  const run = backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
+  const [first, second] = run.assembled!.experience[0].bullets
+  const history = [
+    { bulletId: first.id, text: 'Earlier wording', revision: 1, changed: true },
+    { bulletId: first.id, text: 'Latest wording', revision: 2, changed: true },
+    { bulletId: second.id, text: second.text, revision: 2, changed: false }
+  ].map(entry => ({ ...entry, requestId: randomUUID() }))
+  first.text = history[1].text
+  tx.write({ event: 'LEGACY_FIXTURE', action: 'UPDATE', target: 'generation_run' }, () => {
+    db.prepare('UPDATE generation_runs SET assembled_json=?,rewrite_revision=2 WHERE id=?').run(JSON.stringify(run.assembled), run.id)
+    for (const entry of history) {
+      const hash = createHash('sha256').update(JSON.stringify([entry.bulletId, entry.text, entry.revision - Number(entry.changed)])).digest('hex')
+      db.prepare('INSERT INTO resume_bullet_rewrites VALUES(?,?,?,?,?,?)').run(run.id, entry.requestId, hash, entry.bulletId, entry.revision, Number(entry.changed))
+    }
+  })
+  const audits = db.prepare('SELECT * FROM audit_logs ORDER BY rowid').all()
+  migrate(db)
+  assert.deepEqual(db.prepare('SELECT * FROM audit_logs ORDER BY rowid').all(), audits)
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+  assert.deepEqual(backend.rewrittenBulletIds(run.id), [first.id])
+  for (const entry of history) {
+    const input = { runId: run.id, bulletId: entry.bulletId, text: entry.text, requestId: entry.requestId }
+    assert.deepEqual(backend.generation.rewriteBullet(input), { runId: run.id, bulletId: entry.bulletId, changed: entry.changed })
+    assert.throws(() => backend.generation.rewriteBullet({ ...input, text: 'Altered retry' }), { code: 'CONFLICT' })
+  }
+  assert.throws(() => backend.generation.rewriteBullet({ runId: run.id, bulletId: first.id, text: 'Third change', requestId: randomUUID() }), { code: 'CONFLICT' })
+  assert.equal(backend.generation.rewriteBullet({ runId: run.id, bulletId: second.id, text: 'First real change', requestId: randomUUID() }).changed, true)
+  assert.deepEqual(backend.generationRun(run.id).assembled!.experience[0].bullets.map(bullet => bullet.text), ['Latest wording', 'First real change'])
+  migrate(db)
+})
+
+test('a failed receipt insert rolls back the bullet change and leaves the same request retryable', async t => {
+  const f = await resumeTools(t), before = f.backend.generationRun(f.runId)
+  const request = { runId: f.runId, bulletId: before.assembled!.experience[0].bullets[0].id, text: 'Supported wording', requestId: randomUUID() }
+  f.database.connection.exec("CREATE TRIGGER reject_rewrite_receipt BEFORE INSERT ON resume_bullet_rewrites BEGIN SELECT RAISE(ABORT,'fixture'); END")
+  await assert.rejects(f.scope.execute('resume.rewrite_bullet', request), { code: 'TOOL_CONFLICT' })
+  assert.deepEqual(f.backend.generationRun(f.runId), before)
+  assert.deepEqual(f.backend.rewrittenBulletIds(f.runId), [])
+  f.database.connection.exec('DROP TRIGGER reject_rewrite_receipt')
+  const result = data<{ changed: boolean }>(await f.scope.execute('resume.rewrite_bullet', request))
+  assert.equal(result.changed, true)
+})
+
+test('imported entries with empty titles survive assembly and publication unchanged', async t => {
   const f = await resumeTools(t)
   const types = ['EDUCATION', 'EXPERIENCE', 'PROJECT'] as const
   const imported = value(await f.api.profiles.applyImport({ sessionId: randomUUID(), batchId: randomUUID(), profileId: f.profile.id,
     contact: {}, links: [], items: types.map(type => ({ draftId: randomUUID(), details: { type, title: '', organization: `Saved ${type}`,
       metadata: type === 'EDUCATION' ? { degree: 'Bachelor of Computer Science', isCurrent: true } : {} } })), facts: [] }))
-  const attached = await Promise.all(imported.items.map(item => f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: item.id,
+  await Promise.all(imported.items.map(item => f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: item.id,
     details: { kind: 'OTHER', content: `Saved ${item.type} evidence` } }).then(value)))
   const { runId } = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
-  const facts = [f.fact, ...attached]
   const call = (name: string, args = {}) => f.scope.execute(name, { runId, ...args })
-  await call('resume.submit_scores', { language: 'en', scores: facts.map(fact => ({ factId: fact.id, score: 80, reason: '' })) })
-  await call('resume.submit_gate', { gate: { passed: true, reason: '', missingRequirements: [] } })
-  await call('resume.submit_selection', { selection: { factIds: facts.map(fact => fact.id), itemIds: [f.item.id, ...imported.items.map(item => item.id)], wordBudget: 500 } })
-  const entries = (type: typeof types[number]) => imported.items.filter(item => item.type === type).map(item => {
-    const fact = attached.find(fact => fact.profileItemId === item.id)!
-    return { profileItemId: item.id, bullets: [{ id: randomUUID(), text: fact.content, factIds: [fact.id] }] }
-  })
-  const writing = { summary: null, experience: entries('EXPERIENCE'), projects: entries('PROJECT'), education: entries('EDUCATION'), skills: [] }
-  await call('resume.submit_draft', { writing }); await call('resume.submit_polished', { writing })
   const { artifact } = data<{ artifact: { content: { education: { title: string; organization: string; degree: string }[];
     experience: { title: string }[]; projects: { title: string }[] } } }>(await call('resume.publish'))
   assert.equal(artifact.content.education[0].title, '')
   assert.equal(artifact.content.education[0].organization, 'Saved EDUCATION')
   assert.equal(artifact.content.education[0].degree, 'Bachelor of Computer Science')
-  assert.equal(artifact.content.experience[0].title, '')
+  assert.equal(artifact.content.experience[1].title, '')
   assert.equal(artifact.content.projects[0].title, '')
   assert(imported.items.every(item => item.title === ''))
 })
 
-test('oversized snapshots are rejected before creation and bounded score submissions can exceed the generic 64 KiB limit', async t => {
+test('oversized snapshots are rejected before creation', async t => {
   const f = await resumeTools(t)
-  for (let i = 0; i < 150; i++) value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'SKILL', content: `Fact ${i}` } }))
-  const next = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
-  const run = f.backend.resumes.getRun({ id: next.runId }).run
-  const input = { runId: next.runId, language: 'en', scores: run.inputSnapshot.facts.map(fact => ({ factId: fact.id, score: 90, reason: 'R'.repeat(512) })) }
-  assert(Buffer.byteLength(JSON.stringify(input)) > 65536)
-  await f.scope.execute('resume.submit_scores', input)
   value(await f.api.profiles.editFact({ id: f.fact.id, details: { kind: 'SKILL', content: 'X'.repeat(9000) } }))
   const before = f.backend.resumes.listRuns({}).total
   await assert.rejects(f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }), { code: 'TOOL_INVALID_INPUT' })
   assert.equal(f.backend.resumes.listRuns({}).total, before)
 })
 
-test('a dense but valid writing payload is rejected before persistence when its provenance view exceeds result capacity', async t => {
+test('oversized documents fail the copy atomically', async t => {
   const f = await resumeTools(t)
-  for (let i = 0; i < 39; i++) value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'SKILL', content: `Evidence ${i}` } }))
-  const { runId } = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
-  const facts = f.backend.resumes.getRun({ id: runId }).run.inputSnapshot.facts
-  await f.scope.execute('resume.submit_scores', { runId, language: 'en', scores: facts.map(fact => ({ factId: fact.id, score: 80, reason: '' })) })
-  await f.scope.execute('resume.submit_gate', { runId, gate: { passed: true, reason: '', missingRequirements: [] } })
-  await f.scope.execute('resume.submit_selection', { runId, selection: { factIds: facts.map(fact => fact.id), itemIds: [f.item.id], wordBudget: 500 } })
-  const writing = { summary: null, experience: [], projects: [], education: [], skills: Array.from({ length: 200 }, () => ({ id: randomUUID(), text: 'Saved evidence', factIds: facts.map(fact => fact.id) })) }
-  assert(Buffer.byteLength(JSON.stringify({ runId, writing })) < 524288)
-  await assert.rejects(f.scope.execute('resume.submit_draft', { runId, writing }), { code: 'TOOL_INVALID_INPUT' })
-  const run = f.backend.resumes.getRun({ id: runId }).run
-  assert.equal(run.draft, null); assert.equal(run.stage, 'draft')
+  const item = value(await f.api.profiles.addItem({ profileId: f.profile.id, details: { type: 'PROJECT', title: 'Large project' } }))
+  for (let i = 0; i < 99; i++) value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: item.id,
+    details: { kind: 'OTHER', content: 'X'.repeat(7900) + i } }))
+  const before = f.backend.resumes.listRuns({}).total
+  await assert.rejects(f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }), { code: 'TOOL_INVALID_INPUT' })
+  assert.equal(f.backend.resumes.listRuns({}).total, before)
 })

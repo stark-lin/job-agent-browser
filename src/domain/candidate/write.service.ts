@@ -8,7 +8,7 @@ import { assertParent } from './item.service'
 
 const profileKeys = ['name', 'email', 'phone', 'location', 'links', 'introduction']
 const itemKeys = ['title', 'organization', 'role', 'location', 'startDate', 'endDate', 'summary', 'sortOrder', 'metadata', 'parentItemId']
-const factKeys = ['kind', 'content', 'tags', 'evidence', 'profileItemId']
+const factKeys = ['kind', 'content', 'tags', 'profileItemId']
 function patch(keys: string[]): v.Parser<Record<string, unknown>> {
   return input => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) fail('INVALID_INPUT')
@@ -64,7 +64,9 @@ export function createProfileWriteService(repo: CandidateRepository, tx: UnitOfW
         check(args.profileId, args.expectedRevision)
         assertParent(repo, args.profileId, args.parentItemId)
         validateItemDates(args.details)
-        const item = { ...args.details, id: runtime.id(), profileId: args.profileId, parentItemId: args.parentItemId }
+        const requested = (input as { details?: { sortOrder?: number } }).details?.sortOrder
+        const sortOrder = requested === undefined ? repo.reserveOrder(args.profileId, 1, 0).item : args.details.sortOrder
+        const item = { ...args.details, sortOrder, id: runtime.id(), profileId: args.profileId, parentItemId: args.parentItemId }
         repo.insertItem(item)
         return result(args.profileId, item)
       })

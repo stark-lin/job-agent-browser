@@ -23,6 +23,7 @@ export function AppProviders({ children, browser = window.browser, data = window
   const [services] = useState<Services>(() => ({ ask: new AskStore(askAgent, data), navigation: new NavigationStore(browser), context: new ContextStore(), applicationAgent, data, ai, profileImport, jobImport, resume }))
   useEffect(() => services.navigation.start(), [services])
   useEffect(() => services.ask.start(), [services])
+  useEffect(() => askAgent.onOpenSession?.(services.ask.select), [askAgent, services])
   return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>
 }
 

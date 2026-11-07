@@ -15,6 +15,7 @@ Applies to documentation additions and edits in this repository; bring existing 
 | [DESIGN.md](DESIGN.md) · [Chinese](DESIGN.zh-CN.md) | Visual direction, interaction principles, and design entry point; detailed component rules remain in the design-system specification. |
 | [docs/design-system.md](docs/design-system.md) · [Chinese](docs/design-system.zh-CN.md) | Shared UI rules, component reference gallery, design tokens, and design validation. |
 | [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, audit, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
+| [docs/agent-runtime.md](docs/agent-runtime.md) · [Chinese](docs/agent-runtime.zh-CN.md) | Ask AI Prompt/Run boundary, Cycle execution states and finalization rules. |
 | [docs/mcp-architecture.md](docs/mcp-architecture.md) · [Chinese](docs/mcp-architecture.zh-CN.md) | Tool registration, Agent scopes, audited capability bindings, MCP Provider/Client behavior, and lifecycle. |
 | [CI/CD](docs/ci-cd.md) · [Chinese](docs/ci-cd.zh-CN.md) | Branch integration, validation, model supply, packaging, signing and release operations. |
 
@@ -52,6 +53,8 @@ Check this table before adding a document; create one only for a distinct topic 
 
 - All Agent-originated business capability calls MUST cross the Job Agent Browser MCP protocol boundary, including workflow submissions, persistence, cancellation, failure and output builds.
 - `ToolScope` is a server-side implementation primitive and MUST NOT be used as an Agent interface. Agent code uses `AgentModel`, `AgentTools` and pure workflow contracts; never import Domain services/repositories, database adapters or tool registries, including through re-exports or dynamic imports.
+- Ask AI, Smart Paste and desktop Resume use the shared Agent Engine. Register trusted definitions centrally. Resume business state and Artifact output state remain separate from Agent Run and Cycle state.
+- Update both Agent Runtime specifications and their state diagrams when Ask AI execution states, transitions, or finalization rules change.
 - Host source reading and model reasoning happen outside the business MCP. `job.import` persists structured data only. Human forms and read-only UI projection may continue using typed IPC and Domain services.
 
 ## Git integration

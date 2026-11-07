@@ -46,11 +46,9 @@ const profile=await call('profile.create',{requestId:randomUUID(),details:{name:
 const item=await call('profile.add_item',{profileId:profile.id,requestId:randomUUID(),expectedRevision:profile.revision,details:{type:'EXPERIENCE',title:'Engineer',organization:'Fixture'}});
 const fact=await call('profile.add_fact',{profileId:profile.id,profileItemId:item.id,requestId:randomUUID(),expectedRevision:item.revision,details:{kind:'ACHIEVEMENT',content:'Built TypeScript services with automated tests.'}});
 const {runId}=await call('resume.start',{jobId:job.id,profileId:profile.id,requestId:randomUUID()});
-await call('resume.submit_scores',{runId,language:'en',scores:[{factId:fact.id,score:95,reason:'Direct evidence.'}]});
-await call('resume.submit_gate',{runId,gate:{passed:true,reason:'Supported.',missingRequirements:[]}});
-await call('resume.submit_selection',{runId,selection:{factIds:[fact.id],itemIds:[item.id],wordBudget:500}});
-const writing={summary:{id:randomUUID(),text:fact.content,factIds:[fact.id]},experience:[{profileItemId:item.id,bullets:[{id:randomUUID(),text:fact.content,factIds:[fact.id]}]}],projects:[],education:[],skills:[]};
-await call('resume.submit_draft',{runId,writing});await call('resume.submit_polished',{runId,writing});
+const page=await call('resume.list_bullets',{runId});
+assert.equal(page.items[0].factIds[0],fact.id);
+await call('resume.rewrite_bullet',{runId,bulletId:page.items[0].bulletId,text:'Built TypeScript services and automated tests.',requestId:randomUUID()});
 const {artifact}=await call('resume.publish',{runId});const built=await call('artifact.build',{artifactId:artifact.id});assert.equal(built.output.status,'READY');
 console.log('Pure Node jab mcp verified Main-initialized storage, public tools without Memory, and real PDF output without protocol stdout contamination.');
 }finally{await client.close()}})().catch(e=>{console.error(e);process.exitCode=1});
@@ -76,7 +74,7 @@ console.log('Pure Node jab mcp verified Main-initialized storage, public tools w
     // The same built verification entry exercises keyword/MCP retrieval and real HTML/PDF.
     run(process.execPath, [cli, '--data-dir', data, '--verify-package', '--verify-minimal'], { cwd: tmpdir(), env, stdio: 'inherit' })
     const minimal = JSON.parse(readFileSync(join(data, 'package-verification.json')))
-    assert(minimal.ok && minimal.pdfVerified && minimal.semanticAvailable === false)
+    assert(minimal.ok && minimal.askVerified && minimal.pdfVerified && minimal.semanticAvailable === false)
     run(process.execPath, [protocol, data], { cwd: tmpdir(), env, stdio: 'inherit' })
     // Load the real GUI and typed preload, including settings and model controls.
     const guiScript = join(scratch, 'gui-smoke.cjs')
@@ -103,6 +101,7 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     if (existsSync(join(modelSeed, 'onnx/model_int8.onnx'))) {
       const fixture = join(scratch, 'model-ui-smoke.cjs')
       cpSync(join(root, 'scripts/model-runtime-smoke.cjs'), fixture)
+      cpSync(join(root, 'scripts/open-section-cards.cjs'), join(scratch, 'open-section-cards.cjs'))
       mkdirSync(env.JAB_MODEL_STORE, { recursive: true })
       writeFileSync(join(env.JAB_MODEL_STORE, 'seed-preferences.json'), JSON.stringify({ autoImportSeed: false, seedInitializedRevisions: [] }))
       const modelData = join(scratch, 'model-ui-data'); mkdirSync(modelData)
@@ -125,9 +124,9 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
       assert.equal(reopened.model.state, 'ready', 'Reinstall must detect and verify existing user model weights')
     }
     report.runtimeVerified = true
-    report.runtime = { platform: process.platform, arch: process.arch, gui: true, mcp: true, pdf: true, keywordFallback: true, reinstall: true, semantic }
+    report.runtime = { platform: process.platform, arch: process.arch, gui: true, askPi: true, mcp: true, pdf: true, keywordFallback: true, reinstall: true, semantic }
     writeFileSync(artifact, JSON.stringify(report, null, 2) + '\n')
-    console.log('Clean npm installation verified: GUI, preload, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
+    console.log('Clean npm installation verified: GUI, preload, Pi Ask, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
   } finally { rmSync(scratch, { recursive: true, force: true }) }
 }
 module.exports = { main }

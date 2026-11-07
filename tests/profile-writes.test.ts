@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
-import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
+import { createFixtureAskTasks as createAskAgentTasks } from './ask-fixture'
 import { firstPartyFixture } from './first-party-fixture'
 import { fixture, value } from './helpers'
 import { migrate, migrations } from '../src/platform/database/migrations'
@@ -14,7 +14,7 @@ type Versioned<T> = T & { revision: number }
 const signal = () => new AbortController().signal
 
 test('profile MCP creates and patches without clearing omitted fields, preserves metadata and fact ownership, and replays original receipts', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal())
   const call = <T>(name: string, args: object) => tools.call(name, args, signal()) as Promise<T>
   const request = { requestId: randomUUID(), details: { name: 'Resume Person', email: 'keep@example.com', introduction: 'Original introduction', links: [{ label: 'Portfolio', url: 'https://example.com' }] } }
   const profile = await call<Profile>('profile.create', request)
@@ -35,9 +35,9 @@ test('profile MCP creates and patches without clearing omitted fields, preserves
   assert.deepEqual(edited.metadata.technologies, ['TypeScript', 'SQLite'])
   assert.deepEqual(await call('profile.add_item', add), item)
   const added = await call<Versioned<Fact>>('profile.add_fact', { profileId: profile.id, profileItemId: item.id, requestId: randomUUID(), expectedRevision: edited.revision,
-    details: { kind: 'OTHER', content: 'The project validates ownership', tags: ['SQLite'], evidence: 'repo@abc123 src/ownership.ts:12; inspected implementation; no authorship claim' } })
+    details: { kind: 'OTHER', content: 'The project validates ownership', tags: ['SQLite'] } })
   const fact = await call<Versioned<Fact>>('profile.update_fact', { id: added.id, profileId: profile.id, requestId: randomUUID(), expectedRevision: added.revision, changes: { tags: ['SQLite', 'validation'] } })
-  assert.equal(fact.profileItemId, item.id); assert.equal(fact.content, added.content); assert.equal(fact.evidence, added.evidence)
+  assert.equal(fact.profileItemId, item.id); assert.equal(fact.content, added.content); assert(!('evidence' in fact)); assert(!('evidence' in added))
   const detached = await call<Versioned<Fact>>('profile.update_fact', { id: fact.id, profileId: profile.id, requestId: randomUUID(), expectedRevision: fact.revision, changes: { profileItemId: null } })
   assert.equal(detached.profileItemId, null)
   current = await call('profile.update', { id: profile.id, requestId: randomUUID(), expectedRevision: detached.revision, changes: { phone: '', links: [] } })
@@ -53,7 +53,7 @@ test('profile MCP creates and patches without clearing omitted fields, preserves
 
 test('concurrent profile writes reject stale revisions; identical retries survive independent sessions and restart', async t => {
   const f = await firstPartyFixture(t)
-  const [a, b] = await Promise.all([f.mcp.session('ask-ai', signal()), f.mcp.session('application', signal())])
+  const [a, b] = await Promise.all([f.askRun(signal()), f.mcp.session('application', signal())])
   const current = await a.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const request = { profileId: current.id, expectedRevision: current.revision, requestId: randomUUID(), details: { type: 'PROJECT', title: 'One project' } }
   const [left, right] = await Promise.all([a.call('profile.add_item', request, signal()), b.call('profile.add_item', request, signal())])
@@ -65,7 +65,7 @@ test('concurrent profile writes reject stale revisions; identical retries surviv
   const rejected = results.find(result => result.status === 'rejected') as PromiseRejectedResult
   assert.equal(rejected.reason.code, 'TOOL_CONFLICT')
   await a.close()
-  const restarted = await f.mcp.session('ask-ai', signal())
+  const restarted = await f.askRun(signal())
   assert.deepEqual(await restarted.call('profile.add_item', request, signal()), left)
   assert.equal(value(await f.api.profiles.listItems({ profileId: current.id })).total, 2)
   value(await f.api.profiles.deleteItem({ id: (left as ProfileItem).id }))
@@ -92,7 +92,7 @@ test('UI contact, item, fact, import and delete mutations advance the aggregate 
 })
 
 test('profile tools reject invalid patches, ownership changes, cycles and impossible dates without partial mutation', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal())
   const call = (name: string, args: object) => tools.call(name, args, signal())
   const current = await call('profile.get', { id: f.profile.id }) as Profile
   const base = { profileId: current.id, expectedRevision: current.revision, requestId: randomUUID() }
@@ -101,6 +101,8 @@ test('profile tools reject invalid patches, ownership changes, cycles and imposs
   for (const changes of [{}, { name: '' }, { email: null }, { unknown: 'field' }, { revision: 100 }]) {
     await assert.rejects(call('profile.update', { id: current.id, expectedRevision: current.revision, requestId: randomUUID(), changes }), { code: 'TOOL_INVALID_INPUT' })
   }
+  await assert.rejects(call('profile.add_fact', { ...base, details: { kind: 'OTHER', content: 'Legacy attachment', evidence: 'Page 1' } }), { code: 'TOOL_INVALID_INPUT' })
+  await assert.rejects(call('profile.update_fact', { ...base, id: f.fact.id, changes: { evidence: 'Page 1' } }), { code: 'TOOL_INVALID_INPUT' })
   await assert.rejects(call('profile.add_item', { ...base, details: { type: 'PROJECT', title: 'Bad dates', startDate: '2026-05-01', endDate: '2025-01-01' } }), { code: 'TOOL_INVALID_INPUT' })
   await assert.rejects(call('profile.add_item', { ...base, parentItemId: foreignItem.id, details: { type: 'PROJECT', title: 'Foreign parent' } }), { code: 'TOOL_CONFLICT' })
   await assert.rejects(call('profile.add_fact', { ...base, profileItemId: foreignItem.id, details: { kind: 'OTHER', content: 'Wrong parent' } }), { code: 'TOOL_FORBIDDEN' })
@@ -113,10 +115,10 @@ test('profile tools reject invalid patches, ownership changes, cycles and imposs
   assert.equal(f.database.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 0)
 })
 
-test('profile receipts and revisions roll back together, and terminal audit failures can be retried safely', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+test('profile receipts and revisions roll back together; a new Run can explicitly reconcile uncertain writes', async t => {
+  const f = await firstPartyFixture(t); let tools = await f.askRun(signal())
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
-  const request = { profileId: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), details: { kind: 'OTHER', content: 'Atomic sourced fact', evidence: 'resume.pdf page 1: source excerpt' } }
+  const request = { profileId: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), details: { kind: 'OTHER', content: 'Atomic sourced fact' } }
   f.database.connection.exec("CREATE TRIGGER fixture_receipt_failure BEFORE INSERT ON operation_receipts BEGIN SELECT RAISE(ABORT,'fixture'); END")
   await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_CONFLICT' })
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 1)
@@ -126,25 +128,36 @@ test('profile receipts and revisions roll back together, and terminal audit fail
   await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_AUDIT_UNAVAILABLE' })
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
   f.flag('fail-audit-finish', false)
+  await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_GUARD_TERMINATED' })
+  tools = await f.askRun(signal()) // A new user attempt may reconcile with the identical business receipt.
   const saved = await tools.call('profile.add_fact', request, signal()) as Versioned<Fact>
   assert.equal(saved.content, request.details.content)
   assert.equal(value(await f.api.profiles.getProfile({ id: profile.id })).revision, saved.revision)
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
 })
 
-test('MCP edits affect future resume snapshots while prior snapshots remain immutable', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
-  const first = await tools.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: randomUUID() }, signal()) as { runId: string }
+test('Ask profile edits affect dedicated Resume snapshots while prior snapshots remain immutable', async t => {
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal()), resume = await f.mcp.session('resume', signal())
+  const firstRequest = randomUUID(), secondRequest = randomUUID()
+  const first = await resume.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: firstRequest }, signal()) as { runId: string }
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const updated = await tools.call('profile.update', { id: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), changes: { name: 'Updated name' } }, signal()) as Profile
   await tools.call('profile.update_fact', { id: f.fact.id, profileId: profile.id, expectedRevision: updated.revision, requestId: randomUUID(), changes: { content: 'Updated source claim' } }, signal())
-  const second = await tools.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: randomUUID() }, signal()) as { runId: string }
-  const oldContext = await tools.call('resume.get_context', { runId: first.runId }, signal()) as { profile: Profile }
-  const newContext = await tools.call('resume.get_context', { runId: second.runId }, signal()) as { profile: Profile }
-  assert.equal(oldContext.profile.name, f.profile.name); assert.equal(newContext.profile.name, 'Updated name')
-  const oldFacts = await tools.call('resume.list_facts', { runId: first.runId }, signal()) as PageResult<Fact>
-  const newFacts = await tools.call('resume.list_facts', { runId: second.runId }, signal()) as PageResult<Fact>
-  assert.equal(oldFacts.items[0].content, f.fact.content); assert.equal(newFacts.items[0].content, 'Updated source claim')
+  const second = await resume.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: secondRequest }, signal()) as { runId: string }
+  const read = async (runId: string, requestId: string) => {
+    const { agentRunId } = await resume.call('resume.attach_agent', { runId, requestId, ownerRuntimeId: f.backend.lease.id }, signal()) as { agentRunId: string }
+    const agent = await f.mcp.openAgentRun({ agent: 'resume', agentRunId, generationRunId: runId, sessionId: 'default', signal: signal() })
+    try {
+      const context = await agent.tools.call('resume.get_context', { runId }, signal()) as { profile: Profile }
+      const facts = await agent.tools.call('resume.list_facts', { runId }, signal()) as PageResult<Fact>
+      return { context, facts }
+    } finally { await agent.close() }
+  }
+  const old = await read(first.runId, firstRequest), next = await read(second.runId, secondRequest)
+  assert.equal(old.context.profile.name, f.profile.name); assert.equal(next.context.profile.name, 'Updated name')
+  assert.equal(old.facts.items[0].content, f.fact.content); assert.equal(next.facts.items[0].content, 'Updated source claim')
+  assert([...old.facts.items, ...next.facts.items].every(fact => !('evidence' in fact)))
+
 })
 
 test('migration preserves existing profile data and old receipts and initializes revision without rewriting history', () => {
@@ -167,8 +180,8 @@ test('migration preserves existing profile data and old receipts and initializes
   } finally { db.close() }
 })
 
-test('partial updates preserve incomplete imported fields and no-op fact/item edits leave revision unchanged', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('ask-ai', signal())
+test('external MCP partial updates preserve incomplete fields and repeated no-op receipts without RunGuard enforcement', async t => {
+  const f = await firstPartyFixture(t), tools = await f.mcp.session('application', signal())
   const imported = value(await f.api.profiles.applyImport({ sessionId: randomUUID(), batchId: randomUUID(), profileId: null,
     contact: {}, links: [{ draftId: randomUUID(), label: '', url: '' }],
     items: [{ draftId: randomUUID(), details: { type: 'PROJECT', title: '' } }],
@@ -181,7 +194,7 @@ test('partial updates preserve incomplete imported fields and no-op fact/item ed
   assert.equal(item.title, '')
   const noop = await tools.call('profile.update_item', { ...itemRequest, expectedRevision: item.revision, requestId: randomUUID() }, signal()) as Versioned<ProfileItem>
   assert.equal(noop.revision, item.revision)
-  const factRequest = { id: imported.facts[0].id, profileId: profile.id, requestId: randomUUID(), expectedRevision: item.revision, changes: { evidence: 'Original resume, page 1' } }
+  const factRequest = { id: imported.facts[0].id, profileId: profile.id, requestId: randomUUID(), expectedRevision: item.revision, changes: { tags: ['resume'] } }
   const fact = await tools.call('profile.update_fact', factRequest, signal()) as Versioned<Fact>
   assert.equal(fact.content, '')
   const factNoop = await tools.call('profile.update_fact', { ...factRequest, expectedRevision: fact.revision, requestId: randomUUID() }, signal()) as Versioned<Fact>
@@ -191,20 +204,19 @@ test('partial updates preserve incomplete imported fields and no-op fact/item ed
   assert.deepEqual(await tools.call('profile.update_fact', factRequest, signal()), fact)
 })
 
-test('Ask AI discovers profile writes, carries revisions and presents safe summaries through real MCP', async t => {
+test('Ask AI discovers profile writes, carries revisions and presents summaries and complete details through real MCP', async t => {
   const f = await firstPartyFixture(t)
   let revision = 0, profileId = '', itemId = '', step = 0
   const plan: (() => [string, object])[] = [
     () => ['profile.create', { requestId: randomUUID(), details: { name: 'PRIVATE_DISTILLED_PERSON' } }],
     () => ['profile.list_items', { profileId }],
     () => ['profile.add_item', { profileId, expectedRevision: revision, requestId: randomUUID(), details: { type: 'PROJECT', title: 'PRIVATE_REPO_TITLE' } }],
-    () => ['profile.add_fact', { profileId, profileItemId: itemId, expectedRevision: revision, requestId: randomUUID(), details: { kind: 'OTHER', content: 'PRIVATE_IMPLEMENTATION_CLAIM', evidence: 'PRIVATE_SOURCE_LOCATOR' } }],
+    () => ['profile.add_fact', { profileId, profileItemId: itemId, expectedRevision: revision, requestId: randomUUID(), details: { kind: 'OTHER', content: 'PRIVATE_IMPLEMENTATION_CLAIM', tags: ['PRIVATE_FACT_TAG'] } }],
     () => ['profile.update', { id: profileId, expectedRevision: revision, requestId: randomUUID(), changes: { phone: '123' } }]
   ]
   const model: import('../src/shared/agent').StreamingAgentModel = {
     complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
-      assert(input.tools.some(tool => tool.name === 'profile.create'))
-      assert(input.tools.some(tool => tool.name === 'profile.list_items'))
+      assert(input.tools.some(tool => tool.name === 'tool.activate'))
       const previous = input.messages.at(-1)
       if (previous?.role === 'tool') {
         const result = JSON.parse(previous.content)
@@ -226,7 +238,7 @@ test('Ask AI discovers profile writes, carries revisions and presents safe summa
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
   assert(snapshot.run.writeStarted)
   for (const item of snapshot.items) if (item.content.type === 'tool_call') assert.notEqual(item.content.display.key, 'tool')
-  for (const privateText of ['PRIVATE_DISTILLED_PERSON', 'PRIVATE_REPO_TITLE', 'PRIVATE_IMPLEMENTATION_CLAIM', 'PRIVATE_SOURCE_LOCATOR']) assert(!JSON.stringify(snapshot).includes(privateText))
+  for (const privateText of ['PRIVATE_DISTILLED_PERSON', 'PRIVATE_REPO_TITLE', 'PRIVATE_IMPLEMENTATION_CLAIM', 'PRIVATE_FACT_TAG']) assert(JSON.stringify(snapshot).includes(privateText))
   const facts = value(await f.api.profiles.listFacts({ profileId }))
-  assert.equal(facts.total, 1); assert.equal(facts.items[0].evidence, 'PRIVATE_SOURCE_LOCATOR'); assert.equal(facts.items[0].profileItemId, itemId)
+  assert.equal(facts.total, 1); assert.deepEqual(facts.items[0].tags, ['PRIVATE_FACT_TAG']); assert(!('evidence' in facts.items[0])); assert.equal(facts.items[0].profileItemId, itemId)
 })

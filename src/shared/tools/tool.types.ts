@@ -24,11 +24,13 @@ export interface ToolExecutionContext extends ToolCaller { invocationId: string 
 /** Internal registration: callers receive descriptors and a scope, never this execution function. */
 export interface RegisteredTool {
   descriptor: ToolDescriptor
+  prepareInput?(input: unknown): JsonValue
   execute(input: unknown, caller: ToolCaller): Promise<ToolOutput>
 }
 export interface ToolScopePolicy { allow: readonly string[]; deny?: readonly string[]; maxRisk?: ToolRisk }
 export interface ToolScope {
   get(name: string): ToolDescriptor | null
+  prepareInput(name: string, input: unknown): JsonValue
   list(): ToolDescriptor[]
   execute(name: string, input: unknown): Promise<ToolOutput>
   dispose(): void

@@ -1,5 +1,12 @@
 /** Application-owned copy. Keep complete sentences so translations can reorder words. */
 export const en = {
+  selection: {
+    ask: 'Send to Ask AI', job: 'Import job', ok: 'OK',
+    invalid: 'Select between 1 and 60,000 characters from an HTTP(S) page. The source URL must fit 4,096 characters and the title 1,000 characters.',
+    failed: 'The selected content could not be transferred. Retry while this page is open.',
+    tooLarge: 'The selection and existing draft exceed 128,000 characters. Shorten the new chat draft, then retry.',
+    retry: 'Retry transfer', source: 'Source page', content: 'Selected page content'
+  },
   knowledge: {
     indexSpace: 'Index to rebuild',
     memory: 'Memory', knowledgeSpace: 'Knowledge', syncConsentTitle: 'Upload Memory and its history?', syncConsentHelp: 'Sync uploads both Knowledge and Memory, including their Git history, to this remote. Cancel keeps local notes and backups available.', syncConsentRequired: 'Remote sync needs your consent.',
@@ -76,6 +83,7 @@ export const en = {
   "rebuilt": "Search index rebuilt"
 },
   ask: {
+  runtime: { pending: 'Waiting for the previous turn…', compacting: 'Compacting context…', searching: 'Searching tools…', activating: 'Activating tools…' },
   "sessions": "Chats",
   "openSessions": "Open chats",
   "close": "Close",
@@ -90,6 +98,11 @@ export const en = {
   "running": "Running",
   "thinking": "Thinking",
   "thought": "Thought for {{seconds}}s",
+  copyContent: 'Copy', reasoning: 'Reasoning', encryptedReasoning: 'Encrypted reasoning', encryptedUnavailable: 'The provider returned encrypted reasoning; readable text is unavailable.',
+  source: 'Source', elapsed: 'Elapsed', toolName: 'Tool', callId: 'Call ID', executionState: 'State', arguments: 'Arguments · JSON', result: 'Result · JSON', toolError: 'Error',
+  guard: { level: 'Progress protection', warning: 'Warning', recovery: 'Recovery', nextAction: 'Next action', changeStrategy: 'Use another authorized source or answer with confirmed information.', runId: 'Chat Run ID', runState: 'Run state', status: 'Run protection', active: 'Active', blocked: 'Stopped', calls: 'Calls', executedCalls: 'Dispatched calls', rejections: 'Rejected calls', noProgress: 'Consecutive calls without progress', reason: 'Protection reason', confirmedEffect: 'Confirmed effect', archived: 'Archived', restored: 'Restored', notExecuted: 'Not executed',
+    reasons: { DUPLICATE_WRITE: 'This effect was already confirmed.', REVERSED_WRITE: 'This would reverse a confirmed effect.', NO_PROGRESS_LOOP: 'Repeated calls made no progress.', CALL_BUDGET_EXCEEDED: 'The Run call limit was reached.', REPEATED_VIOLATION: 'The same rejected operation was attempted again.', WRITE_OUTCOME_UNKNOWN: 'A write could not be confirmed. Check its state before continuing.' } },
+  itemStates: { streaming: 'Thinking', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Stopped', uncertain: 'Outcome uncertain', interrupted: 'Interrupted' },
   "summary": "Reasoning summary",
   "conversation": "Conversation",
   "message": "Message",
@@ -108,6 +121,11 @@ export const en = {
   "cancel": "Cancel",
   "title": "Chat title",
   "actions": "Chat actions",
+  "copyDebugJson": "Copy Debug JSON",
+  "copyDebugTitle": "Copy full debug data?",
+  "copyDebugDescription": "This will copy the complete saved debug data for the current conversation to the system clipboard. It may include personal profile information, conversation content, model responses, tool call arguments and results, and other sensitive information. After copying, paste only into trusted locations.",
+  "copyJson": "Copy JSON",
+  "debugCopied": "Copied to clipboard",
   "deleteDescription": "Delete this chat and its history? Changes already made to jobs or applications will remain.",
   "stopBeforeDelete": "Stop this chat before deleting it.",
   "stopped": "Stopped. The response may be incomplete.",
@@ -126,6 +144,7 @@ export const en = {
   "toolRunning": "Running: {{action}}",
   "toolFailed": "Could not complete: {{action}}",
   "tools": {
+    searchTools: 'Search tools', activateTools: 'Activate tools',
     "jobs": "Read saved jobs",
     "job": "Read job",
     "updateJob": "Update job",
@@ -149,6 +168,8 @@ export const en = {
     "selectResume": "Select resume evidence",
     "draftResume": "Save resume draft",
     "polishResume": "Save polished resume",
+    "resumeBullets": "Read resume bullets",
+    "optimizeResume": "Optimize resume content",
     "publishResume": "Publish resume",
     "failResume": "Record resume failure",
     "cancelResume": "Cancel resume",
@@ -166,6 +187,7 @@ export const en = {
     "tool": "Run operation"
   },
   "errors": {
+    "ASK_CONTEXT_UNKNOWN": "The effective model context window is unknown. Configure deployment limits in Settings.", "ASK_CONTEXT_TOO_SMALL": "Ask AI requires an effective context window of at least 65,536 tokens.", "ASK_CONTEXT_OVERFLOW": "The current task exceeds the context budget after compaction. Reduce the request.",
     "UNKNOWN": "The operation could not be completed. Please try again.",
     "INVALID_INPUT": "Check your message and model selection.",
     "NOT_FOUND": "This chat is no longer available.",
@@ -173,8 +195,14 @@ export const en = {
     "INVALID_STATE": "This chat is busy, or the concurrent task limit has been reached.",
     "FORBIDDEN": "This operation belongs to another window.",
     "STORAGE_BUSY": "Storage is busy. Please try again.",
+    "DEBUG_SERIALIZATION_FAILED": "Could not serialize the debug data. Please try again.",
+    "CLIPBOARD_FAILED": "Could not verify the copied text in the clipboard. Please try again.",
+    "NOT_IMPLEMENTED": "Debug copying is unavailable in this host.",
     "STORAGE_UNAVAILABLE": "Could not save or load the conversation.",
     "AUDIT_UNAVAILABLE": "The required audit could not be recorded. Execution stopped.",
+    "TOOL_GUARD_DUPLICATE": "This operation was not repeated; its earlier result is confirmed.",
+    "TOOL_GUARD_CONFLICT": "This operation would reverse a confirmed result and was not executed.",
+    "TOOL_GUARD_TERMINATED": "Run protection stopped execution. Completed changes remain saved.",
     "TOOL_AUDIT_UNAVAILABLE": "The operation audit is unavailable. Check the current state before continuing.",
     "AI_NOT_CONFIGURED": "Choose a configured provider and model in Settings.",
     "ENCRYPTION_UNAVAILABLE": "The provider key is unavailable. Check Settings.",
@@ -198,27 +226,14 @@ export const en = {
   },
   navigation: {
     pages: {
-      home: 'Home', find: 'Add Job', resume: 'Tailor Resume', knowledge: 'Smart Note',
+      find: 'Add Job', resume: 'Tailor Resume', knowledge: 'Smart Note',
       applications: 'Applications', inbox: 'Inbox', profile: 'My Profile',
       browser: 'Browser', ai: 'Ask AI', settings: 'Settings'
     },
-    back: 'Back', home: 'Home', forward: 'Forward',
-    goHome: 'Go home', goBack: 'Go back', goForward: 'Go forward',
+    back: 'Back', forward: 'Forward',
+    goBack: 'Go back', goForward: 'Go forward',
     pageNavigation: 'Page navigation', openSettings: 'Open Settings', workspaceNavigation: 'Workspace navigation',
     sections: { search: 'Job search', manage: 'Manage', tools: 'Tools' }
-  },
-  home: {
-    heading: 'What do you want to do?',
-    subtitle: 'Everything you need for your job search, in one place.',
-    footer: 'A focused workspace for the whole job search.',
-    comingSoon: '{{label}} — Coming soon',
-    cards: { knowledge: "Build and maintain your job-search knowledge with AI.",
-      find: 'Add manually or import from a job URL', resume: 'Adapt your resume to a role',
-      applications: 'Review saved jobs and application status',
-      inbox: 'Hiring emails and application updates', profile: 'Resume, experience and preferences',
-      browser: 'Open the web freely', ai: 'Work with your job-search context',
-      settings: 'AI, browser and app preferences'
-    }
   },
   features: {
     comingSoon: 'Coming soon', notImplemented: 'This feature is not implemented yet.',
@@ -229,16 +244,6 @@ export const en = {
       profile: 'Manage your resume, experience and preferences.',
       ai: 'Work with your job-search context.', settings: 'Configure AI, browser and application preferences.'
     }
-  },
-  imports: {
-    mode: 'Import mode', single: 'Standard', parallel: 'Parallel',
-    configureModel: 'Model for parallel import settings', allowParallel: 'Allow parallel imports for this model',
-    enableHelp: 'Enable parallel imports for this model in Settings to use this mode.',
-    parallelHelp: 'Parallel mode splits extraction across requests. Input tokens and cost may increase; speed depends on your provider.',
-    retry: 'Retry failed parts', progress: '{{completed}} of {{total}} parts completed',
-    groupState: '{{state}} · processing {{elapsed}}s · queued {{queued}}s',
-    groups: { single: 'Full extraction', basics: 'Job details and salary', description: 'Job description', requirements: 'Requirements', contact: 'Contact and standalone facts', experience: 'Work experience', projects: 'Projects', education: 'Education' },
-    states: { queued: 'Queued', running: 'Processing', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' }
   },
   applicationAgent: {
     configure: 'Choose a default AI provider and model in Settings to run application requests.',
@@ -254,7 +259,6 @@ export const en = {
     inputKind: 'Source', pastedJD: 'Pasted job description', pdf: 'PDF document', selectPdf: 'Choose PDF', pdfSelected: 'PDF selected ({{bytes}} bytes)',
     discardTitle: 'Discard this job draft?',
     discardDescription: 'Unsaved job details will be discarded and any active parsing will stop.',
-    "subtitle": "Add a job manually or capture a URL, pasted description or PDF. Review the fields before saving.",
     "importTitle": "Capture a job",
     "importHelp": "Read one public job page, pasted description or PDF. Source text is sent to the provider and model shown below. Review the extracted fields before saving.",
     "url": "Job URL (optional)",
@@ -334,7 +338,6 @@ export const en = {
       "REJECTED": "Rejected",
       "WITHDRAWN": "Withdrawn"
     },
-    "listHelp": "Review saved jobs and their application status.",
     "savedJobs": "Saved jobs",
     "search": "Search job title or company",
     "allStatuses": "All statuses",
@@ -347,7 +350,6 @@ export const en = {
     "savedAt": "Saved at",
     "details": "Job details",
     "detailsHelp": "View the saved fields and source links.",
-    "viewDetails": "View details",
     "viewJob": "View {{title}}",
     "pagination": "{{total}} jobs · Page {{page}} of {{pages}}",
     "previous": "Previous",
@@ -372,12 +374,14 @@ export const en = {
     }
   },
   browser: {
+    refresh: 'Refresh',
+    copyWebpage: 'Copy Webpage', copied: 'Copied', copyFailed: 'Could not copy webpage text.',
+    back: 'Go back', forward: 'Go forward',
     tabs: 'Browser tabs', closeTab: 'Close tab', closeNamedTab: 'Close {{title}}', newTab: 'New tab',
     addressLabel: 'Search or enter URL', addressPlaceholder: 'Search or enter URL...',
     emptyHeading: 'Start exploring', emptyDescription: 'Search for anything or enter a web address above.'
   },
   inbox: {
-    exit: 'Exit',
     configure: 'Connect your mailbox', configureHelp: 'Choose your webmail provider and address in Settings to open your mailbox here.',
     loadFailed: 'Unable to open your mailbox'
   },
@@ -470,7 +474,27 @@ export const en = {
       "COPY_FAILED": "Unable to copy the configuration. Try again."
     }
   },
+  "smartPaste": {
+    "title": "Smart Paste",
+    "description": "When you choose Smart Paste, clipboard and field context are sent to your default Ask AI model and saved in its chat.",
+    "configTitle": "Title",
+    "prompt": "Prompt",
+    "add": "Add configuration",
+    "remove": "Remove configuration",
+    "closeBanner": "Close notification",
+    "preparing": "Preparing {{title}}",
+    "reading": "Reading context for {{title}}",
+    "filling": "Filling {{title}}",
+    "done": "Finished {{title}}",
+    "stopped": "Stopped filling {{title}}",
+    "failed": "Could not finish {{title}}",
+    "noModel": "Choose a default Ask AI model in Settings."
+  },
   settings: {
+    configureModel: 'Model settings',
+    "invalidSmartPaste": "Enter a valid title and prompt for every configuration.",
+    contextWindow: 'Effective context window (tokens)', contextWindowHelp: 'Ask AI needs at least 65,536. Enter actual deployment limits; detected runtime limits take precedence.', maxOutputTokens: 'Model maximum output tokens',
+
     "aiDescription": "Configure OpenAI-compatible Chat Completions services. Keys are stored separately for each provider.",
     "requestTimeout": "AI request timeout (seconds)",
     "pageTimeout": "Job page read timeout (seconds)",
@@ -506,7 +530,6 @@ export const en = {
     "connectionOK": "Connection and streaming response verified.",
     "testHelp": "Tests the saved provider and model with a short request, which may incur usage charges.",
 
-    subtitle: 'Make this workspace yours. Preferences are stored on this device.',
     general: 'General', generalDescription: 'Choose the language and appearance for your workspace.',
     language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark', system: 'Follow system', appearanceHelp: 'Save to apply. Follow system updates when your system appearance changes.',
     ai: 'AI providers',
@@ -525,7 +548,6 @@ export const en = {
     saveFailed: 'Changes could not be saved. Your previous settings are preserved.', retry: 'Try again',
     discardTitle: 'Leave without saving?', discardDescription: 'Your unsaved settings will be discarded.',
     discard: 'Discard changes', stay: 'Keep editing',
-    local: 'Stored locally', localDescription: 'Preferences and encrypted keys stay on this device. Website sign-ins are managed separately by the browser.'
   },
   audit: {
     title: 'Audit Viewer', description: 'Read local audit records, newest first. Viewing and filtering do not create records.',
@@ -533,7 +555,7 @@ export const en = {
     targetType: 'Target type', target: 'Target', targetId: 'Target ID', status: 'Status', all: 'All',
     from: 'From', to: 'To', localTime: 'Local time; inclusive boundary.', advanced: 'Advanced filters', exactMatch: 'Exact ID match.',
     requestId: 'Request ID', transactionId: 'Transaction ID', query: 'Search logs', reset: 'Reset', refresh: 'Refresh',
-    time: 'Time', event: 'Event', action: 'Action', details: 'Audit details', viewDetails: 'View details', viewEntry: 'View audit record {{sequence}}',
+    time: 'Time', event: 'Event', action: 'Action', details: 'Audit details', viewEntry: 'View audit record {{sequence}}',
     recordId: 'Record ID', sequence: 'Sequence', errorCode: 'Error code', component: 'Component', location: 'Location', source: 'Source', actor: 'Actor',
     detailDescription: 'Audit metadata. Business content, prompts, responses and keys are not stored here.', close: 'Close', noValue: 'None',
     loading: 'Loading audit records…', loadFailed: 'Audit records could not be loaded.', empty: 'No audit records yet.', noMatches: 'No records match these filters.',
@@ -576,9 +598,9 @@ export const en = {
   }
 },
   resume: {
-    "subtitle": "Create a tailored resume from saved evidence. The job determines the resume language.",
+    editTitle: 'Edit this resume', addBullet: 'Add bullet', saveAndBuild: 'Save and rebuild PDF', editSaved: 'Resume changes saved', discardEdit: 'Discard changes', discardEditHelp: 'Unsaved edits to this resume will be lost.',
     "inputs": "Job and profile",
-    "template": "default-v1 · A4 · single column · multiple pages · 500-word budget",
+    "template": "default-v1 · A4 · single column · multiple pages · 500-word target",
     "job": "Job",
     "profile": "Profile",
     "chooseJob": "Choose a saved job",
@@ -596,26 +618,9 @@ export const en = {
     "saved": "PDF saved.",
     "preview": "Resume preview",
     "pages": "Pages: {{count}}",
-    "sources": "Statement sources",
-    "stages": {
-        "score": "Score evidence",
-        "gate": "Check coverage",
-        "select": "Select evidence",
-        "draft": "Write draft",
-        "validate-draft": "Validate draft",
-        "polish": "Polish",
-        "validate-polish": "Validate polish",
-        "publish": "Publish",
-        "output": "Build HTML / PDF"
-    },
-    "statuses": {
-        "PENDING": "Pending",
-        "RUNNING": "Generating…",
-        "SUCCEEDED": "Resume generated",
-        "FAILED": "Generation failed",
-        "CANCELLED": "Cancelled",
-        "INTERRUPTED": "Interrupted. Generate a new version to retry."
-    },
+    stages: { COPYING: "Copy profile", REWRITING: "Rewrite bullets", VALIDATING: "Validate resume", PUBLISHING: "Publish resume", OUTPUT: "Build HTML / PDF" },
+    statuses: { CREATED: "Created", COPYING: "Copying profile…", REWRITING: "Rewriting bullets…", VALIDATING: "Validating…", PUBLISHING: "Publishing…", PUBLISHED: "Resume published", FAILED: "Generation failed", CANCELLED: "Cancelled", INTERRUPTED: "Interrupted. Generate a new version to retry." },
+    trace: "Agent trace", cycles: "ReAct cycles", requests: "Model requests", traceError: "Trace unavailable.",
     "outputs": {
         "PENDING": "Output pending",
         "RUNNING": "Building preview and PDF…",
@@ -624,6 +629,7 @@ export const en = {
         "CANCELLED": "Output cancelled. Your generated resume is retained."
     },
     "errors": {
+        MISSING_LEGACY_ARTIFACT: "The migrated run has no published artifact.",
         "INVALID_INPUT": "Select a valid job and a profile with saved facts. Check imported content before saving.",
         "INVALID_STATE": "Another task is active or this action is unavailable.",
         "FORBIDDEN": "This task belongs to another window.",
@@ -633,18 +639,19 @@ export const en = {
         "GATE_REJECTED": "The available evidence does not support this job. Review the missing evidence.",
         "PROCESS_INTERRUPTED": "Generation was interrupted. Start a new version.",
         "AGENT_PROTOCOL_ERROR": "The model response or tool protocol is invalid.",
-        "AGENT_STEP_LIMIT": "The model exceeded the 8-call stage limit.",
+        "AGENT_STEP_LIMIT": "The Agent exceeded its request or tool-call limit.",
         "AGENT_TIMEOUT": "The model request timed out.",
         "AGENT_CANCELLED": "Generation cancelled.",
         "PDF_EXPORT_FAILED": "The PDF could not be saved. Choose another location and try again; the application copy is retained.",
         "OUTPUT_FAILED": "HTML / PDF output failed. Your resume is retained; rebuild the output.",
         "OUTPUT_INTERRUPTED": "Output was interrupted. Rebuild it without generating again.",
+        "EDIT_CONFLICT": "The resume changed or a PDF build is active. Your draft is still here. Review the latest version before saving again.",
         "OUTPUT_MISSING": "An output file is missing. Rebuild HTML / PDF.",
         "AUDIT_UNAVAILABLE": "Audit storage is unavailable. Generation stopped."
     }
 },
   profile: {
-    subtitle: 'Build your shared profile. Each experience, project and education entry can contain several independently verified facts.',
+    unmapped: 'Unclassified text', sourcePosition: 'Page {{page}}, line {{line}}', mapField: 'Assign to a field',
     basic: 'Basic information', independent: 'Independent facts', noProfile: 'Save your name to create a profile, or import a PDF.', empty: 'No entries yet.',
     add: 'Add', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', save: 'Save', saving: 'Saving…', saved: 'Saved', retry: 'Retry',
     loading: 'Loading profile…', loadFailed: 'Unable to load the complete profile.', invalid: 'Check the required fields, links and dates.',
@@ -657,7 +664,7 @@ export const en = {
     type: 'Entry type', title: 'Title', organization: 'Organization', role: 'Role', summary: 'Background summary',
     startDate: 'Start date', endDate: 'End date', dateHelp: 'Use YYYY, YYYY-MM or YYYY-MM-DD. Missing months and days are preserved.', current: 'Present',
     employmentType: 'Employment type', technologies: 'Technologies', degree: 'Degree', major: 'Major', gpa: 'GPA',
-    kind: 'Fact category', content: 'Fact', tags: 'Tags (comma separated)', evidence: 'Source excerpt and page', belongsTo: 'Belongs to',
+    kind: 'Fact category', content: 'Fact', tags: 'Tags (comma separated)', belongsTo: 'Belongs to',
     types: { EXPERIENCE: 'Work experience', PROJECT: 'Projects', EDUCATION: 'Education' },
     kinds: { ACHIEVEMENT: 'Achievement', RESPONSIBILITY: 'Responsibility', SKILL: 'Skill', AWARD: 'Award', CERTIFICATION: 'Certification', COURSE: 'Course', LANGUAGE: 'Language', OTHER: 'Other' },
     upload: 'Upload PDF and parse', importTitle: 'Import a PDF resume', importHelp: 'Extracted resume text will be sent to the provider and model shown below. Limits: 10 MB, 20 pages and 60,000 extracted characters. Scans need selectable text.',

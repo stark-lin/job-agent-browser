@@ -12,7 +12,9 @@ Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` 
 
 ## Validation and native packaging
 
-[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and Electron/Knowledge smokes. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
+[Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and built smokes for Electron, Knowledge, Ask AI, Smart Paste, Resume and external integration. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
+
+The [Electron smoke](../scripts/smoke.cjs) logs uncaught Main exceptions and exits immediately, avoiding a blocking error dialog in unattended runs. Its [AI fixture](../scripts/ai-smoke.cjs) serves model discovery, runtime context metadata and streaming completions; Ask verifies the fixture's deployed context before inference. The dedicated [Smart Paste and Banner smoke](../scripts/smart-paste-smoke.cjs) runs before the general Electron smoke.
 
 [Packaging](../.github/workflows/package.yml) has two jobs: Full DMG with verified offline Seed/inference, and a model-free npm tarball with a clean installation/runtime smoke. Both use the same release metadata. No cross-architecture result is accepted. Windows, Linux and macOS x64 remain **Scaffolded**, outside publication.
 
@@ -84,6 +86,8 @@ Previews are **unsigned** by default. `RELEASE_SIGNING=signed` requires `MAC_CSC
 The operator must own npm scope `@stark-lin`, bootstrap the package if needed, and configure its GitHub Trusted Publisher for this repository, `release.yml` and `npm-release` environment. Explicitly allow direct `npm publish`: new configurations may default to staged-only permission. Use GitHub-hosted runners and npm 11.5.1+ ([npm requirements](https://docs.npmjs.com/trusted-publishers/)); no long-lived npm token is stored. GitHub's `release` environment separately permits prerelease creation. Provisioning accounts/certificates and environment approvals remains an operator task.
 
 ## Compatibility gates and remaining limits
+
+Ask V2 pins Pi Agent Core/AI and the tokenizer in the runtime lockfile. [Package verification](../src/platform/electron/verify-ask-package.ts) uses no paid model and exercises native ESM loading from CJS, progressive activation and real first-party MCP; the clean npm installation gate runs the same verifier outside the repository.
 
 Before publicly recommending npm, test a clean macOS ARM64 account: initial GUI/runtime download, optional model installation, offline restart, cancellation/repair, update/reinstall, Gatekeeper prompts, safeStorage reopen and npm/DMG credential interoperability. These checks cannot be inferred from same-user CI. Do not auto-migrate, discard or overwrite secrets after a decrypt failure. Model sharing does not imply credential portability.
 

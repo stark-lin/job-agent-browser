@@ -16,8 +16,12 @@ module.exports = async function windowCloseSmoke(window) {
   try {
     const url = `http://127.0.0.1:${server.address().port}/retained`
     await window.webContents.executeJavaScript(`window.browser.navigate(${JSON.stringify(url)})`)
-    await window.webContents.executeJavaScript("window.browser.navigate('app://home')")
-    const retained = window.contentView.children.filter((view) => view.webContents).map((view) => view.webContents)
+    await window.webContents.executeJavaScript("window.browser.navigate('app://ai')")
+    const banner = window.contentView.children.find(view => view.webContents?.getTitle() === 'Banner')
+    assert(banner, 'The owning window has one native Banner')
+    const tooltip = window.contentView.children.find(view => view.webContents?.getTitle() === 'Navigation tooltip')
+    assert(tooltip, 'The owning window has one native navigation tooltip')
+    const retained = [...require('./native-views.cjs').views(window), banner, tooltip].map(view => view.webContents)
     assert(retained.length > 0)
     const themeListeners = nativeTheme.listenerCount('updated')
     // WebContents.close() completes asynchronously after the BrowserWindow's
@@ -28,7 +32,7 @@ module.exports = async function windowCloseSmoke(window) {
     await closed
     await released
     assert(retained.every((contents) => contents.isDestroyed()))
-    assert.equal(nativeTheme.listenerCount('updated'), themeListeners - 1, 'Window releases its shared theme listener')
+    assert.equal(nativeTheme.listenerCount('updated'), themeListeners - 2, 'Window releases its browser and Banner theme listeners')
     console.log('Window close smoke passed: hidden retained native views are released when the owning window closes.')
   } finally {
     server.closeAllConnections()

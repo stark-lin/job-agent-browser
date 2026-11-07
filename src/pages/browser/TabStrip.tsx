@@ -42,14 +42,14 @@ export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: T
               role="tab"
               aria-selected={tab.id === activeTabId}
               tabIndex={tab.id === activeTabId ? 0 : -1}
-              title={tab.title}
+              title={tab.browserTitle}
               onClick={() => onActivate(tab.id)}
               onKeyDown={(event) => moveFocus(event, index)}
             >
               <span className={`tab-indicator${tab.isLoading ? ' is-loading' : ''}`} aria-hidden="true">{tab.isLoading ? '' : '○'}</span>
-              <span className="tab-title">{tab.title}</span>
+              <span className="tab-title">{tab.browserTitle}</span>
             </Button>
-            <Button variant="tab-close" size="sm" className="tab-close" type="button" aria-label={t($ => $.browser.closeNamedTab, { title: tab.title })} title={t($ => $.browser.closeTab)} onClick={() => onClose(tab.id)}>×</Button>
+            <Button variant="tab-close" size="sm" className="tab-close" type="button" aria-label={t($ => $.browser.closeNamedTab, { title: tab.browserTitle })} title={t($ => $.browser.closeTab)} onClick={() => onClose(tab.id)}>×</Button>
           </div>
         ))}
       </div>

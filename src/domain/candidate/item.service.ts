@@ -24,7 +24,9 @@ export function createItemService(repo: CandidateRepository, tx: UnitOfWork, run
         repo.getProfile(args.profileId)
         assertParent(repo, args.profileId, args.parentItemId)
         validateItemDates(args.details)
-        const item = { ...args.details, id: runtime.id(), profileId: args.profileId, parentItemId: args.parentItemId }
+        const requested = (input as { details?: { sortOrder?: number } }).details?.sortOrder
+        const sortOrder = requested === undefined ? repo.reserveOrder(args.profileId, 1, 0).item : args.details.sortOrder
+        const item = { ...args.details, sortOrder, id: runtime.id(), profileId: args.profileId, parentItemId: args.parentItemId }
         repo.insertItem(item)
         return item
       })
@@ -42,7 +44,7 @@ export function createItemService(repo: CandidateRepository, tx: UnitOfWork, run
     },
     moveItem(input: unknown) {
       return tx.write({ event: 'PROFILE_ITEM_MOVE', action: 'UPDATE', target: 'profile_item' }, () => {
-        const args = v.object({ id: v.id, parentItemId: v.nullable(v.id), sortOrder: v.integer(0, 1_000_000) })(input)
+        const args = v.object({ id: v.id, parentItemId: v.nullable(v.id), sortOrder: v.integer(0, Number.MAX_SAFE_INTEGER - 1) })(input)
         const item = repo.getItem(args.id)
         assertParent(repo, item.profileId, args.parentItemId, item.id)
         Object.assign(item, { parentItemId: args.parentItemId, sortOrder: args.sortOrder })

@@ -24,14 +24,19 @@ export function createAuditedCapabilities(audit: CapabilityAudit, defaults: { ti
     const descriptor: ToolDescriptor = frozenCopy({ ...input, inputSchema: schema.schema, ...(output ? { outputSchema: output.schema } : {}) })
     const timeoutMs = options.timeoutMs ?? defaults.timeoutMs ?? 30000
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000) toolFail('TOOL_INVALID_CONFIG')
+    const prepareInput = (value: unknown) => {
+      const args = jsonCopy(value, options.inputLimit ?? limits.input, 'TOOL_INVALID_INPUT')
+      if (!schema.validate(args)) toolFail('TOOL_INVALID_INPUT')
+      return args
+    }
     return {
       descriptor,
+      prepareInput,
       async execute(value: unknown, caller: ToolCaller) {
         if (disposed) toolFail('TOOL_UNAVAILABLE')
         if (caller.signal.aborted) toolFail('TOOL_CANCELLED')
         if (active.size >= (defaults.maxActive ?? 16)) toolFail('TOOL_BUSY')
-        const args = jsonCopy(value, options.inputLimit ?? limits.input, 'TOOL_INVALID_INPUT')
-        if (!schema.validate(args)) toolFail('TOOL_INVALID_INPUT')
+        const args = prepareInput(value)
         const invocationId = randomUUID(), controller = new AbortController()
         const context: CapabilityAuditContext = { invocationId, agentId: caller.agentId, runId: caller.runId ?? options.runId?.(args), tool: descriptor, target: options.target?.(args) }
         const began = performance.now()

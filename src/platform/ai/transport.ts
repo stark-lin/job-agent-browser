@@ -37,6 +37,10 @@ export async function postChat(request: Omit<ChatRequest, 'messages'>, body: obj
   })
   return checkResponse(response)
 }
+export function outputTokenParameters(request: Omit<ChatRequest, 'messages'>, limit: number | undefined) {
+  if (!limit) return {}
+  return new URL(request.provider.baseURL).hostname === 'api.openai.com' ? { max_completion_tokens: limit } : { max_tokens: limit }
+}
 export function requestTimeout(parent: AbortSignal, ms = defaultAITimeouts.requestSeconds * 1000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)

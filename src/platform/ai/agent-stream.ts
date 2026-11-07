@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { AgentError, abortable, type AgentModelEvent, type AgentModelInput, type AgentResponse } from '../../shared/agent'
+import { AgentError, abortable, type AgentModelEvent, type AgentModelInput, type AgentResponse, type AgentUsage } from '../../shared/agent'
 import { DataError, type ErrorCode } from '../../domain/common/errors'
 import type { ChatRequest, Fetch } from './compatible'
-import { postChat, requestTimeout } from './transport'
+import { outputTokenParameters, postChat, requestTimeout } from './transport'
 import { parseAgentResponse, protocol, providerMessages, providerTools } from './agent-protocol'
 import { sseFrames } from './sse'
+import { ReasoningAccumulator } from './reasoning'
+import { preparedTools } from './agent-request'
 
 type ObjectValue = Record<string, unknown>
 const object = (value: unknown): ObjectValue => value && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : protocol()
@@ -17,28 +19,35 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
   const timeout = requestTimeout(input.signal, deps.timeoutMs ?? config.timeoutMs), requestId = randomUUID()
   let failure: unknown, result: AgentResponse | undefined, finished: string | null = null, content = '', output = 0, done = false
   const calls = new Map<number, PartialCall>()
+  const reasoning = new ReasoningAccumulator()
+  let usage: AgentUsage | undefined
   try {
-    const mapped = providerTools(input.tools)
-    const reply = await abortable(postChat(config, { messages: providerMessages(input.messages, mapped.names), ...(mapped.tools.length ? { tools: mapped.tools } : {}) }, timeout.signal, true, deps.transport), timeout.signal)
+    const mapped = providerTools(input.tools, input.stableToolNames)
+    const body = { messages: providerMessages(input.messages, mapped.names, input.stableToolNames), ...(mapped.tools.length ? { tools: mapped.tools } : {}), ...outputTokenParameters(config, input.maxOutputTokens), ...(input.maxOutputTokens ? { stream_options: { include_usage: true } } : {}) }
+    input.validateRequest?.({ model: config.model, ...body, stream: true })
+    input.onRequestPrepared?.({ providerId: config.provider.id, modelId: config.model, preparedAt: new Date().toISOString(), tools: preparedTools(mapped) })
+    const reply = await abortable(postChat(config, body, timeout.signal, true, deps.transport), timeout.signal)
     for await (const value of sseFrames(reply, timeout.signal)) {
       if (value === '[DONE]') { if (!finished) protocol(); done = true; break }
       const root = object(value)
+      if (root.usage && typeof root.usage === 'object') {
+        const reported = root.usage as ObjectValue
+        if (Number.isSafeInteger(reported.prompt_tokens) && Number.isSafeInteger(reported.completion_tokens)
+          && Number(reported.prompt_tokens) >= 0 && Number(reported.completion_tokens) >= 0) usage = { inputTokens: Number(reported.prompt_tokens), outputTokens: Number(reported.completion_tokens) }
+      }
       if (root.error) throw new AgentError('AI_PROVIDER_FAILED')
       if (!Array.isArray(root.choices) || root.choices.length > 1) protocol()
       if (!root.choices.length) continue
       if (finished) protocol()
       const choice = object(root.choices[0]), delta = object(choice.delta)
       if (choice.index !== undefined && choice.index !== 0 || delta.role !== undefined && delta.role !== 'assistant' || delta.function_call) protocol()
-      for (const key of ['content', 'reasoning_summary'] as const) {
-        if (delta[key] !== undefined && delta[key] !== null && typeof delta[key] !== 'string') protocol()
-        const text = typeof delta[key] === 'string' ? delta[key] : ''
-        if (text) {
-          output += Buffer.byteLength(text); if (output > 1000000) protocol()
-          if (key === 'content') content += text
-          yield { type: key === 'content' ? 'content.delta' : 'reasoning.delta', text }
-        }
-      }
-      // Unclassified reasoning/reasoning_content fields are not automatically display-safe.
+      const reasoningDeltas = reasoning.read(delta)
+      if (delta.content !== undefined && delta.content !== null && typeof delta.content !== 'string') protocol()
+      const text = typeof delta.content === 'string' ? delta.content : ''
+      output += Buffer.byteLength(text)
+      if (output + reasoning.bytes > 1000000) protocol()
+      for (const part of reasoningDeltas) yield { type: 'reasoning.delta', ...part }
+      if (text) { content += text; yield { type: 'content.delta', text } }
       if (delta.tool_calls !== undefined) {
         if (!Array.isArray(delta.tool_calls) || delta.tool_calls.length > 32) protocol()
         for (const raw of delta.tool_calls) {
@@ -66,7 +75,8 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
     if (!finished || !done) protocol()
     const ordered = [...calls].sort(([a], [b]) => a - b)
     if (ordered.some(([index, call], position) => index !== position || ![...mapped.names.values()].includes(call.function.name))) protocol()
-    result = parseAgentResponse({ choices: [{ finish_reason: finished, message: { role: 'assistant', content, tool_calls: ordered.map(([, call]) => call) } }] }, mapped.names)
+    result = parseAgentResponse({ choices: [{ finish_reason: finished, message: { role: 'assistant', content, ...reasoning.state, tool_calls: ordered.map(([, call]) => call) } }] }, mapped.names)
+    if (usage) result.usage = usage
     if (result.toolCalls.some(call => !mapped.names.has(call.name))) protocol()
     timeout.signal.throwIfAborted()
   } catch (error) {

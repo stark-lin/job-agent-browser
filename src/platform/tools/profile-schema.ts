@@ -11,8 +11,8 @@ const contact = { name: text(300, 1), email: text(320), phone: text(100), locati
 const metadata = { employmentType: text(100), technologies: array(text(100, 1), 100), url: text(4096), degree: text(200), major: text(200), gpa: text(50),
   startDateText: text(10), endDateText: text(10), isCurrent: { type: 'boolean' } }
 const item = { title: text(500, 1), organization: text(300), role: text(300), location: text(1000), startDate: nullable(text(10, 10)), endDate: nullable(text(10, 10)),
-  summary: text(20000), sortOrder: { type: 'integer', minimum: 0, maximum: 1000000 }, metadata: object(metadata, []) }
-const fact = { kind: choices(factKinds), content: text(20000, 1), tags: array(text(100, 1), 100), evidence: text(20000) }
+  summary: text(20000), sortOrder: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER - 1 }, metadata: object(metadata, []) }
+const fact = { kind: choices(factKinds), content: text(20000, 1), tags: array(text(100, 1), 100) }
 const write = { requestId: uuid, profileId: uuid, expectedRevision: revision }
 const changes = (fields: Record<string, JsonSchema>) => ({ ...object(fields, []), minProperties: 1 })
 export const profileSchemas = {

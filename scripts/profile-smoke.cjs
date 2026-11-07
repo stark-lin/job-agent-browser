@@ -25,14 +25,15 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
       input.dispatchEvent(new Event('input', {bubbles:true}));
     })()`); await frame()
   }
-  const section = title => `[...document.querySelectorAll('section')].find(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === ${JSON.stringify(title)})`
-  const factCard = text => `[...document.querySelectorAll('dd')].find(dd => dd.textContent === ${JSON.stringify(text)}).closest('section')`
+  const section = title => `[...document.querySelectorAll('details.ui-section-card')].find(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === ${JSON.stringify(title)})`
+  const workGroup = `document.querySelector('section[aria-label="Work experience"]')`
+  const factCard = text => `[...document.querySelectorAll('dd')].find(dd => dd.textContent === ${JSON.stringify(text)}).closest('details.ui-section-card')`
   const checkbox = async (label, scope = 'document') => {
     await evaluate(`[...${scope}.querySelectorAll('.ui-checkbox')].find(label => label.textContent === ${JSON.stringify(label)}).querySelector('input').click()`); await frame()
   }
   const body = { contact: { name: 'Imported candidate', email: 'imported@example.com', introduction: 'Imported introduction.\nOriginal wording.' }, links: [],
-    items: [{ type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
-      facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content })) }], facts: [] }
+    items: [{ source: { page: 1, line: 1 }, type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
+      facts: ['Built services', 'Improved latency'].map(content => ({ kind: 'ACHIEVEMENT', content, source: { page: 1, line: 1 } })) }], facts: [], unmapped: [] }
   let requests = 0
   const server = createServer((request, response) => {
     request.resume(); request.on('end', () => {
@@ -52,6 +53,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form") && document.body.innerText.includes("Local profile fixture")'), 'profile forms and provider disclosure')
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'first-profile import draft')
+    assert.equal(await evaluate('!!document.querySelector(".profile-page details details details")'), false)
     window.setMinimumSize(320, 320); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     for (const width of [320, 1200]) {
       window.setContentSize(width, 820); await waitFor(() => evaluate(`innerWidth === ${width}`), 'import review viewport'); await frame()
@@ -66,8 +68,9 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     for (const [label, value] of [['Degree', 'BSc'], ['Major', 'Computing'], ['GPA', '3.8'], ['Employment type', 'Contract'], ['Technologies', 'SQL']]) {
       assert.equal(await evaluate(`(() => { const label = [...${section('Imported project')}.querySelectorAll('.ui-field-label')].find(label => label.textContent === ${JSON.stringify(label)}); return document.getElementById(label.htmlFor).value })()`), value)
     }
+    await evaluate(`${section('Imported project')}.querySelector('summary').click()`)
     await button('Save imported content')
-    await waitFor(() => evaluate('document.activeElement?.value === "example.com" && document.activeElement.getAttribute("aria-invalid") === "true"'), 'invalid URL receives focus instead of empty name')
+    await waitFor(() => evaluate('document.activeElement?.value === "example.com" && document.activeElement.getAttribute("aria-invalid") === "true"'), 'collapsed invalid URL is revealed and receives focus instead of empty name')
     assert.equal((await data('listProfiles')).value.total, 0)
     await field('URL', 'https://example.com', section('Imported project'))
     let draftRefreshPrompts = 0
@@ -83,22 +86,43 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal(firstProfile.name, '', 'empty imported name saves without a required-field check')
     assert.equal((await data('listFacts', { profileId: firstProfile.id })).value.total, 2)
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
-    await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://home'); await call('navigate', 'app://profile')
+    await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://ai'); await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input") && document.body.innerText.includes("Local profile fixture")'), 'manual creation after deleted context fallback')
     await field('Name', 'Manual candidate'); await field('Email', 'keep@example.com'); await field('Personal introduction', 'Manual introduction.\nSecond sentence.')
     await evaluate('document.querySelector(".profile-page form").requestSubmit()')
     let profile
     await waitFor(async () => { profile = (await data('listProfiles')).value.items.find(p => p.name === 'Manual candidate'); return Boolean(profile) }, 'created profile')
     assert.equal(profile.introduction, 'Manual introduction.\nSecond sentence.')
-    await waitFor(() => evaluate(`[...(${section('Work experience')}?.querySelectorAll('button') ?? [])].find(button => button.textContent === 'Add')?.disabled === false`), 'profile creation reflected')
-    await button('Add', section('Work experience')); await field('Title', 'Manual experience', 'document.querySelector("dialog[open]")')
+    await waitFor(() => evaluate(`[...(${workGroup}?.querySelectorAll('button') ?? [])].find(button => button.textContent === 'Add')?.disabled === false`), 'profile creation reflected')
+    await button('Add', workGroup); await field('Title', 'Manual experience', 'document.querySelector("dialog[open]")')
     await field('Start date', '2020', 'document.querySelector("dialog[open]")'); await field('End date', '2022-07', 'document.querySelector("dialog[open]")')
     await button('Save', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listItems', { profileId: profile.id })).value.total === 1, 'manual experience saved')
+    await waitFor(() => evaluate(`!!${section('Manual experience')}`), 'manual experience card')
+    assert.deepEqual(await evaluate(`(() => {
+      const card = ${section('Manual experience')};
+      card.querySelector('summary').click();
+      const button = card.nextElementSibling;
+      const cardRect = card.getBoundingClientRect(), buttonRect = button.getBoundingClientRect();
+      const result = [buttonRect.width - cardRect.width, buttonRect.height - cardRect.height,
+        buttonRect.top - cardRect.bottom, getComputedStyle(button).borderTopStyle];
+      card.querySelector('summary').click();
+      return result;
+    })()`), [0, 0, 24, 'dashed'])
+    assert.deepEqual(await evaluate(`(() => {
+      const card = ${section('Manual experience')};
+      const nested = card.querySelector('.ui-button--add-card');
+      const { paddingTop, paddingRight, paddingBottom, paddingLeft, borderLeftWidth } = getComputedStyle(card);
+      const outer = card.getBoundingClientRect(), inner = nested.getBoundingClientRect();
+      const border = parseFloat(borderLeftWidth);
+      return [paddingTop, paddingRight, paddingBottom, paddingLeft, inner.left - outer.left - border,
+        outer.right - inner.right - border, outer.bottom - inner.bottom - border];
+    })()`), ['16px', '16px', '16px', '16px', 16, 16, 16])
     for (const content of ['Manual first', 'Manual second']) {
       await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'editor closed')
       await button('Add fact', section('Manual experience')); await field('Fact', content, 'document.querySelector("dialog[open]")')
       await field('Tags (comma separated)', 'SQL, ', 'document.querySelector("dialog[open]")')
+      assert.equal(await evaluate('document.querySelector("dialog[open]").innerText.includes("Source excerpt and page")'), false)
       assert.equal(await evaluate(`(() => { const label = [...document.querySelectorAll('dialog[open] .ui-field-label')].find(label => label.textContent === 'Tags (comma separated)'); return document.getElementById(label.htmlFor).value })()`), 'SQL, ')
       await field('Tags (comma separated)', 'SQL, TypeScript', 'document.querySelector("dialog[open]")')
       await button('Save', 'document.querySelector("dialog[open]")')
@@ -115,7 +139,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'built PDF worker and SSE parsed draft')
     await checkbox('Ignore', '[...document.querySelectorAll("[data-import-id=contact-name] .ui-checkbox")][0].parentElement')
-    const importedFact = text => `[...document.querySelectorAll('textarea')].find(input => input.value === ${JSON.stringify(text)}).closest('section')`
+    const importedFact = text => `[...document.querySelectorAll('textarea')].find(input => input.value === ${JSON.stringify(text)}).closest('details.ui-section-card')`
     await checkbox('Ignore', importedFact('Improved latency'))
     await field('Fact', 'Reviewed first', importedFact('Built services'))
     await button('Save imported content')
@@ -131,7 +155,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal(imported.startDate, null); assert.equal(imported.metadata.startDateText, '2021')
     facts = (await data('listFacts', { profileId: profile.id })).value.items
     assert.equal(facts.filter(fact => fact.profileItemId === imported.id).length, 2)
-    assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => fact.evidence === ''))
+    assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => !('evidence' in fact)))
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]") && document.body.innerText.includes("Upload PDF and parse")'), 'import draft discarded')
     // A second upload deliberately permits the same material to be added again.
@@ -140,7 +164,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'second draft discarded')
     assert.equal(requests, 3)
-    const duplicateSection = `[...document.querySelectorAll('section')].filter(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === 'Imported project').at(-1)`
+    const duplicateSection = `[...document.querySelectorAll('details.ui-section-card')].filter(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === 'Imported project').at(-1)`
     await button('Delete', duplicateSection)
     assert(await evaluate('document.querySelector("dialog[open]").innerText.includes("0 descendant entries and 2 attached facts")'))
     await button('Delete', 'document.querySelector("dialog[open]")')
@@ -165,28 +189,33 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
           writeFileSync(resolve(__dirname, `../.cache/profile-${theme}-${width}.png`), (await window.capturePage()).toPNG())
           await evaluate('document.querySelector(".profile-page form textarea").scrollIntoView({block:"center"})'); await frame()
           writeFileSync(resolve(__dirname, `../.cache/profile-introduction-${theme}-${width}.png`), (await window.capturePage()).toPNG())
-          await evaluate('document.querySelector(".profile-page h1").scrollIntoView()'); await frame()
+          await evaluate('document.querySelector(".profile-page").scrollIntoView()'); await frame()
         }
       }
     }
     await settings({ language: 'en' }); await frame()
     const profileTabId = active(await read()).id
-    await call('navigate', 'app://home'); await call('back')
+    await call('navigate', 'app://ai'); await call('navigate', 'app://profile')
     await call('createTab'); const otherTabId = active(await read()).id
     await call('activateTab', profileTabId)
+    await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input")'), 'profile restored for leave guards')
     await field('Personal introduction', 'Unsaved introduction')
     let prompts = 0
     dialog.showMessageBox = async () => { prompts++; return { response: 0, checkboxChecked: false } }
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     assert.equal(active(await read()).destination.page, 'profile'); assert.equal(prompts, 1)
     const beforeTabs = (await read()).tabs.length
     await call('createTab'); assert.equal((await read()).tabs.length, beforeTabs)
     window.close(); await waitFor(() => Promise.resolve(prompts === 3), 'profile window-close guard'); assert(!window.isDestroyed())
-    for (const [method, argument] of [['closeTab', profileTabId], ['activateTab', otherTabId], ['back'], ['forward']]) {
+    for (const [method, argument] of [['closeTab', profileTabId], ['activateTab', otherTabId]]) {
       const before = prompts; await call(method, ...(argument ? [argument] : []))
       assert.equal(prompts, before + 1, `${method} checks unsaved profile`); assert.equal(active(await read()).destination.page, 'profile')
     }
+    const beforeHistory = prompts
+    await call('back'); await call('forward')
+    assert.equal(prompts, beforeHistory, 'Browser history is inactive on Profile')
+    assert.equal(active(await read()).destination.page, 'profile')
     let refreshPrompts = 0
     dialog.showMessageBoxSync = () => { refreshPrompts++; return 0 }
     await window.webContents.executeJavaScript('document.querySelector(".profile-page form input").focus()', true)
@@ -202,7 +231,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     dialog.showOpenDialog = oldOpen; dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); dialog.showMessageBoxSync = () => 1
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)
     await settings({ ai: original.ai, language: original.language, theme: original.theme })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve))
     dialog.showMessageBox = oldMessage; dialog.showMessageBoxSync = oldSync
   }

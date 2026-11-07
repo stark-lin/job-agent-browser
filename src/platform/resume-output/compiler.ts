@@ -19,7 +19,10 @@ export function compileHTML(document: ResumeDocument, template: ResumeTemplate):
   if (template.id !== 'default-v1' || template.fontVersion !== 'noto-sc-v1' || !/^[A-Za-z0-9+/=]+$/.test(template.fontBase64)) throw new Error('INVALID_TEMPLATE')
   const text = escapeHTML, label = labels[document.language]
   const block = (tag: string, value: string, keep = false, extra = '') => `<${tag} class="block${extra}"${keep ? ' data-keep="true"' : ''}>${text(value)}</${tag}>`
-  const link = (name: string, url: string) => { const safe = safeLink(url); return safe ? `<a href="${text(safe)}" rel="noreferrer">${text(name)}: ${text(url)}</a>` : text(name) }
+  const link = (name: string, url: string) => {
+    const safe = safeLink(url), display = text([name, url].filter(Boolean).join(': '))
+    return safe ? `<a href="${text(safe)}" rel="noreferrer">${display}</a>` : display
+  }
   const entries = (name: string, items: ResumeEntry[]) => !items.length ? '' : block('h2', name, true) + items.map(item =>
     block('h3', [item.title, item.organization, item.role].filter(Boolean).join(' · '), true)
     + block('p', [item.location, [item.startDate, item.isCurrent ? label.current : item.endDate].filter(Boolean).join(' – '), item.degree, item.major, item.gpa].filter(Boolean).join(' · '), Boolean(item.bullets.length))

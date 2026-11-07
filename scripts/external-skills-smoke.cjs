@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
@@ -91,6 +92,7 @@ module.exports = async function externalSkillsSmoke({ window, evaluate, waitFor 
   for (const name of names) assert(readFileSync(join(standalone, name, 'SKILL.md'), 'utf8').includes(`name: ${name}`))
   await new Promise(resolve => { window.webContents.once('did-finish-load', resolve); window.webContents.reload() })
   await ready()
+  await openSectionCards(evaluate, '[data-agent-target]')
   assert((await api('inspect', {})).value.clients.every(client => client.skills.every(skill => skill.state === 'installed')))
   console.log('External Skills smoke passed: bundled bilingual resources, real IPC/UI, cancel/replace without backups, symlink protection, repeat install, stale revision, failure feedback and reload.')
 }

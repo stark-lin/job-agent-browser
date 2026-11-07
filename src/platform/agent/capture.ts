@@ -1,18 +1,17 @@
 import { AgentError, type AgentModel } from '../../shared/agent'
 import type { JobPageSnapshot } from '../../domain/job/job.extractor'
-import { jobParts, mergeJobParts } from '../job-import/parts'
-import { createTaskBatch } from '../import/batch'
-import type { ImportMode } from '../../shared/import'
-import { runAgent } from './loop'
+import { parseJobDraft } from '../../domain/job/job.extraction.validation'
+import { JobImportFailure } from '../job-import/errors'
+import { jobPrompt } from '../job-import/prompt'
+import { completeAgentText } from './model-completion'
 
 /** Source understanding runs without any Job Agent Browser tool discovery or calls. */
-export function createCaptureBatch(model: AgentModel, source: JobPageSnapshot, mode: ImportMode) {
-  return createTaskBatch(jobParts(source, mode), (prompt, signal, began) => {
-    began()
-    return runAgent(model, undefined, [{ role: 'user', content: prompt }], signal)
-  })
-}
 export async function runCaptureAgent(model: AgentModel, source: JobPageSnapshot, signal: AbortSignal) {
-  try { return mergeJobParts(await createCaptureBatch(model, source, 'single').run(signal, () => {})) }
-  catch (error) { if (signal.aborted) throw new AgentError('AGENT_CANCELLED'); throw error }
+  const response = await completeAgentText(model, [{ role: 'user', content: jobPrompt(source) }], signal)
+  if (signal.aborted) throw new AgentError('AGENT_CANCELLED')
+  let draft
+  try { draft = parseJobDraft(JSON.parse(response.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, ''))) }
+  catch { throw new JobImportFailure('JOB_INVALID_OUTPUT') }
+  if (![draft.title, draft.companyNameRaw, draft.description].some(text => text.trim())) throw new JobImportFailure('JOB_NO_CONTENT')
+  return draft
 }

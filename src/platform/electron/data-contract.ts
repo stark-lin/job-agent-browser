@@ -1,4 +1,4 @@
-import type { ChatSession, ChatRun, ChatItem } from '../../domain/chat/chat.types'
+import type { ChatSession, ChatRun, ChatItem, ChatModelRequest } from '../../domain/chat/chat.types'
 import type { Result } from '../../shared/ipc'
 import type { Preferences, PreferencePatch } from '../../shared/settings'
 import type { ErrorCode } from '../../domain/common/errors'
@@ -20,8 +20,10 @@ export interface DataContract {
     getRun: Endpoint<Id, ChatRun>
     listItems: Endpoint<{ sessionId: string; limit?: number; beforeSequence?: number }, PageResult<ChatItem>>
     listRuns: Endpoint<{ sessionId: string } & Page, PageResult<ChatRun>>
+    listModelRequests: Endpoint<{ runId: string } & Page, PageResult<ChatModelRequest>>
     renameSession: Endpoint<{ id: string; title: string }, ChatSession>
     setModel: Endpoint<{ id: string; choice: { providerId: string; modelId: string } }, ChatSession>
+    copyDebugJson: Endpoint<{ sessionId: string }, Promise<null>>
     deleteSession: Endpoint<Id, null>
   }
   jobs: {
@@ -71,7 +73,7 @@ export interface DataContract {
     getRun: Endpoint<Id, RunView>
     listRuns: Endpoint<{ jobId?: string | null } & Page, PageResult<RunView>>
     getArtifact: Endpoint<Id, ArtifactView>
-    editArtifact: Endpoint<{ id: string; title: string; content: ResumeDocument }, Artifact>
+    editArtifact: Endpoint<{ id: string; title: string; expectedRevision: number; content: ResumeDocument }, Artifact>
     deleteArtifact: Endpoint<Id, Id>
   }
   audit: { list: Endpoint<AuditFilter, PageResult<AuditEntry>> }
@@ -88,7 +90,7 @@ export interface DataContract {
 
 export type DataAPI = {
   [G in keyof DataContract]: {
-    [M in keyof DataContract[G]]: DataContract[G][M] extends Endpoint<infer I, infer O> ? (input: I) => Promise<Result<O, ErrorCode>> : never
+    [M in keyof DataContract[G]]: DataContract[G][M] extends Endpoint<infer I, infer O> ? (input: I) => Promise<Result<Awaited<O>, ErrorCode>> : never
   }
 }
 export type ServiceContract = {
@@ -99,7 +101,7 @@ export type ServiceContract = {
 
 // This is the sole allowlist used by the sandboxed bridge and Main dispatcher.
 export const methodNames = {
-  chats: ['listSessions', 'getSession', 'getRun', 'listItems', 'listRuns', 'renameSession', 'setModel', 'deleteSession'],
+  chats: ['listSessions', 'getSession', 'getRun', 'listItems', 'listRuns', 'listModelRequests', 'renameSession', 'setModel', 'copyDebugJson', 'deleteSession'],
   jobs: ['saveJob', 'updateDetails', 'attachSource', 'setArchived', 'deleteJob', 'getJob', 'listJobs', 'listSources', 'registerCompany', 'updateCompany', 'deleteCompany', 'listCompanies'],
   profiles: ['createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
   applications: ['changeStatus', 'scheduleEvent', 'rescheduleEvent', 'addNote', 'deleteEvent', 'listEvents', 'listCalendar'],

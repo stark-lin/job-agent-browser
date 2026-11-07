@@ -10,7 +10,6 @@
 <svg width="0" height="0" style="position:absolute">
   <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></symbol>
   <symbol id="i-forward" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></symbol>
-  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5L12 4l8 6.5"/><path d="M6.5 9.5V20h11V9.5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></symbol>
   <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></symbol>
@@ -28,7 +27,6 @@
     <div class="toolbar-group">
       <button class="tool" aria-label="Back"><svg><use href="#i-back"/></svg></button>
       <button class="tool" aria-label="Forward"><svg><use href="#i-forward"/></svg></button>
-      <button class="tool" aria-label="Home"><svg><use href="#i-home"/></svg></button>
     </div>
     <div class="toolbar-group">
       <button class="agent"><span class="spark">✦</span><span>Ask AI</span></button>
@@ -55,7 +53,7 @@
         <div class="eyebrow">Job Browser</div>
         <h1>Component Library</h1>
         <div class="lead">
-          An 8px-grid interface system built from the existing Job Browser home.
+          An 8px-grid interface system for Job Agent Browser.
           All component spacing and major dimensions share one rhythm; blue is for actions,
           green for success, amber for warnings and red for errors.
         </div>
@@ -131,7 +129,7 @@
               <div class="size-spec"><div class="size-block" style="--block-height:var(--control-lg)">48</div><span class="size-caption">Large / toolbar</span></div>
               <div class="size-spec"><div class="size-block" style="--block-height:var(--list-row-height)">64</div><span class="size-caption">List row</span></div>
             </div>
-            <p class="rule-note">Icons: 16px inside 32px/40px containers. Home cards: 144px minimum. Corners: 8px / 16px / 24px.</p>
+            <p class="rule-note">Icons: 16px inside 32px/40px containers. Feature cards: 144px minimum. Corners: 8px / 16px / 24px.</p>
             <p class="rule-note">Type is a separate scale (12 / 14 / 16 / 20 / 32 / 40px); line-heights snap to 16 / 24 / 32 / 40 / 48px. Strokes are 1px and focus outlines 2px.</p>
           </div>
         </div>
@@ -204,11 +202,6 @@
               <span class="field-help">Whole seconds, 1–3600. Save to apply to new requests.</span>
             </label>
             <label class="field">
-              <span class="field-label">Import mode</span>
-              <select class="control"><option>Standard</option><option>Parallel</option></select>
-              <span class="field-help">Parallel mode splits extraction across requests. Input tokens and cost may increase.</span>
-            </label>
-            <label class="field">
               <span class="field-label">Imported profile name</span>
               <input class="control" value="" />
               <span class="field-help">Imported text fields may be empty. All entry metadata stays visible.</span>
@@ -225,9 +218,21 @@
           <div class="demo-label">TextArea · multiline input</div>
           <div class="demo-stage grid-2">
             <label class="field"><span class="field-label">Message</span><textarea class="control" placeholder="Write a message" aria-describedby="textarea-help"></textarea><span id="textarea-help" class="field-help">96px minimum height; native resize and focus.</span></label>
+            <label class="field"><span class="field-label">Resume display date</span><input class="control" maxlength="200" value="Summer 2020 (part-time)" /></label>
+            <label class="field"><span class="field-label">Resume display link</span><input class="control" maxlength="4096" value="portfolio.example/my work" /><span class="field-help">Manual resume text is preserved when saving and rebuilding the PDF.</span></label>
             <label class="field"><span class="field-label">Personal introduction</span><textarea class="control" maxlength="2000" aria-describedby="introduction-help">Engineer focused on reliable services.</textarea><span id="introduction-help" class="field-help">Optional sentence or paragraph. Preserve the original meaning and wording; agents may only make minor edits.</span></label>
             <label class="field"><span class="field-label">Disabled</span><textarea class="control" disabled>Waiting for a response</textarea></label>
             <label class="field field-error"><span class="field-label">Invalid message</span><textarea class="control" aria-invalid="true" aria-describedby="textarea-error"></textarea><span id="textarea-error" class="field-help">Enter a message.</span></label>
+          </div>
+        </div>
+
+        <div class="demo">
+          <div class="demo-label">Browser selection · ordinary user input</div>
+          <div class="demo-stage vstack">
+            <div class="notice"><div class="notice-mark">i</div><div>Source page: Engineer · https://example.com/jobs/123</div></div>
+            <label class="field"><span class="field-label">Pasted job description</span><textarea class="control" maxlength="60000">Build TypeScript services.</textarea><span class="field-help">Edit the selection, then explicitly parse or save. Changing source mode clears the website binding.</span></label>
+            <div class="notice"><div class="notice-mark">i</div><div>The selected content could not be transferred. Retry while this page is open.</div></div>
+            <button class="btn">Retry transfer</button>
           </div>
         </div>
 
@@ -239,9 +244,17 @@
         </div>
 
         <div class="demo">
+          <div class="demo-label">Profile fact · manual editing and import review</div>
+          <div class="demo-stage vstack">
+            <label class="field"><span class="field-label">Fact category</span><select class="control"><option>Achievement</option><option>Skill</option></select></label>
+            <label class="field"><span class="field-label">Fact</span><textarea class="control" maxlength="20000">Built TypeScript services with automated tests.</textarea></label>
+            <label class="field"><span class="field-label">Tags (comma separated)</span><input class="control" value="TypeScript, testing" /></label>
+          </div>
+        </div>
+
+        <div class="demo">
           <div class="demo-label">Checkbox · ignore imported content</div>
           <div class="demo-stage stack">
-            <label class="check-row"><input type="checkbox" /><span>Allow parallel imports for this model</span></label>
             <label class="check-row"><input type="checkbox" checked /><span>Ignore entry and its facts</span></label>
             <label class="check-row"><input type="checkbox" /><span>Ignore this fact</span></label>
             <label class="check-row"><input type="checkbox" disabled /><span>Parent entry is ignored.</span></label>
@@ -260,6 +273,13 @@
 
         <div class="demo">
           <div class="demo-label">Tabs & breadcrumbs</div>
+          <p class="rule-note">Browser Back/Forward, Alt history shortcuts, right-button drags and horizontal touchpad swipes stay within webpage history. Content and chrome stay fixed. A 48px circular edge arrow in a 64px transparent overlay with an 8px inset highlights when ready; unavailable directions stay muted, and short/cancelled strokes dismiss it immediately. No gesture translation or animation runs. Ordinary right clicks retain native menus and website scrolling takes priority; geometry reuses existing tokens. History commits and Refresh use the solid neutral browser-transition-bg cover (#303030 in both themes) until the target frame is ready, then reveal directly without a fade. Refresh follows Forward and is also in native Browser/Inbox menus. The separate browser-canvas-bg is #e5e5e5 in light mode and #303030 in dark mode. Workspace navigation preserves browser state and forward entries; new tabs open an empty Browser workspace, and tabs retain browser titles.</p>
+          <div class="demo-stage" aria-label="History gesture arrow states">
+            <span data-direction="back" data-ready="false"><span class="ui-history-indicator" role="img" aria-label="Back, below threshold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+            <span data-direction="back" data-ready="true"><span class="ui-history-indicator" role="img" aria-label="Back, ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+            <span data-direction="forward" data-ready="true"><span class="ui-history-indicator" role="img" aria-label="Forward, ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+            <span data-direction="forward" data-available="false"><span class="ui-history-indicator" role="img" aria-label="Forward, unavailable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></span></span>
+          </div>
           <div class="demo-stage vstack">
             <div class="tabs" role="tablist">
               <button class="tab active">Overview</button>
@@ -271,26 +291,44 @@
           </div>
         </div>
         <div class="demo">
+          <div class="demo-label">Browser Copy Webpage</div>
+          <div class="demo-stage">
+            <div class="stack">
+              <button class="tool" aria-label="Copy Webpage" title="Copy Webpage"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6V3h11v11h-3M3 6h11v11H3z"/></svg></button>
+              <span class="field-help">Copied</span>
+            </div>
+            <p class="rule-note">The icon follows the address field. The native Browser context menu offers the same action. Blank, loading, and failed pages disable the action. Both entries show the result in the toolbar.</p>
+          </div>
+        </div>
+        <div class="demo">
           <div class="demo-label">Workspace sidebar — shared navigation</div>
           <div class="demo-stage">
             <nav class="workspace-sidebar-example" aria-label="Workspace navigation example">
-              <button class="workspace-navigation-item" aria-label="Home" title="Home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3z"/></svg></button>
-              <section class="workspace-navigation-group" aria-label="Job search">
-              <button class="workspace-navigation-item" aria-label="Add Job" title="Add Job"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-              <button class="workspace-navigation-item" aria-label="Tailor Resume" title="Tailor Resume"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></svg></button>
-              <button class="workspace-navigation-item" aria-label="Smart Note" title="Smart Note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M8 3v18M12 13h4M12 17h4"/><path d="m18 2 1.1 2.9L22 6l-2.9 1.1L18 10l-1.1-2.9L14 6l2.9-1.1z"/></svg></button>
-              </section>
+              <button class="workspace-navigation-item" aria-label="Ask AI" interestfor="workspace-tooltip-ask-ai" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14z"/></svg></button>
+              <span id="workspace-tooltip-ask-ai" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Ask AI</span>
               <section class="workspace-navigation-group" aria-label="Manage">
-              <button class="workspace-navigation-item" aria-label="Applications" title="Applications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></button>
-              <button class="workspace-navigation-item" aria-label="Inbox" title="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 7l8 6 8-6"/></svg></button>
-              <button class="workspace-navigation-item" aria-label="My Profile" title="My Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0114 0"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="My Profile" interestfor="workspace-tooltip-my-profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0114 0"/></svg></button>
+              <span id="workspace-tooltip-my-profile" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">My Profile</span>
+              <button class="workspace-navigation-item" aria-label="Tailor Resume" interestfor="workspace-tooltip-tailor-resume"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></svg></button>
+              <span id="workspace-tooltip-tailor-resume" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Tailor Resume</span>
+              <button class="workspace-navigation-item" aria-label="Smart Note" interestfor="workspace-tooltip-smart-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M8 3v18M12 13h4M12 17h4"/><path d="m18 2 1.1 2.9L22 6l-2.9 1.1L18 10l-1.1-2.9L14 6l2.9-1.1z"/></svg></button>
+              <span id="workspace-tooltip-smart-note" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Smart Note</span>
+              </section>
+              <section class="workspace-navigation-group" aria-label="Job search">
+              <button class="workspace-navigation-item" aria-label="Add Job" interestfor="workspace-tooltip-add-job"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+              <span id="workspace-tooltip-add-job" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Add Job</span>
+              <button class="workspace-navigation-item" aria-label="Applications" interestfor="workspace-tooltip-applications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></button>
+              <span id="workspace-tooltip-applications" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Applications</span>
+              <button class="workspace-navigation-item" aria-label="Inbox" interestfor="workspace-tooltip-inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 7l8 6 8-6"/></svg></button>
+              <span id="workspace-tooltip-inbox" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Inbox</span>
               </section>
               <section class="workspace-navigation-group" aria-label="Tools">
-              <button class="workspace-navigation-item" aria-label="Browser" title="Browser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg></button>
-              <button class="workspace-navigation-item" aria-label="Ask AI" title="Ask AI"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14z"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Browser" interestfor="workspace-tooltip-browser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg></button>
+              <span id="workspace-tooltip-browser" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Browser</span>
               </section>
               <div class="workspace-navigation-footer">
-              <button class="workspace-navigation-item" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21h-4v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H3v-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 001.9.3A1.7 1.7 0 0010 3V3h4v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1H21v4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+              <button class="workspace-navigation-item" aria-label="Settings" interestfor="workspace-tooltip-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21h-4v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H3v-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 001.9.3A1.7 1.7 0 0010 3V3h4v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1H21v4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+              <span id="workspace-tooltip-settings" class="ui-navigation-tooltip" popover="hint" aria-hidden="true">Settings</span>
               </div>
             </nav>
           </div>
@@ -336,7 +374,7 @@
       <section class="section" id="cards">
         <div class="section-head">
           <h2>Cards</h2>
-          <div class="section-note">The home-card primitive becomes the main feature-entry component.</div>
+          <div class="section-note">Feature cards pair a short label and description with an icon.</div>
         </div>
 
         <div class="demo">
@@ -380,39 +418,51 @@
         </div>
         <div class="demo">
           <div class="demo-label">Settings group — shared runtime reference</div>
-          <div class="demo-stage">
-            <section class="settings-panel" aria-labelledby="settings-example-title">
-              <h3 id="settings-example-title">General</h3>
-              <p>Choose the language and appearance for your workspace.</p>
-              <div class="grid-2">
-                <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
-                <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
+          <div class="demo-stage settings-example">
+            <details class="ui-section-card" aria-labelledby="settings-example-title">
+              <summary class="ui-section-heading"><h2 id="settings-example-title"><span class="ui-section-title">General</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <p class="ui-section-description">Choose the language and appearance for your workspace.</p>
+              <div class="ui-section-body">
+                <div class="grid-2">
+                  <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
+                  <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
+                </div>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
               </div>
-              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
-            </section>
-            <section class="settings-panel" aria-labelledby="knowledge-semantic-example-title">
-              <h3 id="knowledge-semantic-example-title">Semantic search</h3>
-              <label class="check-row"><input type="checkbox" checked /><span>Enable semantic indexing</span></label>
-              <p>Optional multilingual-e5-small · 384 dimensions · about 140 MB. Notes and search queries are processed entirely on this device.</p>
-              <p>Not installed. Smart Note and keyword search remain available.</p>
-              <div class="settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
-              <progress class="ui-progress" aria-label="Example model download progress" value="40" max="100"></progress>
-              <p class="muted">Static progress reference: installation offers Cancel; corruption offers Repair Model. Removal retains notes, backups and derived indexes.</p>
-              <p class="muted">Keyword search remains available while the index builds or semantic search is unavailable.</p>
-            </section>
-            <section class="settings-panel" aria-labelledby="external-agent-example-title">
-              <h3 id="external-agent-example-title">Connect external Agents</h3>
-              <p>Static reference: Codex, Claude Code and Cursor user-wide MCP configuration and separate Skills installation.</p>
-              <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
-              <p><span class="badge badge-success">Configured</span></p>
-              <div class="settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
-              <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
-              <dl class="ui-details-list"><div><dt>Skills installation directory</dt><dd>~/.agents/skills</dd></div><div><dt>capture-job</dt><dd><span class="badge badge-success">Installed</span></dd></div><div><dt>manage-applications</dt><dd><span class="badge">Not installed</span></dd></div><div><dt>tailor-resume</dt><dd><span class="badge">Different content</span></dd></div></dl>
-              <div class="settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
-              <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Delete one Skill from its row or delete all three after confirmation. Completed and pending items have separate feedback; reload the host to update its loaded configuration and Skills.</p>
-              <label class="field"><span class="field-label">Other Agents: stdio MCP configuration</span><textarea class="control" rows="4" readonly>{ "mcpServers": { "job_agent_browser": { "command": "/absolute/path/Electron", "args": ["/absolute/path/job-agent-mcp.js"], "env": { "ELECTRON_RUN_AS_NODE": "1", "JOB_BROWSER_USER_DATA": "/absolute/path/user-data", "JOB_BROWSER_MCP_CALLER": "mcp-client", "JOB_BROWSER_ELECTRON": "/absolute/path/Electron" } } } }</textarea></label>
-              <p>A different existing entry requires confirmation: Cancel / Back up and replace. Paths wrap; busy actions are disabled.</p>
-            </section>
+            </details>
+            <details class="ui-section-card" aria-labelledby="knowledge-semantic-example-title">
+              <summary class="ui-section-heading"><h2 id="knowledge-semantic-example-title"><span class="ui-section-title">Semantic search</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <div class="ui-section-body">
+                <label class="check-row"><input type="checkbox" checked /><span>Enable semantic indexing</span></label>
+                <p>Optional multilingual-e5-small · 384 dimensions · about 140 MB. Notes and search queries are processed entirely on this device.</p>
+                <p>Not installed. Smart Note and keyword search remain available.</p>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary">Download Model</button><button class="btn" disabled>Verify Model</button><button class="btn" disabled>Remove Model</button></div>
+                <progress class="ui-progress" aria-label="Example model download progress" value="40" max="100"></progress>
+                <p class="muted">Static progress reference: installation offers Cancel; corruption offers Repair Model. Removal retains notes, backups and derived indexes.</p>
+                <p class="muted">Keyword search remains available while the index builds or semantic search is unavailable.</p>
+              </div>
+            </details>
+            <details class="ui-section-card" aria-labelledby="external-agent-example-title">
+              <summary class="ui-section-heading"><h2 id="external-agent-example-title"><span class="ui-section-title">Connect external Agents</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <p class="ui-section-description">Static reference: Codex, Claude Code and Cursor user-wide MCP configuration and separate Skills installation.</p>
+              <div class="ui-section-body">
+                <dl class="ui-details-list"><div><dt>Codex configuration file</dt><dd>~/.codex/config.toml</dd></div></dl>
+                <p><span class="badge badge-success">Configured</span></p>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary" disabled>Add MCP</button><button class="btn">Test connection</button><button class="btn">Reconnect MCP</button><button class="btn btn-danger">Delete MCP</button><button class="btn">Copy configuration</button></div>
+                <p>Installation and connection checks have separate feedback. Reload or restart the target Agent after installation.</p>
+                <dl class="ui-details-list"><div><dt>Skills installation directory</dt><dd>~/.agents/skills</dd></div><div><dt>capture-job</dt><dd><span class="badge badge-success">Installed</span></dd></div><div><dt>manage-applications</dt><dd><span class="badge">Not installed</span></dd></div><div><dt>tailor-resume</dt><dd><span class="badge">Different content</span></dd></div></dl>
+                <div class="ui-action-row settings-panel-actions"><button class="btn">Update Skills</button><button class="btn">Reconnect Skills</button><button class="btn btn-danger">Delete all Skills</button><button class="btn">Open Skills folder</button></div>
+                <p>Skills conflicts list the folders to replace: Cancel / Replace without backup. Delete one Skill from its row or delete all three after confirmation. Completed and pending items have separate feedback; reload the host to update its loaded configuration and Skills.</p>
+                <details class="ui-section-card" aria-labelledby="other-agents-example-title">
+                  <summary class="ui-section-heading"><h2 id="other-agents-example-title"><span class="ui-section-title">Other Agents</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+                  <div class="ui-section-body">
+                    <label class="field"><span class="field-label">Other Agents: stdio MCP configuration</span><textarea class="control" rows="4" readonly>{ "mcpServers": { "job_agent_browser": { "command": "/absolute/path/Electron", "args": ["/absolute/path/job-agent-mcp.js"], "env": { "ELECTRON_RUN_AS_NODE": "1", "JOB_BROWSER_USER_DATA": "/absolute/path/user-data", "JOB_BROWSER_MCP_CALLER": "mcp-client", "JOB_BROWSER_ELECTRON": "/absolute/path/Electron" } } } }</textarea></label>
+                    <p>A different existing entry requires confirmation: Cancel / Back up and replace. Paths wrap; busy actions are disabled.</p>
+                  </div>
+                </details>
+              </div>
+            </details>
+            <button type="button" class="ui-button ui-button--add-card">Add entry</button>
           </div>
         </div>
       </section>
@@ -507,6 +557,19 @@
         </div>
 
         <div class="demo">
+          <div class="demo-label">Global Banner</div>
+          <div class="demo-stage">
+            <aside class="ui-banner">
+              <button class="ui-banner-body" type="button" aria-disabled="false">
+                <span class="ui-banner-title">Smart Paste</span>
+                <span class="ui-banner-detail">Finished Personal introduction</span>
+              </button>
+              <button class="ui-banner-close" type="button" aria-label="Close notification">×</button>
+            </aside>
+          </div>
+        </div>
+
+        <div class="demo">
           <div class="demo-label">Empty state</div>
           <div class="demo-stage">
             <div class="empty">
@@ -530,7 +593,16 @@
         </div>
         <div class="demo">
           <div class="demo-label">StageProgress · business stages</div>
-          <div class="demo-stage"><ol class="ui-stage-progress" aria-label="Generation progress"><li class="is-done">Score evidence</li><li class="is-current" aria-current="step">Write draft</li><li>Build HTML / PDF</li></ol></div>
+          <div class="demo-stage"><ol class="ui-stage-progress" aria-label="Generation progress"><li class="is-done">Copy profile</li><li class="is-current" aria-current="step">Rewrite bullets</li><li>Validate resume</li><li>Publish resume</li><li>Build HTML / PDF</li></ol></div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">Agent Trace · shared timeline detail</div>
+          <div class="demo-stage vstack">
+            <details class="ui-section-card" aria-labelledby="resume-trace-example-title">
+              <summary class="ui-section-heading"><h2 id="resume-trace-example-title"><span class="ui-section-title">Agent trace</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <div class="ui-section-body"><details class="ui-collapsible"><summary>Read resume bullets · Completed</summary><div>ReAct cycle 1 · Model request 1</div></details></div>
+            </details>
+          </div>
         </div>
         <div class="demo">
           <div class="demo-label">DocumentPreview · isolated document</div>
@@ -540,12 +612,19 @@
           <div class="demo-label">Conversation · static reference, no model request</div>
           <div class="demo-stage vstack">
             <div class="ui-chat-message ui-chat-message--user">Which saved jobs fit my profile?</div>
-            <details class="ui-collapsible"><summary>Thought for 5s</summary><div class="ui-collapsible-content">Public provider summary only.</div></details>
-            <div class="ui-activity ui-activity--completed"><span class="ui-activity-symbol" aria-hidden="true">✓</span><div class="ui-activity-body">Read saved jobs<div class="ui-activity-description">Found 8 jobs</div></div></div>
+            <details class="ui-collapsible" open><summary>Reasoning · Thinking</summary><div class="ui-collapsible-content"><dl class="ui-details-list"><div><dt>Source</dt><dd>reasoning_content</dd></div></dl><div class="ui-code-block ui-code-block--wrap"><div class="ui-code-heading"><span>Reasoning</span><button class="ui-button ui-button--ghost ui-button--sm">Copy</button></div><pre tabindex="0"><code>Comparing the returned job details before choosing the next tool.</code></pre></div></div></details>
+            <details class="ui-collapsible"><summary>Reasoning summary · Completed</summary><div class="ui-collapsible-content">Provider summary, distinct from full reasoning text.</div></details>
+            <details class="ui-collapsible"><summary>Encrypted reasoning · Completed</summary><div class="ui-collapsible-content">The provider returned encrypted reasoning; readable text is unavailable.</div></details>
+            <div class="ui-activity ui-activity--completed"><span class="ui-activity-symbol" aria-hidden="true">✓</span><div class="ui-activity-body">Read saved jobs<div class="ui-activity-description">Found 8 jobs</div><details class="ui-collapsible"><summary>Details</summary><div class="ui-collapsible-content"><dl class="ui-details-list"><div><dt>Tool</dt><dd>job.list</dd></div><div><dt>Call ID</dt><dd>jobs-1</dd></div><div><dt>State</dt><dd>Completed</dd></div><div><dt>Elapsed</dt><dd>0.2 seconds</dd></div></dl><div class="ui-code-block"><div class="ui-code-heading"><span>Arguments · JSON</span><button class="ui-button ui-button--ghost ui-button--sm">Copy</button></div><pre tabindex="0"><code>{"limit": 8}</code></pre></div><div class="ui-code-block"><div class="ui-code-heading"><span>Result · JSON</span><button class="ui-button ui-button--ghost ui-button--sm">Copy</button></div><pre tabindex="0"><code>{"total": 8, "apiKey": "[REDACTED]"}</code></pre></div></div></details></div></div>
             <div class="ui-activity ui-activity--running"><span class="ui-activity-symbol" aria-hidden="true">◌</span><div class="ui-activity-body">Reading profile</div></div>
+            <div class="ui-activity ui-activity--completed"><span class="ui-activity-symbol" aria-hidden="true">✓</span><div class="ui-activity-body">Read saved jobs<details class="ui-collapsible"><summary>Details · Recovery</summary><div class="ui-collapsible-content"><dl class="ui-details-list"><div><dt>Consecutive calls without progress</dt><dd>3</dd></div><div><dt>Progress protection</dt><dd>Recovery</dd></div><div><dt>Next action</dt><dd>Use another authorized source or answer with confirmed information.</dd></div></dl></div></details></div></div>
+            <div class="ui-activity ui-activity--failed"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Archive job · Not executed<details class="ui-collapsible"><summary>Details</summary><div class="ui-collapsible-content"><dl class="ui-details-list"><div><dt>Chat Run ID</dt><dd>f2ad4f18-70d3-4a20-9037-93440e0c6111</dd></div><div><dt>Run state</dt><dd>Failed</dd></div><div><dt>Calls / dispatched / rejected</dt><dd>4 / 1 / 3</dd></div><div><dt>Confirmed effect</dt><dd>Saved job · Archived</dd></div><div><dt>Protection reason</dt><dd>The same rejected operation was attempted again.</dd></div></dl></div></details></div></div>
             <div class="ui-activity ui-activity--uncertain"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Operation may have completed<div class="ui-activity-description">Check the current state before trying again.</div></div></div>
             <div class="ui-chat-message">Your experience matches these requirements.</div>
+            <p class="rule-note">Composer focus keeps the neutral border and shadow; the textarea has no focus outline or glow. Model and action controls retain their focus indicators.</p>
             <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Example message" placeholder="Ask anything about your job search…"></textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Example model"><option>Example model</option></select><button class="btn" aria-label="Send example" disabled>↑</button></div></div>
+            <p class="muted" role="status">Waiting for the previous run… New messages are queued in this session.</p>
+            <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Queued example message">A follow-up question</textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Busy example model" disabled><option>Example model</option></select><button class="btn" aria-label="Stop example">■</button><button class="btn" aria-label="Queue example message">↑</button></div></div>
           </div>
         </div>
       </section>
@@ -570,6 +649,24 @@
               </div>
             </div>
           </div>
+        </div>
+        <div class="demo">
+          <div class="demo-label">Copy Debug JSON · Rename → Copy Debug JSON → Delete</div>
+          <p class="rule-note">Each copy needs confirmation. Cancel starts focused; Cancel and Escape copy nothing. Submission disables repeat actions; failure keeps the dialog open for retry, while success keeps it open and changes the same disabled CopyButton to Copied to clipboard, with polite live feedback and no success message under the chat list. Running Sessions are supported.</p>
+          <div class="dialog-demo">
+            <div class="dialog">
+              <div class="dialog-body">
+                <h3>Copy full debug data?</h3>
+                <p>This will copy the complete saved debug data for the current conversation to the system clipboard. It may include personal profile information, conversation content, model responses, tool call arguments and results, and other sensitive information. After copying, paste only into trusted locations.</p>
+              </div>
+              <div class="dialog-foot">
+                <button class="btn btn-ghost">Cancel</button>
+                <button class="btn btn-primary">Copy JSON</button>
+              </div>
+            </div>
+          </div>
+          <p class="rule-note">CopyButton · success state on the initiating button:</p>
+          <button class="btn btn-primary" disabled aria-live="polite">Copied to clipboard</button>
         </div>
       </section>
 
@@ -597,10 +694,10 @@
           <div class="demo-stage vstack">
             <div class="ui-table-scroll" role="region" aria-label="Audit Viewer" tabindex="0">
               <table class="ui-data-table" aria-label="Audit Viewer">
-                <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Target</th><th scope="col">Status</th><th scope="col">Details</th></tr></thead>
+                <thead><tr><th scope="col"><span class="ui-table-cell">Time</span></th><th scope="col"><span class="ui-table-cell">Event</span></th><th scope="col"><span class="ui-table-cell">Target</span></th><th scope="col"><span class="ui-table-cell">Status</span></th></tr></thead>
                 <tbody>
-                  <tr><td>14/10/2026, 12:30:00</td><td>AI_STREAM_START<br>Create</td><td>AI request<br>00000000-0000-4000-8000-000000000001</td><td><span class="ui-badge ui-badge--success">Success</span></td><td><button class="btn btn-sm">View details</button></td></tr>
-                  <tr><td>14/10/2026, 12:29:00</td><td>PROFILE_CREATE<br>Create</td><td>Profile<br>None</td><td><span class="ui-badge ui-badge--error">Failure</span></td><td><button class="btn btn-sm">View details</button></td></tr>
+                  <tr class="ui-table-row-action"><td><button type="button" class="ui-table-row-trigger" aria-label="View audit record 7" aria-haspopup="dialog"><span class="ui-table-cell">14/10/2026, 12:30:00</span></button></td><td><span class="ui-table-cell">AI_STREAM_START</span></td><td><span class="ui-table-cell">AI request</span></td><td><span class="ui-table-cell"><span class="ui-badge-text ui-badge-text--success">Success</span></span></td></tr>
+                  <tr class="ui-table-row-action"><td><button type="button" class="ui-table-row-trigger" aria-label="View audit record 6" aria-haspopup="dialog"><span class="ui-table-cell">14/10/2026, 12:29:00</span></button></td><td><span class="ui-table-cell">PROFILE_CREATE</span></td><td><span class="ui-table-cell">Profile</span></td><td><span class="ui-table-cell"><span class="ui-badge-text ui-badge-text--error">Failure</span></span></td></tr>
                 </tbody>
               </table>
             </div>

@@ -1,10 +1,11 @@
+import { smartPasteSettings, type SmartPasteSettings } from '../../shared/smart-paste'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { Preferences, PreferencePatch, Mailbox } from '../../shared/settings'
 import type { AIProvider, AISettings } from '../../shared/ai'
 
-export type Notice = 'saved' | 'keySaved' | 'keyDeleted' | 'saveFailed' | 'encryptionUnavailable' | 'invalidAI' | ''
+export type Notice = 'saved' | 'keySaved' | 'keyDeleted' | 'saveFailed' | 'encryptionUnavailable' | 'invalidAI' | 'invalidSmartPaste' | ''
 
 export function useSettings() {
   const { data, navigation } = useServices()
@@ -18,8 +19,8 @@ export function useSettings() {
   const [keyReady, setKeyReady] = useState(false)
   const [keyLoadFailed, setKeyLoadFailed] = useState(false), [keyAttempt, setKeyAttempt] = useState(0)
   const [loading, setLoading] = useState(true), [loadFailed, setLoadFailed] = useState(false)
-  const [saving, setSaving] = useState<'general' | 'mailbox' | 'ai' | 'key' | null>(null)
-  const [notices, setNotices] = useState<Record<'general' | 'mailbox' | 'ai' | 'key', Notice>>({ general: '', mailbox: '', ai: '', key: '' })
+  const [saving, setSaving] = useState<'general' | 'mailbox' | 'ai' | 'smartPaste' | 'key' | null>(null)
+  const [notices, setNotices] = useState<Record<'general' | 'mailbox' | 'ai' | 'smartPaste' | 'key', Notice>>({ general: '', mailbox: '', ai: '', smartPaste: '', key: '' })
   const [attempt, setAttempt] = useState(0)
   const savingLock = useRef(false)
 
@@ -50,7 +51,8 @@ export function useSettings() {
   const aiDirty = Boolean(draft && saved && JSON.stringify(draft.ai) !== JSON.stringify(saved.ai))
   const generalDirty = Boolean(draft && saved && (draft.language !== saved.language || draft.theme !== saved.theme))
   const mailDirty = Boolean(draft && saved && JSON.stringify(draft.mailbox) !== JSON.stringify(saved.mailbox))
-  const dirty = knowledgeDirty || generalDirty || mailDirty || aiDirty || key.length > 0
+  const smartPasteDirty = Boolean(draft && saved && JSON.stringify(draft.smartPaste) !== JSON.stringify(saved.smartPaste))
+  const dirty = smartPasteDirty || knowledgeDirty || generalDirty || mailDirty || aiDirty || key.length > 0
   const tabId = active?.id, targetId = active?.targetId
   useEffect(() => {
     if (!tabId || !targetId) return
@@ -63,17 +65,20 @@ export function useSettings() {
     }
   }, [dirty, navigation, tabId, targetId])
 
-  const notice = (group: 'general' | 'mailbox' | 'ai' | 'key', value: Notice) => setNotices(previous => ({ ...previous, [group]: value }))
+  const notice = (group: 'general' | 'mailbox' | 'ai' | 'smartPaste' | 'key', value: Notice) => setNotices(previous => ({ ...previous, [group]: value }))
   const changeLanguage = (language: Preferences['language']) => { setDraft(previous => previous && ({ ...previous, language })); notice('general', '') }
   const changeTheme = (theme: Preferences['theme']) => { setDraft(previous => previous && ({ ...previous, theme })); notice('general', '') }
   const changeMailbox = (mailbox: Mailbox) => { setDraft(previous => previous && ({ ...previous, mailbox })); notice('mailbox', '') }
+  const changeSmartPaste = (smartPaste: SmartPasteSettings) => {
+    setDraft(previous => previous && ({ ...previous, smartPaste })); notice('smartPaste', '')
+  }
   const changeKey = (value: string) => { setKey(value); notice('key', '') }
 
   const changeAI = (ai: AISettings) => { setDraft(previous => previous && ({ ...previous, ai })); notice('ai', '') }
   const editProvider = (patch: Partial<AIProvider>) => {
     if (!draft || !provider) return
     const next = { ...provider, ...patch }
-    if (next.parallelModels) next.parallelModels = next.parallelModels.filter(model => next.models.includes(model))
+    if (next.capabilities) next.capabilities = Object.fromEntries(Object.entries(next.capabilities).filter(([model]) => next.models.includes(model)))
     if (!next.models.includes(next.defaultModel)) next.defaultModel = next.models[0] ?? ''
     let choice = draft.ai.default
     if (choice?.providerId === next.id && !next.models.includes(choice.modelId)) choice = next.defaultModel ? { providerId: next.id, modelId: next.defaultModel } : null
@@ -92,16 +97,20 @@ export function useSettings() {
     setSelectedProvider(providers[0]?.id ?? '')
   }
 
-  async function save(group: 'general' | 'mailbox' | 'ai') {
+  async function save(group: 'general' | 'mailbox' | 'ai' | 'smartPaste') {
     if (!draft || savingLock.current) return
     savingLock.current = true
     setSaving(group); notice(group, '')
-    const patch: PreferencePatch = group === 'general' ? { language: draft.language, theme: draft.theme } : group === 'ai' ? { ai: { ...draft.ai, providers: draft.ai.providers.map(p => ({ ...p, models: p.models.map(model => model.trim()).filter(Boolean), defaultModel: p.defaultModel.trim() })), default: draft.ai.default && { ...draft.ai.default, modelId: draft.ai.default.modelId.trim() } } } : { mailbox: draft.mailbox }
+    const patch: PreferencePatch = group === 'smartPaste' ? { smartPaste: smartPasteSettings(draft) } : group === 'general' ? { language: draft.language, theme: draft.theme } : group === 'ai' ? { ai: { ...draft.ai, providers: draft.ai.providers.map(p => ({ ...p, models: p.models.map(model => model.trim()).filter(Boolean), defaultModel: p.defaultModel.trim() })), default: draft.ai.default && { ...draft.ai.default, modelId: draft.ai.default.modelId.trim() } } } : { mailbox: draft.mailbox }
     try {
       const result = await data.settings.savePreferences(patch)
-      if (!result.ok) { notice(group, group === 'ai' && result.error === 'INVALID_INPUT' ? 'invalidAI' : 'saveFailed'); return }
+      if (!result.ok) {
+        const invalid = group === 'ai' ? 'invalidAI' : group === 'smartPaste' ? 'invalidSmartPaste' : 'saveFailed'
+        notice(group, result.error === 'INVALID_INPUT' ? invalid : 'saveFailed')
+        return
+      }
       setSaved(result.value)
-      setDraft(previous => previous && ({ ...previous, ...patch, ...(group === 'mailbox' ? { mailbox: result.value.mailbox } : group === 'ai' ? { ai: result.value.ai } : {}) }))
+      setDraft(previous => previous && ({ ...previous, ...patch, ...(group === 'mailbox' ? { mailbox: result.value.mailbox } : group === 'ai' ? { ai: result.value.ai } : group === 'smartPaste' ? { smartPaste: result.value.smartPaste } : {}) }))
       notice(group, 'saved')
     } catch { notice(group, 'saveFailed') } finally { savingLock.current = false; setSaving(null) }
   }
@@ -119,5 +128,5 @@ export function useSettings() {
 
   const retry = useCallback(() => setAttempt(value => value + 1), [])
   return { setKnowledgeDirty, provider, providerSaved, keyReady, keyLoadFailed, retryKey: () => setKeyAttempt(value => value + 1), selectedProvider, setSelectedProvider, aiDirty, changeAI, editProvider, addProvider, removeProvider, draft, loading, loadFailed, retry, saving, notices, dirty, generalDirty, mailDirty,
-    key, keyStatus, changeLanguage, changeTheme, changeMailbox, changeKey, save, saveKey }
+    smartPasteDirty, changeSmartPaste, key, keyStatus, changeLanguage, changeTheme, changeMailbox, changeKey, save, saveKey }
 }

@@ -1,3 +1,4 @@
+const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { BrowserWindow, dialog, nativeTheme } = require('electron')
 const { chmodSync, mkdirSync, statSync, writeFileSync } = require('node:fs')
@@ -16,7 +17,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   }
   const geometry = () => evaluate(`(() => {
     const properties = ['padding', 'margin', 'gap', 'fontFamily', 'fontSize', 'lineHeight', 'fontWeight', 'borderRadius', 'borderWidth', 'transitionDuration', 'animationDuration'];
-    return [...document.querySelectorAll('.ui-select, .ui-input, .ui-section-card, .ui-feature-card, .ui-icon-box, .ui-navigation-item, .tab-strip, .browser-controls, .address-form')].map(node => {
+    return [...document.querySelectorAll('.ui-select, .ui-input, .ui-section-card, .ui-icon-box, .ai-composer, .ui-navigation-item, .tab-strip, .browser-controls, .address-form')].map(node => {
       const style = getComputedStyle(node), rect = node.getBoundingClientRect();
       return { className: node.className, rect: [rect.x, rect.y, rect.width, rect.height], styles: properties.map(property => style[property]) };
     });
@@ -30,6 +31,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     assert.equal(after.activeTabId, before.activeTabId)
   }
 
+  await openSectionCards(evaluate, appearance)
   assert.equal(await evaluate(`document.querySelector('${selector}').value`), 'en')
   assert.equal(await evaluate(`document.querySelector('${appearance}').disabled`), false)
   // Draft selection neither changes the saved theme nor applies a preview; leave protection still works.
@@ -40,13 +42,13 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   try {
     const before = active(await read()).targetId
     dialog.showMessageBox = async () => ({ response: 0 })
-    await call('navigate', 'app://home')
+    await call('navigate', 'app://ai')
     assert.equal(active(await read()).targetId, before)
     dialog.showMessageBox = async () => { nativeTheme.emit('updated'); return { response: 1 } }
-    await call('navigate', 'app://home')
-    assert.equal(active(await read()).destination.page, 'home', 'Theme notifications do not invalidate confirmed navigation')
+    await call('navigate', 'app://ai')
+    assert.equal(active(await read()).destination.page, 'ai', 'Theme notifications do not invalidate confirmed navigation')
   } finally { dialog.showMessageBox = originalDialog }
-  await call('navigate', 'app://settings'); await formsReady()
+  await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
   assert.equal(await evaluate(`document.querySelector('${appearance}').value`), 'light')
 
   if (process.platform !== 'win32' && process.getuid?.() !== 0) {
@@ -75,18 +77,18 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
       assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
       if (width === 320) await capture('settings-dark-narrow.png')
     }
-    await call('navigate', 'app://home')
-    await waitFor(() => evaluate('document.querySelectorAll(".home-card").length === 9'), 'theme Home grid')
+    await call('navigate', 'app://ai')
+    await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'theme Ask AI composer')
     for (const width of [320, 640, 1200]) {
       window.setContentSize(width, 820)
-      await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Home theme viewport ${width}`)
+      await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Ask AI theme viewport ${width}`)
       await change('light')
       const light = await geometry()
       await change('dark')
-      assert.deepEqual(await geometry(), light, `Home color-only geometry at ${width}px`)
-      assert.equal(await evaluate('document.querySelector(".home-page").scrollWidth > document.querySelector(".home-page").clientWidth'), false)
+      assert.deepEqual(await geometry(), light, `Ask AI color-only geometry at ${width}px`)
+      assert.equal(await evaluate('document.querySelector(".ai-page").scrollWidth > document.querySelector(".ai-page").clientWidth'), false)
     }
-    await capture('home-dark.png')
+    await capture('ask-ai-dark.png')
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
 
   // Existing/new remote views follow native color preference without injected CSS or scripts.
@@ -101,7 +103,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   assert.deepEqual(view.getBounds(), bounds, 'Native bounds unchanged')
   assert.equal(await view.webContents.executeJavaScript("matchMedia('(prefers-color-scheme: dark)').matches"), true)
   await capture('browser-dark.png')
-  await call('navigate', 'app://settings'); await formsReady()
+  await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
   await save('system')
   const target = active(await read()).targetId
   // Simulate native appearance updates while the persisted preference remains system.

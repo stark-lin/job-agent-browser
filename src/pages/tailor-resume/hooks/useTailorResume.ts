@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useServices } from '../../../app/providers'
 import type { Job } from '../../../domain/job/job.types'
 import type { Profile } from '../../../domain/candidate/candidate.types'
-import type { RunView } from '../../../domain/resume/resume.types'
+import type { Artifact, ResumeDocument, RunView } from '../../../domain/resume/resume.types'
 import type { ResumeTask } from '../../../platform/electron/resume-contract'
 import type { PageResult } from '../../../domain/common/ports'
 import type { Result } from '../../../shared/ipc'
@@ -21,8 +21,10 @@ export function useTailorResume() {
   const { data, resume, context } = useServices()
   const [jobs, setJobs] = useState<Job[]>([]), [profiles, setProfiles] = useState<Profile[]>([]), [history, setHistory] = useState<RunView[]>([])
   const [jobId, setJobId] = useState(context.getSnapshot().jobId ?? ''), [profileId, setProfileId] = useState(context.getSnapshot().profileId ?? '')
-  const [task, setTask] = useState<ResumeTask | null>(null), [preview, setPreview] = useState<{ html: string; pages: number } | null>(null)
+  const [task, setTask] = useState<ResumeTask | null>(null), [preview, setPreview] = useState<{ artifactId: string; html: string; pages: number; revision: number } | null>(null)
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [saved, setSaved] = useState(false)
+  const [draft, setDraft] = useState<{ id: string; revision: number; content: ResumeDocument } | null>(null)
+  const [editSaved, setEditSaved] = useState(false)
   const alive = useRef(true), lock = useRef(false), selectedRun = useRef<string | undefined>(undefined), revision = useRef(0), sequence = useRef(-1)
   const refresh = useCallback(async () => {
     const version = ++revision.current
@@ -55,7 +57,7 @@ export function useTailorResume() {
       if (selectedRun.current && event.runId !== selectedRun.current || event.sequence <= sequence.current) return
       sequence.current = event.sequence
       void refresh()
-      if (event.stage === 'completed') void refreshHistory()
+      if (event.settled) void refreshHistory()
     })
     return () => { alive.current = false; unsubscribe() }
   }, [data, resume, refresh, refreshHistory])
@@ -64,19 +66,19 @@ export function useTailorResume() {
     const timer = setInterval(() => { void refresh(); void refreshHistory() }, 1000)
     return () => clearInterval(timer)
   }, [task?.active, task?.owned, refresh, refreshHistory])
-  const artifactId = task?.artifact?.id, output = task?.artifact?.output.status
+  const artifactId = task?.artifact?.id, output = task?.artifact?.output.status, artifactRevision = task?.artifact?.revision
   useEffect(() => {
     setPreview(null)
     if (!artifactId || output !== 'READY') return
     let current = true
     void resume.getPreview({ artifactId }).then(result => {
-      if (current && alive.current) { if (result.ok) setPreview(result.value); else { setError(result.error); void refresh() } }
+      if (current && alive.current) { if (result.ok) { if (result.value.revision === artifactRevision) setPreview({ ...result.value, artifactId }); else void refresh() } else { setError(result.error); void refresh() } }
     }).catch(() => { if (current && alive.current) setError('OUTPUT_FAILED') })
     return () => { current = false }
-  }, [resume, artifactId, output, refresh])
+  }, [resume, artifactId, artifactRevision, output, refresh])
   async function action(operation: () => Promise<Result<unknown>>) {
     if (lock.current) return
-    lock.current = true; setBusy(true); setError(''); setSaved(false)
+    lock.current = true; setBusy(true); setError(''); setSaved(false); setEditSaved(false)
     try {
       const result = await operation()
       if (!result.ok) { if (alive.current) setError(result.error); await refresh(); return }
@@ -84,7 +86,24 @@ export function useTailorResume() {
     } catch { if (alive.current) setError('STORAGE_UNAVAILABLE') }
     finally { lock.current = false; if (alive.current) setBusy(false) }
   }
-  return { jobs, profiles, history, jobId, profileId, setJobId, setProfileId, task, preview, error, busy, saved, refresh,
+  function edit(artifact: Artifact, content: ResumeDocument) {
+    setEditSaved(false)
+    setDraft(previous => ({ id: artifact.id, revision: previous?.id === artifact.id ? previous.revision : artifact.revision, content }))
+  }
+  function saveEdit() {
+    return action(async () => {
+      const artifact = task?.artifact
+      if (!artifact || !draft || draft.id !== artifact.id) return { ok: false, error: 'INVALID_STATE' }
+      const result = await data.resumes.editArtifact({ id: artifact.id, title: artifact.title, expectedRevision: draft.revision, content: draft.content })
+      if (!result.ok) return result.error === 'CONFLICT' ? { ok: false, error: 'EDIT_CONFLICT' } : result
+      setDraft(null)
+      setEditSaved(true)
+      setPreview(null)
+      setTask(previous => previous?.artifact?.id === artifact.id ? { ...previous, artifact: result.value } : previous)
+      return resume.retryOutput({ artifactId: artifact.id })
+    })
+  }
+  return { draft, edit, editSaved, saveEdit, discardEdit: () => setDraft(null), jobs, profiles, history, jobId, profileId, setJobId, setProfileId, task, preview, error, busy, saved, refresh,
     start: () => action(async () => {
       const result = await resume.start({ jobId, profileId })
       if (result.ok) { selectedRun.current = result.value.runId; sequence.current = -1; context.setReferences({ jobId, profileId }) }

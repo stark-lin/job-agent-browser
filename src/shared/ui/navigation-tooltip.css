@@ -1,0 +1,24 @@
+button[interestfor]:is(.ui-navigation-item, .workspace-navigation-item) {
+  interest-delay: 0s;
+}
+
+.ui-navigation-tooltip[popover] {
+  position: fixed;
+  position-area: right;
+  position-visibility: anchors-visible;
+  margin: 0;
+  margin-left: var(--space-2);
+  max-width: calc(100vw - var(--sidebar-width) - var(--space-3));
+  pointer-events: none;
+}
+
+.ui-navigation-tooltip {
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font: var(--weight-medium) var(--font-xs) / var(--line-xs) var(--font);
+  overflow-wrap: anywhere;
+}

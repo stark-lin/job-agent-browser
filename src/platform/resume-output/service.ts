@@ -13,24 +13,22 @@ export function createResumeOutput(backend: ReturnType<typeof composeBackend>, d
   const active = new Set<Promise<unknown>>()
   async function build(id: string, signal: AbortSignal, started?: () => void) {
     signal.throwIfAborted()
-    const original = artifact(id), version = JSON.stringify(original.content)
-    const token = backend.outputTransaction.write({ event: 'ARTIFACT_OUTPUT_CLAIM', action: 'UPDATE', target: 'artifact', targetId: id }, () => backend.lease.claim('output', id))
-    const valid = () => { signal.throwIfAborted(); backend.lease.valid('output', id, token); if (JSON.stringify(artifact(id).content) !== version) fail('CONFLICT') }
+    const { original, token } = backend.outputTransaction.write({ event: 'ARTIFACT_OUTPUT_CLAIM', action: 'UPDATE', target: 'artifact', targetId: id }, () => ({
+      original: backend.artifactForOutput(id), token: backend.lease.claim('output', id)
+    }))
+    const owned = () => backend.lease.valid('output', id, token)
+    const valid = () => { signal.throwIfAborted(); owned() }
     try {
-      valid()
-      backend.generation.recordOutputState({ id, output: { status: 'RUNNING', error: null, pages: null } })
+      backend.generation.commitOutput(id, original.revision, { status: 'RUNNING', error: null, pages: null }, [], valid)
       started?.()
       const result = await abortable(render(original.content, fonts, signal), signal)
       valid()
       const written = await files.write(id, result, signal, token)
-      valid()
-      backend.generation.recordOutputFiles({ id, files: written })
-      backend.generation.recordOutputState({ id, output: { status: 'READY', error: null, pages: result.pages } })
+      backend.generation.commitOutput(id, original.revision, { status: 'READY', error: null, pages: result.pages }, written, valid)
     } catch {
-      // An expired or replaced worker cannot overwrite its successor's state.
       try {
-        backend.lease.valid('output', id, token)
-        backend.generation.recordOutputState({ id, output: { status: signal.aborted ? 'CANCELLED' : 'FAILED', error: signal.aborted ? null : 'OUTPUT_FAILED', pages: null } })
+        backend.generation.commitOutput(id, original.revision,
+          { status: signal.aborted ? 'CANCELLED' : 'FAILED', error: signal.aborted ? null : 'OUTPUT_FAILED', pages: null }, [], owned)
       } catch { /* Recovery owns unavailable/expired instances. */ }
     } finally { backend.lease.release('output', id, token) }
     const current = artifact(id)
@@ -48,10 +46,18 @@ export function createResumeOutput(backend: ReturnType<typeof composeBackend>, d
     async read(id: string, format: 'HTML' | 'PDF') {
       const current = artifact(id), file = current.outputFiles.find(file => file.format === format)
       if (!file || current.output.status !== 'READY') fail('INVALID_STATE')
-      try { return await files.read(file.relativePath) } catch {
-        backend.generation.recordOutputState({ id, output: { status: 'FAILED', error: 'OUTPUT_MISSING', pages: null } })
+      let bytes: Buffer
+      const unchanged = (latest: typeof current) => latest.revision === current.revision && latest.output.status === 'READY'
+        && latest.outputFiles.some(output => output.format === format && output.relativePath === file.relativePath)
+      try { bytes = await files.read(file.relativePath) } catch {
+        backend.generation.commitOutput(id, current.revision, { status: 'FAILED', error: 'OUTPUT_MISSING', pages: null }, [], () => {
+          backend.lease.available('output', id)
+          if (!unchanged(backend.artifactForOutput(id))) fail('CONFLICT')
+        })
         throw new OutputFailure('OUTPUT_MISSING')
       }
+      if (!unchanged(artifact(id))) fail('CONFLICT')
+      return { bytes, revision: current.revision, pages: current.output.pages! }
     }
   }
 }

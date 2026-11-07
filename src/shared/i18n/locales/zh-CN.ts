@@ -2,6 +2,13 @@ import type { en } from './en'
 type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translation<T[K]> }
 
 export const zhCN = {
+  selection: {
+    ask: '发送给 Ask AI', job: '职位导入', ok: '确定',
+    invalid: '请在 HTTP(S) 网页中选择 1 至 60,000 个字符。来源网址不能超过 4,096 个字符，标题不能超过 1,000 个字符。',
+    failed: '未能交接选中内容，可在当前页面重试。',
+    tooLarge: '选区与已有草稿合计超过 128,000 个字符，请缩短新对话草稿后重试。',
+    retry: '重试交接', source: '来源网页', content: '选中的网页内容'
+  },
   knowledge: {
     indexSpace: '要重建的索引',
     memory: '记忆', knowledgeSpace: '知识', syncConsentTitle: '上传记忆及其历史？', syncConsentHelp: '同步会将知识和记忆两个空间及其 Git 历史上传到此远程仓库。取消不影响本地笔记和备份。', syncConsentRequired: '远程同步需要你的同意。',
@@ -78,6 +85,7 @@ export const zhCN = {
   "rebuilt": "检索索引已重建"
 },
   ask: {
+  runtime: { pending: '等待上一轮完成…', compacting: '正在压缩上下文…', searching: '正在搜索工具…', activating: '正在激活工具…' },
   "sessions": "会话",
   "openSessions": "打开会话列表",
   "close": "关闭",
@@ -92,6 +100,11 @@ export const zhCN = {
   "running": "运行中",
   "thinking": "正在思考",
   "thought": "思考了 {{seconds}} 秒",
+  copyContent: '复制', reasoning: '推理内容', encryptedReasoning: '加密推理', encryptedUnavailable: '提供商返回了加密推理，没有可读文本。',
+  source: '来源', elapsed: '耗时', toolName: '工具', callId: '调用 ID', executionState: '状态', arguments: '参数 · JSON', result: '结果 · JSON', toolError: '错误',
+  guard: { level: '进展保护', warning: '告警', recovery: '恢复', nextAction: '下一步', changeStrategy: '切换其他已授权数据源，或根据已确认的信息回答。', runId: 'Chat Run ID', runState: '运行状态', status: '运行保护', active: '生效中', blocked: '已停止', calls: '调用次数', executedCalls: '已派发调用', rejections: '拦截次数', noProgress: '连续无进展次数', reason: '保护原因', confirmedEffect: '已确认操作', archived: '已归档', restored: '已恢复', notExecuted: '未执行',
+    reasons: { DUPLICATE_WRITE: '此前已确认该操作成功。', REVERSED_WRITE: '此操作会反转本轮已确认的结果。', NO_PROGRESS_LOOP: '重复调用未取得进展。', CALL_BUDGET_EXCEEDED: '已达到本轮调用上限。', REPEATED_VIOLATION: '再次尝试了相同的被拦截操作。', WRITE_OUTCOME_UNKNOWN: '无法确认写入结果，请核对当前状态后继续。' } },
+  itemStates: { streaming: '正在思考', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已停止', uncertain: '结果不确定', interrupted: '已中断' },
   "summary": "思考摘要",
   "conversation": "对话",
   "message": "消息",
@@ -110,6 +123,11 @@ export const zhCN = {
   "cancel": "取消",
   "title": "会话标题",
   "actions": "会话操作",
+  "copyDebugJson": "复制调试 JSON",
+  "copyDebugTitle": "Copy full debug data?",
+  "copyDebugDescription": "此操作会将当前对话的完整已保存调试数据复制到系统剪贴板。其中可能包含个人资料、对话内容、模型响应、工具调用参数与结果，以及其他敏感信息。复制后，请仅粘贴到可信的位置。",
+  "copyJson": "复制 JSON",
+  "debugCopied": "已复制到剪贴板",
   "deleteDescription": "删除这个会话及其历史记录？已经对职位或申请做出的修改会保留。",
   "stopBeforeDelete": "请先停止此会话，再删除。",
   "stopped": "已停止，回复可能不完整。",
@@ -128,6 +146,7 @@ export const zhCN = {
   "toolRunning": "正在执行：{{action}}",
   "toolFailed": "未能完成：{{action}}",
   "tools": {
+    searchTools: '搜索工具', activateTools: '激活工具',
     "jobs": "读取已保存职位",
     "job": "读取职位",
     "updateJob": "更新职位",
@@ -151,6 +170,8 @@ export const zhCN = {
     "selectResume": "选择简历证据",
     "draftResume": "保存简历草稿",
     "polishResume": "保存润色简历",
+    "resumeBullets": "读取简历要点",
+    "optimizeResume": "优化简历内容",
     "publishResume": "发布简历",
     "failResume": "记录简历失败",
     "cancelResume": "取消简历任务",
@@ -168,6 +189,7 @@ export const zhCN = {
     "tool": "执行操作"
   },
   "errors": {
+    "ASK_CONTEXT_UNKNOWN": "无法确认模型实际上下文窗口，请在设置中填写部署参数。", "ASK_CONTEXT_TOO_SMALL": "Ask AI 需要至少 65,536 Tokens 的实际上下文窗口。", "ASK_CONTEXT_OVERFLOW": "压缩后当前任务仍超出上下文预算，请缩小请求。",
     "UNKNOWN": "未能完成操作，请重试。",
     "INVALID_INPUT": "请检查消息和模型选择。",
     "NOT_FOUND": "此会话已不存在。",
@@ -175,8 +197,14 @@ export const zhCN = {
     "INVALID_STATE": "此会话正在运行，或已达到并发任务上限。",
     "FORBIDDEN": "此操作属于另一个窗口。",
     "STORAGE_BUSY": "存储正忙，请重试。",
+    "DEBUG_SERIALIZATION_FAILED": "无法序列化调试数据，请重试。",
+    "CLIPBOARD_FAILED": "无法确认剪贴板中的完整内容，请重试。",
+    "NOT_IMPLEMENTED": "当前宿主不支持复制调试数据。",
     "STORAGE_UNAVAILABLE": "无法保存或加载对话。",
     "AUDIT_UNAVAILABLE": "无法记录必要审计，执行已停止。",
+    "TOOL_GUARD_DUPLICATE": "本次未重复执行，此前的操作结果已确认。",
+    "TOOL_GUARD_CONFLICT": "本次操作会反转已确认的结果，因此未执行。",
+    "TOOL_GUARD_TERMINATED": "运行保护已停止执行，已完成的修改仍然保留。",
     "TOOL_AUDIT_UNAVAILABLE": "无法记录操作审计，请核对当前状态后继续。",
     "AI_NOT_CONFIGURED": "请在设置中选择已配置的提供商和模型。",
     "ENCRYPTION_UNAVAILABLE": "无法读取提供商密钥，请检查设置。",
@@ -196,28 +224,14 @@ export const zhCN = {
 },
   app: { title: 'Job Agent Browser', loadingWorkspace: '正在加载工作区…' },
   navigation: {
-    pages: { home: '主页', find: '新增工作', resume: '定制简历', knowledge: '智能笔记', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
-    back: '后退', home: '主页', forward: '前进', goHome: '回到主页', goBack: '返回', goForward: '前进',
+    pages: { find: '新增工作', resume: '定制简历', knowledge: '智能笔记', applications: '申请记录', inbox: '收件箱', profile: '个人资料', browser: '浏览器', ai: '询问 AI', settings: '设置' },
+    back: '后退', forward: '前进', goBack: '返回', goForward: '前进',
     pageNavigation: '页面导航', openSettings: '打开设置', workspaceNavigation: '工作区导航',
     sections: { search: '求职', manage: '管理', tools: '工具' }
-  },
-  home: {
-    heading: '你想做什么？', subtitle: '在一个工作区中完成求职所需的一切。', footer: '专注于整个求职过程的工作区。', comingSoon: '{{label}} — 即将推出',
-    cards: { knowledge: "统一维护求职知识，让 AI 直接检索和修改。", find: '手工新增或采集职位 URL、文本或 PDF', resume: '为特定职位调整简历', applications: '查看已保存工作及申请状态', inbox: '招聘邮件和申请进展', profile: '简历、经历和偏好', browser: '自由浏览网页', ai: '结合你的求职上下文工作', settings: 'AI、浏览器和应用偏好' }
   },
   features: {
     comingSoon: '即将推出', notImplemented: '此功能尚未实现。',
     descriptions: { knowledge: "统一维护求职知识，让 AI 直接检索和修改。", find: '手工新增或采集职位 URL、文本或 PDF。', resume: '为特定职位调整简历。', applications: '查看已保存工作及申请状态。', inbox: '求职邮件将通过你配置的网页邮箱打开。', profile: '管理简历、经历和偏好。', ai: '结合你的求职上下文工作。', settings: '配置 AI、浏览器和应用偏好。' }
-  },
-  imports: {
-    mode: '导入模式', single: '普通模式', parallel: '并行模式',
-    configureModel: '配置并行导入的模型', allowParallel: '允许此模型并行导入',
-    enableHelp: '在设置中为此模型开启并行导入后，即可选择此模式。',
-    parallelHelp: '并行模式将解析拆成多个请求，输入 token 和费用可能增加，提速效果取决于服务商。',
-    retry: '重试失败部分', progress: '已完成 {{completed}} / {{total}} 组',
-    groupState: '{{state}} · 处理 {{elapsed}} 秒 · 排队 {{queued}} 秒',
-    groups: { single: '完整解析', basics: '职位信息与待遇', description: '职位描述', requirements: '任职要求', contact: '联系方式与独立事实', experience: '工作经历', projects: '项目经历', education: '教育经历' },
-    states: { queued: '排队中', running: '处理中', completed: '已完成', failed: '失败', cancelled: '已取消' }
   },
   applicationAgent: {
     configure: '在设置中选择默认 AI 服务商和模型，即可执行申请管理指令。',
@@ -233,7 +247,6 @@ export const zhCN = {
     inputKind: '资料来源', pastedJD: '粘贴职位描述', pdf: 'PDF 文档', selectPdf: '选择 PDF', pdfSelected: '已选择 PDF（{{bytes}} 字节）',
     discardTitle: '放弃本次新增工作？',
     discardDescription: '未保存的工作内容将被丢弃，正在进行的解析也会停止。',
-    "subtitle": "手工填写，或采集职位 URL、粘贴描述或 PDF。核对字段后保存。",
     "importTitle": "采集职位",
     "importHelp": "读取一个公开职位页面、粘贴描述或 PDF。资料文字会发送给下方显示的服务商和模型，核对提取字段后再保存。",
     "url": "职位 URL（选填）",
@@ -313,7 +326,6 @@ export const zhCN = {
       "REJECTED": "已拒绝",
       "WITHDRAWN": "已撤回"
     },
-    "listHelp": "查看已保存的工作及申请状态。",
     "savedJobs": "已保存工作",
     "search": "搜索职位名称或公司",
     "allStatuses": "全部状态",
@@ -326,7 +338,6 @@ export const zhCN = {
     "savedAt": "保存时间",
     "details": "工作详情",
     "detailsHelp": "查看已保存的字段及来源链接。",
-    "viewDetails": "查看详情",
     "viewJob": "查看 {{title}}",
     "pagination": "共 {{total}} 个工作 · 第 {{page}} 页，共 {{pages}} 页",
     "previous": "上一页",
@@ -351,9 +362,12 @@ export const zhCN = {
     }
   },
   browser: {
+    refresh: '刷新',
+    copyWebpage: '复制网页文本', copied: '已复制', copyFailed: '无法复制网页文本。',
+    back: '后退', forward: '前进',
     tabs: '浏览器标签页', closeTab: '关闭标签页', closeNamedTab: '关闭 {{title}}', newTab: '新建标签页', addressLabel: '搜索或输入网址', addressPlaceholder: '搜索或输入网址…', emptyHeading: '开始探索', emptyDescription: '在上方搜索内容或输入网址。'
   },
-  inbox: { exit: '退出', configure: '连接你的邮箱', configureHelp: '在设置中选择网页邮箱服务商和地址，即可在此打开邮箱。', loadFailed: '无法打开邮箱' },
+  inbox: { configure: '连接你的邮箱', configureHelp: '在设置中选择网页邮箱服务商和地址，即可在此打开邮箱。', loadFailed: '无法打开邮箱' },
   externalSkills: {
     reconnect: '重新连接 Skills',
     reconnectHelp: '重新连接会重新安装内置 Skills。请重新加载或重启目标 Agent，以加载更新后的文件。',
@@ -443,7 +457,27 @@ export const zhCN = {
       "COPY_FAILED": "无法复制配置，请重试。"
     }
   },
+  "smartPaste": {
+    "title": "智能粘贴",
+    "description": "使用智能粘贴时，剪贴板和字段上下文会发送给默认 Ask AI 模型，并保存到对应会话。",
+    "configTitle": "标题",
+    "prompt": "提示词",
+    "add": "添加配置",
+    "remove": "删除配置",
+    "closeBanner": "关闭通知",
+    "preparing": "正在准备「{{title}}」",
+    "reading": "正在为「{{title}}」读取资料",
+    "filling": "正在填写「{{title}}」",
+    "done": "「{{title}}」已填写",
+    "stopped": "已停止填写「{{title}}」",
+    "failed": "未能完成「{{title}}」",
+    "noModel": "请先在设置中选择默认 Ask AI 模型。"
+  },
   settings: {
+    configureModel: '配置模型',
+    "invalidSmartPaste": "请为每条配置填写有效的标题和提示词。",
+    contextWindow: '实际上下文窗口（Tokens）', contextWindowHelp: 'Ask AI 至少需要 65,536。请填写部署时的实际限制；可检测到的运行参数优先。', maxOutputTokens: '模型最大输出 Tokens',
+
     "aiDescription": "配置兼容 OpenAI Chat Completions 的服务。每个 Provider 的密钥分别加密保存。",
     "requestTimeout": "AI 请求超时（秒）",
     "pageTimeout": "职位网页读取超时（秒）",
@@ -479,13 +513,12 @@ export const zhCN = {
     "connectionOK": "连接与流式响应已验证。",
     "testHelp": "使用已保存的 Provider 和模型发送短请求，可能产生用量费用。",
 
-    subtitle: '打造适合你的工作区。偏好设置保存在此设备上。',
     general: '通用', generalDescription: '选择工作区的显示语言和外观。', language: '语言', appearance: '外观', light: '浅色', dark: '暗夜', system: '跟随系统', appearanceHelp: '保存后生效。跟随系统会随系统外观变化自动更新。',
     ai: 'AI 服务',  provider: '服务商', apiKey: 'API 密钥', keyPlaceholder: '输入新的 API 密钥', keyHelp: '通过操作系统加密。此处不会显示已保存的密钥。',
     configured: '已保存密钥', notConfigured: '尚未保存密钥', encryptionUnavailable: '此设备无法使用安全的密钥存储。',
     mailbox: '邮箱', mailboxDescription: '从收件箱直接打开网页邮箱。', mailProvider: '邮箱服务商', none: '未配置', custom: '自定义网页邮箱', mailURL: '网页邮箱地址', mailHelp: '使用 HTTPS 地址，且网址中不得包含用户名或密码。', mailInvalid: '请输入有效的 HTTPS 网页邮箱地址，且不得包含登录凭据。',
     save: '保存更改', saveKey: '保存密钥', replaceKey: '替换密钥', deleteKey: '删除密钥', saving: '正在保存…', saved: '更改已保存。', keySaved: '密钥已安全保存。', keyDeleted: '密钥已删除。', deleteTitle: '删除已保存的 API 密钥？', deleteDescription: '你可以稍后添加新的密钥。', cancel: '取消',
-    unsaved: '有未保存的更改', loading: '正在加载设置…', loadFailed: '无法加载设置。', saveFailed: '无法保存更改。之前的设置仍然保留。', retry: '重试', discardTitle: '放弃更改并离开？', discardDescription: '未保存的设置将被丢弃。', discard: '放弃更改', stay: '继续编辑', local: '保存在本地', localDescription: '偏好设置和加密密钥保存在此设备上。网站登录由浏览器单独管理。'
+    unsaved: '有未保存的更改', loading: '正在加载设置…', loadFailed: '无法加载设置。', saveFailed: '无法保存更改。之前的设置仍然保留。', retry: '重试', discardTitle: '放弃更改并离开？', discardDescription: '未保存的设置将被丢弃。', discard: '放弃更改', stay: '继续编辑'
   },
   audit: {
     title: '审计日志', description: '查看本地审计记录，最新记录优先。查看和筛选不会产生审计记录。',
@@ -493,7 +526,7 @@ export const zhCN = {
     targetType: '目标类型', target: '目标', targetId: '目标 ID', status: '状态', all: '全部',
     from: '开始时间', to: '结束时间', localTime: '本地时间，包含边界时刻。', advanced: '高级筛选', exactMatch: '精确匹配 ID。',
     requestId: '请求 ID', transactionId: '事务 ID', query: '查询日志', reset: '重置', refresh: '刷新',
-    time: '时间', event: '事件', action: '操作', details: '审计详情', viewDetails: '查看详情', viewEntry: '查看第 {{sequence}} 条审计记录',
+    time: '时间', event: '事件', action: '操作', details: '审计详情', viewEntry: '查看第 {{sequence}} 条审计记录',
     recordId: '记录 ID', sequence: '序号', errorCode: '错误码', component: '组件', location: '位置', source: '来源', actor: '执行者',
     detailDescription: '审计元数据。此处不存储业务内容、提示词、响应或密钥。', close: '关闭', noValue: '无',
     loading: '正在加载审计记录…', loadFailed: '无法加载审计记录。', empty: '暂无审计记录。', noMatches: '没有符合筛选条件的记录。',
@@ -536,9 +569,9 @@ export const zhCN = {
   }
 },
   resume: {
-    "subtitle": "使用已保存的事实生成定制简历。简历语言跟随职位主体语言。",
+    editTitle: '编辑这份简历', addBullet: '添加要点', saveAndBuild: '保存并重新编译 PDF', editSaved: '简历修改已保存', discardEdit: '放弃修改', discardEditHelp: '这份简历中未保存的修改将丢失。',
     "inputs": "职位与个人资料",
-    "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词预算",
+    "template": "default-v1 · A4 · 单栏 · 支持多页 · 500 词目标",
     "job": "职位",
     "profile": "个人资料",
     "chooseJob": "选择已保存的职位",
@@ -556,26 +589,9 @@ export const zhCN = {
     "saved": "PDF 已保存。",
     "preview": "简历预览",
     "pages": "页数：{{count}}",
-    "sources": "表述来源",
-    "stages": {
-        "score": "事实评分",
-        "gate": "覆盖检查",
-        "select": "证据筛选",
-        "draft": "撰写草稿",
-        "validate-draft": "校验草稿",
-        "polish": "润色",
-        "validate-polish": "校验润色",
-        "publish": "发布",
-        "output": "生成 HTML / PDF"
-    },
-    "statuses": {
-        "PENDING": "待开始",
-        "RUNNING": "正在生成…",
-        "SUCCEEDED": "简历已生成",
-        "FAILED": "生成失败",
-        "CANCELLED": "已取消",
-        "INTERRUPTED": "生成中断，请生成新版本重试。"
-    },
+    stages: { COPYING: "复制个人资料", REWRITING: "改写简历要点", VALIDATING: "校验简历", PUBLISHING: "发布简历", OUTPUT: "生成 HTML / PDF" },
+    statuses: { CREATED: "已创建", COPYING: "正在复制个人资料…", REWRITING: "正在改写简历要点…", VALIDATING: "正在校验…", PUBLISHING: "正在发布…", PUBLISHED: "简历已发布", FAILED: "生成失败", CANCELLED: "已取消", INTERRUPTED: "已中断。请生成新版本以重试。" },
+    trace: "Agent 运行追踪", cycles: "ReAct 循环", requests: "模型请求", traceError: "无法读取运行追踪。",
     "outputs": {
         "PENDING": "等待输出",
         "RUNNING": "正在生成预览和 PDF…",
@@ -584,6 +600,7 @@ export const zhCN = {
         "CANCELLED": "输出已取消，已生成的简历仍然保留。"
     },
     "errors": {
+        MISSING_LEGACY_ARTIFACT: "迁移的任务缺少已发布的简历。",
         "INVALID_INPUT": "请选择有效职位及包含已保存事实的个人资料；保存导入前请修正无效内容。",
         "INVALID_STATE": "另一个任务正在运行，或当前操作不可用。",
         "FORBIDDEN": "该任务属于另一个窗口。",
@@ -593,18 +610,19 @@ export const zhCN = {
         "GATE_REJECTED": "现有证据不足以支持此职位，请检查缺失的证据。",
         "PROCESS_INTERRUPTED": "生成已中断，请生成新版本。",
         "AGENT_PROTOCOL_ERROR": "模型响应或工具协议无效。",
-        "AGENT_STEP_LIMIT": "模型超出每阶段 8 次调用上限。",
+        "AGENT_STEP_LIMIT": "Agent 超出了请求或工具调用次数上限。",
         "AGENT_TIMEOUT": "模型请求超时。",
         "AGENT_CANCELLED": "生成已取消。",
         "PDF_EXPORT_FAILED": "无法另存 PDF，请选择其他位置重试；应用内 PDF 仍然保留。",
         "OUTPUT_FAILED": "HTML / PDF 输出失败，简历仍然保留，请重建输出。",
         "OUTPUT_INTERRUPTED": "输出已中断，可直接重建，无需重新生成内容。",
+        "EDIT_CONFLICT": "简历已更新，或 PDF 正在编译。草稿仍保留，请核对最新版本后再保存。",
         "OUTPUT_MISSING": "输出文件缺失，请重建 HTML / PDF。",
         "AUDIT_UNAVAILABLE": "审计存储不可用，已停止生成。"
     }
 },
   profile: {
-    subtitle: '维护共享求职资料。每条经历、项目和教育记录可包含多个独立核实的事实。',
+    unmapped: '待归类原文', sourcePosition: '第 {{page}} 页第 {{line}} 行', mapField: '归入字段',
     basic: '基本信息', independent: '独立事实', noProfile: '保存姓名以创建资料，或导入 PDF。', empty: '暂无记录。',
     add: '新增', edit: '编辑', remove: '删除', cancel: '取消', save: '保存', saving: '保存中…', saved: '已保存', retry: '重试',
     loading: '正在加载个人资料…', loadFailed: '无法完整加载个人资料。', invalid: '请检查必填字段、链接和日期。',
@@ -617,7 +635,7 @@ export const zhCN = {
     type: '条目类型', title: '名称', organization: '组织', role: '角色', summary: '背景简介',
     startDate: '开始日期', endDate: '结束日期', dateHelp: '使用 YYYY、YYYY-MM 或 YYYY-MM-DD，保留缺失的月份和日期。', current: '至今',
     employmentType: '雇佣类型', technologies: '技术栈', degree: '学位', major: '专业', gpa: 'GPA',
-    kind: '事实类别', content: '事实内容', tags: '标签（逗号分隔）', evidence: '原文片段及页码', belongsTo: '所属条目',
+    kind: '事实类别', content: '事实内容', tags: '标签（逗号分隔）', belongsTo: '所属条目',
     types: { EXPERIENCE: '工作经历', PROJECT: '项目', EDUCATION: '教育' },
     kinds: { ACHIEVEMENT: '成果', RESPONSIBILITY: '职责', SKILL: '技能', AWARD: '奖项', CERTIFICATION: '证书', COURSE: '课程', LANGUAGE: '语言', OTHER: '其他' },
     upload: '上传 PDF 并解析', importTitle: '导入 PDF 简历', importHelp: '提取的简历文字将发送给下方显示的服务与模型。上限：10 MB、20 页、60,000 个提取字符。扫描件需要包含可选文字。',

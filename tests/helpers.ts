@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
 import type { TestContext } from 'node:test'
-import { randomUUID } from 'node:crypto'
 import { openDatabase } from '../src/platform/database/sqlite'
 import { composeBackend } from '../src/platform/database/backend'
 import { createDataBridge } from '../src/platform/electron/preload/data-bridge'
@@ -28,18 +28,14 @@ export async function seed(t: Pick<TestContext, 'after'>, path = ':memory:') {
 }
 
 export async function published(t: Pick<TestContext, 'after'>, path = ':memory:') {
-  const f = await seed(t, path), run = value(await f.api.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }))
-  const blockId = randomUUID()
-  const content = { schemaVersion: 1 as const, language: 'en' as const,
-    basics: { name: f.profile.name, email: f.profile.email, phone: f.profile.phone, location: f.profile.location, links: f.profile.links },
-    summary: { id: blockId, text: 'PRIVATE_RESUME_BODY', factIds: [f.fact.id] }, experience: [], projects: [], education: [], skills: [] }
-  f.backend.generation.start({ id: run.id })
-  f.backend.generation.recordScores({ id: run.id, language: 'en', scores: [{ factId: f.fact.id, score: 95, reason: 'PRIVATE_SCORE_REASON' }] })
-  f.backend.generation.recordGate({ id: run.id, gate: { passed: true, reason: '', missingRequirements: [] } })
-  f.backend.generation.selectEvidence({ id: run.id, selection: { factIds: [f.fact.id], itemIds: [f.item.id], wordBudget: 500 } })
-  f.backend.generation.saveDraft({ id: run.id, content })
-  f.backend.generation.savePolished({ id: run.id, content })
-  const provenance = [{ blockId, factIds: [f.fact.id] }]
-  const artifact = f.backend.generation.publishArtifact({ id: run.id, title: 'PRIVATE_ARTIFACT_TITLE' })
+  const f = await seed(t, path)
+  const run = f.backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
+  f.backend.generation.rewriteBullet({ runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id,
+    text: 'PRIVATE_RESUME_BODY', requestId: randomUUID() })
+  f.backend.generation.beginValidation(run.id)
+  f.backend.generation.preparePublication(run.id)
+  const artifact = f.backend.generation.publishArtifact({ runId: run.id })
+  const content = artifact.content
+  const provenance = [{ blockId: content.experience[0].bullets[0].id, factIds: [f.fact.id] }]
   return { ...f, run, artifact, content, provenance }
 }

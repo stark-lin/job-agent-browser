@@ -1,0 +1,468 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JAB persisted chat debug bundle v2",
+  "description": "Existing SQLite columns remain raw. ReAct cycles are projected into ordered diagnostic records.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "exportedAt",
+    "app",
+    "session",
+    "runs",
+    "context"
+  ],
+  "properties": {
+    "format": {
+      "const": "jab-debug"
+    },
+    "schemaVersion": {
+      "const": 2
+    },
+    "exportedAt": {
+      "type": "string"
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "commit",
+        "platform"
+      ],
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "platform": {
+          "type": "string"
+        }
+      }
+    },
+    "session": {
+      "$ref": "#/$defs/session"
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runBundle"
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkpoint",
+        "memoryProgress"
+      ],
+      "properties": {
+        "checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/checkpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memoryProgress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/memoryProgress"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "provider_id",
+        "model_id",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "model_id": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "session_id",
+        "provider_id",
+        "model_id",
+        "state",
+        "request_id",
+        "request_hash",
+        "owner_runtime_id",
+        "created_at",
+        "admission",
+        "runtime_status",
+        "event_sequence",
+        "write_started",
+        "error",
+        "finished_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "model_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "request_hash": {
+          "type": "string"
+        },
+        "owner_runtime_id": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "admission": {
+          "type": "string"
+        },
+        "runtime_status": {
+          "type": "string"
+        },
+        "event_sequence": {
+          "type": "integer"
+        },
+        "write_started": {
+          "type": "integer"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "session_id",
+        "run_id",
+        "state",
+        "content_json",
+        "created_at",
+        "updated_at",
+        "sequence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "content_json": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        }
+      }
+    },
+    "modelRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "metadata_json",
+        "activations_json",
+        "ordinal"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "metadata_json": {
+          "type": "string"
+        },
+        "activations_json": {
+          "type": "string"
+        },
+        "ordinal": {
+          "type": "integer"
+        }
+      }
+    },
+    "providerResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "response_json",
+        "ordinal",
+        "through_sequence"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "response_json": {
+          "type": "string"
+        },
+        "ordinal": {
+          "type": "integer"
+        },
+        "through_sequence": {
+          "type": "integer"
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "summary",
+        "protected_json",
+        "compacted_through_sequence",
+        "revision"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "protected_json": {
+          "type": "string"
+        },
+        "compacted_through_sequence": {
+          "type": "integer"
+        },
+        "revision": {
+          "type": "integer"
+        }
+      }
+    },
+    "memoryProgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message_id",
+        "session_id",
+        "progress_json",
+        "sequence"
+      ],
+      "properties": {
+        "message_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "progress_json": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        }
+      }
+    },
+    "runBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run",
+        "items",
+        "modelRequests",
+        "providerResponses",
+        "cycles",
+        "cycleStatus"
+      ],
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/run"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "modelRequests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/modelRequest"
+          }
+        },
+        "providerResponses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/providerResponse"
+          }
+        },
+        "cycles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cycle"
+          }
+        },
+        "cycleStatus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/cycleStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "cycleStatus": {
+      "enum": [
+        "RUNNING",
+        "CONTINUE",
+        "WARNING",
+        "RECOVERING",
+        "SUCCESS",
+        "FAILED",
+        "CANCELLED"
+      ]
+    },
+    "cycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "status",
+        "reason",
+        "modelRequestOrdinal",
+        "toolCallIds",
+        "startedAt",
+        "finishedAt"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "$ref": "#/$defs/cycleStatus"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modelRequestOrdinal": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "toolCallIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "finishedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "RUNNING"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "finishedAt": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "finishedAt": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$id": "urn:jab:chat-debug:2"
+}
