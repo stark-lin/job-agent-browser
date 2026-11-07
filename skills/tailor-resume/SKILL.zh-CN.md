@@ -1,11 +1,11 @@
 ---
 name: tailor-resume
-description: 通过 MCP 将 Job Agent Browser 已保存的个人资料定制到已保存的职位，按证据改写要点并交付 HTML/PDF。
+description: 通过 MCP 将 Job Agent Browser 已保存的个人资料定制到已保存的职位，或为已发布、已手工修改的简历重建 HTML/PDF。
 ---
 
 # 根据已保存职位定制个人资料
 
-用途。执行外部 Resume V3 流程。宿主通过连接到目标 userData 目录的 Job Agent Browser MCP Server 读取并改写要点。
+用途。执行外部 Resume V3 流程。宿主通过连接到目标 userData 目录的 Job Agent Browser MCP Server 读取并改写要点。重新编译既有已保存简历的请求使用最后一节。
 
 语言：简体中文 · [English](SKILL.md)
 
@@ -28,3 +28,9 @@ description: 通过 MCP 将 Job Agent Browser 已保存的个人资料定制到�
 调用 `resume.publish`，使用返回的成品 ID 调用 `artifact.build`，再用 `{id: artifactId}` 调用 `artifact.get`。交付已就绪的 HTML/PDF 路径，并概括定制内容。编译失败可对同一成品重试一次。
 
 执行失败且原会话仍在线时，使用 `runId` 和受支持的固定错误码调用 `resume.fail`。用户取消时调用 `resume.cancel`。会话断连时报告中断，由 Job Agent Browser 负责恢复。新会话无法接管未完成的任务。
+
+## 重新编译既有简历
+
+根据用户选择或已保存引用确定既有成品 ID。有歧义时先确认目标简历。用 `{id: artifactId}` 调用 `artifact.get`，核对已保存内容、版本及输出状态。内容修改通过桌面简历编辑器保存。重新编译前，请用户先保存尚未提交的桌面修改。
+
+对同一成品用 `{artifactId}` 调用 `artifact.build`，再重新读取 `artifact.get`。编译使用当前已保存版本，包括用户填写的日期、链接文字及空表述。仅在输出状态为 READY 时交付文件。输出失败可对同一成品重试一次。重新编译保留既有生成任务，无需模型调用。

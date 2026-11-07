@@ -1,11 +1,11 @@
 ---
 name: tailor-resume
-description: Tailor a saved Job Agent Browser profile to a saved job through MCP, with evidence-grounded bullet rewrites and HTML/PDF delivery.
+description: Tailor a saved Job Agent Browser profile to a saved job through MCP, or rebuild HTML/PDF for an existing published or manually edited resume.
 ---
 
 # Tailor a saved profile to a saved job
 
-Purpose. Run the external Resume V3 workflow. The host reads and rewrites bullets using the connected Job Agent Browser MCP server for the intended userData directory.
+Purpose. Run the external Resume V3 workflow. The host reads and rewrites bullets using the connected Job Agent Browser MCP server for the intended userData directory. Use the final section for requests to rebuild an existing saved resume.
 
 Language: English · [简体中文](SKILL.zh-CN.md)
 
@@ -28,3 +28,9 @@ Keep the original language and meaning. Ground the wording in the bullet's saved
 Call `resume.publish`, then `artifact.build` with the returned artifact ID, then `artifact.get` with `{id: artifactId}`. Deliver the ready HTML/PDF paths and summarize the tailoring. A failed build can be retried once using the same Artifact.
 
 On execution failure call `resume.fail` with the `runId` and a supported fixed error code while the original session is live. On user cancellation call `resume.cancel`. If the session disconnects, report interruption and leave recovery to Job Agent Browser. A new session cannot take over the unfinished run.
+
+## Rebuild an existing resume
+
+Resolve the existing artifact ID from the user's selection or saved references. Ask for the intended resume if it is ambiguous. Read `artifact.get` with `{id: artifactId}` to inspect its saved content, revision and output status. Content edits are saved through the desktop resume editor. Have the user save any pending desktop edits before rebuilding.
+
+Call `artifact.build` with `{artifactId}` for that same Artifact, then reread `artifact.get`. This builds the current saved revision, including user-written date/link text and empty statements. Deliver files only when output status is READY. A failed output may be retried once for that Artifact. Rebuilding preserves the existing generation task and uses no model calls.

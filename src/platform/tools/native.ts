@@ -28,7 +28,7 @@ export function createNativeCapabilities(services: Pick<ServiceContract, 'jobs' 
   read.push(bind('profile.list', 'List saved profiles for resume input selection.', { type: 'object', properties: page, additionalProperties: false }, services.profiles.listProfiles))
   read.push(bind('profile.list_facts', 'List facts belonging to a profile.', { type: 'object', properties: { profileId: uuid, ...page },
     required: ['profileId'], additionalProperties: false }, services.profiles.listFacts, 'profile', false, 'profileId'))
-  read.push(bind('artifact.get', 'Read an existing artifact and its provenance.', byId, services.resumes.getArtifact, 'artifact'))
+  read.push(bind('artifact.get', 'Read current saved Artifact content, revision, provenance and output status/files, including manual edits.', byId, services.resumes.getArtifact, 'artifact'))
   const setArchived = bind('job.set_archived', 'Archive or restore a saved job.', { type: 'object', properties: { id: uuid, archived: { type: 'boolean' } },
     required: ['id', 'archived'], additionalProperties: false }, services.jobs.setArchived, 'job', true)
   return { read, write: { setArchived } }

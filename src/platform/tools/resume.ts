@@ -87,7 +87,7 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
     args => state(backend.generation.settle(args.runId, 'CANCELLED')))
   bind('resume.fail', 'Fail this session’s unfinished resume with a fixed error code.', schemas.fail, true,
     args => state(backend.generation.settle(args.runId, 'FAILED', String(args.error))))
-  bind('artifact.build', 'Build HTML/PDF from a published Artifact without any model calls. Returns output status and local output file paths. Failed output can be retried.', schemas.artifact, true,
+  bind('artifact.build', 'Build or rebuild HTML/PDF from the current saved Artifact revision, including manual edits, without model calls. Returns output status and local output file paths. Failed output can be retried.', schemas.artifact, true,
     (args, context) => {
       if (context.runId && backend.resumes.getArtifact({ id: args.artifactId }).artifact.generationRunId !== context.runId) fail('FORBIDDEN')
       return build(String(args.artifactId), context.signal)
