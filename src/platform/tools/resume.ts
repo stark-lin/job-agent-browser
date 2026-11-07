@@ -10,7 +10,7 @@ import { schemas } from './resume-schema'
 type Backend = ReturnType<typeof composeBackend>
 type Args = Record<string, unknown> & { runId: string }
 const output = (value: unknown) => ({ content: [], structuredContent: value as JsonValue })
-const state = (run: GenerationRun) => ({ runId: run.id, state: run.state, stateVersion: run.stateVersion, rewriteRevision: run.rewriteRevision, error: run.error })
+const state = (run: GenerationRun) => ({ runId: run.id, state: run.state, stateVersion: run.stateVersion, error: run.error })
 
 /** Server-side resume capability bindings. Agents only use the MCP protocol. */
 export function createResumeTools(backend: Backend, build: (id: string, signal: AbortSignal) => Promise<unknown>, internal = false) {
@@ -51,20 +51,22 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
     const facts = run(args.runId).inputSnapshot.facts, offset = Number(args.offset ?? 0), limit = Number(args.limit ?? 100)
     return { items: facts.slice(offset, offset + limit), total: facts.length }
   })
-  bind('resume.list_bullets', 'Read current bullets and the shared revision. Advance offset by the returned item count.', schemas.facts, false, args => {
+  bind('resume.list_bullets', 'Read current bullets and their rewritten flags. Each bullet may change once per run. Advance offset by the returned item count.', schemas.facts, false, args => {
     const current = run(args.runId), document = current.assembled
     const bullets = document ? bulletSections.flatMap(section => document[section].flatMap(entry => entry.bullets.map(bullet =>
       ({ bulletId: bullet.id, profileItemId: entry.profileItemId, section, text: bullet.text, factIds: bullet.factIds })))) : []
+    const rewritten = new Set(backend.rewrittenBulletIds(args.runId))
     const items = [], offset = Number(args.offset ?? 0), limit = Number(args.limit ?? 20)
     let bytes = 0
     for (const item of bullets.slice(offset, offset + limit)) {
-      bytes += Buffer.byteLength(JSON.stringify(item)) + 1
+      const entry = { ...item, rewritten: rewritten.has(item.bulletId) }
+      bytes += Buffer.byteLength(JSON.stringify(entry)) + 1
       if (bytes > 240_000) break
-      items.push(item)
+      items.push(entry)
     }
-    return { items, total: bullets.length, revision: current.rewriteRevision }
+    return { items, total: bullets.length }
   })
-  bind('resume.rewrite_bullet', 'Replace one bullet text using the current expectedRevision and a UUID v4 requestId. Identical requests return the original receipt.', schemas.rewrite, true,
+  bind('resume.rewrite_bullet', 'Change one existing bullet at most once per run using a UUID v4 requestId. Unchanged text does not consume the change. Identical retries return the original receipt; new requests for a changed bullet conflict.', schemas.rewrite, true,
     args => backend.generation.rewriteBullet(args))
   if (internal) bind('resume.attach_agent', 'Bind a trusted desktop Agent Run before model execution.', schemas.attach, true,
     args => {

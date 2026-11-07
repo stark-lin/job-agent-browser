@@ -28,7 +28,7 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
         const facts = candidate.allFacts(profile.id), items = candidate.allItems(profile.id)
         const now = runtime.now()
         const run: GenerationRun = { id: runtime.id(), jobId: job.id, type: 'RESUME', agentRunId: null,
-          state: 'CREATED', stateVersion: 0, rewriteRevision: 0,
+          state: 'CREATED', stateVersion: 0,
           inputSnapshot: { schemaVersion: 1, job, profile, facts, items }, assembled: null,
           config: { ...args.config, runtimeKind: options.start ? options.internal ? 'internal' : 'external' : runtimeKind }, error: null, createdAt: now, updatedAt: now, finishedAt: null }
         options.validateSnapshot?.(run.inputSnapshot)

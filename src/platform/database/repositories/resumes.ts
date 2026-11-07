@@ -24,12 +24,17 @@ export function resumeRepository(store: Store, lease: RuntimeLease): ResumeRepos
     assertGeneration(id) { lease.assert('generation', id) },
     rewriteReceipt(runId, requestId) {
       const row = store.db.prepare('SELECT * FROM resume_bullet_rewrites WHERE run_id=? AND request_id=?').get(runId, requestId)
-      return row ? { hash: String(row.request_hash), result: { runId, bulletId: String(row.bullet_id),
-        rewriteRevision: Number(row.rewrite_revision), changed: Boolean(row.changed) } } : null
+      return row ? { hash: String(row.request_hash),
+        legacyExpectedRevision: row.legacy_expected_revision === null ? null : Number(row.legacy_expected_revision),
+        result: { runId, bulletId: String(row.bullet_id), changed: Boolean(row.changed) } } : null
+    },
+    rewrittenBulletIds(runId) {
+      return store.db.prepare('SELECT DISTINCT bullet_id FROM resume_bullet_rewrites WHERE run_id=? AND changed=1').all(runId)
+        .map(row => String(row.bullet_id))
     },
     saveRewriteReceipt(requestId, hash, result) {
-      store.db.prepare('INSERT INTO resume_bullet_rewrites VALUES(?,?,?,?,?,?)')
-        .run(result.runId, requestId, hash, result.bulletId, result.rewriteRevision, Number(result.changed))
+      store.db.prepare('INSERT INTO resume_bullet_rewrites(run_id,request_id,request_hash,bullet_id,changed) VALUES(?,?,?,?,?)')
+        .run(result.runId, requestId, hash, result.bulletId, Number(result.changed))
     },
     attachAgent(run, agentRunId, requestId, ownerRuntimeId) {
       lease.assert('generation', run.id)

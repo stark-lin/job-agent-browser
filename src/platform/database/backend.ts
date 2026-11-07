@@ -107,6 +107,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
       return row ? services.resumes.getRun({ id: String(row.run_id) }).run : null
     },
     generationRun: (id: string) => user.read(() => repo.resumes.getRun(id)),
+    rewrittenBulletIds: (id: string) => user.read(() => repo.resumes.rewrittenBulletIds(id)),
     artifactForRun: (id: string) => user.read(() => repo.resumes.artifactForRun(id)),
     capabilities,
     toolAudit: database.transactions.capabilities,

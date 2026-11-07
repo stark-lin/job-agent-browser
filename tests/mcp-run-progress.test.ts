@@ -11,6 +11,17 @@ const tool = (name: string): ToolDescriptor => ({ name, mode: 'read', risk: 'REA
 const output = (value: unknown): ToolOutput => ({ content: [], structuredContent: value as JsonValue })
 const source = (path = 'CORE.md', startLine = 1, endLine = 3, revision = 'rev-a') => ({ path, startLine, endLine, revision, content: 'Supported evidence' })
 
+test('resume progress counts each changed run and bullet once, including receipt replay', async () => {
+  const run = guard(), write = { ...tool('resume.rewrite_bullet'), mode: 'write' as const, risk: 'WRITE' as const }
+  const rewrite = (runId: string, bulletId: string, changed = true) =>
+    run.execute(write, { runId, bulletId }, signal(), async () => output({ runId, bulletId, changed }))
+  await rewrite('one', 'first')
+  assert.equal((await rewrite('one', 'first')).guard.noProgress, 1)
+  assert.equal((await rewrite('one', 'second', false)).guard.noProgress, 2)
+  assert.equal((await rewrite('one', 'second')).guard.noProgress, 0)
+  assert.equal((await rewrite('two', 'first')).guard.progress, 3)
+})
+
 test('62 reformulated recalls stop after five reads, then every call is rejected before execution', async () => {
   const run = guard(); let executed = 0
   for (let n = 0; n < 62; n++) {

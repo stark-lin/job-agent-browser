@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { DatabaseSync } from 'node:sqlite'
+import { migrate, migrations } from '../src/platform/database/migrations'
+import { Transactions } from '../src/platform/database/transactions'
+import { Store } from '../src/platform/database/repositories/store'
+import { composeBackend } from '../src/platform/database/backend'
 import { seed, value } from './helpers'
 import { createJobAgentTooling, jobAgentAllowlist } from '../src/platform/tools'
 import type { ToolOutput } from '../src/shared/tools/tool.types'
@@ -39,18 +44,17 @@ test('rewrite changes only text, preserves provenance and publishes exactly once
   const f = await resumeTools(t), call = (name: string, args = {}) => f.scope.execute(name, { runId: f.runId, ...args })
   const before = f.backend.resumes.getRun({ id: f.runId }).run
   const bullet = before.assembled!.experience[0].bullets[0]
-  const request = { bulletId: bullet.id, text: 'Supported wording', expectedRevision: 0, requestId: randomUUID() }
+  const request = { bulletId: bullet.id, text: 'Supported wording', requestId: randomUUID() }
   await assert.rejects(call('resume.rewrite_bullet', { ...request, factIds: [] }), { code: 'TOOL_INVALID_INPUT' })
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, expectedRevision: 0 }), { code: 'TOOL_INVALID_INPUT' })
   await assert.rejects(call('resume.rewrite_bullet', { ...request, bulletId: randomUUID() }), { code: 'TOOL_INVALID_INPUT' })
   const result = await call('resume.rewrite_bullet', request)
   assert.deepEqual(await call('resume.rewrite_bullet', request), result)
   await assert.rejects(call('resume.rewrite_bullet', { ...request, text: 'Different' }), { code: 'TOOL_CONFLICT' })
   await assert.rejects(call('resume.rewrite_bullet', { ...request, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
-  assert.deepEqual(data(await call('resume.rewrite_bullet', { ...request, expectedRevision: 1, requestId: randomUUID() })),
-    { runId: f.runId, bulletId: bullet.id, rewriteRevision: 1, changed: false })
   const after = f.backend.resumes.getRun({ id: f.runId }).run
   assert.equal(after.stateVersion, before.stateVersion)
-  assert.equal(after.rewriteRevision, 1)
+  assert.deepEqual(f.backend.rewrittenBulletIds(f.runId), [bullet.id])
   bullet.text = request.text
   assert.deepEqual(after.assembled, before.assembled)
   const first = data<{ artifact: { id: string; content: unknown } }>(await call('resume.publish'))
@@ -58,7 +62,87 @@ test('rewrite changes only text, preserves provenance and publishes exactly once
   assert.deepEqual(first.artifact.content, before.assembled)
   assert.deepEqual(f.backend.resumes.getArtifact({ id: first.artifact.id }).provenance, [{ blockId: bullet.id, factIds: [f.fact.id] }])
   assert.equal(f.backend.resumes.getRun({ id: f.runId }).run.state, 'PUBLISHED')
-  await assert.rejects(call('resume.rewrite_bullet', { ...request, expectedRevision: 1, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
+  assert.deepEqual(await call('resume.rewrite_bullet', request), result)
+  await assert.rejects(call('resume.rewrite_bullet', { ...request, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
+})
+
+test('distinct bullets change independently; no-ops preserve eligibility and receipts stay immutable', async t => {
+  const f = await resumeTools(t)
+  value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Second claim' } }))
+  const { runId } = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
+  const call = (name: string, args = {}) => f.scope.execute(name, { runId, ...args })
+  type Page = { items: { bulletId: string; text: string; rewritten: boolean }[]; total: number }
+  const page = data<Page>(await call('resume.list_bullets'))
+  assert(!Object.hasOwn(page, 'revision'))
+  assert(page.items.every(bullet => bullet.rewritten === false))
+  const [first, second] = page.items
+  const noop = { bulletId: first.bulletId, text: first.text, requestId: randomUUID() }
+  const unchanged = await call('resume.rewrite_bullet', noop)
+  assert.equal(data<{ changed: boolean }>(unchanged).changed, false)
+  assert.equal(data<Page>(await call('resume.list_bullets')).items[0].rewritten, false)
+  const rewrite = { ...noop, text: 'First supported rewrite', requestId: randomUUID() }
+  await call('resume.rewrite_bullet', rewrite)
+  await call('resume.rewrite_bullet', { bulletId: second.bulletId, text: 'Second supported rewrite', requestId: randomUUID() })
+  assert(data<Page>(await call('resume.list_bullets')).items.every(bullet => bullet.rewritten))
+  assert.deepEqual(await call('resume.rewrite_bullet', noop), unchanged)
+  await assert.rejects(call('resume.rewrite_bullet', { ...rewrite, text: first.text, requestId: randomUUID() }), { code: 'TOOL_CONFLICT' })
+  const other = data<{ runId: string }>(await f.scope.execute('resume.start', { ...f.start, requestId: randomUUID() }))
+  assert(data<Page>(await f.scope.execute('resume.list_bullets', { runId: other.runId })).items.every(bullet => !bullet.rewritten))
+  assert(!Object.hasOwn(f.backend.generationRun(runId), 'rewriteRevision'))
+})
+
+test('version 20 receipts retain replay and eligibility after migration, including multiple historical changes', async t => {
+  const f = await seed(t), db = new DatabaseSync(':memory:'), transactions = new Transactions(db)
+  migrate(db, migrations.slice(0, 20))
+  const store = new Store(db, transactions), tx = transactions.forActor('USER')
+  tx.write({ event: 'LEGACY_FIXTURE', action: 'CREATE', target: 'generation_run' }, () => {
+    store.insert('job', f.job); store.insert('profile', f.profile)
+    store.insert('profile_item', f.item); store.insert('fact', f.fact)
+  })
+  const backend = composeBackend({ connection: db, transactions, close: () => db.close() })
+  t.after(() => backend.close())
+  backend.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Untouched claim' } })
+  const run = backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
+  const [first, second] = run.assembled!.experience[0].bullets
+  const history = [
+    { bulletId: first.id, text: 'Earlier wording', revision: 1, changed: true },
+    { bulletId: first.id, text: 'Latest wording', revision: 2, changed: true },
+    { bulletId: second.id, text: second.text, revision: 2, changed: false }
+  ].map(entry => ({ ...entry, requestId: randomUUID() }))
+  first.text = history[1].text
+  tx.write({ event: 'LEGACY_FIXTURE', action: 'UPDATE', target: 'generation_run' }, () => {
+    db.prepare('UPDATE generation_runs SET assembled_json=?,rewrite_revision=2 WHERE id=?').run(JSON.stringify(run.assembled), run.id)
+    for (const entry of history) {
+      const hash = createHash('sha256').update(JSON.stringify([entry.bulletId, entry.text, entry.revision - Number(entry.changed)])).digest('hex')
+      db.prepare('INSERT INTO resume_bullet_rewrites VALUES(?,?,?,?,?,?)').run(run.id, entry.requestId, hash, entry.bulletId, entry.revision, Number(entry.changed))
+    }
+  })
+  const audits = db.prepare('SELECT * FROM audit_logs ORDER BY rowid').all()
+  migrate(db)
+  assert.deepEqual(db.prepare('SELECT * FROM audit_logs ORDER BY rowid').all(), audits)
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+  assert.deepEqual(backend.rewrittenBulletIds(run.id), [first.id])
+  for (const entry of history) {
+    const input = { runId: run.id, bulletId: entry.bulletId, text: entry.text, requestId: entry.requestId }
+    assert.deepEqual(backend.generation.rewriteBullet(input), { runId: run.id, bulletId: entry.bulletId, changed: entry.changed })
+    assert.throws(() => backend.generation.rewriteBullet({ ...input, text: 'Altered retry' }), { code: 'CONFLICT' })
+  }
+  assert.throws(() => backend.generation.rewriteBullet({ runId: run.id, bulletId: first.id, text: 'Third change', requestId: randomUUID() }), { code: 'CONFLICT' })
+  assert.equal(backend.generation.rewriteBullet({ runId: run.id, bulletId: second.id, text: 'First real change', requestId: randomUUID() }).changed, true)
+  assert.deepEqual(backend.generationRun(run.id).assembled!.experience[0].bullets.map(bullet => bullet.text), ['Latest wording', 'First real change'])
+  migrate(db)
+})
+
+test('a failed receipt insert rolls back the bullet change and leaves the same request retryable', async t => {
+  const f = await resumeTools(t), before = f.backend.generationRun(f.runId)
+  const request = { runId: f.runId, bulletId: before.assembled!.experience[0].bullets[0].id, text: 'Supported wording', requestId: randomUUID() }
+  f.database.connection.exec("CREATE TRIGGER reject_rewrite_receipt BEFORE INSERT ON resume_bullet_rewrites BEGIN SELECT RAISE(ABORT,'fixture'); END")
+  await assert.rejects(f.scope.execute('resume.rewrite_bullet', request), { code: 'TOOL_CONFLICT' })
+  assert.deepEqual(f.backend.generationRun(f.runId), before)
+  assert.deepEqual(f.backend.rewrittenBulletIds(f.runId), [])
+  f.database.connection.exec('DROP TRIGGER reject_rewrite_receipt')
+  const result = data<{ changed: boolean }>(await f.scope.execute('resume.rewrite_bullet', request))
+  assert.equal(result.changed, true)
 })
 
 test('imported entries with empty titles survive assembly and publication unchanged', async t => {

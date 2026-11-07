@@ -103,14 +103,14 @@ The following public contracts are available to dedicated workflows and external
 | application.list_events, application.add_note | Paginated timeline; receipt-backed notes also allowed on archived jobs |
 | application.schedule_event, application.reschedule_event | Local UTC events; creation receipt, event/Job ownership and archive checks |
 | resume.start | Atomic immutable snapshot/start and same-session request UUID receipt; optional declared provider/model metadata |
-| resume.get_context, resume.list_facts, resume.list_bullets | Immutable context, paged Facts and paged current bullets with revision |
-| resume.rewrite_bullet | Replace one bullet using its ID, expectedRevision and a request receipt |
+| resume.get_context, resume.list_facts, resume.list_bullets | Immutable context, paged Facts and paged current bullets with rewritten flags |
+| resume.rewrite_bullet | Change each bullet once per run using its ID and a request receipt |
 | resume.publish, resume.fail, resume.cancel | Publication or fixed-code failure/cancellation of the owning runtime's run |
 | artifact.get, artifact.build | Content/provenance or model-free HTML/PDF output and local paths |
 
 [Profile tools](../src/platform/tools/profile.ts) persist host-understood data without fetching/parsing resumes or repositories. Omitted patch fields are preserved, empty strings/arrays clear, arrays replace, metadata merges by field, and null associations detach. Revision, transaction and receipt rules belong to [data architecture](data-architecture.md#2-business-rules). Profile write input is limited to 256 KiB. Fact inputs/results omit `evidence`; supplying that removed field is rejected as unknown. Distillation Skills save concise facts and tags without source attachments or moving them into other fields.
 
-Snapshot bounds are 1,000 Facts, 200 Items, 256 KiB context and 8 KiB per Fact. List calls accept up to 100 items. Bullet pages may return fewer items to stay within the response limit. A confirmed changed revision counts as RunGuard progress. Identical pages and no-op rewrites do not.
+Snapshot bounds are 1,000 Facts, 200 Items, 256 KiB context and 8 KiB per Fact. List calls accept up to 100 items. Bullet pages may return fewer items to stay within the response limit. A confirmed changed (runId, bulletId) pair counts once as RunGuard progress. Identical pages and no-op rewrites do not.
 
 [Output lifecycle](../src/platform/resume-output/service.ts) owns managed files and output state; builds use a cancellable [Electron worker](../src/platform/resume-output/worker-client.ts), requiring a graphical environment without a main application window. JOB_BROWSER_ELECTRON may select the Electron binary. Failed output can be rebuilt independently of model calls.
 

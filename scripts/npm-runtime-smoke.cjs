@@ -48,7 +48,7 @@ const fact=await call('profile.add_fact',{profileId:profile.id,profileItemId:ite
 const {runId}=await call('resume.start',{jobId:job.id,profileId:profile.id,requestId:randomUUID()});
 const page=await call('resume.list_bullets',{runId});
 assert.equal(page.items[0].factIds[0],fact.id);
-await call('resume.rewrite_bullet',{runId,bulletId:page.items[0].bulletId,text:'Built TypeScript services and automated tests.',expectedRevision:page.revision,requestId:randomUUID()});
+await call('resume.rewrite_bullet',{runId,bulletId:page.items[0].bulletId,text:'Built TypeScript services and automated tests.',requestId:randomUUID()});
 const {artifact}=await call('resume.publish',{runId});const built=await call('artifact.build',{artifactId:artifact.id});assert.equal(built.output.status,'READY');
 console.log('Pure Node jab mcp verified Main-initialized storage, public tools without Memory, and real PDF output without protocol stdout contamination.');
 }finally{await client.close()}})().catch(e=>{console.error(e);process.exitCode=1});

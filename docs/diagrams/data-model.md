@@ -176,7 +176,6 @@ erDiagram
         string agent_run_id FK,UK
         string state
         int state_version
-        int rewrite_revision
         json input_snapshot_json
         json assembled_json
         json legacy_payload_json
@@ -188,8 +187,8 @@ erDiagram
         string request_id PK
         string request_hash
         string bullet_id
-        int rewrite_revision
         boolean changed
+        int legacy_expected_revision
     }
     ARTIFACT {
         string id PK

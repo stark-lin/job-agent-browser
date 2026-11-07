@@ -31,7 +31,7 @@ export async function published(t: Pick<TestContext, 'after'>, path = ':memory:'
   const f = await seed(t, path)
   const run = f.backend.resumes.createRun({ jobId: f.job.id, profileId: f.profile.id }, { start: true })
   f.backend.generation.rewriteBullet({ runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id,
-    text: 'PRIVATE_RESUME_BODY', expectedRevision: 0, requestId: randomUUID() })
+    text: 'PRIVATE_RESUME_BODY', requestId: randomUUID() })
   f.backend.generation.beginValidation(run.id)
   f.backend.generation.preparePublication(run.id)
   const artifact = f.backend.generation.publishArtifact({ runId: run.id })

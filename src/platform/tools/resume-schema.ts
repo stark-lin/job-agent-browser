@@ -12,6 +12,6 @@ export const schemas = {
   context: object({ runId: uuid }),
   attach: object({ runId: uuid, requestId: uuid, ownerRuntimeId: uuid }),
   facts: object({ runId: uuid, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, ['runId']),
-  rewrite: object({ runId: uuid, bulletId: uuid, text: text(20000, 1), expectedRevision: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER }, requestId: uuid }),
+  rewrite: object({ runId: uuid, bulletId: uuid, text: text(20000, 1), requestId: uuid }),
   artifact: object({ artifactId: uuid })
 }

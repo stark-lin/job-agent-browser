@@ -51,7 +51,7 @@ test('version 18 resume history, managed PDF and provenance survive the upgrade'
   const pdf = Buffer.from('%PDF-1.4 fixture from the old version')
   const files = await artifactFiles(root).write(f.artifact.id, { html: 'Historical preview', pdf }, new AbortController().signal)
   const artifact = f.artifact
-  const { agentRunId: _agent, state: _state, stateVersion: _stateVersion, rewriteRevision: _rewrite, ...run } = f.run
+  const { agentRunId: _agent, state: _state, stateVersion: _stateVersion, ...run } = f.run
   const legacy = { ...run, language: 'en', status: 'SUCCEEDED', stage: 'output' }
   const unfinishedId = randomUUID()
   transactions.forActor('USER').write({ event: 'LEGACY_FIXTURE', action: 'CREATE', target: 'generation_run' }, () => {

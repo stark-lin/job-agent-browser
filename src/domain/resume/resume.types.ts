@@ -19,11 +19,11 @@ export interface ResumeDocument {
 }
 export interface GenerationRun {
   id: string; jobId: string; type: 'RESUME'; agentRunId: string | null
-  state: ResumeRunState; stateVersion: number; rewriteRevision: number
+  state: ResumeRunState; stateVersion: number
   inputSnapshot: InputSnapshot; assembled: ResumeDocument | null
   config: GenerationConfig; error: string | null; createdAt: string; updatedAt: string; finishedAt: string | null
 }
-export interface RewriteBulletResult { runId: string; bulletId: string; rewriteRevision: number; changed: boolean }
+export interface RewriteBulletResult { runId: string; bulletId: string; changed: boolean }
 export interface Provenance { blockId: string; factIds: string[] }
 export interface OutputFile { format: 'HTML' | 'PDF'; relativePath: string }
 export interface OutputState { status: 'PENDING' | 'RUNNING' | 'READY' | 'FAILED' | 'CANCELLED'; error: string | null; pages: number | null }

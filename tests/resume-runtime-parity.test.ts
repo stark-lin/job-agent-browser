@@ -39,8 +39,8 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   await assert.rejects(agent.tools.call('knowledge.write', {}, signal), { code: 'TOOL_FORBIDDEN' })
   await assert.rejects(agent.tools.call('memory.read', { path: 'CORE.md' }, signal), { code: 'TOOL_NOT_FOUND' })
   const rewrite = async (tools: MCPAgentTools, id: string) => {
-    const page = await tools.call('resume.list_bullets', { runId: id }, signal) as { revision: number; items: { bulletId: string }[] }
-    const input = { runId: id, expectedRevision: page.revision, bulletId: page.items[0].bulletId, text: f.fact.content + '.', requestId: randomUUID() }
+    const page = await tools.call('resume.list_bullets', { runId: id }, signal) as { items: { bulletId: string }[] }
+    const input = { runId: id, bulletId: page.items[0].bulletId, text: f.fact.content + '.', requestId: randomUUID() }
     await tools.call('resume.rewrite_bullet', input, signal)
     return input
   }
@@ -65,6 +65,22 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   const audit = f.backend.toolAudit.list()
   assert(audit.some(row => row.agent_id === 'internal.resume')); assert(audit.some(row => row.agent_id === 'codex'))
   await assert.rejects(internal.call('resume.fail', { runId: other.runId, error: 'VALIDATION_FAILED' }, signal), { code: 'TOOL_FORBIDDEN' })
+  const { runId: concurrentRunId } = await external.call('resume.start', { ...start, requestId: randomUUID() }, signal) as { runId: string }
+  const concurrent = { runId: concurrentRunId }
+  const page = await external.call('resume.list_bullets', concurrent, signal) as { items: { bulletId: string }[] }
+  const attempts = ['First concurrent wording', 'Second concurrent wording'].map(text => ({
+    ...concurrent, bulletId: page.items[0].bulletId, text, requestId: randomUUID()
+  }))
+  const outcomes = await Promise.allSettled(attempts.map(args => external.call('resume.rewrite_bullet', args, signal)))
+  assert.equal(outcomes.filter(result => result.status === 'fulfilled').length, 1)
+  const conflict = outcomes.find(result => result.status === 'rejected')
+  assert.equal(conflict?.reason.code, 'TOOL_CONFLICT')
+  assert.equal(f.backend.rewrittenBulletIds(concurrent.runId).length, 1)
+  const winner = outcomes.findIndex(result => result.status === 'fulfilled')
+  assert.equal(f.backend.generationRun(concurrent.runId).assembled!.experience[0].bullets[0].text, attempts[winner].text)
+  const replay = await external.call('resume.rewrite_bullet', attempts[winner], signal)
+  assert.deepEqual(replay, (outcomes[winner] as PromiseFulfilledResult<unknown>).value)
+  await external.call('resume.cancel', concurrent, signal)
 })
 
 test('dedicated Resume retains same-session failure and cancellation over real MCP', async t => {

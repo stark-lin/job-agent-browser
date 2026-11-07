@@ -9,8 +9,8 @@ import { resumeFixture } from './resume-fixture'
 import { firstPartyFixture } from './first-party-fixture'
 import type { ResumeEvent } from '../src/platform/electron/resume-contract'
 
-async function setup(t: TestContext) {
-  const f = await firstPartyFixture(t), server = await resumeFixture()
+async function setup(t: TestContext, batchSize = 1) {
+  const f = await firstPartyFixture(t), server = await resumeFixture(batchSize)
   t.after(() => server.close())
   const events: ResumeEvent[] = []
   const tasks = createResumeTasks({ backend: f.backend, mcp: f.mcp, directory: f.outputDirectory, fonts: '', key: () => null,
@@ -38,7 +38,7 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
   const result = await done(f.tasks, runId)
   assert.equal(result.run.state, 'PUBLISHED'); assert.equal(result.artifact?.content.language, 'en'); assert.equal(result.artifact?.output.status, 'READY')
   assert(result.run.assembled)
-  assert.equal(result.run.rewriteRevision, 2)
+  assert.equal(f.backend.rewrittenBulletIds(runId).length, 2)
   const trace = f.tasks.getTrace(1, { runId })!
   assert.equal(trace.run.sessionId, null)
   assert.equal(trace.run.state, 'completed')
@@ -55,6 +55,19 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
   assert.equal(f.server.requests(), before); assert.equal(f.outputCount(), 2)
   assert.equal((await f.tasks.getPreview({ artifactId: result.artifact!.id })).pages, 1)
 })
+test('desktop model batches independent rewrites without revision bookkeeping or conflict recovery', async t => {
+  const f = await setup(t, 2)
+  value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Second supported claim' } }))
+  const { runId } = await f.start(), result = await done(f.tasks, runId)
+  assert.equal(result.run.state, 'PUBLISHED')
+  assert.equal(f.backend.rewrittenBulletIds(runId).length, 2)
+  const trace = f.tasks.getTrace(1, { runId })!
+  const writes = trace.items.filter(item => item.content.type === 'tool_call' && item.content.toolName === 'resume.rewrite_bullet')
+  assert.equal(writes.length, 2)
+  assert(writes.every(item => item.state === 'completed'))
+  assert.equal(f.server.requests(), 3)
+})
+
 test('cancellation during a hanging model call and owner disposal cannot publish late results', async t => {
   const f = await setup(t)
   f.server.hook((stage) => stage === 'rewrite')

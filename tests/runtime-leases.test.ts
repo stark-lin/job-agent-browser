@@ -21,7 +21,7 @@ test('a second backend preserves live generation and audit; only a dead owner is
   const { root, resources } = directory(t), path = join(root, 'database.sqlite'), a = await seed(resources, path)
   const run = a.backend.resumes.createRun({ jobId: a.job.id, profileId: a.profile.id }, { start: true })
   const invocationId = randomUUID()
-  const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, expectedRevision: 0, text: 'Supported', requestId: randomUUID() }
+  const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, text: 'Supported', requestId: randomUUID() }
   a.backend.toolAudit.sink.start({ invocationId, agentId: 'resume', runId: run.id, tool: a.backend.toolCapabilities.read[0].descriptor })
   const b = fixture(resources, path)
   assert.equal(b.backend.resumes.getRun({ id: run.id }).run.state, 'REWRITING')
@@ -47,12 +47,12 @@ test('a separate process write lock cannot partially commit a generation stage; 
     }
   })
   await new Promise<void>((resolve, reject) => { child.once('message', () => resolve()); child.once('error', reject); child.once('exit', code => { if (code) reject(new Error('Lock fixture exited')) }) })
-  const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, expectedRevision: 0, text: 'Supported', requestId: randomUUID() }
+  const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, text: 'Supported', requestId: randomUUID() }
   assert.throws(() => f.backend.generation.rewriteBullet(input), { code: 'AUDIT_UNAVAILABLE' })
-  assert.equal(f.backend.resumes.getRun({ id: run.id }).run.rewriteRevision, 0)
+  assert.deepEqual(f.backend.rewrittenBulletIds(run.id), [])
   const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
   child.send({ release: true }); await exited
-  assert.equal(f.backend.generation.rewriteBullet(input).rewriteRevision, 1)
+  assert.equal(f.backend.generation.rewriteBullet(input).changed, true)
 })
 test('concurrent output has one owner and a late expired worker cannot replace recovered state or write files', async t => {
   const { root, resources } = directory(t), a = await published(resources, join(root, 'database.sqlite')), b = fixture(resources, join(root, 'database.sqlite'))

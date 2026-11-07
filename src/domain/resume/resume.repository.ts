@@ -7,7 +7,8 @@ export interface ResumeRepository {
   requestRun(requestId: string, input: string): GenerationRun | null
   recordRequest(requestId: string, input: string, runId: string): void
   assertGeneration(id: string): void
-  rewriteReceipt(runId: string, requestId: string): { hash: string; result: RewriteBulletResult } | null
+  rewriteReceipt(runId: string, requestId: string): { hash: string; legacyExpectedRevision: number | null; result: RewriteBulletResult } | null
+  rewrittenBulletIds(runId: string): string[]
   saveRewriteReceipt(requestId: string, hash: string, result: RewriteBulletResult): void
   attachAgent(run: GenerationRun, agentRunId: string, requestId: string, ownerRuntimeId: string): void
   completedAgent(agentRunId: string): boolean

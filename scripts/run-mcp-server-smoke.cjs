@@ -56,9 +56,9 @@ async function main() {
     const context = await call('resume.get_context', { runId }), facts = await call('resume.list_facts', { runId })
     assert.equal(context.profile.name, profile.name); assert.equal(facts.total, 1)
     const page = await call('resume.list_bullets', { runId })
-    const rewrite = { runId, bulletId: page.items[0].bulletId, text: 'Built TypeScript services and automated tests.', expectedRevision: page.revision, requestId: randomUUID() }
+    const rewrite = { runId, bulletId: page.items[0].bulletId, text: 'Built TypeScript services and automated tests.', requestId: randomUUID() }
     const receipt = await call('resume.rewrite_bullet', rewrite)
-    assert.equal(receipt.rewriteRevision, 1)
+    assert.equal(receipt.changed, true)
     assert.deepEqual(await call('resume.rewrite_bullet', rewrite), receipt)
     const { artifact } = await call('resume.publish', { runId })
     const built = await call('artifact.build', { artifactId: artifact.id })

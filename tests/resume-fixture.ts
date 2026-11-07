@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { randomUUID } from 'node:crypto'
 
 /** Offline compatible model that reads the baseline and preserves evidence while changing phrasing. */
-export async function resumeFixture() {
+export async function resumeFixture(batchSize = 1) {
   let requests = 0, hook: ((stage: string, response: ServerResponse) => boolean) | undefined
   const server = createServer((request, response) => {
     if (request.url === '/api/v1/models') {
@@ -27,14 +27,14 @@ export async function resumeFixture() {
         name: tools.find((tool: { function: { description: string } }) => tool.function.description.startsWith(`[${name}]`)).function.name,
         arguments: JSON.stringify({ runId, ...args }) } })
       if (!observations.length) return finish({ tool_calls: ['resume.get_context', 'resume.list_facts', 'resume.list_bullets'].map((name, i) => call(name, {}, i)) }, 'tool_calls')
-      const page = observations.find((item: { revision?: number }) => item.revision !== undefined)
-      const rewrites = observations.filter((item: { rewriteRevision?: number; changed?: boolean }) => item.changed !== undefined)
-      const bullet = page?.items[rewrites.length]
-      if (bullet && rewrites.length < 2) {
-        const text = bullet.text.replace(/[。.]?$/, /[\u4e00-\u9fff]/.test(bullet.text) ? '。' : '.')
-        return finish({ tool_calls: [call('resume.rewrite_bullet', {
-          bulletId: bullet.bulletId, text, expectedRevision: rewrites.at(-1)?.rewriteRevision ?? page.revision, requestId: randomUUID()
-        }, 0)] }, 'tool_calls')
+      const page = observations.find((item: { items?: { bulletId?: string }[] }) => Array.isArray(item.items) && item.items.some((bullet: { bulletId?: string }) => bullet.bulletId))
+      const rewrites = observations.filter((item: { changed?: boolean }) => item.changed !== undefined)
+      const bullets = page?.items.slice(rewrites.length, Math.min(2, rewrites.length + batchSize)) ?? []
+      if (bullets.length) {
+        return finish({ tool_calls: bullets.map((bullet: { bulletId: string; text: string }, index: number) => {
+          const text = bullet.text.replace(/[。.]?$/, /[\u4e00-\u9fff]/.test(bullet.text) ? '。' : '.')
+          return call('resume.rewrite_bullet', { bulletId: bullet.bulletId, text, requestId: randomUUID() }, index)
+        }) }, 'tool_calls')
       }
       finish({ content: 'Reviewed and tailored the source bullets.' })
     })

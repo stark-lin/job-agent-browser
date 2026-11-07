@@ -6,7 +6,7 @@ Purpose. Define the shared execution contract for Ask AI, Smart Paste, and deskt
 
 ## 1. Prompt, Run and Cycle
 
-The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume uses fixed tools and an isolated context with read-only shared Memory and Knowledge. Its Agent Run links to a separate GenerationRun. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
+The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume uses fixed tools and an isolated context with read-only shared Memory and Knowledge. Its Agent Run links to a separate GenerationRun. Its [definition](../src/platform/agent/engine/definitions.ts) skips bullets already rewritten in that generation task and uses request receipts for identical retries. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
 
 A Session holds user Prompts. Each new Prompt creates one Run for its top-level task, which can include several requested operations. The same request ID and payload return the existing Run. Prior messages, tool results and context summaries help resolve references. Every new Run starts with fresh execution state, tool activation and RunGuard state. It does not resume earlier Runs or dispatch their pending calls.
 

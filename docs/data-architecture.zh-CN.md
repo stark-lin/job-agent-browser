@@ -63,7 +63,7 @@
 
 [简历启动](../src/domain/resume/resume.service.ts)在同一事务冻结已保存的 Job、Profile、Item、Fact 和配置，并复制为 [ResumeDocument](../src/domain/resume/document.ts)。联系方式和个人简介分别填入基础信息及摘要。条目元数据与顺序来自快照。含正文的 Fact 保持原有顺序，不重复的 Item 摘要置于其 Fact 之前。未关联条目的 SKILL Fact 进入技能栏，其余游离 Fact 和导入时留空的 Fact 保存在快照中。
 
-[生成状态](../src/domain/resume/state-machine.ts)按 `CREATED → COPYING → REWRITING → VALIDATING → PUBLISHING → PUBLISHED` 前进。未发布的任务可进入 `FAILED`、`CANCELLED` 或 `INTERRUPTED`。状态变化递增 `stateVersion`。只有成功改动既有要点文字才递增 `rewriteRevision`，文档与请求回执同事务提交。Fact ID 和其余字段均固定。字数目标指导改写，结构与大小校验无法证明措辞准确。[生成服务](../src/domain/resume/generation.service.ts)
+[生成状态](../src/domain/resume/state-machine.ts)按 `CREATED → COPYING → REWRITING → VALIDATING → PUBLISHING → PUBLISHED` 前进。未发布的任务可进入 `FAILED`、`CANCELLED` 或 `INTERRUPTED`。状态变化递增 `stateVersion`。每条要点在一个 GenerationRun 内最多改动一次，原文提交不消耗机会。文档、回执和既有改写检查在同一 BEGIN IMMEDIATE 事务内提交。相同请求 ID 与内容重放原回执，对已改动要点的新请求返回冲突。[迁移 21](../src/platform/database/migrations/resume-once.ts)移除共享改写版本，保留历史回执及其哈希输入，包括同一要点曾有多次改写的记录。Fact ID 和其余字段均固定。字数目标指导改写，结构与大小校验无法证明措辞准确。[生成服务](../src/domain/resume/generation.service.ts)
 
 发布同时提交 Artifact、Fact 溯源链接及 `PUBLISHED`。文件输出可独立失败。桌面任务在推理前绑定 Agent Run，外部宿主复用业务状态且无本地 Agent Run。[MCP 契约](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)
 

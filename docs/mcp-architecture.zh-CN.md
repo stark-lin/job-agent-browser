@@ -103,14 +103,14 @@ JOB_BROWSER_MCP_CALLER = "codex"
 | application.list_events, application.add_note | 分页时间线，带 receipt 的备注也可写入归档职位 |
 | application.schedule_event, application.reschedule_event | 本地 UTC 日程，创建 receipt、事件/Job 归属及归档校验 |
 | resume.start | 原子快照/启动与同会话请求 UUID receipt，可声明 Provider/模型元数据 |
-| resume.get_context, resume.list_facts, resume.list_bullets | 不可变上下文、分页 Fact 及带版本的当前要点分页 |
-| resume.rewrite_bullet | 按要点 ID、expectedRevision 和请求回执替换一条要点的文字 |
+| resume.get_context, resume.list_facts, resume.list_bullets | 不可变上下文、分页 Fact 及带 rewritten 标记的当前要点分页 |
+| resume.rewrite_bullet | 按要点 ID 和请求回执改写，每个运行内每条要点最多改动一次 |
 | resume.publish, resume.fail, resume.cancel | 发布或以固定错误码失败/取消本运行时拥有的 run |
 | artifact.get, artifact.build | 内容/溯源或无需模型的 HTML/PDF 输出和本地路径 |
 
 [资料写入工具](../src/platform/tools/profile.ts)只持久化宿主已理解的数据，不抓取或解析简历/仓库。省略更新字段保留原值，空字符串/数组明确清空；数组整体替换，metadata 按字段合并，关联字段 null 明确解除。版本、事务和 receipt 规则由[数据架构](data-architecture.zh-CN.md#二业务规则)管理。资料写入输入上限 256 KiB。Fact 输入和结果不含 `evidence`，提交此已移除字段按未知字段拒绝。蒸馏 Skills 保存简洁事实和标签，不保存来源附件，也不转存到其他字段。
 
-快照上限为 1,000 个 Fact、200 个 Item、256 KiB 上下文及每条 Fact 8 KiB。列表每次最多接受 100 条请求，要点分页可因响应大小返回更少。确认的改写版本计入 RunGuard 进展，重复分页和无变化改写不计入。
+快照上限为 1,000 个 Fact、200 个 Item、256 KiB 上下文及每条 Fact 8 KiB。列表每次最多接受 100 条请求，要点分页可因响应大小返回更少。确认改动的 (runId, bulletId) 组合只计一次 RunGuard 进展，重复分页和无变化改写不计入。
 
 [输出生命周期](../src/platform/resume-output/service.ts)管理受控文件与状态；构建使用可取消的 [Electron Worker](../src/platform/resume-output/worker-client.ts)，需要图形环境但不需要主应用窗口。JOB_BROWSER_ELECTRON 可指定 Electron 二进制文件。失败输出可独立于模型调用重建。
 

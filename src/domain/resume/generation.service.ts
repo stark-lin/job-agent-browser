@@ -31,27 +31,27 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
     },
     rewriteBullet(input: unknown) {
       return tx.write({ event: 'GENERATION_REWRITE_BULLET', action: 'UPDATE', target: 'generation_run' }, () => {
-        const args = v.object({ runId: v.id, bulletId: v.id, text: check.bulletText,
-          expectedRevision: v.integer(0, Number.MAX_SAFE_INTEGER), requestId: v.id })(input)
+        const args = v.object({ runId: v.id, bulletId: v.id, text: check.bulletText, requestId: v.id })(input)
         const run = owned(args.runId)
-        const hash = fingerprint(JSON.stringify([args.bulletId, args.text, args.expectedRevision]))
+        const hash = fingerprint(JSON.stringify([args.bulletId, args.text]))
         const receipt = repo.rewriteReceipt(run.id, args.requestId)
         if (receipt) {
-          if (receipt.hash !== hash) fail('CONFLICT')
+          const expectedHash = receipt.legacyExpectedRevision === null ? hash
+            : fingerprint(JSON.stringify([args.bulletId, args.text, receipt.legacyExpectedRevision]))
+          if (receipt.hash !== expectedHash) fail('CONFLICT')
           return receipt.result
         }
-        if (run.state !== 'REWRITING' || !run.assembled || run.rewriteRevision !== args.expectedRevision) fail('CONFLICT')
+        if (run.state !== 'REWRITING' || !run.assembled || repo.rewrittenBulletIds(run.id).includes(args.bulletId)) fail('CONFLICT')
         const bullet = bulletSections.flatMap(section => run.assembled![section].flatMap(entry => entry.bullets)).find(value => value.id === args.bulletId)
         if (!bullet) fail('INVALID_INPUT')
         const changed = bullet.text !== args.text
         if (changed) {
           bullet.text = args.text
           check.validateGeneratedResume(run, run.assembled)
-          run.rewriteRevision++
           run.updatedAt = runtime.now()
           repo.saveRun(run)
         }
-        const result = { runId: run.id, bulletId: bullet.id, rewriteRevision: run.rewriteRevision, changed }
+        const result = { runId: run.id, bulletId: bullet.id, changed }
         repo.saveRewriteReceipt(args.requestId, hash, result)
         return result
       })
