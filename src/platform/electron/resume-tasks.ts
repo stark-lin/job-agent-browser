@@ -6,6 +6,7 @@ import { DataError, fail } from '../../domain/common/errors'
 import * as v from '../../domain/common/validation'
 import { isGenerating } from '../../domain/resume/state-machine'
 import type { ResumeEvent, ResumeTask, ResumeTrace } from './resume-contract'
+import type { AgentSnapshot } from '../../domain/chat/chat.types'
 import type { AISettings } from '../../shared/ai'
 import type { composeBackend } from '../database/backend'
 import { createAgentEngine, type AgentEngine } from '../agent/engine'
@@ -21,6 +22,7 @@ import type { FirstPartyRuntime, MCPAgentTools } from '../mcp/first-party-client
 interface Work {
   owner: number; runId: string; controller: AbortController; sequence: number
   tools: MCPAgentTools; done?: Promise<void>; emit: (event: ResumeEvent) => void
+  snapshot?: AgentSnapshot
 }
 export function resumeError(error: unknown): string {
   if (error instanceof OutputFailure) return error.code
@@ -128,8 +130,14 @@ export function createResumeTasks(deps: {
             throw error
           }
           const snapshot = backend.chats.agentSnapshot(agentRunId)
+          work.snapshot = snapshot
+          event(work)
           let recorderFailure: unknown
-          const recorder = createAgentRecorder(backend.chats, snapshot, () => {}, error => { recorderFailure = error; controller.abort() })
+          const recorder = createAgentRecorder(backend.chats, snapshot, trace => {
+            work.sequence++; sequences.set(work.runId, work.sequence)
+            try { work.emit({ runId: work.runId, sequence: work.sequence, trace }) }
+            catch { controller.abort() }
+          }, error => { recorderFailure = error; controller.abort() })
           const handle = engine.start({
             invocation: { agent: 'resume', source: 'resume-generate', generationRunId: work.runId },
             requestId, model: choice, signal: controller.signal, onEvent: recorder.receive
@@ -182,9 +190,9 @@ export function createResumeTasks(deps: {
     },
     getTrace(owner: number, input: unknown): ResumeTrace | null {
       const { runId } = v.object({ runId: v.id })(input)
-      owned(owner, runId)
+      const work = owned(owner, runId)
       const id = run(runId).agentRunId
-      return id ? { ...(engine.getRun(id) ?? backend.chats.agentSnapshot(id)), cycles: backend.chats.agentCycles(id),
+      return id ? { ...structuredClone(work?.snapshot ?? engine.getRun(id) ?? backend.chats.agentSnapshot(id)), cycles: backend.chats.agentCycles(id),
         requests: backend.chats.listModelRequests(id, 64, 0).items } : null
     },
     async cancel(owner: number, input: unknown) {

@@ -62,6 +62,7 @@
   "panel-92": "#24272C",
   "app": "#101113",
   "rail": "#191B1E",
+  "on-rail-active": "#A8CCFF",
   "quiet": "#353A40",
   "selected": "#24272B",
   "field-edge": "#9BA4AF",

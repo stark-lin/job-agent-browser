@@ -592,6 +592,7 @@ export const zhCN = {
     stages: { COPYING: "复制个人资料", REWRITING: "改写简历要点", VALIDATING: "校验简历", PUBLISHING: "发布简历", OUTPUT: "生成 HTML / PDF" },
     statuses: { CREATED: "已创建", COPYING: "正在复制个人资料…", REWRITING: "正在改写简历要点…", VALIDATING: "正在校验…", PUBLISHING: "正在发布…", PUBLISHED: "简历已发布", FAILED: "生成失败", CANCELLED: "已取消", INTERRUPTED: "已中断。请生成新版本以重试。" },
     trace: "Agent 运行追踪", cycles: "ReAct 循环", requests: "模型请求", traceError: "无法读取运行追踪。",
+    copyDiagnostics: "复制诊断 JSON", copyDiagnosticsError: "无法复制诊断 JSON，请重试。",
     "outputs": {
         "PENDING": "等待输出",
         "RUNNING": "正在生成预览和 PDF…",

@@ -134,6 +134,8 @@
   --chat-content-width: 768px;
   --app: #E8EAED;
   --rail: #E1E4E8;
+  --rail-active: rgba(0,102,255,.2);
+  --on-rail-active: #174A8B;
   --quiet: #E8EAEE;
   --selected: #E1E5EB;
   --field-edge: #687583;
@@ -206,6 +208,7 @@
     --panel-92: #24272C;
     --app: #101113;
     --rail: #191B1E;
+    --on-rail-active: #A8CCFF;
     --quiet: #353A40;
     --selected: #24272B;
     --field-edge: #9BA4AF;
@@ -281,6 +284,7 @@
   --panel-92: #24272C;
   --app: #101113;
   --rail: #191B1E;
+  --on-rail-active: #A8CCFF;
   --quiet: #353A40;
   --selected: #24272B;
   --field-edge: #9BA4AF;
@@ -715,7 +719,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .workspace-navigation-item svg { width: var(--space-3); height: var(--space-3); }
 .workspace-navigation-item:hover { background: var(--bg); }
 .workspace-navigation-item:focus-visible { outline: var(--focus-width) solid var(--primary); outline-offset: calc(-1 * var(--focus-width)); }
-.workspace-navigation-item[aria-current="page"] { background: var(--primary); color: var(--on-primary); }
+.workspace-navigation-item[aria-current="page"] { background: var(--rail-active); color: var(--on-rail-active); }
 .workspace-navigation-footer { margin-top: var(--space-2); }
 
 /* Read-only tables and metadata, shared by Settings and the reference gallery. */

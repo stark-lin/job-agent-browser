@@ -146,7 +146,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-navigation-item { display: flex; align-items: center; justify-content: center; width: 100%; min-height: var(--control-lg); padding: var(--space-1); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
 .ui-navigation-item .ui-icon { flex: 0 0 auto; width: var(--space-3); height: var(--space-3); }
 .ui-navigation-item:hover { background: var(--bg); }
-.ui-navigation-item[aria-current="page"] { background: var(--primary); color: var(--on-primary); font-weight: var(--weight-semibold); }
+.ui-navigation-item[aria-current="page"] { background: var(--rail-active); color: var(--on-rail-active); font-weight: var(--weight-semibold); }
 .ui-navigation-item:focus-visible { outline-offset: calc(-1 * var(--focus-width)); }
 .ui-textarea { width: 100%; min-height: var(--textarea-height); padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--quiet); font-size: var(--font-sm); line-height: var(--line-sm); resize: vertical; }
 .ui-textarea:focus { border-color: var(--primary); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: var(--focus-width); }
