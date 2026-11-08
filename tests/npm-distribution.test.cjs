@@ -1,15 +1,109 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } = require('node:fs')
+const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync } = require('node:fs')
 const { join } = require('node:path')
 const { tmpdir } = require('node:os')
 const { spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
+const { createRequire } = require('node:module')
 const { distributionLock } = require('../scripts/prepare-npm-package.cjs')
 const { verifyArtifact, registryVersion, publishArtifact } = require('../scripts/publish-npm.cjs')
 const { verifyMetadataAndDocs } = require('../scripts/verify-npm-package.cjs')
+const { initializeElectron, prepareModelFixture } = require('../scripts/npm-runtime-smoke.cjs')
 const root = join(__dirname, '..')
 const lookupArgs = version => ['view', `@stark-lin/jab@${version}`, 'dist.integrity', '--json', '--registry=https://registry.npmjs.org/', '--fetch-retries=0', '--fetch-timeout=10000']
+test('clean-install Electron initialization retries transient downloads with bounded backoff', async t => {
+  t.mock.method(console, 'error', () => {})
+  for (const stderr of [
+    'HTTPError: Response code 504 (Gateway Time-out)',
+    'HTTPError: Response code 503 (Service Unavailable)',
+    'HTTPError: Response code 429 (Too Many Requests)',
+    'HTTPError: Response code 408 (Request Timeout)',
+    'Error: ECONNRESET', 'Error: EAI_AGAIN', 'TypeError: fetch failed'
+  ]) {
+    const calls = [], waits = [], env = { electron_config_cache: '/shared/download-cache' }
+    await initializeElectron('/clean-install/node_modules/@stark-lin/jab', env, {
+      spawn: (command, args, options) => {
+        calls.push({ command, args, options })
+        return calls.length < 3 ? { status: 1, stderr } : { status: 0 }
+      },
+      wait: async ms => { waits.push(ms) }
+    })
+    assert.equal(calls.length, 3)
+    assert.deepEqual(waits, [10000, 20000])
+    for (const { command, args, options } of calls) {
+      assert.equal(command, process.execPath)
+      assert.deepEqual(args, ['-e', "require('electron')"])
+      assert.equal(options.cwd, '/clean-install/node_modules/@stark-lin/jab')
+      assert.equal(options.env, env)
+      assert.equal(options.timeout, 120000)
+    }
+  }
+})
+test('persistent Electron download failures and timeouts remain fatal after three attempts', async t => {
+  t.mock.method(console, 'error', () => {})
+  for (const result of [
+    { status: 1, stderr: 'HTTPError: Response code 504 (Gateway Time-out)' },
+    { status: null, error: Object.assign(new Error('Electron download timed out'), { code: 'ETIMEDOUT' }) }
+  ]) {
+    let calls = 0
+    const waits = []
+    await assert.rejects(initializeElectron('/clean-install', {}, {
+      spawn: () => { calls++; return result }, wait: async ms => { waits.push(ms) }
+    }), result.error ? /Electron download timed out/ : /failed after 3 attempt\(s\).*\n.*\nHTTPError: Response code 504/)
+    assert.equal(calls, 3)
+    assert.deepEqual(waits, [10000, 20000])
+  }
+})
+test('Electron integrity, permission, missing asset and process failures fail immediately', async t => {
+  t.mock.method(console, 'error', () => {})
+  for (const result of [
+    { status: 1, stderr: 'HTTPError: Response code 404 (Not Found)' },
+    { status: 1, stderr: 'SHA256 checksum mismatch' },
+    { status: 1, stderr: 'Error: EACCES: permission denied' },
+    { status: null, signal: 'SIGTERM' },
+    { status: null, error: Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }) }
+  ]) {
+    let calls = 0
+    await assert.rejects(initializeElectron('/clean-install', {}, {
+      spawn: () => { calls++; return result }, wait: async () => assert.fail('Must not retry permanent failures')
+    }))
+    assert.equal(calls, 1)
+  }
+})
+test('Electron initialization uses the independently installed module in a fresh process on retry', async t => {
+  t.mock.method(console, 'error', () => {})
+  const directory = mkdtempSync(join(tmpdir(), 'jab-electron-init-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const electron = join(directory, 'node_modules/electron')
+  mkdirSync(electron, { recursive: true })
+  writeFileSync(join(electron, 'index.js'), `
+const fs = require('node:fs'), path = require('node:path');
+const marker = path.join(__dirname, 'download-attempted');
+if (!fs.existsSync(marker)) {
+  fs.writeFileSync(marker, '1');
+  throw new Error('HTTPError: Response code 504 (Gateway Time-out)');
+}
+fs.writeFileSync(path.join(__dirname, 'initialized'), '1');
+`)
+  const waits = []
+  await initializeElectron(directory, process.env, { wait: async ms => { waits.push(ms) } })
+  assert.deepEqual(waits, [10000])
+  assert.equal(readFileSync(join(electron, 'initialized'), 'utf8'), '1')
+  await initializeElectron(directory, process.env, { wait: async () => assert.fail('Installed runtime must not wait') })
+})
+test('relocated model smoke resolves its UI and onboarding helpers outside the checkout', t => {
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'jab-model-fixture-')))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const fixture = prepareModelFixture(directory), local = createRequire(fixture)
+  assert.equal(readFileSync(fixture, 'utf8'), readFileSync(join(root, 'scripts/model-runtime-smoke.cjs'), 'utf8'))
+  const helpers = [...readFileSync(fixture, 'utf8').matchAll(/require\(['"](\.\/[^'"]+)['"]\)/g)].map(match => match[1])
+  assert(helpers.includes('./complete-onboarding.cjs'))
+  for (const helper of helpers) {
+    assert.equal(local.resolve(helper), join(directory, helper))
+    assert.equal(typeof local(helper), 'function')
+  }
+})
 test('distribution shrinkwrap closes over production and Electron dependencies with exact locked versions', () => {
   const original = require('../package-lock.json'), source = require('../package.json')
   const pkg = { name: '@stark-lin/jab', version: '1.2.3', dependencies: {} }

@@ -4,12 +4,43 @@ const { resolve, join } = require('node:path')
 const { tmpdir } = require('node:os')
 const { spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
+const { setTimeout: delay } = require('node:timers/promises')
 const root = resolve(__dirname, '..')
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', timeout: 300000, ...options })
   assert.equal(result.error, undefined, result.error?.message)
   assert.equal(result.status, 0, `${command} ${args.join(' ')}\n${result.stdout || ''}\n${result.stderr || ''}`)
   return result.stdout || ''
+}
+async function initializeElectron(cwd, env, { spawn = spawnSync, wait = delay } = {}) {
+  // Retry only the official module's runtime download, never the business/runtime checks.
+  // Each attempt is a new process so a failed require cannot leave cached module state.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = spawn(process.execPath, ['-e', "require('electron')"], {
+      cwd, env, encoding: 'utf8', timeout: 120000
+    })
+    if (result.stdout) console.log(result.stdout.trimEnd())
+    if (result.stderr) console.error(result.stderr.trimEnd())
+    const transient = result.error?.code === 'ETIMEDOUT' ||
+      /Response code (?:408|429|5\d\d)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENETUNREACH|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET)\b|fetch failed/i.test(result.stderr || '')
+    if ((result.error || result.status !== 0) && transient && attempt < 3) {
+      const backoff = attempt * 10000
+      console.error(`Electron initialization attempt ${attempt}/3 failed transiently; retrying in ${backoff / 1000}s.`)
+      await wait(backoff)
+      continue
+    }
+    assert.equal(result.error, undefined, result.error?.message)
+    assert.equal(result.status, 0, `Electron initialization failed after ${attempt} attempt(s).\n${result.stdout || ''}\n${result.stderr || ''}`)
+    return
+  }
+}
+function prepareModelFixture(directory) {
+  const fixture = join(directory, 'model-ui-smoke.cjs')
+  cpSync(join(root, 'scripts/model-runtime-smoke.cjs'), fixture)
+  for (const name of ['open-section-cards.cjs', 'complete-onboarding.cjs']) {
+    cpSync(join(root, 'scripts', name), join(directory, name))
+  }
+  return fixture
 }
 async function main() {
   const artifact = join(root, 'dist/npm-artifacts/manifest.json')
@@ -61,7 +92,7 @@ console.log('Pure Node jab mcp verified Main-initialized storage, public tools w
     // The tarball is genuinely installed outside the repository. Initialize Electron through
     // its official runtime module; no dependency or binary is copied from the checkout.
     delete env.ELECTRON_SKIP_BINARY_DOWNLOAD
-    run(process.execPath, ['-e', "require('electron')"], { cwd: installed, env, stdio: 'inherit' })
+    await initializeElectron(installed, env)
     const doctor = JSON.parse(run(process.execPath, [cli, 'doctor'], { cwd: tmpdir(), env }))
     assert(doctor.electron.executable.startsWith(scratch)); assert(doctor.mcp)
     for (const [name, version] of Object.entries(pkg.dependencies)) {
@@ -100,9 +131,7 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     const modelSeed = process.env.JAB_NPM_MODEL_SEED || join(root, '.cache/models/multilingual-e5-small')
     let semantic = false, installedModelRecord
     if (existsSync(join(modelSeed, 'onnx/model_int8.onnx'))) {
-      const fixture = join(scratch, 'model-ui-smoke.cjs')
-      cpSync(join(root, 'scripts/model-runtime-smoke.cjs'), fixture)
-      cpSync(join(root, 'scripts/open-section-cards.cjs'), join(scratch, 'open-section-cards.cjs'))
+      const fixture = prepareModelFixture(scratch)
       mkdirSync(env.JAB_MODEL_STORE, { recursive: true })
       writeFileSync(join(env.JAB_MODEL_STORE, 'seed-preferences.json'), JSON.stringify({ autoImportSeed: false, seedInitializedRevisions: [] }))
       const modelData = join(scratch, 'model-ui-data'); mkdirSync(modelData)
@@ -120,7 +149,7 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-audit', '--no-fund', tarball], { cwd: scratch, env, stdio: 'inherit' })
     assert.equal(run(process.execPath, [cli, '--version'], { cwd: tmpdir(), env }).trim(), report.version)
     if (installedModelRecord) {
-      run(process.execPath, ['-e', "require('electron')"], { cwd: installed, env, stdio: 'inherit' })
+      await initializeElectron(installed, env)
       const reopened = JSON.parse(run(process.execPath, [cli, 'doctor'], { cwd: tmpdir(), env }))
       assert.equal(reopened.model.state, 'ready', 'Reinstall must detect and verify existing user model weights')
     }
@@ -130,5 +159,5 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     console.log('Clean npm installation verified: GUI, preload, Pi Ask, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
   } finally { rmSync(scratch, { recursive: true, force: true }) }
 }
-module.exports = { main }
+module.exports = { main, initializeElectron, prepareModelFixture }
 if (require.main === module) void main().catch(error => { console.error(error); process.exitCode = 1 })

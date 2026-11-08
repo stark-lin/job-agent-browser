@@ -50,6 +50,8 @@ npm run release:npm:check
 
 [干净安装冒烟](../scripts/npm-runtime-smoke.cjs) 在仓库外安装 tarball，通过官方模块初始化 Electron，检查直接依赖解析版本、version/doctor、真实 GUI/Preload/模型控件、Main 初始化存储后的显式 `jab mcp`、拒绝未完成工作区启动、外部连接无 Memory 工具、无模型检索、HTML/PDF 和卸载/重装持久性。存在准备好的测试模型时，使用真实 revision/校验值与 fixture 传输，通过 GUI 检查离线失败、取消/复用、安装后即时跨语言索引和删除；发行 CI 要求该项通过。仅成功测试会将 manifest 标记为运行时已验证。这些检查证明当前主机可运行；干净用户的系统身份仍是独立发布门槛。
 
+Electron 初始化（包括重装后）遇到临时 HTTP 408/429/5xx、网络故障或进程超时时，在新的 Node 进程中重试，最多三次，每次超时两分钟，两次等待分别为 10/20 秒。每次尝试保留下载器诊断，并使用已安装包的官方模块、缓存和校验机制。资源不存在、权限或校验值不匹配等永久错误立即失败；重试耗尽仍会失败。GUI、MCP、PDF 及其他运行时断言不重试。模型 GUI fixture 会将折叠卡片与引导流程辅助脚本一同带入临时安装目录（[回归测试](../tests/npm-distribution.test.cjs)）。
+
 [CLI](../packages/npm/bin/jab.cjs) 提供 GUI、version、doctor 和 MCP；[用户指南](../packages/npm/README.zh-CN.md) 负责使用说明。Electron 首次运行初始化独立于可选模型安装（[官方安装行为](https://www.electronjs.org/docs/latest/tutorial/installation)）。本次发行按明确选择，让 npm/DMG 共享默认 JAB 用户数据目录。不要同时运行两个渠道访问该目录；凭据兼容性尚未验证，解密失败不会重置密钥。
 
 ## 版本、发布与重试
