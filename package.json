@@ -8,7 +8,8 @@
   },
   "main": "out/main/index.js",
   "scripts": {
-    "predev": "install-electron",
+    "predev": "npm run electron:install",
+    "electron:install": "node scripts/install-electron.cjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",

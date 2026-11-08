@@ -14,6 +14,10 @@
 
 [验证](../.github/workflows/validate.yml) 固定 Node 24.22.1，在 `macos-15` ARM64 上运行。显式安装 Electron，运行 `check`、发布脚本测试、不含模型的 npm 内容校验以及构建后的 Electron、Knowledge、Ask AI、智能粘贴、Resume 和外部集成冒烟测试。普通验证不下载模型。[范围检测](../scripts/ci-scope.cjs) 为受影响源码、依赖、资源、打包和工作流增加原生/发行验证。
 
+验证与原生打包、本地 `electron:install`/`predev`、npm 干净安装与重装均使用同一个[共享安装器](../scripts/install-electron.cjs)。它在新的 Node 进程中初始化官方模块，遇到临时 HTTP 408/429/5xx、网络故障或进程超时时最多尝试三次，每次超时两分钟，两次等待分别为 10/20 秒。保留下载器诊断与校验机制。资源不存在、权限或校验值不匹配立即失败；重试耗尽仍会失败。运行时断言不重试（[回归测试](../tests/npm-distribution.test.cjs)）。
+
+两个工作流均将 `electron_config_cache` 设为工作区内的 `.cache/electron`，按 runner 系统/架构和锁文件哈希缓存官方下载归档。npm 干净安装通过官方下载器复用归档缓存；不会复制 node_modules 或仓库中已解压的二进制。
+
 [Electron 冒烟测试](../scripts/smoke.cjs) 记录 Main 未捕获异常并立即退出，避免错误弹窗阻塞无人值守运行。其 [AI fixture](../scripts/ai-smoke.cjs) 提供模型发现、运行时上下文元数据和流式回复；Ask 在推理前验证 fixture 的实际部署上下文。独立的[智能粘贴与全局通知冒烟测试](../scripts/smart-paste-smoke.cjs)先于通用 Electron 冒烟测试运行。
 
 [打包](../.github/workflows/package.yml) 包含两个作业：附带已校验离线 Seed/推理的 Full DMG，以及经过干净安装/运行时冒烟测试的不含模型 npm tarball。两者使用相同发布元数据。不接受跨架构运行结果。Windows、Linux 和 macOS x64 仍为**脚手架**，不参与发布。
@@ -28,7 +32,7 @@
 
 ```sh
 npm ci
-npx --no-install install-electron
+npm run electron:install
 npm run check
 npm run test:release
 npm run model:prepare
@@ -50,7 +54,7 @@ npm run release:npm:check
 
 [干净安装冒烟](../scripts/npm-runtime-smoke.cjs) 在仓库外安装 tarball，通过官方模块初始化 Electron，检查直接依赖解析版本、version/doctor、真实 GUI/Preload/模型控件、Main 初始化存储后的显式 `jab mcp`、拒绝未完成工作区启动、外部连接无 Memory 工具、无模型检索、HTML/PDF 和卸载/重装持久性。存在准备好的测试模型时，使用真实 revision/校验值与 fixture 传输，通过 GUI 检查离线失败、取消/复用、安装后即时跨语言索引和删除；发行 CI 要求该项通过。仅成功测试会将 manifest 标记为运行时已验证。这些检查证明当前主机可运行；干净用户的系统身份仍是独立发布门槛。
 
-Electron 初始化（包括重装后）遇到临时 HTTP 408/429/5xx、网络故障或进程超时时，在新的 Node 进程中重试，最多三次，每次超时两分钟，两次等待分别为 10/20 秒。每次尝试保留下载器诊断，并使用已安装包的官方模块、缓存和校验机制。资源不存在、权限或校验值不匹配等永久错误立即失败；重试耗尽仍会失败。GUI、MCP、PDF 及其他运行时断言不重试。模型 GUI fixture 会将折叠卡片与引导流程辅助脚本一同带入临时安装目录（[回归测试](../tests/npm-distribution.test.cjs)）。
+模型 GUI fixture 会将折叠卡片与引导流程辅助脚本一同带入临时安装目录（[回归测试](../tests/npm-distribution.test.cjs)）。
 
 [CLI](../packages/npm/bin/jab.cjs) 提供 GUI、version、doctor 和 MCP；[用户指南](../packages/npm/README.zh-CN.md) 负责使用说明。Electron 首次运行初始化独立于可选模型安装（[官方安装行为](https://www.electronjs.org/docs/latest/tutorial/installation)）。本次发行按明确选择，让 npm/DMG 共享默认 JAB 用户数据目录。不要同时运行两个渠道访问该目录；凭据兼容性尚未验证，解密失败不会重置密钥。
 

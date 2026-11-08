@@ -4,35 +4,13 @@ const { resolve, join } = require('node:path')
 const { tmpdir } = require('node:os')
 const { spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
-const { setTimeout: delay } = require('node:timers/promises')
+const { initializeElectron } = require('./install-electron.cjs')
 const root = resolve(__dirname, '..')
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', timeout: 300000, ...options })
   assert.equal(result.error, undefined, result.error?.message)
   assert.equal(result.status, 0, `${command} ${args.join(' ')}\n${result.stdout || ''}\n${result.stderr || ''}`)
   return result.stdout || ''
-}
-async function initializeElectron(cwd, env, { spawn = spawnSync, wait = delay } = {}) {
-  // Retry only the official module's runtime download, never the business/runtime checks.
-  // Each attempt is a new process so a failed require cannot leave cached module state.
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const result = spawn(process.execPath, ['-e', "require('electron')"], {
-      cwd, env, encoding: 'utf8', timeout: 120000
-    })
-    if (result.stdout) console.log(result.stdout.trimEnd())
-    if (result.stderr) console.error(result.stderr.trimEnd())
-    const transient = result.error?.code === 'ETIMEDOUT' ||
-      /Response code (?:408|429|5\d\d)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENETUNREACH|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET)\b|fetch failed/i.test(result.stderr || '')
-    if ((result.error || result.status !== 0) && transient && attempt < 3) {
-      const backoff = attempt * 10000
-      console.error(`Electron initialization attempt ${attempt}/3 failed transiently; retrying in ${backoff / 1000}s.`)
-      await wait(backoff)
-      continue
-    }
-    assert.equal(result.error, undefined, result.error?.message)
-    assert.equal(result.status, 0, `Electron initialization failed after ${attempt} attempt(s).\n${result.stdout || ''}\n${result.stderr || ''}`)
-    return
-  }
 }
 function prepareModelFixture(directory) {
   const fixture = join(directory, 'model-ui-smoke.cjs')
@@ -159,5 +137,5 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     console.log('Clean npm installation verified: GUI, preload, Pi Ask, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
   } finally { rmSync(scratch, { recursive: true, force: true }) }
 }
-module.exports = { main, initializeElectron, prepareModelFixture }
+module.exports = { main, prepareModelFixture }
 if (require.main === module) void main().catch(error => { console.error(error); process.exitCode = 1 })

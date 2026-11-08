@@ -9,7 +9,8 @@ const { createRequire } = require('node:module')
 const { distributionLock } = require('../scripts/prepare-npm-package.cjs')
 const { verifyArtifact, registryVersion, publishArtifact } = require('../scripts/publish-npm.cjs')
 const { verifyMetadataAndDocs } = require('../scripts/verify-npm-package.cjs')
-const { initializeElectron, prepareModelFixture } = require('../scripts/npm-runtime-smoke.cjs')
+const { initializeElectron } = require('../scripts/install-electron.cjs')
+const { prepareModelFixture } = require('../scripts/npm-runtime-smoke.cjs')
 const root = join(__dirname, '..')
 const lookupArgs = version => ['view', `@stark-lin/jab@${version}`, 'dist.integrity', '--json', '--registry=https://registry.npmjs.org/', '--fetch-retries=0', '--fetch-timeout=10000']
 test('clean-install Electron initialization retries transient downloads with bounded backoff', async t => {
@@ -91,6 +92,14 @@ fs.writeFileSync(path.join(__dirname, 'initialized'), '1');
   assert.deepEqual(waits, [10000])
   assert.equal(readFileSync(join(electron, 'initialized'), 'utf8'), '1')
   await initializeElectron(directory, process.env, { wait: async () => assert.fail('Installed runtime must not wait') })
+  // The CI command must resolve the runtime from its cwd, not from the helper's checkout.
+  const cli = join(root, 'scripts/install-electron.cjs')
+  const success = spawnSync(process.execPath, [cli], { cwd: directory, encoding: 'utf8', timeout: 5000 })
+  assert.equal(success.status, 0, success.stderr)
+  writeFileSync(join(electron, 'index.js'), "throw new Error('HTTPError: Response code 404 (Not Found)')")
+  const failure = spawnSync(process.execPath, [cli], { cwd: directory, encoding: 'utf8', timeout: 5000 })
+  assert.equal(failure.status, 1, failure.stderr)
+  assert.match(failure.stderr, /failed after 1 attempt\(s\)/)
 })
 test('relocated model smoke resolves its UI and onboarding helpers outside the checkout', t => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'jab-model-fixture-')))

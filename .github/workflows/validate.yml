@@ -3,6 +3,8 @@ on:
   workflow_call:
 permissions:
   contents: read
+env:
+  electron_config_cache: ${{ github.workspace }}/.cache/electron
 jobs:
   runtime:
     name: Runtime (macos-arm64)
@@ -21,8 +23,13 @@ jobs:
           node-version: 24.22.1
           architecture: arm64
           cache: npm
+      - name: Cache Electron downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
-      - run: npx --no-install install-electron
+      - run: npm run electron:install
       - name: Validate source, tests, build and MCP
         run: npm run check
       - run: npm run test:release

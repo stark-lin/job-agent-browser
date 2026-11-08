@@ -14,6 +14,10 @@ Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` 
 
 [Validation](../.github/workflows/validate.yml) pins Node 24.22.1 and runs on `macos-15` ARM64. It installs Electron explicitly, runs `check`, release-script tests, model-free npm content validation and built smokes for Electron, Knowledge, Ask AI, Smart Paste, Resume and external integration. Ordinary validation requires no model download. [Scope detection](../scripts/ci-scope.cjs) adds native/package validation for affected source, dependencies, resources, packaging and workflows.
 
+Electron setup in validation and native packaging, local `electron:install`/`predev`, and clean npm installation/reinstallation uses one [shared installer](../scripts/install-electron.cjs). It initializes the official module in fresh Node processes and retries transient HTTP 408/429/5xx, network failures and process timeouts up to three attempts, with a two-minute timeout each and 10/20-second backoff. Downloader diagnostics and checksum verification remain enabled. Missing assets, permissions and checksum mismatches fail immediately; exhausted retries remain fatal. Runtime assertions are not retried ([regression tests](../tests/npm-distribution.test.cjs)).
+
+Both workflows set `electron_config_cache` to `.cache/electron` in the workspace and cache official download archives by runner OS/architecture and lockfile hash. npm clean installations reuse that archive cache through the official downloader; node_modules and extracted checkout binaries are not copied.
+
 The [Electron smoke](../scripts/smoke.cjs) logs uncaught Main exceptions and exits immediately, avoiding a blocking error dialog in unattended runs. Its [AI fixture](../scripts/ai-smoke.cjs) serves model discovery, runtime context metadata and streaming completions; Ask verifies the fixture's deployed context before inference. The dedicated [Smart Paste and Banner smoke](../scripts/smart-paste-smoke.cjs) runs before the general Electron smoke.
 
 [Packaging](../.github/workflows/package.yml) has two jobs: Full DMG with verified offline Seed/inference, and a model-free npm tarball with a clean installation/runtime smoke. Both use the same release metadata. No cross-architecture result is accepted. Windows, Linux and macOS x64 remain **Scaffolded**, outside publication.
@@ -28,7 +32,7 @@ The [base builder](../electron-builder.yml) produces Minimal desktop apps; [Full
 
 ```sh
 npm ci
-npx --no-install install-electron
+npm run electron:install
 npm run check
 npm run test:release
 npm run model:prepare
@@ -50,7 +54,7 @@ npm run release:npm:check
 
 [Clean-install smoke](../scripts/npm-runtime-smoke.cjs) installs the tarball outside the checkout, initializes Electron through its official module, verifies resolved direct versions, version/doctor, real GUI/Preload/model controls, explicit `jab mcp` after Main initializes storage, rejection of unfinished workspace startup, absence of external Memory tools, missing-model retrieval, HTML/PDF and uninstall/reinstall persistence. With prepared test weights, real revision bytes/checksums and fixture transport exercise GUI offline failure, cancellation/reuse, immediate cross-language indexing and removal; release CI requires this semantic gate. Only a successful smoke marks the manifest runtime-verified. These checks establish current-host operation; clean-user OS identity remains a separate release gate.
 
-Electron initialization (including after reinstall) retries transient HTTP 408/429/5xx, network failures and process timeouts in fresh Node processes, up to three attempts with a two-minute timeout each and 10/20-second backoff. Each attempt preserves downloader diagnostics and uses the installed package's official module/cache and checksum verification. Permanent failures such as missing assets, permissions or checksum mismatches fail immediately; exhausted retries remain fatal. GUI, MCP, PDF and other runtime assertions are not retried. The model GUI fixture brings its section-card and onboarding helpers into the temporary install directory ([regression tests](../tests/npm-distribution.test.cjs)).
+The model GUI fixture brings its section-card and onboarding helpers into the temporary install directory ([regression tests](../tests/npm-distribution.test.cjs)).
 
 [CLI](../packages/npm/bin/jab.cjs) exposes GUI, version, doctor and MCP; [consumer guide](../packages/npm/README.md) owns usage. Electron first-run initialization is separate from optional model installation ([official installation behavior](https://www.electronjs.org/docs/latest/tutorial/installation)). npm/DMG share the default JAB user-data directory, as explicitly selected for this release. Do not run both against it concurrently; credential compatibility is unverified and decrypt failures do not reset secrets.
 
