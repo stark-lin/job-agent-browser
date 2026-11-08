@@ -31,11 +31,17 @@ const luminance = color => {
   return channels.reduce((total, channel, index) => total + [0.2126, 0.7152, 0.0722][index] *
     (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4), 0)
 }
-for (const [foreground, background] of [['text', 'bg'], ['text', 'surface'], ['muted', 'surface'],
-  ['primary', 'primary-soft'], ['danger', 'surface'], ['danger', 'danger-bg'], ['success', 'success-bg'],
-  ['warning', 'warning-bg'], ['on-primary', 'primary'], ['on-primary', 'primary-hover']]) {
-  const [low, high] = [luminance(darkTokens[foreground]), luminance(darkTokens[background])].sort((a, b) => a - b)
-  assert((high + 0.05) / (low + 0.05) >= 4.5, `${foreground}/${background}: dark text contrast must reach 4.5:1`)
+for (const [theme, palette] of [['light', tokens], ['dark', { ...tokens, ...darkTokens }]]) {
+  for (const [foreground, background] of [['text', 'bg'], ['text', 'surface'], ['text', 'quiet'],
+    ['text', 'primary-soft'], ['text', 'primary-line'], ['muted', 'surface'], ['muted', 'quiet'], ['muted-2', 'quiet'],
+    ['danger', 'surface'], ['danger', 'quiet'], ['danger', 'danger-bg'], ['success', 'quiet'],
+    ['success', 'success-bg'], ['warning', 'quiet'], ['warning', 'warning-bg'],
+    ['on-primary', 'primary'], ['on-primary', 'primary-hover']]) {
+    const [low, high] = [luminance(palette[foreground]), luminance(palette[background])].sort((a, b) => a - b)
+    assert((high + 0.05) / (low + 0.05) >= 4.5, `${foreground}/${background}: ${theme} text contrast must reach 4.5:1`)
+  }
+  assert.equal(palette.primary, '#0066FF', `${theme}: use the fixed V3 brand blue`)
+  assert.equal(palette['primary-hover'], palette.primary, `${theme}: hover retains the brand blue`)
 }
 const pixels = (name) => {
   assert(/^\d+px$/.test(tokens[name]), `${name}: expected a pixel dimension`)
@@ -100,7 +106,7 @@ assert.equal(pixels('focus-width'), 2)
 assert.deepEqual(Object.entries(tokens).filter(([name]) => /^space-/.test(name)).map(([, value]) => Number.parseInt(value)),
   [0, 8, 16, 24, 32, 40, 48, 64, 80, 96], 'Only the approved spacing scale is allowed')
 assert.deepEqual(['primary', 'success', 'warning', 'danger'].map((name) => tokens[name]),
-  ['#2563eb', '#16a34a', '#d97706', '#dc2626'], 'Preserve the semantic color palette')
+  ['#0066FF', '#186541', '#815000', '#A52E34'], 'Preserve the Designless V3 semantic color palette')
 for (const [name, value] of Object.entries(tokens)) {
   if (/^\d+px$/.test(value) && !/^(font-|border-width$|focus-width$)/.test(name)) {
     assert.equal(Number.parseInt(value) % 8, 0, `${name}: geometry must follow the 8px grid`)

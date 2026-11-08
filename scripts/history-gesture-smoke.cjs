@@ -19,12 +19,17 @@ module.exports = async function gestureSmoke({ window, call, read, active, evalu
     const chrome = await evaluate('document.querySelector(".browser-controls").getBoundingClientRect().bottom')
     const indicator = surface.children.find(child => child !== view && child.webContents)
     assert(indicator, 'Native history arrow is separate from website content')
+    indicator.webContents.setBackgroundThrottling(false)
     await waitFor(() => indicator.webContents.getTitle() === 'History indicator', 'history arrow ready')
     const fixedContent = view.getBounds()
     async function arrow(direction, ready = true, available = true) {
-      await waitFor(async () => indicator.getVisible() && await indicator.webContents.executeJavaScript(
-        `document.documentElement.dataset.direction === '${direction}' && document.documentElement.dataset.ready === '${ready}' && document.documentElement.dataset.available === '${available}'`
-      ), `${direction} arrow feedback`)
+      await waitFor(async () => {
+        // Read the hidden renderer too: its pending draw must settle before visibility.
+        const matches = await indicator.webContents.executeJavaScript(
+          `document.documentElement.dataset.direction === '${direction}' && document.documentElement.dataset.ready === '${ready}' && document.documentElement.dataset.available === '${available}'`
+        )
+        return matches && indicator.getVisible()
+      }, `${direction} arrow feedback`)
       assert.deepEqual(view.getBounds(), fixedContent, 'Website content stays fixed during gestures')
       assert.deepEqual(surface.getBounds(), fixed)
       assert.equal(await evaluate('document.querySelector(".browser-controls").getBoundingClientRect().bottom'), chrome)
@@ -36,7 +41,8 @@ module.exports = async function gestureSmoke({ window, call, read, active, evalu
     }
     // sendInputEvent bypasses Electron's native before-mouse hook; replay that hook explicitly.
     async function rightDrag(distance, available = true) {
-      contents.focus()
+      window.focus(); contents.focus()
+      await waitFor(() => contents.executeJavaScript('document.hasFocus()'), 'gesture page focused')
       contents.emit('before-mouse-event', { preventDefault() {} }, { type: 'mouseDown', button: 'right', x: 320, y: 300, clickCount: 1 })
       contents.emit('before-mouse-event', { preventDefault() {} }, { type: 'mouseMove', x: 320 + distance, y: 300, modifiers: ['rightbuttondown'] })
       await arrow(distance > 0 ? 'back' : 'forward', available && Math.abs(distance) >= Math.min(96, fixed.width / 4), available)

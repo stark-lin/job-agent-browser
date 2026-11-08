@@ -45,6 +45,9 @@ app.once('browser-window-created', (_event, window) => {
         await frames(); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
         writeFileSync(resolve(__dirname, '../.cache', name), (await window.capturePage()).toPNG())
       }
+      // Match the persisted-preference fixture used by the full smoke suite.
+      // Defaults/first-write normalization are covered by settings unit tests.
+      assert.equal((await data('settings', 'savePreferences', {})).ok, true)
       await call('navigate', 'app://settings'); await formsReady()
       await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState,
         views: () => require('./native-views.cjs').views(window), origin, field,
@@ -57,10 +60,10 @@ app.once('browser-window-created', (_event, window) => {
         // macOS keeps the app alive after its final window closes; activation recreates it.
         const recreated = new Promise(resolve => app.once('browser-window-created', (_event, next) => resolve(next)))
         window.destroy()
-        assert.equal(nativeTheme.listenerCount('updated'), listeners - 1, 'Disposed window releases theme listener')
+        assert.equal(nativeTheme.listenerCount('updated'), listeners - 2, 'Disposed window releases browser and Banner theme listeners')
         app.emit('activate')
         const next = await recreated
-        assert.equal(next.getBackgroundColor().toLowerCase(), '#18181b', 'Recreated native window starts dark')
+        assert.equal(next.getBackgroundColor().toLowerCase(), '#141618', 'Recreated native window starts dark')
         await new Promise(resolve => next.webContents.once('did-finish-load', resolve))
         await waitFor(() => next.webContents.executeJavaScript("document.documentElement.dataset.theme === 'dark'"), 'recreated renderer dark')
       }

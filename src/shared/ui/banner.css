@@ -10,6 +10,7 @@
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-dialog);
   color: var(--text);
   font: var(--font-sm)/var(--line-sm) var(--font);
 }

@@ -19,7 +19,9 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     const properties = ['padding', 'margin', 'gap', 'fontFamily', 'fontSize', 'lineHeight', 'fontWeight', 'borderRadius', 'borderWidth', 'transitionDuration', 'animationDuration'];
     return [...document.querySelectorAll('.ui-select, .ui-input, .ui-section-card, .ui-icon-box, .ai-composer, .ui-navigation-item, .tab-strip, .browser-controls, .address-form')].map(node => {
       const style = getComputedStyle(node), rect = node.getBoundingClientRect();
-      return { className: node.className, rect: [rect.x, rect.y, rect.width, rect.height], styles: properties.map(property => style[property]) };
+      // Closed details can retain stale native-select bounds; only rendered boxes have layout.
+      const visible = node.checkVisibility();
+      return { className: node.className, visible, rect: visible ? [rect.x, rect.y, rect.width, rect.height] : null, styles: properties.map(property => style[property]) };
     });
   })()`)
   const change = async theme => {

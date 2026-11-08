@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Job Browser — Component Library · 8px Grid</title>
+<title>Job Browser — Designless V3 · Component Library</title>
 <link rel="stylesheet" href="job-browser-component-library-8px.css" />
 </head>
 <body>
@@ -53,9 +53,9 @@
         <div class="eyebrow">Job Browser</div>
         <h1>Component Library</h1>
         <div class="lead">
-          An 8px-grid interface system for Job Agent Browser.
-          All component spacing and major dimensions share one rhythm; blue is for actions,
-          green for success, amber for warnings and red for errors.
+          Designless V3 for Job Agent Browser: Silver Graphite / Neutral Black, fixed #0066FF.
+          Neutral surfaces and static shadows distinguish component boundaries.
+          Existing spacing, type, layout and interactions stay unchanged.
         </div>
         <div class="downloads" aria-label="Download design assets">
           <a class="btn" href="job-browser-component-library-8px.css" download>Download CSS</a>
@@ -74,10 +74,10 @@
           <div class="demo-label">Core colors</div>
           <div class="demo-stage">
             <div class="swatches">
-              <div class="swatch"><div class="swatch-chip" style="background:var(--bg)"></div><div class="swatch-name">Background</div><div class="swatch-value">#f7f7f5</div></div>
-              <div class="swatch"><div class="swatch-chip" style="background:var(--surface)"></div><div class="swatch-name">Surface</div><div class="swatch-value">#ffffff</div></div>
-              <div class="swatch"><div class="swatch-chip" style="background:var(--text)"></div><div class="swatch-name">Text</div><div class="swatch-value">#171717</div></div>
-              <div class="swatch"><div class="swatch-chip" style="background:var(--line)"></div><div class="swatch-name">Line</div><div class="swatch-value">#deded9</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--bg)"></div><div class="swatch-name">Background</div><div class="swatch-value">#F6F7F9</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--surface)"></div><div class="swatch-name">Surface</div><div class="swatch-value">#FFFFFF</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--text)"></div><div class="swatch-name">Text</div><div class="swatch-value">#1B2028</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--quiet)"></div><div class="swatch-name">Control</div><div class="swatch-value">#E8EAEE</div></div>
             </div>
           </div>
         </div>
@@ -86,10 +86,10 @@
           <div class="demo-label">Semantic colors</div>
           <div class="demo-stage">
             <div class="swatches">
-              <div class="swatch"><div class="swatch-chip" style="background:var(--primary)"></div><div class="swatch-name">Action · Blue</div><div class="swatch-value">#2563eb</div></div>
-              <div class="swatch"><div class="swatch-chip" style="background:var(--success)"></div><div class="swatch-name">Success · Green</div><div class="swatch-value">#16a34a</div></div>
-              <div class="swatch"><div class="swatch-chip" style="background:var(--warning)"></div><div class="swatch-name">Warning · Amber</div><div class="swatch-value">#d97706</div></div>
-              <div class="swatch"><div class="swatch-chip" style="background:var(--danger)"></div><div class="swatch-name">Error · Red</div><div class="swatch-value">#dc2626</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--primary)"></div><div class="swatch-name">Action · Blue</div><div class="swatch-value">#0066FF</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--success)"></div><div class="swatch-name">Success · Green</div><div class="swatch-value">#186541</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--warning)"></div><div class="swatch-name">Warning · Amber</div><div class="swatch-value">#815000</div></div>
+              <div class="swatch"><div class="swatch-chip" style="background:var(--danger)"></div><div class="swatch-name">Error · Red</div><div class="swatch-value">#A52E34</div></div>
             </div>
           </div>
         </div>
@@ -621,7 +621,7 @@
             <div class="ui-activity ui-activity--failed"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Archive job · Not executed<details class="ui-collapsible"><summary>Details</summary><div class="ui-collapsible-content"><dl class="ui-details-list"><div><dt>Chat Run ID</dt><dd>f2ad4f18-70d3-4a20-9037-93440e0c6111</dd></div><div><dt>Run state</dt><dd>Failed</dd></div><div><dt>Calls / dispatched / rejected</dt><dd>4 / 1 / 3</dd></div><div><dt>Confirmed effect</dt><dd>Saved job · Archived</dd></div><div><dt>Protection reason</dt><dd>The same rejected operation was attempted again.</dd></div></dl></div></details></div></div>
             <div class="ui-activity ui-activity--uncertain"><span class="ui-activity-symbol" aria-hidden="true">!</span><div class="ui-activity-body">Operation may have completed<div class="ui-activity-description">Check the current state before trying again.</div></div></div>
             <div class="ui-chat-message">Your experience matches these requirements.</div>
-            <p class="rule-note">Composer focus keeps the neutral border and shadow; the textarea has no focus outline or glow. Model and action controls retain their focus indicators.</p>
+            <p class="rule-note">Composer focus keeps the neutral boundary and static boundary shadow; the textarea has no focus outline or glow. Model and action controls retain their focus indicators.</p>
             <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Example message" placeholder="Ask anything about your job search…"></textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Example model"><option>Example model</option></select><button class="btn" aria-label="Send example" disabled>↑</button></div></div>
             <p class="muted" role="status">Waiting for the previous run… New messages are queued in this session.</p>
             <div class="ui-composer-surface"><textarea class="control ui-textarea" aria-label="Queued example message">A follow-up question</textarea><div class="ui-composer-controls"><select class="control ui-select" aria-label="Busy example model" disabled><option>Example model</option></select><button class="btn" aria-label="Stop example">■</button><button class="btn" aria-label="Queue example message">↑</button></div></div>

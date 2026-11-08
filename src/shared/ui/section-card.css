@@ -1,6 +1,7 @@
 .ui-section-card, .ui-button.ui-button--add-card {
   min-width: 0; padding: var(--space-3); border: var(--border-width) solid var(--line);
   border-radius: var(--radius-lg); background: var(--panel);
+  box-shadow: var(--shadow);
 }
 .ui-section-heading { display: block; cursor: pointer; }
 .ui-section-heading::-webkit-details-marker { display: none; }
@@ -27,8 +28,11 @@
 .ui-section-card:not([open]), .ui-button.ui-button--add-card { padding-block: var(--space-1); }
 .ui-section-card:not([open]) > .ui-section-heading .ui-section-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ui-button.ui-button--add-card {
-  width: 100%; justify-content: center; border-style: dashed; background: transparent;
+  width: 100%; justify-content: center; border-style: dashed; border-color: var(--field-edge); background: transparent; box-shadow: none;
   color: var(--text-secondary); cursor: pointer; white-space: nowrap; overflow: hidden;
 }
-.ui-button.ui-button--add-card:hover:not(:disabled) { border-color: var(--primary); color: var(--primary-hover); background: var(--primary-soft); }
+.ui-button.ui-button--add-card:hover:not(:disabled) { border-color: var(--primary); color: var(--text); background: var(--primary-soft); }
 .ui-button.ui-button--add-card:disabled { color: var(--muted); cursor: default; }
+
+/* Boundary shadows are static; nested panels use a neutral fill instead. */
+.ui-section-card .ui-section-card { background: var(--quiet); box-shadow: none; }

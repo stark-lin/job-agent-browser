@@ -18,7 +18,7 @@ button[interestfor]:is(.ui-navigation-item, .workspace-navigation-item) {
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-dialog);
   font: var(--weight-medium) var(--font-xs) / var(--line-xs) var(--font);
   overflow-wrap: anywhere;
 }
