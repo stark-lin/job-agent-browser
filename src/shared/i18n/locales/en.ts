@@ -621,6 +621,7 @@ export const en = {
     stages: { COPYING: "Copy profile", REWRITING: "Rewrite bullets", VALIDATING: "Validate resume", PUBLISHING: "Publish resume", OUTPUT: "Build HTML / PDF" },
     statuses: { CREATED: "Created", COPYING: "Copying profile…", REWRITING: "Rewriting bullets…", VALIDATING: "Validating…", PUBLISHING: "Publishing…", PUBLISHED: "Resume published", FAILED: "Generation failed", CANCELLED: "Cancelled", INTERRUPTED: "Interrupted. Generate a new version to retry." },
     trace: "Agent trace", cycles: "ReAct cycles", requests: "Model requests", traceError: "Trace unavailable.",
+    copyDiagnostics: "Copy diagnostic JSON", copyDiagnosticsError: "Could not copy diagnostic JSON. Try again.",
     "outputs": {
         "PENDING": "Output pending",
         "RUNNING": "Building preview and PDF…",

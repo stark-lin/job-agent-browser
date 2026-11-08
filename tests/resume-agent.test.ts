@@ -8,6 +8,7 @@ import { createResumeTasks } from '../src/platform/electron/resume-tasks'
 import { resumeFixture } from './resume-fixture'
 import { firstPartyFixture } from './first-party-fixture'
 import type { ResumeEvent } from '../src/platform/electron/resume-contract'
+import { applyResumeTraceEvent } from '../src/pages/tailor-resume/resume-trace'
 
 async function setup(t: TestContext, batchSize = 1) {
   const f = await firstPartyFixture(t), server = await resumeFixture(batchSize)
@@ -66,6 +67,49 @@ test('desktop model batches independent rewrites without revision bookkeeping or
   assert.equal(writes.length, 2)
   assert(writes.every(item => item.state === 'completed'))
   assert.equal(f.server.requests(), 3)
+})
+
+test('live trace streams partial text, recovers from a sequence gap and preserves cancelled diagnostics', async t => {
+  const f = await setup(t)
+  let send: ((text: string) => void) | undefined
+  f.server.hook((_stage, response) => {
+    response.writeHead(200, { 'content-type': 'text/event-stream' })
+    send = text => response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`)
+    send('Reviewing')
+    return true
+  })
+  const { runId } = await f.start()
+  const waitFor = async (check: () => boolean) => {
+    for (let i = 0; i < 1000; i++) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 5)) }
+    throw new Error('Timed out waiting for live trace')
+  }
+  await waitFor(() => f.events.some(event => event.trace?.type === 'item.delta'))
+  const initial = f.tasks.getTrace(1, { runId })!
+  assert.equal(initial.run.state, 'running')
+  const initialContent = initial.items.at(-1)!.content
+  assert.equal(initialContent.type === 'assistant_message' && initialContent.text, 'Reviewing')
+  // Snapshot readers cannot mutate the recorder's in-memory state.
+  initial.run.error = 'mutated'
+  assert.equal(f.tasks.getTrace(1, { runId })!.run.error, null)
+  const sequence = initial.run.eventSequence
+  send!(' source bullets')
+  await waitFor(() => f.events.some(event => event.trace?.type === 'item.delta' && event.trace.eventSequence > sequence))
+  const delta = f.events.find(event => event.trace?.type === 'item.delta' && event.trace.eventSequence > sequence)!.trace!
+  const updated = applyResumeTraceEvent(initial, delta)!
+  const updatedContent = updated.items.at(-1)!.content
+  assert.equal(updatedContent.type === 'assistant_message' && updatedContent.text, 'Reviewing source bullets')
+  assert.equal(applyResumeTraceEvent(updated, delta), updated)
+  assert.equal(applyResumeTraceEvent(initial, { ...delta, eventSequence: sequence + 2 }), null)
+  const recovered = f.tasks.getTrace(1, { runId })!
+  assert.equal(applyResumeTraceEvent(recovered, delta), recovered)
+  assert.equal(f.tasks.getTask(1, { runId })!.active, true)
+  await assert.rejects(async () => f.tasks.getTrace(2, { runId }), { code: 'FORBIDDEN' })
+  await f.tasks.cancel(1, { runId })
+  const terminal = f.tasks.getTrace(1, { runId })!
+  assert.equal(terminal.run.state, 'cancelled')
+  assert.equal(terminal.items.at(-1)?.state, 'cancelled')
+  assert(f.events.some(event => event.trace?.type === 'run.cancelled'))
+  assert(f.events.every((event, index) => event.sequence === index + 1))
 })
 
 test('cancellation during a hanging model call and owner disposal cannot publish late results', async t => {

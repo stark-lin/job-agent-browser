@@ -124,7 +124,7 @@ React App → Page → Preload → IPC → Main
 
 [申请记录](../src/pages/applications/ApplicationsPage.tsx)支持搜索/状态/归档筛选、25 条分页和手动刷新。详情包含来源、分页事件及[申请 Agent 面板](../src/pages/applications/ApplicationAgentPanel.tsx)。明确指令通过 MCP 执行本地状态/备注/日程/详情/归档动作，缺少信息时追问，部分失败保留已完成动作。保存 Job 后打开其详情。外部日历/邮件动作及重复合并仍为规划。
 
-**已实现 Resume V3。**[主进程任务](../src/platform/electron/resume-tasks.ts)通过 MCP 复制已保存的个人资料，并使用[共享 Agent Engine](../src/platform/agent/engine/index.ts)改写已有要点。[定制简历页面](../src/pages/tailor-resume/TailorResumePage.tsx)展示业务进度、历史及 HTML/PDF 预览，Agent Trace 位于进度下方的默认折叠卡片中。手工保存更新 Artifact，重建无需推理。
+**已实现 Resume V3。**[主进程任务](../src/platform/electron/resume-tasks.ts)通过 MCP 复制已保存的个人资料，并使用[共享 Agent Engine](../src/platform/agent/engine/index.ts)改写已有要点。[定制简历页面](../src/pages/tailor-resume/TailorResumePage.tsx)展示业务进度、历史及 HTML/PDF 预览，[Agent Trace](../src/pages/tailor-resume/ResumeTraceView.tsx) 位于进度下方的默认折叠卡片中。Agent 关联后通过简历 IPC 流式传递时间线事件；展开时读取记录器实时快照，支持事件序列缺口恢复及诊断轮询。“复制诊断 JSON”包含最新生成状态、Artifact 输出元数据和追踪，也支持运行中的部分结果及失败记录。手工保存更新 Artifact，重建无需推理。
 
 ## 四、会话、安全与存储
 

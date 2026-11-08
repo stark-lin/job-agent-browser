@@ -54,6 +54,7 @@ export function useTailorResume() {
       }).catch(() => { if (alive.current) setError('STORAGE_UNAVAILABLE') })
     void refresh(); void refreshHistory()
     const unsubscribe = resume.onEvent(event => {
+      if (event.trace) return
       if (selectedRun.current && event.runId !== selectedRun.current || event.sequence <= sequence.current) return
       sequence.current = event.sequence
       void refresh()

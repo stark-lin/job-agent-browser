@@ -132,6 +132,8 @@
   "chat-content-width": "768px",
   "app": "#E8EAED",
   "rail": "#E1E4E8",
+  "rail-active": "rgba(0,102,255,.2)",
+  "on-rail-active": "#174A8B",
   "quiet": "#E8EAEE",
   "selected": "#E1E5EB",
   "field-edge": "#687583",
