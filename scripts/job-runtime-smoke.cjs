@@ -20,6 +20,7 @@ app.once('browser-window-created', (_event, window) => {
       throw new Error(`Timed out: ${label}`)
     }
     try {
+      await require('./complete-onboarding.cjs')(window)
       if (process.env.JOB_BROWSER_VERIFY_RESTART) {
         const result = await evaluate('window.data.jobs.listJobs({search:"Keep manual title"})')
         assert(result.ok); assert.equal(result.value.total, 1)

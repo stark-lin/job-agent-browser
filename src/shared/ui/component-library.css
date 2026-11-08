@@ -174,7 +174,7 @@ h1 {
 }
 .control::placeholder { color: var(--placeholder); }
 .control:hover { border-color: var(--line-hover); background: var(--quiet); }
-.control:focus { border-color: var(--primary); background: var(--quiet); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: var(--focus-width); }
+.control:focus { border-color: var(--line); background: var(--quiet); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: 0; }
 textarea.control { height: auto; min-height: var(--textarea-height); padding: var(--space-1) var(--space-2); background: var(--quiet); font-size: var(--font-sm); resize: vertical; line-height: var(--line-sm); }
 textarea.control:disabled { background: var(--bg); color: var(--muted); cursor: default; }
 .field-wrap { position: relative; }
@@ -184,6 +184,7 @@ textarea.control:disabled { background: var(--bg); color: var(--muted); cursor: 
   color: var(--muted); display: grid; place-items: center; pointer-events: none;
 }
 .field-error .control { border-color: var(--danger); }
+.field-error .control:focus, .control[aria-invalid="true"]:focus { border-color: var(--line); outline-color: var(--danger); }
 .field-error .field-help { color: var(--danger); }
 .check-row { display: flex; align-items: center; gap: var(--space-1); min-height: var(--control-md); padding-block: var(--space-1); font-size: var(--font-sm); line-height: var(--line-sm); cursor: pointer; overflow-wrap: anywhere; }
 .check-row:has(input:disabled) { color: var(--muted); cursor: default; }

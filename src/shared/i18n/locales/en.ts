@@ -1,5 +1,16 @@
 /** Application-owned copy. Keep complete sentences so translations can reorder words. */
 export const en = {
+  onboarding: {
+    setup: 'Setup steps', appearance: 'Language & background', choice: 'AI connection', model: 'Model', agent: 'Agent', profile: 'Profile', ready: 'Done',
+    language: 'Language', background: 'Background', system: 'System', light: 'Light', dark: 'Dark', next: 'Continue', back: 'Back', skip: 'Skip', later: 'Not now', finish: 'Open JAB',
+    chooseModel: 'Connect a model', modelDescription: 'Use Ask AI inside JAB', chooseAgent: 'Connect external agents', agentDescription: 'Use JAB via MCP and Skills',
+    provider: 'Provider', openai: 'OpenAI-compatible', local: 'Local model', custom: 'Custom endpoint', defaultModel: 'Default model', keyPlaceholder: 'Leave blank to keep the saved key or use no key',
+    discover: 'Find models', test: 'Test', foundModels: '{{count}} models found', defaultLabel: 'Default', invalidModel: 'Enter a valid endpoint and model ID.', verified: 'Verified', installMCP: 'Install MCP', copyMCP: 'Copy MCP config', copySkills: 'Copy Skills guide',
+    manual: 'Enter manually', pdf: 'Import PDF', external: 'External agent', name: 'Name', role: 'Target role', about: 'About', aboutPlaceholder: 'Write a short profile', saveProfile: 'Save profile', nameRequired: 'Enter your name before saving.',
+    choosePdf: 'Choose PDF', importPdf: 'Import', working: 'Working…', importFailed: 'PDF import failed: {{error}}', copy: 'Copy',
+    externalPrompt: 'Read my resume and extract a structured profile. Save it using JAB MCP profile tools and confirm the content before writing.', externalConfirmed: 'I imported my profile using an external agent',
+    configured: 'Configured', notConfigured: 'Not configured', profileReady: 'Created', profilePending: 'Not created', summaryModel: 'AI model', summaryAgent: 'External agent', summaryProfile: 'Profile', restart: 'Restart setup', restartHelp: 'Reopen setup while keeping saved settings and profile data. Save or discard Settings changes first.'
+  },
   selection: {
     ask: 'Send to Ask AI', job: 'Import job', ok: 'OK',
     invalid: 'Select between 1 and 60,000 characters from an HTTP(S) page. The source URL must fit 4,096 characters and the title 1,000 characters.',

@@ -33,6 +33,7 @@ app.on('browser-window-created', (_event, window) => {
     const click = (text) =>
       evaluate(`[...(document.querySelector('dialog[open]')??document).querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent===${JSON.stringify(text)}).click()`)
     try {
+      await require('./complete-onboarding.cjs')(window)
       await evaluate("window.browser.navigate('app://knowledge')")
       await wait(() => evaluate('!!document.querySelector("[data-knowledge-page]")'), 'knowledge page')
       if (process.env.KNOWLEDGE_SMOKE_STAGE === 'restart') {

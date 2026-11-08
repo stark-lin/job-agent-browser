@@ -417,17 +417,19 @@
           </div>
         </div>
         <div class="demo">
+          <div class="demo-label">PDF selection — shared dashed panel</div>
+          <div class="demo-stage"><div class="ui-quiet-panel ui-quiet-panel--dashed"><p>PDF</p><button class="btn">Choose PDF</button></div></div>
           <div class="demo-label">Settings group — shared runtime reference</div>
           <div class="demo-stage settings-example">
             <details class="ui-section-card" aria-labelledby="settings-example-title">
-              <summary class="ui-section-heading"><h2 id="settings-example-title"><span class="ui-section-title">General</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
+              <summary class="ui-section-heading"><h2 id="settings-example-title"><span class="ui-section-title">Language &amp; background</span><svg class="ui-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></h2></summary>
               <p class="ui-section-description">Choose the language and appearance for your workspace.</p>
               <div class="ui-section-body">
-                <div class="grid-2">
-                  <label class="field"><span class="field-label">Language</span><select class="control"><option>English</option><option>简体中文</option></select></label>
-                  <label class="field"><span class="field-label">Appearance</span><select class="control"><option>Light</option><option>Dark</option><option>Follow system</option></select><span class="field-help">Save changes to apply.</span></label>
+                <div class="ui-language-background">
+                  <div class="field"><span class="field-label">Language</span><div class="ui-segmented" role="group" aria-label="Language"><button class="btn ui-button" lang="zh-CN" aria-pressed="false">简体中文</button><button class="btn ui-button" lang="en" aria-pressed="true">English</button></div></div>
+                  <div class="field"><span class="field-label">Background</span><div class="ui-segmented" role="group" aria-label="Background"><button class="btn ui-button" aria-pressed="true">System</button><button class="btn ui-button" aria-pressed="false">Light</button><button class="btn ui-button" aria-pressed="false">Dark</button></div></div>
                 </div>
-                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button></div>
+                <div class="ui-action-row settings-panel-actions"><button class="btn btn-primary" disabled>Save changes</button><button class="btn">Restart setup</button></div>
               </div>
             </details>
             <details class="ui-section-card" aria-labelledby="knowledge-semantic-example-title">

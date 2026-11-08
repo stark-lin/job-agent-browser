@@ -14,7 +14,7 @@
 | 参考示例及其展示样式 | [展示库 HTML](components/job-browser-component-library-8px.html) 和 [component-library.css](../src/shared/ui/component-library.css) |
 | 生成资源 | [Tokens CSS](../src/shared/ui/design-tokens.css)、[原生颜色](../src/shared/ui/theme-colors.ts)、[原生尺寸](../src/shared/ui/geometry.ts)、[原生箭头样式](../src/shared/ui/history-indicator-styles.ts)、[原生导航提示样式](../src/shared/ui/navigation-tooltip-styles.ts)、[独立参考 CSS](components/job-browser-component-library-8px.css) |
 
-[Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。
+[Renderer 入口](../src/renderer/main.tsx)导入 `components.css`，后者导入生成的 Tokens。展示库加载独立参考 CSS，并提供该 CSS、Tokens CSS 和 Tokens JSON 的下载。将 HTML 与独立 CSS 保存在同一目录即可离线查看，无需构建或外部字体。Tokens JSON 是 CSS 值的扁平映射，不是 DTCG 格式。 初始化共享样式位于 [setup.css](../src/shared/ui/setup.css)。StageProgress 可选支持返回先前步骤。
 
 展示库保留十个分类：Foundations、Buttons、Forms、Navigation、Badges & chips、Cards、Job components、Feedback、Overlays、Tables，包含间距标尺和尺寸示例。示例职位、操作及密钥说明都是参考内容，不证明应用已实现相关能力。
 
@@ -26,7 +26,7 @@
 
 | 已实现组件 | 支持用途 | 实现 |
 | --- | --- | --- |
-| `Button`、`ActionRow`、`IconButton` | 操作、图标与浏览器标签变体；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
+| `Button`、`ActionRow`、`IconButton` | 操作、图标与浏览器标签变体、中性按下选中态和起始/末端操作对齐；调用方提供名称和处理函数 | [Button.tsx](../src/shared/ui/Button.tsx) |
 | `CopyButton` | 异步复制并防止重复提交；成功后原按钮禁用并切换为传入的已复制文案，以礼貌实时反馈播报；失败仍可重试 | [CopyButton.tsx](../src/shared/ui/CopyButton.tsx) |
 | `TextArea` | 多行模型 ID、聊天输入和个人简介；最小高度使用 96px Token，支持缩放/焦点/禁用/错误状态 | [TextArea.tsx](../src/shared/ui/TextArea.tsx) |
 | `Checkbox` | 原生键盘/焦点/禁用行为、关联可换行标签、40px 最小点击区及 16px 勾选控件，用于独立忽略控件 | [Checkbox.tsx](../src/shared/ui/Checkbox.tsx) |
@@ -38,13 +38,14 @@
 | `Sidebar`, `NavigationGroup`, `NavigationItem` | 图标栏、无障碍导航分组及带定位标题提示和当前页面状态的命名按钮 | [Sidebar.tsx](../src/shared/ui/Sidebar.tsx) |
 | `Icon`, `IconBox` | SVG 图形与中性/主要语义图标容器 | [Icon.tsx](../src/shared/ui/Icon.tsx) |
 | `FeatureCard` | 带图标、标题和描述的功能入口 | [FeatureCard.tsx](../src/shared/ui/FeatureCard.tsx) |
+| `LanguageBackground`, `SegmentedControl` | 初始化和 Settings 共用的语言/背景分组；带标签、按下状态及原生键盘操作。分段控件遵循参考：外层高 40px、按钮高 32px、内边距及间隔取 `--space-1` 的一半、圆角 8px，并使用 quiet/selected 语义颜色。 | [LanguageBackground.tsx](../src/shared/ui/LanguageBackground.tsx) |
 | `FormField`, `Select` | 关联标签、帮助/错误及原生选择 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `SectionCard` | 带标题的可折叠内容面板 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `StatusMessage` | 中性、信息、成功及错误反馈 | [Form.tsx](../src/shared/ui/Form.tsx) |
 | `Dialog` | 原生模态焦点约束、可选正文；页面管理操作及取消 | [Dialog.tsx](../src/shared/ui/Dialog.tsx) |
 | `DataTable`、`Badge`、`DetailsList` | 命名滚动区、列标题、元数据列表及带文字的中性/成功/错误徽章 | [DataTable.tsx](../src/shared/ui/DataTable.tsx) |
 | `PlaceholderPage` | 明确的待实现布局，操作由页面提供 | [PlaceholderPage.tsx](../src/shared/ui/PlaceholderPage.tsx) |
-| `StageProgress` / `DocumentPreview` | 带当前步骤语义的业务阶段列表；隔离来源且禁脚本的 iframe，共享高度 640px，由 Main 阻止导航 | [StageProgress.tsx](../src/shared/ui/StageProgress.tsx)、[DocumentPreview.tsx](../src/shared/ui/DocumentPreview.tsx) |
+| `StageProgress` / `DocumentPreview` | 带当前步骤语义、可选返回操作的业务阶段列表；WizardCard/ChoiceCard/QuietPanel/Radio 提供共享初始化表面（含虚线 PDF 面板）和选择控件（[Setup.tsx](../src/shared/ui/Setup.tsx)）；隔离来源且禁脚本的 iframe，共享高度 640px，由 Main 阻止导航 | [StageProgress.tsx](../src/shared/ui/StageProgress.tsx)、[DocumentPreview.tsx](../src/shared/ui/DocumentPreview.tsx) |
 
 - 缺少基础组件或变体时，先加入 `src/shared/ui/` 并从中央入口导出，再用于页面。仅存在展示示例的表单、徽章、职位卡片、反馈、对话框和表格，若未由现有基础组件表达，仍需中央 React 实现。
 - 通用外观、尺寸、视觉状态和无障碍默认行为归中央库。页面 CSS 可通过共享 Tokens 安排布局，不得复制控件样式、重写 `.ui-*` 选择器或通过内联样式绕过中央库。
@@ -91,7 +92,7 @@ Designless V3 已落实到权威 Tokens 与共享组件外观。提供的 V3 HTM
 
 语义色克制用于带真实标签的小面积文字/图标。状态背景保持中性；破坏性按钮保留克制的 danger 背景。Saved/Closed 保持中性，Applied/Interview 使用信息样式。阶段本身不自动成为警告/错误。`--info` 与普通链接使用可读前景色；暗色表面上的品牌蓝不满足普通文字对比度，不能用作普通文字色。链接保留下划线。主蓝色控件使用 `--on-primary`（两种主题均为白色）；半透明蓝色导航选中项使用 `--on-rail-active`。普通文字目标 ≥4.5:1；必要的非文字状态区别目标 ≥3:1。静态检查覆盖选定色对，不代表所有叠加状态。
 
-`--line`/`--line-hover` 为透明色，在保留现有边框盒尺寸的同时移除装饰边框。功能性分隔使用 `--muted-line`，新增卡片轮廓使用 `--field-edge`，保留无效字段边缘和键盘焦点轮廓。区块标题不加分隔线。阴影**仅增强组件边界辨识度**：外层卡片/输入容器使用静态 `--shadow`，浮层、提示和 Banner 使用 `--shadow-dialog`；嵌套卡片不额外添加阴影。悬停、焦点、选中、成功和进度均不新增或改变阴影。焦点使用 2px 轮廓，无光晕。避免泛蓝应用表面、玻璃模糊、渐变、装饰编号、emoji 点缀、彩色左边条和过大阴影；保留功能图标与语义标签。
+`--line`/`--line-hover` 为透明色，在保留现有边框盒尺寸的同时移除装饰边框。功能性分隔使用 `--muted-line`，新增卡片轮廓使用 `--field-edge`，保留无效字段边缘和键盘焦点轮廓。区块标题不加分隔线。阴影**仅增强组件边界辨识度**：外层卡片/输入容器使用静态 `--shadow`，浮层、提示和 Banner 使用 `--shadow-dialog`；嵌套卡片不额外添加阴影。悬停、焦点、选中、成功和进度均不新增或改变阴影。字段/地址栏聚焦时仅使用贴合控件的一圈 2px 轮廓，保留的 1px 边框变为透明；无效字段聚焦时使用 danger 轮廓，失焦后恢复 danger 边框。不叠加彩色边框和独立焦点圈。按钮/导航保留可见键盘焦点，不使用光晕。避免泛蓝应用表面、玻璃模糊、渐变、装饰编号、emoji 点缀、彩色左边条和过大阴影；保留功能图标与语义标签。
 
 主题仅修改颜色；结构、尺寸、间距、排版、圆角、边框粗细、阴影偏移/模糊、过渡与行为共用。生成器拒绝非颜色的暗色覆盖和阴影尺寸变化。图库专用颜色也使用权威 Tokens。
 

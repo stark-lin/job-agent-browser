@@ -40,6 +40,7 @@ Commands are defined in [package.json](package.json):
 npm run check
 npm run test:smoke
 npm run test:theme
+npm run test:onboarding
 npm run test:jobs
 npm run test:mcp
 npm run test:mcp-server
@@ -55,7 +56,7 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 
 `test:mcp` checks the existing MCP Client runtime. `test:mcp-server` checks the public Job/Application/Resume surface, runtime parity and a built Node stdio Server with real Electron HTML/PDF output and disposable storage. Both runtime smokes also run in `check`; Server PDF checks require a graphical desktop. See [MCP architecture](docs/mcp-architecture.md).
 
-`test:integrations` builds and verifies external Agent MCP/Skills setup, reconnection, confirmed selective/all removal, stale revisions, trusted IPC and bilingual responsive themes using disposable configuration directories. It requires a graphical desktop.
+`test:onboarding` verifies setup, model discovery/testing, profile saves and process restart using local fixtures and disposable data. `test:integrations` builds and verifies external Agent MCP/Skills setup, reconnection, confirmed selective/all removal, stale revisions, trusted IPC and bilingual responsive themes using disposable configuration directories. It requires a graphical desktop.
 
 `test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. [CI](docs/ci-cd.md) exercises PDF rendering on the macOS arm64 release target; live-provider compatibility and clean-machine behavior beyond CI remain unverified. Resume V3 migrates v18 in place. See [upgrade and recovery](docs/data-architecture.md#3-generation-output-and-deletion).
 

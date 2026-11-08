@@ -20,11 +20,15 @@ React App → Page → Preload → IPC → Main
 
 只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。其他工作区页面隐藏浏览器栏和内部 URL。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现持久化多会话流式 Agent。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；智能笔记已实现。
 
+[OnboardingGate](../src/app/onboarding.tsx) 在 `onboardingCompleted` 缺失/为 false 时先展示[初始化向导](../src/pages/onboarding/OnboardingPage.tsx)，并隐藏原生网页表面。保留参考的步骤布局、可选模型/Agent 路径、返回和跳过。模型发现/测试、MCP/Skills 和资料保存复用现有桥接。选择 PDF 后由“导入”通过现有导入契约完成解析和保存。手动填写需要姓名；求职方向使用带 `target-role` 标签的 `OTHER` 事实。
+
+“进入 JAB”持久化完成状态。Settings 可重新初始化且不删除数据，有未保存修改时禁用入口。未保存的草稿和步骤位置不跨重载保留。[初始化冒烟测试](../scripts/onboarding-runtime-smoke.cjs) 覆盖本地模型调用、资料持久化、双语主题、响应式尺寸及已完成/未完成的进程重启；真实服务商和外部 Agent 客户端仍未验证。
+
 ## 二、工作区路由与浏览器历史
 
 [目标契约](../src/shared/navigation.ts) 白名单包含 `app://find`、`app://resume`、`app://knowledge`、`app://applications`、`app://inbox`、`app://profile`、`app://browser`、`app://ai` 和 `app://settings`。内部 URL 是导航标识，不是已注册的操作系统协议或 Chromium 加载的文档。未知内部目标在修改历史前拒绝。公开 URL 由[产品架构](product-architecture.zh-CN.md)管理。
 
-[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。启动时打开 Ask AI（`app://ai`）；新建或关闭最后一个标签后打开空白 Browser 工作区。选择 Browser 恢复保留的网页或空白工作区。在 Browser 切换标签始终停留在 Browser，即使目标标签上次显示业务页面。关闭活动标签选择右侧邻居，无右侧时选择左侧。
+[BrowserManager](../src/platform/browser/browserManager.ts) 管理标签、当前目标及版本化快照。底层启动目标为 Ask AI（`app://ai`）；新建或关闭最后一个标签后打开空白 Browser 工作区。选择 Browser 恢复保留的网页或空白工作区。在 Browser 切换标签始终停留在 Browser，即使目标标签上次显示业务页面。关闭活动标签选择右侧邻居，无右侧时选择左侧。
 
 [TabNavigation](../src/platform/browser/tabNavigation.ts) 将当前工作区目标与保留的 Browser、Inbox 视图分离。每个 [WebSegment](../src/platform/browser/webSegment.ts) 保留原生视图与 Chromium 历史。Back/Forward 只操作当前 Browser 视图，在首项/末项停止。工作区页面和 Inbox 将两个控件标记为不可用并忽略历史请求。访问工作区页面保留浏览器位置、前进项及当前网页状态；Chromium 历史回放可能重新加载较早文档。
 

@@ -3,7 +3,7 @@ import type { AIChoice, AIError } from '../../shared/ai'
 import type { ImportDraft } from '../../domain/candidate/import.types'
 
 export type ImportError = AIError | 'INVALID_STATE' | 'NOT_FOUND' | 'CONFLICT' | 'PDF_TOO_LARGE' | 'PDF_TOO_MANY_PAGES' | 'PDF_TOO_MUCH_TEXT' | 'PDF_ENCRYPTED' | 'PDF_INVALID' | 'PDF_NO_TEXT' | 'IMPORT_INVALID_OUTPUT' | 'IMPORT_NOT_FOUND'
-export interface PdfSelection { fileId: string; bytes: number }
+export interface PdfSelection { fileId: string; bytes: number; name?: string }
 export interface ImportTask { sessionId: string; taskId: string }
 export type ImportEvent = ImportTask & (
   { type: 'phase'; phase: 'extracting' | 'parsing'; page?: number; pages?: number }

@@ -1,0 +1,29 @@
+.onboarding-page { width: 100%; height: 100%; overflow-y: auto; padding: var(--space-4) var(--space-2); background: var(--bg); display: flex; align-items: safe center; justify-content: center; }
+.onboarding-stage { width: min(680px, 100%); min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); margin: auto; }
+.onboarding-step[hidden] { display: none; }
+.onboarding-stack { display: flex; flex-direction: column; gap: var(--space-2); }
+.onboarding-fields { display: flex; flex-direction: column; gap: var(--space-3); }
+.onboarding-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.onboarding-model-controls { display: flex; gap: var(--space-1); align-items: center; flex-wrap: wrap; }
+.onboarding-model-controls > input { flex: 1 1 232px; width: auto; min-width: 0; }
+.onboarding-results { display: flex; flex-direction: column; gap: var(--space-1); }
+.onboarding-result-head, .onboarding-model-option, .onboarding-agent-label, .onboarding-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.onboarding-result-head, .onboarding-agent-label > span { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-xs); }
+.onboarding-model-option { padding-block: 0; min-height: var(--control-lg); }
+.onboarding-model-option > :first-child { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.onboarding-agent-tools { padding: var(--space-2) 0 0 var(--space-4); }
+.onboarding-drop { display: flex; flex-direction: column; gap: var(--space-2); min-height: 160px; align-items: center; justify-content: center; text-align: center; }
+.onboarding-prompt { display: flex; align-items: flex-start; gap: var(--space-2); }
+.onboarding-prompt > span { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.onboarding-summary { min-height: var(--space-8); }
+.onboarding-summary > strong { font-size: var(--font-sm); line-height: var(--line-sm); font-weight: var(--weight-medium); }
+@media (max-width: 650px) {
+  .onboarding-page { padding: var(--space-3) var(--space-2); }
+  .onboarding-stage { gap: var(--space-2); }
+  .onboarding-two { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .onboarding-model-controls > input { flex-basis: 100%; }
+  .onboarding-agent-label { gap: var(--space-1); }
+  .onboarding-agent-tools { padding-left: var(--space-3); }
+}

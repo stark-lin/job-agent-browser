@@ -27,6 +27,7 @@ app.on('browser-window-created', (_event, window) => {
     const select = async title => { await evaluate(`[...document.querySelectorAll('.ui-session-select')].find(b=>b.textContent.includes(${JSON.stringify(title)})).click()`); await frame() }
     const metadataPath = resolve(directory, 'ask-smoke.json')
     try {
+      await require('./complete-onboarding.cjs')(window)
       if (stage === 'recover') {
         const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'))
         const snapshot = (await api('getRun', { runId: metadata.crashRun })).value

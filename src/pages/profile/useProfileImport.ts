@@ -7,7 +7,7 @@ import type { ImportEvent, ImportTask, PdfSelection } from '../../platform/elect
 import { revealSectionCards } from '../../shared/ui'
 import { importError, importSelection, savedSelection } from './import-state'
 
-export function useProfileImport(profile: Profile | null, onSaved: (profile: Profile) => Promise<void>) {
+export function useProfileImport(profile: Profile | null, onSaved: (profile: Profile) => Promise<void>, preferredChoice?: AIChoice | null) {
   const { data, profileImport, context } = useServices()
   const [settings, setSettings] = useState<AISettings | null>(null), [draft, setDraft] = useState<ImportDraft | null>(null)
   const [stage, setStage] = useState<'idle' | 'selecting' | 'extracting' | 'parsing' | 'ready' | 'failed'>('idle')
@@ -51,15 +51,18 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
     } catch { if (alive.current) { setError('AI_CONNECT_FAILED'); setStage('failed') } }
     finally { starting.current = false; early.current = [] }
   }
-  async function upload() {
-    if (lock.current || !choice) return
-    lock.current = true; selected.current = choice; setRetryable(false); setError(''); setStage('selecting')
+  async function upload(parseImmediately = true) {
+    const modelChoice = preferredChoice === undefined ? choice : preferredChoice
+    if (lock.current || !modelChoice) return
+    lock.current = true; selected.current = modelChoice; setRetryable(false); setError(''); setStage('selecting')
     try {
       const result = await profileImport.selectPdf()
       if (!alive.current) { if (result.ok && result.value) void profileImport.discard({ fileId: result.value.fileId }); return }
       if (!result.ok) { setError(result.error); setStage('failed'); return }
       if (!result.value) { setStage('idle'); return }
-      file.current = result.value; await start()
+      if (!parseImmediately && file.current) await profileImport.discard({ fileId: file.current.fileId })
+      setDraft(null); setSaved(false); setFrozen(false); pending.current = null; task.current = null
+      file.current = result.value; if (parseImmediately) await start(); else setStage('idle')
     } catch { if (alive.current) { setError('PDF_INVALID'); setStage('failed') } }
     finally { lock.current = false }
   }
@@ -101,5 +104,5 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
     finally { lock.current = false; if (alive.current) setSaving(false) }
   }
   return { settings, choice, retryable, draft, setDraft, stage, error, progress, saved, saving, frozen, upload, start, discard, save,
-    hasFile: Boolean(file.current), stop: () => { if (task.current) void profileImport.cancel({ sessionId: task.current.sessionId }).catch(() => setError('AI_CONNECT_FAILED')) } }
+    fileName: file.current?.name ?? '', hasFile: Boolean(file.current), stop: () => { if (task.current) void profileImport.cancel({ sessionId: task.current.sessionId }).catch(() => setError('AI_CONNECT_FAILED')) } }
 }

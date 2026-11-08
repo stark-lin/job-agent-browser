@@ -39,6 +39,7 @@ app.once('browser-window-created', (_event, window) => {
       writeFileSync(resolve(__dirname, '../.cache', name), (await window.capturePage()).toPNG())
     }
     try {
+      await require('./complete-onboarding.cjs')(window)
       await evaluate("window.browser.navigate('app://settings')")
       await require('./external-mcp-smoke.cjs')({ window, evaluate, waitFor, data, capture })
       const outsider = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } })

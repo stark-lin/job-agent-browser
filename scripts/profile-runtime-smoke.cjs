@@ -19,6 +19,7 @@ app.once('browser-window-created', (_event, window) => {
       throw new Error(`Timed out: ${label}`)
     }
     try {
+      await require('./complete-onboarding.cjs')(window)
       await require('./profile-smoke.cjs')({ window, call, read, active, evaluate, waitFor })
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) }); app.quit()
     } catch (error) { clearTimeout(timeout); console.error(error); app.exit(1) }

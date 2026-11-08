@@ -231,3 +231,20 @@ test('Smart Paste defaults follow legacy preferences, while explicit deletion an
   service.savePreferences({ language: 'en', theme: 'system' })
   assert.deepEqual(smartPasteSettings(createPreferences(path).get({})).configs, [])
 })
+
+test('setup completion survives restart and unrelated saves; restarting setup preserves user data', t => {
+  const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
+  assert.equal(service.get({}).onboardingCompleted, undefined)
+  service.savePreferences({ onboardingCompleted: true, theme: 'dark', language: 'zh-CN' })
+  assert.equal(createPreferences(path).get({}).onboardingCompleted, true)
+  const completed = service.get({})
+  service.savePreferences({ onboardingCompleted: false })
+  assert.deepEqual(service.get({}), { ...completed, onboardingCompleted: false })
+  service.savePreferences({ language: 'en' })
+  assert.equal(service.get({}).onboardingCompleted, false)
+  const before = readFileSync(path, 'utf8')
+  for (const onboardingCompleted of [null, undefined, 'true', 1, {}, []]) {
+    assert.throws(() => service.savePreferences({ onboardingCompleted }), { code: 'INVALID_INPUT' })
+    assert.equal(readFileSync(path, 'utf8'), before)
+  }
+})

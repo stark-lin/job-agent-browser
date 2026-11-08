@@ -1,8 +1,9 @@
 import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, FormField, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
-import { mailURLs, type Language, type MailProvider, type ThemePreference } from '../../shared/settings'
+import { ActionRow, Button, FormField, LanguageBackground, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
+import { mailURLs, type MailProvider } from '../../shared/settings'
+import { useOnboarding } from '../../app/onboarding'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
 import { AuditViewerSection } from './AuditViewerSection'
@@ -13,6 +14,7 @@ import './settings.css'
 export function SettingsPage() {
   const { t } = useTranslation(), settings = useSettings()
   const [mailError, setMailError] = useState(false)
+  const onboarding = useOnboarding(), [restarting, setRestarting] = useState(false), [restartError, setRestartError] = useState(false)
   const { draft, saving, notices } = settings
   const feedback = (notice: Notice, dirty: boolean) => notice
     ? <StatusMessage tone={notice === 'saveFailed' || notice === 'encryptionUnavailable' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
@@ -32,18 +34,19 @@ export function SettingsPage() {
       {settings.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : settings.loadFailed || !draft ? <ActionRow>
         <StatusMessage tone="error">{t($ => $.settings.loadFailed)}</StatusMessage><Button onClick={settings.retry}>{t($ => $.settings.retry)}</Button>
       </ActionRow> : <div className="settings-sections">
-        <SectionCard defaultCollapsed title={t($ => $.settings.general)} description={t($ => $.settings.generalDescription)}>
+        <SectionCard defaultCollapsed title={t($ => $.onboarding.appearance)} description={t($ => $.settings.generalDescription)}>
           <form data-settings-general className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.save('general') }}>
-            <div className="settings-fields">
-              <FormField label={t($ => $.settings.language)}>{props => <Select {...props} value={draft.language} disabled={Boolean(saving)} onChange={event => settings.changeLanguage(event.target.value as Language)}>
-                <option value="en" lang="en">English</option><option value="zh-CN" lang="zh-CN">简体中文</option>
-              </Select>}</FormField>
-              <FormField label={t($ => $.settings.appearance)} help={t($ => $.settings.appearanceHelp)}>{props => <Select {...props} value={draft.theme} disabled={Boolean(saving)} onChange={event => settings.changeTheme(event.target.value as ThemePreference)}>
-                <option value="light">{t($ => $.settings.light)}</option><option value="dark">{t($ => $.settings.dark)}</option><option value="system">{t($ => $.settings.system)}</option>
-              </Select>}</FormField>
-            </div>
+            <LanguageBackground language={draft.language} theme={draft.theme} disabled={Boolean(saving)}
+              labels={{ language: t($ => $.onboarding.language), background: t($ => $.onboarding.background), system: t($ => $.onboarding.system), light: t($ => $.onboarding.light), dark: t($ => $.onboarding.dark) }}
+              onLanguageChange={settings.changeLanguage} onThemeChange={settings.changeTheme} />
             <ActionRow>{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" disabled={!settings.generalDirty || Boolean(saving)}>{saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></ActionRow>
           </form>
+          <StatusMessage>{t($ => $.onboarding.restartHelp)}</StatusMessage>
+          <ActionRow><Button data-restart-onboarding disabled={settings.dirty || Boolean(saving) || restarting} onClick={() => {
+            setRestarting(true); setRestartError(false)
+            void onboarding.restart().catch(() => setRestartError(true)).finally(() => setRestarting(false))
+          }}>{t($ => $.onboarding.restart)}</Button></ActionRow>
+          {restartError && <StatusMessage tone="error">{t($ => $.settings.saveFailed)}</StatusMessage>}
         </SectionCard>
         <AISettingsSection settings={settings} />
         <SmartPasteSettings settings={settings} />

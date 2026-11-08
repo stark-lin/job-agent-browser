@@ -1,2 +1,3 @@
 .ui-action-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-1); min-width: 0; }
 .ui-action-row > :is(.ui-status, .ui-badge):first-child { margin-inline-end: auto; }
+.ui-action-row--start { justify-content: flex-start; }

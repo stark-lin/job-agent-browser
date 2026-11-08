@@ -1,6 +1,7 @@
 @import "./design-tokens.css";
 @import "./section-card.css";
 @import "./action-row.css";
+@import "./setup.css";
 @import "./navigation-tooltip.css";
 
 /* Central runtime primitives. Pages own composition and handlers. */
@@ -23,7 +24,7 @@
 .ui-button--icon { font-size: var(--font-lg); line-height: var(--line-lg); }
 .ui-input { font: inherit; color: inherit; }
 .ui-input--default { width: 100%; height: var(--control-md); padding: 0 var(--space-2); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--quiet); font-size: var(--font-xs); line-height: var(--line-xs); }
-.ui-input--default:focus { border-color: var(--primary); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: var(--focus-width); }
+.ui-input--default:focus { border-color: var(--line); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: 0; }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 
@@ -127,7 +128,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-field-help { font-size: var(--font-xs); line-height: var(--line-xs); color: var(--muted); overflow-wrap: anywhere; }
 .ui-field-help--error { color: var(--danger); }
 .ui-select { width: 100%; min-width: 0; height: var(--control-md); padding: 0 var(--space-2); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--quiet); font-size: var(--font-xs); line-height: var(--line-xs); }
-.ui-select:focus { border-color: var(--primary); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: var(--focus-width); }
+.ui-select:focus { border-color: var(--line); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: 0; }
 .ui-input[aria-invalid="true"], .ui-select[aria-invalid="true"] { border-color: var(--danger); }
 .ui-input:disabled, .ui-select:disabled { cursor: default; background: var(--bg); color: var(--muted); }
 .ui-status { margin: 0; font-size: var(--font-xs); line-height: var(--line-sm); color: var(--muted); overflow-wrap: anywhere; }
@@ -149,8 +150,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-navigation-item[aria-current="page"] { background: var(--rail-active); color: var(--on-rail-active); font-weight: var(--weight-semibold); }
 .ui-navigation-item:focus-visible { outline-offset: calc(-1 * var(--focus-width)); }
 .ui-textarea { width: 100%; min-height: var(--textarea-height); padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--line); border-radius: var(--radius-sm); background: var(--quiet); font-size: var(--font-sm); line-height: var(--line-sm); resize: vertical; }
-.ui-textarea:focus { border-color: var(--primary); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: var(--focus-width); }
+.ui-textarea:focus { border-color: var(--line); box-shadow: none; outline: var(--focus-width) solid var(--primary); outline-offset: 0; }
 .ui-textarea[aria-invalid="true"] { border-color: var(--danger); }
+:is(.ui-input--default, .ui-select, .ui-textarea)[aria-invalid="true"]:focus { border-color: var(--line); outline-color: var(--danger); }
 .ui-textarea:disabled { background: var(--bg); color: var(--muted); cursor: default; }
 
 /* Read-only tables and metadata, shared by Settings and the reference gallery. */
@@ -257,3 +259,4 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-drawer { box-shadow: var(--shadow-dialog); }
 .ui-data-table td { background: var(--quiet); }
 .ui-data-table tbody tr:hover td, .ui-table-row-action:focus-within td { background: var(--row-hover); }
+.ui-button.ui-button--default[aria-pressed="true"] { background: var(--selected); color: var(--text); }

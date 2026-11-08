@@ -13,6 +13,6 @@ export function IconButton({ size = 'sm', ...props }: Omit<ButtonProps, 'variant
   return <Button {...props} variant="icon" size={size} />
 }
 
-export function ActionRow({ className = '', ...props }: ComponentPropsWithRef<'div'>) {
-  return <div {...props} className={`ui-action-row ${className}`.trim()} />
+export function ActionRow({ className = '', align = 'end', ...props }: ComponentPropsWithRef<'div'> & { align?: 'start' | 'end' }) {
+  return <div {...props} className={`ui-action-row ui-action-row--${align} ${className}`.trim()} />
 }

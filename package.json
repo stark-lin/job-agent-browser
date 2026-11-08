@@ -18,6 +18,7 @@
     "design:tokens": "node scripts/design-system.cjs --write",
     "design:check": "node scripts/design-system.cjs",
     "test:smoke": "npm run build && node scripts/run-smoke.cjs",
+    "test:onboarding": "npm run build && node scripts/run-onboarding-smoke.cjs",
     "test:theme": "npm run build && node scripts/run-smoke.cjs --theme",
     "test:jobs": "npm run build && node scripts/run-smoke.cjs --jobs",
     "test:mcp": "node scripts/test.cjs --mcp && node scripts/run-mcp-smoke.cjs",

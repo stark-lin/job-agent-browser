@@ -5,11 +5,12 @@ const { chmodSync, mkdirSync, statSync, writeFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 
 module.exports = async function themeSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data }) {
-  const selector = '.settings-page form:not([data-audit-filters]) select:nth-of-type(1)'
-  const appearance = '.settings-fields .ui-field:nth-child(2) select'
+  const selector = '[data-settings-general] .ui-segmented:first-of-type button[aria-pressed=true]'
+  const appearance = '[data-settings-general] .ui-field:nth-child(2) .ui-segmented'
+  const chooseTheme = theme => evaluate(`document.querySelector('${appearance}').querySelectorAll('button')[${['system', 'light', 'dark'].indexOf(theme)}].click()`)
   const applied = theme => waitFor(() => evaluate(`document.documentElement.dataset.theme === '${theme}' && getComputedStyle(document.documentElement).colorScheme === '${theme}'`), `applied ${theme}`)
   const save = async theme => {
-    await field(appearance, theme, 'select')
+    await chooseTheme(theme)
     await submit(0)
     await waitFor(() => evaluate("document.querySelector('.settings-page form:not([data-audit-filters]) button[type=submit]').disabled && document.querySelector('.settings-page form:not([data-audit-filters]) button[type=submit]').textContent === 'Save changes'"), 'theme form saved')
     assert.equal((await data('settings', 'get', {})).value.theme, theme)
@@ -34,10 +35,10 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   }
 
   await openSectionCards(evaluate, appearance)
-  assert.equal(await evaluate(`document.querySelector('${selector}').value`), 'en')
-  assert.equal(await evaluate(`document.querySelector('${appearance}').disabled`), false)
+  assert.equal(await evaluate(`document.querySelector('${selector}').lang`), 'en')
+  assert.equal(await evaluate(`document.querySelector('${appearance} button').disabled`), false)
   // Draft selection neither changes the saved theme nor applies a preview; leave protection still works.
-  await field(appearance, 'dark', 'select')
+  await chooseTheme('dark')
   assert.equal((await data('settings', 'get', {})).value.theme, 'light')
   await applied('light')
   const originalDialog = dialog.showMessageBox
@@ -51,13 +52,13 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     assert.equal(active(await read()).destination.page, 'ai', 'Theme notifications do not invalidate confirmed navigation')
   } finally { dialog.showMessageBox = originalDialog }
   await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
-  assert.equal(await evaluate(`document.querySelector('${appearance}').value`), 'light')
+  assert.equal(await evaluate(`document.querySelector('${appearance} button[aria-pressed=true]').textContent`), 'Light')
 
   if (process.platform !== 'win32' && process.getuid?.() !== 0) {
     const directory = process.env.JOB_BROWSER_SMOKE_DATA, permissions = statSync(directory).mode & 0o777
     try {
       chmodSync(directory, 0o500)
-      await field(appearance, 'dark', 'select'); await submit(0)
+      await chooseTheme('dark'); await submit(0)
       await waitFor(() => evaluate('document.body.innerText.includes("Changes could not be saved. Your previous settings are preserved.")'), 'theme save failure feedback')
       assert.equal((await data('settings', 'get', {})).value.theme, 'light')
       await applied('light')
@@ -84,6 +85,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     for (const width of [320, 640, 1200]) {
       window.setContentSize(width, 820)
       await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Ask AI theme viewport ${width}`)
+      await waitFor(() => evaluate(`Boolean(document.querySelector('.ai-session-sidebar')) === ${width >= 960}`), 'Ask AI responsive sidebar committed')
       await change('light')
       const light = await geometry()
       await change('dark')
@@ -115,7 +117,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   await applied('dark')
   assert.equal((await data('settings', 'get', {})).value.theme, 'system')
   assert.equal(active(await read()).targetId, target)
-  assert.equal(await evaluate(`document.querySelector('${appearance}').value`), 'system')
+  assert.equal(await evaluate(`document.querySelector('${appearance} button[aria-pressed=true]').textContent`), 'System')
   await save('light')
   assert.equal(nativeTheme.themeSource, 'light')
   nativeTheme.emit('updated')

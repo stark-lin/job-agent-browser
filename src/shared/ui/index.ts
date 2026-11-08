@@ -15,6 +15,8 @@ export { ListInput } from './ListInput'
 export { ExternalLink } from './ExternalLink'
 export { DocumentPreview } from './DocumentPreview'
 export { StageProgress } from './StageProgress'
+export { LanguageBackground, SegmentedControl } from './LanguageBackground'
+export { WizardCard, QuietPanel, ChoiceCard, Radio } from './Setup'
 export { ChatMessage, Collapsible, ActivityRow, SessionEntry, Drawer, ComposerSurface } from './Conversation'
 export { Markdown, CodeBlock } from './Markdown'
 

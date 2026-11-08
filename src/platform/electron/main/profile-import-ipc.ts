@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { trustedDataSender } from './data-ipc'
 import type { ProfileImporter } from '../../profile-import/service'
@@ -19,7 +20,7 @@ export function registerProfileImportIPC(service: ProfileImporter, rendererPath:
           if (selected.canceled || !selected.filePaths[0]) return { ok: true, value: null }
           const bytes = await readPdf(selected.filePaths[0])
           if (sender.isDestroyed() || frame?.detached || sender.mainFrame !== frame) return { ok: false, error: 'FORBIDDEN' }
-          return { ok: true, value: service.select(sender.id, bytes) }
+          return { ok: true, value: { ...service.select(sender.id, bytes), name: basename(selected.filePaths[0]) } }
         }
         if (channel === PROFILE_IMPORT_START) return { ok: true, value: service.start(sender.id, input, message => {
           if (!sender.isDestroyed() && frame && !frame.detached && sender.mainFrame === frame) frame.send(PROFILE_IMPORT_EVENT, message)

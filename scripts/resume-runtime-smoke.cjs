@@ -16,6 +16,7 @@ app.once('browser-window-created', (_event, window) => {
     const wait = async (check, label) => { const until = Date.now() + 15000; while (Date.now() < until) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 30)) }; throw new Error(`Timed out: ${label}`) }
     const click = async text => { await wait(() => evaluate(`[...document.querySelectorAll('.resume-page button')].some(button => button.textContent === ${JSON.stringify(text)} && !button.disabled)`), text); await evaluate(`[...document.querySelectorAll('.resume-page button')].find(button => button.textContent === ${JSON.stringify(text)} && !button.disabled).click()`) }
     try {
+      await require('./complete-onboarding.cjs')(window)
       const profile = await data('profiles', 'createProfile', { name: '林测试 Resume Fixture', email: 'fixture@example.com', links: [{ label: 'Portfolio', url: 'https://example.com/作品' }] })
       const item = await data('profiles', 'addItem', { profileId: profile.id, details: { type: 'EXPERIENCE', title: '软件工程师 Engineer', organization: '本地测试公司', metadata: { startDateText: '2020', endDateText: '2024-06' } } })
       const fact = await data('profiles', 'addFact', { profileId: profile.id, profileItemId: item.id, details: { kind: 'ACHIEVEMENT', content: '开发中文服务并使用 TypeScript 完成测试。' } })

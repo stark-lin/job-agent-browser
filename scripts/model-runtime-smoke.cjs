@@ -55,6 +55,7 @@ app.on('browser-window-created', (_event, window) => {
       await evaluate(`(${selector}).click()`)
     }
     try {
+      await require('./complete-onboarding.cjs')(window)
       console.log('Model fixture: renderer loaded')
       await wait(() => state('missing'), 'missing model')
       assert((await call('write', { path: 'model-smoke.md', content: '# Work\nTrip.com offers relatively flexible working conditions.', expectedRevision: null })).ok)

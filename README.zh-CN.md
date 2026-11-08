@@ -40,6 +40,7 @@ JOB_BROWSER_USER_DATA=/tmp/job-agent-browser-resume-v1 npm run dev
 npm run check
 npm run test:smoke
 npm run test:theme
+npm run test:onboarding
 npm run test:jobs
 npm run test:mcp
 npm run test:mcp-server
@@ -55,7 +56,7 @@ npm run release:npm:check
 
 `test:mcp` 验证现有 MCP Client 运行时。`test:mcp-server` 验证 Job/Application/Resume 公共能力、运行时一致性及构建后的 Node stdio Server，使用临时存储和真实 Electron HTML/PDF 输出。两种运行时 smoke 均纳入 `check`；Server PDF 验证需要图形桌面。见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
 
-`test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
+`test:onboarding` 使用本地夹具和临时数据验证初始化、模型发现/测试、资料保存与进程重启。`test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
 
 `test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V3 原地升级 v18，详见[升级与恢复](docs/data-architecture.zh-CN.md#三生成成品与删除)。
 

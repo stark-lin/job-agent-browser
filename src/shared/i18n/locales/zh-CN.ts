@@ -2,6 +2,17 @@ import type { en } from './en'
 type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translation<T[K]> }
 
 export const zhCN = {
+  onboarding: {
+    setup: '引导步骤', appearance: '语言和背景', choice: 'AI 接入', model: '模型', agent: 'Agent', profile: '个人资料', ready: '完成',
+    language: '语言', background: '背景', system: '跟随系统', light: '浅色', dark: '深色', next: '继续', back: '返回', skip: '跳过', later: '暂不连接', finish: '进入 JAB',
+    chooseModel: '连接模型', modelDescription: '使用 JAB 内置 Ask AI', chooseAgent: '连接外部 Agent', agentDescription: '通过 MCP 和 Skills 访问 JAB',
+    provider: '服务', openai: 'OpenAI 兼容服务', local: '本地模型服务', custom: '自定义 Endpoint', defaultModel: '默认模型', keyPlaceholder: '留空保留已存密钥，或无需密钥',
+    discover: '发现模型', test: '测试', foundModels: '检测到 {{count}} 个模型', defaultLabel: '默认', invalidModel: '请输入有效 Endpoint 和模型 ID。', verified: '已验证', installMCP: '安装 MCP', copyMCP: '复制 MCP 配置', copySkills: '复制 Skills 指引',
+    manual: '手动填写', pdf: '导入 PDF', external: '外部 Agent', name: '姓名', role: '求职方向', about: '个人简介', aboutPlaceholder: '填写个人经历', saveProfile: '保存资料', nameRequired: '请填写姓名后保存。',
+    choosePdf: '选择 PDF', importPdf: '导入', working: '处理中…', importFailed: 'PDF 导入失败：{{error}}', copy: '复制',
+    externalPrompt: '读取我的简历，提取结构化个人资料，使用 JAB MCP 的 profile 工具保存，并在写入前确认内容。', externalConfirmed: '我已通过外部 Agent 导入资料',
+    configured: '已配置', notConfigured: '未配置', profileReady: '已建立', profilePending: '未建立', summaryModel: 'AI 模型', summaryAgent: '外部 Agent', summaryProfile: '个人资料', restart: '重新初始化', restartHelp: '重新打开初始化向导，保留已保存的设置和个人资料。请先保存或放弃 Settings 中的修改。'
+  },
   selection: {
     ask: '发送给 Ask AI', job: '职位导入', ok: '确定',
     invalid: '请在 HTTP(S) 网页中选择 1 至 60,000 个字符。来源网址不能超过 4,096 个字符，标题不能超过 1,000 个字符。',

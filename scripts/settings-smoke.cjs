@@ -52,7 +52,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   const geometry = await evaluate(`(() => {
     const section = document.querySelector('.ui-section-card'), input = document.querySelector('.ui-input');
     return { padding: getComputedStyle(section).padding, radius: getComputedStyle(section).borderRadius, height: input.getBoundingClientRect().height,
-      labels: [...document.querySelectorAll('.ui-field-label')].every(label => !!document.getElementById(label.htmlFor)) };
+      labels: [...document.querySelectorAll('label.ui-field-label')].every(label => !!document.getElementById(label.htmlFor)) };
   })()`)
   assert.deepEqual(geometry, { padding: '24px', radius: '16px', height: 40, labels: true })
   await require('./audit-viewer-smoke.cjs')({ window, call, evaluate, waitFor, field, data, capture })
@@ -64,7 +64,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await capture('settings-en.png')
 
   // Change through React controls and the production IPC, then reload the renderer.
-  await field('.settings-page form:not([data-audit-filters]) select', 'zh-CN', 'select')
+  await evaluate('document.querySelector("[data-settings-general] button[lang=zh-CN]").click()')
   await submit(0)
   await waitFor(() => evaluate('document.documentElement.lang === "zh-CN" && document.querySelector(".settings-page").getAttribute("aria-label") === "设置"'), 'saved Chinese UI')
   await waitState(state => state.language === 'zh-CN' && active(state).title === '设置', 'Main language follows saved preference')
@@ -87,12 +87,12 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
       await waitFor(() => evaluate(`window.innerWidth === ${width}`), `Settings viewport ${width}`)
       await assertCardGaps()
       assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
-      assert.equal(await evaluate('getComputedStyle(document.querySelector(".settings-fields")).gridTemplateColumns.split(" ").length'), width <= 640 ? 1 : 2)
+      assert.equal(await evaluate('document.querySelectorAll("[data-settings-general] .ui-segmented").length'), 2)
       if (width === 320) await capture('settings-narrow.png')
     }
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
 
-  await field('.settings-page form:not([data-audit-filters]) select', 'en', 'select')
+  await evaluate('document.querySelector("[data-settings-general] button[lang=en]").click()')
   await submit(0)
   await waitFor(() => evaluate('document.documentElement.lang === "en"'), 'English restored')
   // Invalid URLs receive field feedback and never persist.

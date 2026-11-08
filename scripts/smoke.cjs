@@ -24,6 +24,7 @@ app.on('browser-window-created', (_event, window) => {
   })
   window.webContents.once('did-finish-load', async () => {
     try {
+      await require('./complete-onboarding.cjs')(window)
       const results = await window.webContents.executeJavaScript(`(async () => {
         const created = await window.data.jobs.saveJob({details:{title:'Smoke role',companyNameRaw:'Smoke company'}});
         if (!created.ok) throw new Error(created.error);

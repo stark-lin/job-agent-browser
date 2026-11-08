@@ -15,6 +15,7 @@ app.once('browser-window-created', (_event, window) => {
       response.setHeader('Content-Type', 'text/html'); response.end('<title>Theme fixture</title><h1>Website appearance</h1>')
     })
     try {
+      await require('./complete-onboarding.cjs')(window)
       await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
       const origin = `http://127.0.0.1:${server.address().port}`
       const evaluate = code => window.webContents.executeJavaScript(`(async () => (${code}))()`)

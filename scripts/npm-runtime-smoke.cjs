@@ -84,6 +84,7 @@ const assert=require('node:assert/strict');
 const timeout=setTimeout(()=>app.exit(1),45000);
 app.on('browser-window-created',(_event,window)=>{window.webContents.once('did-finish-load',async()=>{try{
 const evaluate=code=>window.webContents.executeJavaScript(code);
+await require(${JSON.stringify(resolve(__dirname, 'complete-onboarding.cjs'))})(window);
 await evaluate("window.browser.navigate('app://settings')");
 const end=Date.now()+15000;while(!await evaluate('!!document.querySelector("[data-local-model]")')){if(Date.now()>end)throw Error('Model settings missing');await new Promise(r=>setTimeout(r,25));}
 const state=await evaluate('window.knowledge.modelStatus({})');assert.equal(state.value.state,'missing');
