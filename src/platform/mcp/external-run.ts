@@ -11,10 +11,10 @@ export function createExternalRun(directory: string) {
   let lastId: string | undefined, closing: Promise<void> | undefined, connecting: Promise<void> | undefined
   let closed = false
   let drain: (id: string) => Promise<void> = async () => {}
-  async function post(path: string, body: object) {
+  async function post(path: string, body: object, signal = AbortSignal.timeout(5000)) {
     if (!route) toolFail('TOOL_UNAVAILABLE')
     try {
-      const reply = await fetch(`http://127.0.0.1:${route.port}${path}`, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+      const reply = await fetch(`http://127.0.0.1:${route.port}${path}`, { method: 'POST', redirect: 'error', signal,
         headers: { Authorization: `Bearer ${route.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!reply.ok) {
         const value = await reply.json().catch(() => ({})) as { error?: string }
@@ -27,11 +27,12 @@ export function createExternalRun(directory: string) {
     if (closed) toolFail('TOOL_UNAVAILABLE')
     if (secret) return
     return connecting ??= (async () => {
+      const connection = new AbortController(), timeout = setTimeout(() => connection.abort(), 5000)
+      channel = connection
       try {
         route = JSON.parse(await readFile(join(directory, 'run-runtime', 'control.json'), 'utf8'))
         if (!route || !Number.isInteger(route.port) || route.port < 1 || route.port > 65535 || !/^[a-f0-9]{64}$/.test(route.token)) toolFail('TOOL_UNAVAILABLE')
-        channel = new AbortController()
-        const reply = await post('/session', { pid: process.pid })
+        const reply = await post('/session', { pid: process.pid }, connection.signal)
         const reader = reply.body!.getReader(), decoder = new TextDecoder()
         let buffer = ''
         async function line() {
@@ -43,8 +44,10 @@ export function createExternalRun(directory: string) {
         }
         const first = await line()
         if (typeof first.session !== 'string' || !/^[a-f0-9]{64}$/.test(first.session)) toolFail('TOOL_UNAVAILABLE')
+        // Only the handshake is bounded to five seconds; the response body is the live control channel.
+        clearTimeout(timeout)
         secret = first.session
-        channel.signal.addEventListener('abort', () => { void reader.cancel().catch(() => {}) }, { once: true })
+        connection.signal.addEventListener('abort', () => { void reader.cancel().catch(() => {}) }, { once: true })
         void (async () => {
           try {
             for (;;) {
@@ -62,7 +65,8 @@ export function createExternalRun(directory: string) {
             await post('/close', { session: secret }).then(r => r.body?.cancel()).catch(() => {})
           }
         })()
-      } catch (error) { if (error instanceof ToolError) throw error; toolFail('TOOL_UNAVAILABLE') }
+      } catch (error) { connection.abort(); if (error instanceof ToolError) throw error; toolFail('TOOL_UNAVAILABLE') }
+      finally { clearTimeout(timeout) }
     })().finally(() => { connecting = undefined })
   }
   async function end(id: string) {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { Client } from '@modelcontextprotocol/client'
 import { InMemoryTransport } from '@modelcontextprotocol/server'
 import { createRunAdmission } from '../src/platform/mcp/run-admission'
@@ -74,6 +75,24 @@ for (const ending of ['disconnect', 'timeout'] as const) test(`${ending} closes 
   assert.equal(f.backend.profiles.getProfile({ id: profile.id }).name, 'Saved before close')
   if (ending === 'timeout') denied(await call(a.client, 'profile.list', { executionRunId: runId }), 'TOOL_FORBIDDEN')
   const run = f.admission.acquire('internal'); f.admission.release(run.owner, run.id)
+})
+
+test('an established control channel survives the handshake deadline during a slow tool and subsequent Runs', async t => {
+  const f = await setup(t, 15000, async (_id, signal) => {
+    await delay(5500, undefined, { signal })
+    return { output: { status: 'READY' } }
+  })
+  const a = await f.client(), { runId } = data(await call(a.client, 'run.begin'))
+  const result = await call(a.client, 'artifact.build', { executionRunId: runId, artifactId: randomUUID() })
+  assert.deepEqual(data(result), { output: { status: 'READY' } })
+  assert.equal(parseRunGuard(result._meta?.jabRunGuard)?.status, 'ACTIVE')
+  assert.equal(f.admission.current()?.id, runId)
+  data(await call(a.client, 'profile.list', { executionRunId: runId }))
+  data(await call(a.client, 'run.end', { runId }))
+  const next = data(await call(a.client, 'run.begin'))
+  assert.notEqual(next.runId, runId)
+  data(await call(a.client, 'run.end', { runId: next.runId }))
+  assert.equal(f.admission.current(), undefined)
 })
 
 test('BLOCKED guard still accepts End; historic snapshots normalize without rewriting stored traces', async t => {

@@ -48,7 +48,7 @@ UI    → typed IPC → Domain
 
 外部宿主调用 `run.begin({}) → {runId}`，每次业务调用均须提供此 UUID 作为 `executionRunId`。[Gateway](../src/platform/mcp-server/server.ts)检查归属和生命周期，剥离协议字段，再按原有严格业务 Schema 校验并调用现有 Guard/Registry/Domain 实现。内部 Schema 不变。`run.end({runId})` 在 BLOCKED 时可用且幂等；已关闭 ID 无法复用。控制操作不进入业务 Registry。不存在 `run.success`、提交、回滚、刷新或暂存协议。业务调用成功即持久化，失败不撤销之前的写入。
 
-[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线，离线仍可发现工具。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts)
+[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线，离线仍可发现工具。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)将控制通道握手限制为 5 秒，建立后流连接跨工具调用和 Run 持续开放；普通控制请求仍保留 5 秒超时。在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts)
 
 ## 三、内部与第三方 Client
 
