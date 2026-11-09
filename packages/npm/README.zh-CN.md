@@ -4,6 +4,9 @@ JAB（Job Agent Browser）是面向求职的本地优先桌面工作空间，提
 
 语言：[English](README.md) · 简体中文
 
+
+外部 MCP 执行要求 JAB 应用保持运行。先调用 `run.begin`，每次业务调用增加其 UUID 作为 `executionRunId`，最后调用 `run.end`，详见[协议](https://github.com/stark-lin/job-agent-browser/blob/main/docs/mcp-architecture.zh-CN.md#执行身份与外部协议)。
+
 ## 安装
 
 需要 Node.js **>=24.10.0** 和 npm。

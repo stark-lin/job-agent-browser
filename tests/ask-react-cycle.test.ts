@@ -29,7 +29,7 @@ async function wait(tasks: ReturnType<typeof createAskAgentTasks>, runId: string
 }
 
 test('Cycle transitions gate starts, settlement and continuation', () => {
-  const guard: RunGuardSnapshot = { agentRunId: randomUUID(), status: 'ACTIVE', calls: 4, executedCalls: 4,
+  const guard: RunGuardSnapshot = { executionRunId: randomUUID(), status: 'ACTIVE', calls: 4, executedCalls: 4,
     noProgress: 2, rejections: 0, progress: 2, executed: true, effectAlreadyConfirmed: false, effects: [] }
   const base = { fatal: false, cancelled: false, finalAnswer: false }
   assert.equal(resolveCycle(base), 'CONTINUE')

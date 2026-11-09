@@ -9,10 +9,10 @@ import { runApplicationAgent } from '../agent/application'
 import { resumeError } from './resume-tasks'
 
 interface Task {
-  owner: number; view: ApplicationTask; instruction: string; answers: { question: string; answer: string }[]
+  busy?: boolean; owner: number; view: ApplicationTask; instruction: string; answers: { question: string; answer: string }[]
   model: AgentModel; controller: AbortController; tools?: MCPAgentTools; actions: ApplicationAction[]; requestIds: string[]; done?: Promise<void>
 }
-const running = (task: Task) => ['planning', 'executing'].includes(task.view.state)
+const running = (task: Task) => Boolean(task.busy) || ['planning', 'executing'].includes(task.view.state)
 /** Fixed action executor binds every model-produced action to the selected Job. */
 export function createApplicationTasks(deps: { mcp: FirstPartyRuntime; model(): AgentModel }) {
   const tasks = new Map<string, Task>()
@@ -47,8 +47,10 @@ export function createApplicationTasks(deps: { mcp: FirstPartyRuntime; model(): 
     task.view.state = 'succeeded'; task.view.retryable = false
   }
   function launch(task: Task, replan: boolean) {
+    const prior = task.done; task.busy = true
     task.done = new Promise(resolve => setImmediate(() => {
       void (async () => {
+        await prior
         task.tools ??= await deps.mcp.session('application', task.controller.signal)
         const signal = AbortSignal.any([task.controller.signal, task.tools.signal])
         if (replan) {
@@ -63,7 +65,7 @@ export function createApplicationTasks(deps: { mcp: FirstPartyRuntime; model(): 
       })().catch(error => {
         task.view.state = task.controller.signal.aborted ? 'cancelled' : 'failed'; task.view.error = resumeError(error)
         task.view.retryable = !task.controller.signal.aborted && task.actions.length > 0 && !task.tools?.signal.aborted
-      }).finally(resolve)
+      }).finally(async () => { await task.tools?.close().catch(() => {}); task.tools = undefined; task.busy = false; resolve() })
     }))
   }
   return {
@@ -77,7 +79,7 @@ export function createApplicationTasks(deps: { mcp: FirstPartyRuntime; model(): 
       tasks.set(taskId, task); launch(task, true)
       return { taskId }
     },
-    getTask(owner: number, input: unknown) { return structuredClone(owned(owner, input).view) },
+    getTask(owner: number, input: unknown) { const task = owned(owner, input); return structuredClone(task.busy && !['planning', 'executing'].includes(task.view.state) ? { ...task.view, state: 'executing' as const } : task.view) },
     reply(owner: number, input: unknown) {
       const { taskId, answer } = v.object({ taskId: v.id, answer: v.text(10000, 1) })(input), task = owned(owner, { taskId })
       if (disposed || task.view.state !== 'waiting' || task.answers.length >= 8) fail('INVALID_STATE')

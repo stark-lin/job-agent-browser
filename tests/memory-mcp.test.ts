@@ -22,7 +22,9 @@ test('authenticated Ask AI sessions expose all five Memory tools; writes require
   const f = await firstPartyFixture(t), ask = await f.mcp.session('ask-ai', signal, 'chat-a')
   assert.deepEqual((await ask.list()).filter(x => x.name.startsWith('memory.')).map(x => x.name).sort(), names.sort())
   for (const agent of ['resume', 'application', 'job-capture'] as const) {
-    assert(!(await (await f.mcp.session(agent, signal)).list()).some(x => x.name.startsWith('memory.')))
+    const tools = await f.mcp.session(agent, signal)
+    assert(!(await tools.list()).some(x => x.name.startsWith('memory.')))
+    await tools.close()
   }
   const spoofed = external(f); await spoofed.connect()
   assert(!(await spoofed.listTools()).some(x => x.name.startsWith('memory.')))
@@ -32,8 +34,10 @@ test('authenticated Ask AI sessions expose all five Memory tools; writes require
   assert.equal(one, two)
 })
 test('Memory MCP fixes the physical space, rejects unsafe paths, stale/missing revisions and unprovided operations', async t => {
-  const f = await firstPartyFixture(t), reader = await f.askRun(signal), ask = await f.askRun(signal, 'writer', [randomUUID()])
+  const f = await firstPartyFixture(t), reader = await f.askRun(signal)
   await reader.call('knowledge.write', { path: 'same.md', content: 'Knowledge SECRET_K', expectedRevision: null }, signal)
+  await f.endAskRun()
+  const ask = await f.askRun(signal, 'writer', [randomUUID()])
   const memory = await ask.call('memory.write', { path: 'same.md', content: '# Memory\nSECRET_M pineapple', expectedRevision: null }, signal) as { revision: string }
   assert.notEqual(memory.revision, '')
   const read = await ask.call('memory.read', { path: 'same.md' }, signal) as { content: string }
@@ -91,6 +95,7 @@ test('server-side Ask grants bind exact inputs and cannot be replayed or borrowe
   const replay = await writer.callTool('memory.write', payload, signal, { jabMemoryGrant: valid, jabRunGrant: run.grant('memory.write', payload) }) as { isError: boolean }; assert(replay.isError)
   const ask = external(f, await authority.issue('ask-session'))
   await ask.connect()
+  await run.close()
   const otherRun = authority.registerRun('ask-session', randomUUID(), 'other-chat')
   const borrowed = authority.grant('writer-session', 'memory.write', { ...payload, path: 'other.md' }, ['user-source'])
   for (const [name, args, grant] of [['memory.write', { ...payload, path: 'other.md' }, borrowed], ['knowledge.delete', { path: 'README.md', expectedRevision: 'a'.repeat(64), recursive: false }, undefined]] as const) {

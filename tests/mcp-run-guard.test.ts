@@ -15,7 +15,7 @@ import type { AgentModelEvent, AgentToolCall } from '../src/shared/agent'
 import type { ToolDescriptor } from '../src/shared/tools/tool.types'
 const signal = () => new AbortController().signal
 const descriptor = (name: string, write = false): ToolDescriptor => ({ name, mode: write ? 'write' : 'read', risk: write ? 'WRITE' : 'READ', source: { type: 'native' }, tags: [], description: name, inputSchema: { type: 'object' } })
-const freshGuard = () => createRunGuardManager().forRun({ agentRunId: randomUUID(), sessionId: 'test', signal: signal() })
+const freshGuard = () => createRunGuardManager().forRun({ executionRunId: randomUUID(), sessionId: 'test', signal: signal() })
 const output = (value: unknown) => ({ content: [], structuredContent: value as Record<string, string> })
 const batch = (calls: AgentToolCall[]): AgentModelEvent[] => [...calls.map(call => ({ type: 'tool_call.ready' as const, call })), { type: 'completed', response: { content: '', toolCalls: calls } }]
 
@@ -45,6 +45,8 @@ test('same-Run concurrent writes serialize, while different Runs do not inherit 
   assert.equal(results[0].status, 'fulfilled'); assert.equal(results[1].status, 'rejected')
   assert(f.backend.jobs.getJob({ id: f.job.id }).archivedAt)
   await tools.call('job.get', { id: f.job.id }, signal())
+  await assert.rejects(f.askRun(signal(), 'independent'), { code: 'TOOL_BUSY' })
+  await f.endAskRun()
   const other = await f.askRun(signal(), 'independent')
   await other.call('job.set_archived', { id: f.job.id, archived: false }, signal())
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).archivedAt, null)
@@ -193,12 +195,12 @@ test('schema failures do not consume Guard state; tool-specific large inputs and
   const child = tools.view(['memory.write', 'memory.read'])
   await child.call('memory.write', { path: 'bound.md', content: 'Source-bound child view', expectedRevision: null }, signal())
   assert.equal((await child.call('memory.read', { path: 'bound.md' }, signal()) as { content: string }).content, 'Source-bound child view')
-  assert.equal(child.getRunGuardSnapshot()?.agentRunId, tools.getRunGuardSnapshot()?.agentRunId)
+  assert.equal(child.getRunGuardSnapshot()?.executionRunId, tools.getRunGuardSnapshot()?.executionRunId)
 })
 
 test('Run cancellation fences queued dispatch and session retirement cannot revive an old Run', async t => {
   const controller = new AbortController(), manager = createRunGuardManager(), id = randomUUID()
-  const guard = manager.forRun({ agentRunId: id, sessionId: 'cancel', signal: controller.signal })
+  const guard = manager.forRun({ executionRunId: id, sessionId: 'cancel', signal: controller.signal })
   let release!: () => void, began!: () => void
   const started = new Promise<void>(r => { began = r }), ready = new Promise<void>(r => { release = r })
   const first = guard.execute(descriptor('unknown.read'), {}, signal(), async () => { began(); await ready; return output({}) })
@@ -206,7 +208,7 @@ test('Run cancellation fences queued dispatch and session retirement cannot revi
   const second = guard.execute(descriptor('unknown.read'), {}, signal(), async () => assert.fail('cancelled queued dispatch'))
   const rejected = assert.rejects(second, { code: 'TOOL_CANCELLED' })
   controller.abort(); release(); await first; await rejected; await manager.close(id)
-  assert.throws(() => manager.forRun({ agentRunId: id, sessionId: 'cancel', signal: controller.signal }), { code: 'TOOL_CANCELLED' })
+  assert.throws(() => manager.forRun({ executionRunId: id, sessionId: 'cancel', signal: controller.signal }), { code: 'TOOL_CANCELLED' })
   const f = await firstPartyFixture(t), run = await f.mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId: 'retire', sourceMessageIds: [], signal: signal() })
   await run.tools.close()
   await assert.rejects(run.close(), { code: 'TOOL_UNAVAILABLE' })

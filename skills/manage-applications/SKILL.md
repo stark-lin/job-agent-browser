@@ -9,6 +9,10 @@ Purpose: apply the implemented application workflow through the same MCP used by
 
 Language: English · [简体中文](SKILL.zh-CN.md)
 
+## MCP execution
+
+Keep JAB Main running. Before business reads or writes call `run.begin({})`; pass its returned `runId` as required `executionRunId` on every business call, preserving all business fields (including any Resume `runId`). Call `run.end({runId})` when finished, including after errors or Guard blocking. Each successful call is already saved: End, cancellation, timeout and disconnect do not undo writes. If admission is busy/unavailable, stop and report it; do not bypass MCP or reuse an old execution UUID.
+
 ## Identify the job and read its state
 
 Use the user's selected Job ID. Otherwise use `job.list` with search/status/archived filters and page as needed; ask if several jobs match. Read `job.get` and always call `application.get` before deciding a mutation. Never guess the current status or memorize a replacement state machine: use allowedNextStatuses.

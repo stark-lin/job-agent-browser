@@ -66,16 +66,16 @@ test('the sole Agent handles explicit and proactive Memory decisions through sou
   assert(protectedState.includes('decision-2.md')); assert(!protectedState.includes('Supported durable preference.'))
 })
 
-test('different Agent Sessions resolve a deterministic CAS conflict by rereading and merging outside the lock', async t => {
-  const f = await firstPartyFixture(t), bothRead = gate()
+test('a UI Memory edit causes a deterministic CAS conflict which the single Agent reconciles outside the lock', async t => {
+  const f = await firstPartyFixture(t)
   await f.workspace.spaces.memory.files.write('shared.md', 'Original decision', null)
-  let readers = 0, conflicts = 0, ordinal = 0
+  let conflicts = 0, ordinal = 0
   const tasks = setup(f, () => {
     const addition = `Decision ${++ordinal}`; let step = 0
     return discoveringModel({ complete: noTask, async *stream(input) {
       if (step === 0) { step++; yield* call('read', 'memory.read', { path: 'shared.md' }); return }
       if (step === 1) {
-        const old = result(input); if (++readers === 2) bothRead.release(); await bothRead.ready
+        const old = result(input); await f.workspace.spaces.memory.files.write('shared.md', 'Original decision\nUI decision', old.revision)
         step++; yield* call('write', 'memory.write', { path: 'shared.md', content: `${old.content}\n${addition}`, expectedRevision: old.revision }); return
       }
       if (step === 2 && result(input).error === 'TOOL_CONFLICT') { conflicts++; step++; yield* call('reread', 'memory.read', { path: 'shared.md' }); return }
@@ -83,11 +83,11 @@ test('different Agent Sessions resolve a deterministic CAS conflict by rereading
       assert(result(input).revision); yield* answer()
     } })
   }); t.after(() => tasks.dispose())
-  const a = tasks.start(1, start('Remember decision A'), () => {}), b = tasks.start(1, start('Remember decision B'), () => {})
-  await Promise.all([wait(tasks, a.runId), wait(tasks, b.runId)])
+  const a = tasks.start(1, start('Remember decision A'), () => {})
+  await wait(tasks, a.runId)
   assert.equal(conflicts, 1)
   const saved = await f.workspace.spaces.memory.files.read('shared.md')
-  for (const text of ['Original decision', 'Decision 1', 'Decision 2']) assert(saved.content.includes(text))
+  for (const text of ['Original decision', 'Decision 1', 'UI decision']) assert(saved.content.includes(text))
 })
 
 test('FIFO skips a cancelled queued turn without letting its successor overtake; capabilities wait too', async t => {

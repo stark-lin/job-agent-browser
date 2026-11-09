@@ -14,6 +14,7 @@ interface Options {
 /** Shared execution protections for native and MCP tools. */
 export function createCapabilities(defaults: { timeoutMs?: number; maxActive?: number } = {}) {
   const active = new Map<AbortController, Promise<void>>()
+  const inFlight = new Set<Promise<unknown>>()
   let disposed = false
   function bind(mode: 'read' | 'write', input: ToolDescriptor, operation: Operation, options: Options = {}): RegisteredTool {
     if (input.mode !== mode) toolFail('TOOL_INVALID_CONFIG')
@@ -54,6 +55,8 @@ export function createCapabilities(defaults: { timeoutMs?: number; maxActive?: n
             try {
               signal.throwIfAborted()
               const pending = Promise.resolve().then(() => { signal.throwIfAborted(); return operation(args, { ...caller, invocationId, signal }) })
+              inFlight.add(pending)
+              void pending.then(() => inFlight.delete(pending), () => inFlight.delete(pending))
               result = toolOutput(await Promise.race([pending, aborted]), output?.validate)
               if (signal.aborted) toolFail(timedOut ? 'TOOL_TIMEOUT' : 'TOOL_CANCELLED')
             } finally { if (onAbort) signal.removeEventListener('abort', onAbort) }
@@ -75,6 +78,7 @@ export function createCapabilities(defaults: { timeoutMs?: number; maxActive?: n
   return {
     read: (descriptor: ToolDescriptor, operation: Operation, options?: Options) => bind('read', descriptor, operation, options),
     write: (descriptor: ToolDescriptor, operation: Operation, options?: Options) => bind('write', descriptor, operation, options),
+    async settle() { await Promise.allSettled([...inFlight]) },
     async dispose() {
       disposed = true
       const pending = [...active.values()]

@@ -71,6 +71,18 @@ RunGuard 负责进展检测和硬阻断。运行时使用最后一个可信 Guar
 
 [智能粘贴](architecture.zh-CN.md#智能粘贴与全局通知) 观察既有助手增量和 Pi 提供的仅宿主可见的工具轮结果。宿主可撤回该轮的临时字段文本，会话记录与 Cycle 转换沿用现有规则。
 
+
+内存中的 Guard 执行使用下述独立生命周期。Main 为内部工作自动分配 UUID，外部执行通过 Begin 申请。全局最多一个活动执行；竞争的内部执行在模型/工具执行前返回 `TOOL_BUSY`。同 Session 排队的 Prompt 保留原有 FIFO。Guard 关闭会等待已开始的工具，随后释放准入；失败、取消、超时或断连都保留业务写入。Resume Controller 在 Agent 收尾、业务发布和输出期间保留同一次占用。[协议与鉴权](mcp-architecture.zh-CN.md#执行身份与外部协议)
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE: Main admission allocates execution UUID
+    ACTIVE --> CLOSED: end / finish / cancel / timeout / disconnect, then drain
+    CLOSED --> [*]: release volatile occupancy
+```
+
+`executionRunId` 标识 Guard 快照；历史 Trace 的 `agentRunId` 字段由 [parseRunGuard](../src/shared/agent/run-guard.ts)在读取时规范化，不改写已保存 Trace。Guard 阻断仅承担行为防护，不回滚业务，也不判断语义正确性。
+
 ## 四、收尾与诊断
 
 Main 在同一事务中结算最后一个未关闭的 Cycle，并保存宿主 Run 生命周期和最终会话内容。事务提交后发布终态事件。终态持久化失败时，Main 保持该 Session 的队列屏障，重试保存失败结论。已确认写入继续有效，不确定写入会停止执行且不会自动重放。见 [Main 记录器](../src/platform/electron/agent-recorder.ts)。

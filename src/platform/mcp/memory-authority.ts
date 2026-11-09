@@ -2,15 +2,17 @@ import { createServer, type ServerResponse } from 'node:http'
 import { mkdir, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { atomicWrite } from '../knowledge/paths'
+import { createRunAdmission, type RunAdmission, type ExecutionRun } from './run-admission'
 import { randomBytes } from 'node:crypto'
 import { callDigest as digest } from './call-fingerprint'
+import { jobAgentAllowlist } from '../../shared/agent/business-policy'
 import { askToolAllowlist } from '../../shared/agent/ask-policy'
 import { resumeAgentTools, resumeAgentLifecycle } from '../../shared/agent/resume-policy'
 import type { TrustedRunContext } from '../mcp-server/run-guard'
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-type RunPolicy = { kind: 'ask' | 'resume' | 'resume-controller'; generationRunId?: string }
+type RunPolicy = { kind: 'ask' | 'resume' | 'business' | 'resume-controller'; generationRunId?: string }
 const toolPolicy: Record<RunPolicy['kind'], readonly string[]> = {
-  ask: askToolAllowlist, resume: resumeAgentTools, 'resume-controller': resumeAgentLifecycle
+  business: jobAgentAllowlist, ask: askToolAllowlist, resume: resumeAgentTools, 'resume-controller': resumeAgentLifecycle
 }
 function allows(run: RunPolicy, operation: string, args: unknown) {
   return toolPolicy[run.kind].includes(operation)
@@ -18,13 +20,14 @@ function allows(run: RunPolicy, operation: string, args: unknown) {
 }
 
 /** Main owns random one-use credentials in memory; the disk descriptor contains only public routing data. */
-export function createMemoryAuthority(directory: string) {
+export function createMemoryAuthority(directory: string, admission: RunAdmission = createRunAdmission()) {
   const instance = randomBytes(32).toString('hex')
-  const pending = new Map<string, { session: string; kind: 'ask' | 'resume'; expires: number }>()
+  const pending = new Map<string, { session: string; kind: 'ask' | 'resume' | 'business'; expires: number }>()
   const grants = new Map<string, { session: string; operation: string; hash: string; expires: number; sources: string[] }>()
-  const runs = new Map<string, { session: string; sessionId: string } & RunPolicy>()
+  const occupancy = new Map<string, { run: ExecutionRun; refs: number }>()
+  const runs = new Map<string, { executionRunId: string; session: string; sessionId: string } & RunPolicy>()
   const runGrants = new Map<string, { agentRunId: string; session: string; operation: string; hash: string; expires: number }>()
-  const channels = new Map<string, { response: ServerResponse; kind: 'ask' | 'resume' }>()
+  const channels = new Map<string, { response: ServerResponse; kind: 'ask' | 'resume' | 'business' }>()
   const acknowledgements = new Map<string, { session: string; resolve(): void }>()
   const server = createServer(async (req, res) => {
     if (req.method !== 'POST' || !['/redeem', '/grant', '/run-grant', '/run-closed'].includes(req.url ?? '')) { res.writeHead(403).end(); return }
@@ -42,7 +45,7 @@ export function createMemoryAuthority(directory: string) {
         const run = grant && runs.get(grant.agentRunId)
         if (!grant || !run || input.instance !== instance || input.session !== grant.session || run.session !== grant.session
           || input.operation !== grant.operation || input.hash !== grant.hash || grant.expires < Date.now()) { res.writeHead(403).end(); return }
-        res.writeHead(200).end(JSON.stringify({ agentRunId: grant.agentRunId, sessionId: run.sessionId, kind: run.kind, generationRunId: run.generationRunId })); return
+        res.writeHead(200).end(JSON.stringify({ executionRunId: run.executionRunId, agentRunId: ['resume-controller', 'business'].includes(run.kind) ? undefined : grant.agentRunId, sessionId: run.sessionId, kind: run.kind, generationRunId: run.generationRunId })); return
       }
       if (req.url === '/grant') {
         const grant = grants.get(input.token); grants.delete(input.token)
@@ -60,6 +63,7 @@ export function createMemoryAuthority(directory: string) {
       res.on('close', () => {
         if (channels.get(credential.session)?.response === res) channels.delete(credential.session)
         for (const [id, run] of runs) if (run.session === credential.session) runs.delete(id)
+        // The stdio owner retires occupancy after process closure, following tool drain.
       })
       res.write(JSON.stringify({ instance, session: credential.session, kind: credential.kind }) + '\n')
     } catch { res.writeHead(403).end() }
@@ -74,7 +78,13 @@ export function createMemoryAuthority(directory: string) {
   })
   ready.catch(() => {})
   return {
-    async issue(session: string, kind: 'ask' | 'resume' = 'ask') {
+    retireSession(session: string) {
+      channels.get(session)?.response.end(); channels.delete(session)
+      for (const [id, run] of runs) if (run.session === session) runs.delete(id)
+      const held = occupancy.get(session)
+      if (held) { admission.release(session, held.run.id); occupancy.delete(session) }
+    },
+    async issue(session: string, kind: 'ask' | 'resume' | 'business' = 'ask') {
       await ready
       for (const [key, value] of pending) if (value.expires < Date.now()) pending.delete(key)
       const address = server.address()
@@ -83,13 +93,20 @@ export function createMemoryAuthority(directory: string) {
       pending.set(credential, { session, kind, expires: Date.now() + 30000 })
       return JSON.stringify({ port: address.port, instance, session, credential })
     },
-    registerRun(session: string, agentRunId: string, sessionId: string, policy: RunPolicy = { kind: 'ask' }) {
-      if (channels.get(session)?.kind !== (policy.kind === 'ask' ? 'ask' : 'resume')) throw new Error('MEMORY_AUTH_FAILED')
+    registerRun(session: string, businessRunId: string | undefined, sessionId: string, policy: RunPolicy = { kind: 'ask' }) {
+      if (channels.get(session)?.kind !== (policy.kind === 'resume-controller' ? 'resume' : policy.kind)) throw new Error('MEMORY_AUTH_FAILED')
       if (policy.kind === 'resume' && !uuid.test(policy.generationRunId ?? '')) throw new Error('MEMORY_AUTH_FAILED')
-      if (!uuid.test(agentRunId) || !sessionId || sessionId.length > 128 || runs.has(agentRunId) || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
-      runs.set(agentRunId, { session, sessionId, ...policy })
+      const agentRunId = businessRunId ?? session
+      if ((!['resume-controller', 'business'].includes(policy.kind) && !uuid.test(agentRunId)) || !sessionId || sessionId.length > 128 || runs.has(agentRunId) || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
+      let held = occupancy.get(session)
+      if (held && policy.kind !== 'resume') throw new Error('MEMORY_AUTH_FAILED')
+      if (!held) { held = { run: admission.acquire(session), refs: 0 }; occupancy.set(session, held) }
+      held.refs++
+      const executionRunId = held.run.id
+      runs.set(agentRunId, { executionRunId, session, sessionId, ...policy })
       let closing: Promise<void> | undefined
       return {
+        executionRunId,
         grant(operation: string, args: unknown) {
           if (runs.get(agentRunId)?.session !== session || !channels.has(session)) throw new Error('MEMORY_AUTH_FAILED')
           for (const [key, value] of runGrants) if (value.expires < Date.now()) runGrants.delete(key)
@@ -107,8 +124,9 @@ export function createMemoryAuthority(directory: string) {
             await new Promise<void>((resolve, reject) => {
               const timer = setTimeout(() => { acknowledgements.delete(token); reject(new Error('MEMORY_AUTH_FAILED')) }, 5000)
               acknowledgements.set(token, { session, resolve() { clearTimeout(timer); resolve() } })
-              channel.write(JSON.stringify({ type: 'run.closed', agentRunId, token }) + '\n')
+              channel.write(JSON.stringify({ type: 'run.closed', agentRunId, executionRunId, final: held!.refs === 1, token }) + '\n')
             })
+            if (--held!.refs === 0) { admission.release(session, executionRunId); occupancy.delete(session) }
           })()
         }
       }
@@ -120,15 +138,15 @@ export function createMemoryAuthority(directory: string) {
       grants.set(token, { session, operation, hash: digest(args), sources: [...sources], expires: Date.now() + 30000 })
       return token
     },
-    async close() { pending.clear(); grants.clear(); runs.clear(); runGrants.clear(); await ready.catch(() => {}); if (!server.listening) return; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); try { if (JSON.parse(await readFile(descriptor, 'utf8')).instance === instance) await unlink(descriptor) } catch { /* A replacement Main owns the descriptor. */ } }
+    async close() { for (const [owner, held] of occupancy) admission.release(owner, held.run.id); occupancy.clear(); pending.clear(); grants.clear(); runs.clear(); runGrants.clear(); await ready.catch(() => {}); if (!server.listening) return; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); try { if (JSON.parse(await readFile(descriptor, 'utf8')).instance === instance) await unlink(descriptor) } catch { /* A replacement Main owns the descriptor. */ } }
   }
 }
 export interface MemoryAuthorization {
-  kind: 'ask' | 'resume'
+  kind: 'ask' | 'resume' | 'business'
   signal: AbortSignal
   authorize?(token: unknown, operation: string, args: unknown): Promise<boolean>
   authorizeRun(token: unknown, operation: string, args: unknown): Promise<TrustedRunContext | undefined>
-  onRunClosed(listener: (id: string) => Promise<void>): void
+  onRunClosed(listener: (id: string, final: boolean) => Promise<void>): void
   close(): void
 }
 export async function redeemMemoryLaunch(raw: string | undefined, directory: string): Promise<MemoryAuthorization | undefined> {
@@ -155,10 +173,10 @@ export async function redeemMemoryLaunch(raw: string | undefined, directory: str
       buffer = buffer.slice(end + 1); return line
     }
     const result = JSON.parse(await readLine())
-    if (result.instance !== input.instance || result.session !== input.session || !['ask', 'resume'].includes(result.kind)) throw new Error()
+    if (result.instance !== input.instance || result.session !== input.session || !['ask', 'resume', 'business'].includes(result.kind)) throw new Error()
     clearTimeout(timeout)
     const runControllers = new Map<string, AbortController>(), closed = new Set<string>()
-    let runClosed: (id: string) => Promise<void> = async () => {}
+    let runClosed: (id: string, final: boolean) => Promise<void> = async () => {}
     const post = (path: string, payload: object) => fetch(`http://127.0.0.1:${port}${path}`, {
       method: 'POST', redirect: 'error', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, instance: input.instance, session: input.session }) })
@@ -166,9 +184,9 @@ export async function redeemMemoryLaunch(raw: string | undefined, directory: str
       try {
         for (;;) {
           const event = JSON.parse(await readLine())
-          if (event.type !== 'run.closed' || !uuid.test(event.agentRunId) || typeof event.token !== 'string') throw new Error()
+          if (event.type !== 'run.closed' || typeof event.agentRunId !== 'string' || !uuid.test(event.executionRunId) || typeof event.final !== 'boolean' || typeof event.token !== 'string') throw new Error()
           closed.add(event.agentRunId); runControllers.get(event.agentRunId)?.abort(); runControllers.delete(event.agentRunId)
-          await runClosed(event.agentRunId)
+          await runClosed(event.executionRunId, event.final)
           const reply = await post('/run-closed', { token: event.token }); await reply.body?.cancel()
           if (!reply.ok) throw new Error()
         }
@@ -182,10 +200,10 @@ export async function redeemMemoryLaunch(raw: string | undefined, directory: str
         try {
           const reply = await post('/run-grant', { token, operation, hash: digest(args) })
           if (!reply.ok) { await reply.body?.cancel(); return }
-          const run = await reply.json() as { agentRunId: string; sessionId: string } & RunPolicy
-          if (!Object.hasOwn(toolPolicy, run.kind) || !allows(run, operation, args) || !uuid.test(run.agentRunId) || typeof run.sessionId !== 'string' || !run.sessionId || run.sessionId.length > 128 || closed.has(run.agentRunId) || controller.signal.aborted) return
-          let runController = runControllers.get(run.agentRunId)
-          if (!runController) { runController = new AbortController(); runControllers.set(run.agentRunId, runController) }
+          const run = await reply.json() as { executionRunId: string; agentRunId?: string; sessionId: string } & RunPolicy
+          if (!Object.hasOwn(toolPolicy, run.kind) || !allows(run, operation, args) || !uuid.test(run.executionRunId) || (!['resume-controller', 'business'].includes(run.kind) && !uuid.test(run.agentRunId ?? '')) || typeof run.sessionId !== 'string' || !run.sessionId || run.sessionId.length > 128 || closed.has(run.agentRunId ?? input.session) || controller.signal.aborted) return
+          let runController = runControllers.get(run.agentRunId ?? input.session)
+          if (!runController) { runController = new AbortController(); runControllers.set(run.agentRunId ?? input.session, runController) }
           return { ...run, signal: AbortSignal.any([controller.signal, runController.signal]) }
         } catch { return }
       }, async authorize(token, operation, args) {

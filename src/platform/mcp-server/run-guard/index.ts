@@ -6,7 +6,7 @@ import { callDigest } from '../../mcp/call-fingerprint'
 import { confirmedArchive, progressKey } from './policies'
 import { ReadProgress } from './read-progress'
 
-export interface TrustedRunContext { agentRunId: string; sessionId: string; kind?: 'ask' | 'resume' | 'resume-controller'; generationRunId?: string; signal: AbortSignal }
+export interface TrustedRunContext { executionRunId: string; agentRunId?: string; sessionId: string; kind?: 'ask' | 'resume' | 'resume-controller' | 'business'; generationRunId?: string; signal: AbortSignal }
 export interface GuardedResult { output?: ToolOutput; error?: ToolError; guard: RunGuardSnapshot }
 const preflightErrors = new Set(['TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY', 'TOOL_CONFLICT'])
 class RunGuard {
@@ -16,8 +16,8 @@ class RunGuard {
   private violations = new Map<string, number>()
   private closed = false
   private tail: Promise<unknown> = Promise.resolve()
-  constructor(readonly context: TrustedRunContext) {
-    this.state = { agentRunId: context.agentRunId, status: 'ACTIVE', calls: 0, executedCalls: 0, noProgress: 0, rejections: 0,
+  constructor(public context: TrustedRunContext) {
+    this.state = { executionRunId: context.executionRunId, status: 'ACTIVE', calls: 0, executedCalls: 0, noProgress: 0, rejections: 0,
       progress: 0, executed: false, effectAlreadyConfirmed: false, effects: [] }
   }
   snapshot() { return structuredClone(this.state) }
@@ -42,8 +42,9 @@ class RunGuard {
     return new ToolError(this.state.status === 'BLOCKED' ? 'TOOL_GUARD_TERMINATED' : reason === 'DUPLICATE_WRITE' ? 'TOOL_GUARD_DUPLICATE' : 'TOOL_GUARD_CONFLICT')
   }
   execute(tool: ToolDescriptor, args: JsonValue, signal: AbortSignal, operation: () => Promise<ToolOutput>): Promise<GuardedResult> {
+    const runSignal = this.context.signal
     const pending = this.tail.then(async (): Promise<GuardedResult> => {
-      if (this.closed || this.context.signal.aborted || signal.aborted) toolFail('TOOL_CANCELLED')
+      if (this.closed || runSignal.aborted || signal.aborted) toolFail('TOOL_CANCELLED')
       this.state.executed = false; this.state.effectAlreadyConfirmed = false
       if (this.state.status === 'BLOCKED') return { error: new ToolError('TOOL_GUARD_TERMINATED'), guard: this.snapshot() }
       this.state.reason = undefined
@@ -85,6 +86,7 @@ class RunGuard {
     this.tail = pending.catch(() => {})
     return pending
   }
+  async settle() { await this.tail }
   async close() { this.closed = true; await this.tail; this.seen.clear(); this.reads.clear(); this.violations.clear(); this.state.effects = [] }
 }
 export function createRunGuardManager() {
@@ -92,11 +94,13 @@ export function createRunGuardManager() {
   return {
     forRun(context: TrustedRunContext) {
       if (context.signal.aborted) toolFail('TOOL_CANCELLED')
-      let guard = runs.get(context.agentRunId)
+      let guard = runs.get(context.executionRunId)
       if (guard && guard.context.sessionId !== context.sessionId) toolFail('TOOL_FORBIDDEN')
-      if (!guard) { guard = new RunGuard(context); runs.set(context.agentRunId, guard) }
+      if (guard) guard.context = context
+      if (!guard) { guard = new RunGuard(context); runs.set(context.executionRunId, guard) }
       return guard
     },
+    async settle(id: string) { await runs.get(id)?.settle() },
     async close(id: string) { const guard = runs.get(id); if (guard) { await guard.close(); if (runs.get(id) === guard) runs.delete(id) } },
     async dispose() { await Promise.all([...runs.values()].map(g => g.close())); runs.clear() }
   }

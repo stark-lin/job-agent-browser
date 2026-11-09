@@ -9,6 +9,10 @@ description: 在宿主环境读取职位 URL、PDF 或粘贴描述，并通过 M
 
 语言：简体中文 · [English](SKILL.md)
 
+## MCP 执行
+
+保持 JAB Main 运行。业务读写前调用 `run.begin({})`，每次业务调用都将返回的 `runId` 作为必需的 `executionRunId`，保留全部业务参数（包括 Resume 自身的 `runId`）。完成、报错或 Guard 阻断后调用 `run.end({runId})`。每次成功调用都已保存；End、取消、超时和断连不撤销写入。准入繁忙或不可用时停止并报告，不绕过 MCP 或复用旧执行 UUID。
+
 ## 理解资料
 
 使用宿主提供的浏览、文件或文本工具读取用户资料。如果资料已在工作上下文中，直接分析。提取和理解期间不要调用 Job Agent Browser；应用是业务记录系统，不是解析器。

@@ -33,7 +33,7 @@ test('job import validates structured data, atomically records sources and recei
 })
 
 test('application tools enforce transitions, archive rules, event ownership and idempotent mutations', async t => {
-  const f = await firstPartyFixture(t), tools = await f.mcp.session('application', signal()), jobId = f.job.id
+  const f = await firstPartyFixture(t); let tools = await f.mcp.session('application', signal()); const jobId = f.job.id
   const call = (name: string, args: object) => tools.call(name, args, signal())
   const before = await call('application.get', { jobId }) as ReturnType<typeof applicationState>
   assert(before.allowedNextStatuses.includes('APPLIED'))
@@ -46,8 +46,8 @@ test('application tools enforce transitions, archive rules, event ownership and 
   assert.equal(edited.description, f.job.description)
   assert.deepEqual(await call('job.update', patch), edited)
   await assert.rejects(call('job.update', { id: jobId, changes: { applicationStatus: 'OFFER' } }), { code: 'TOOL_INVALID_INPUT' })
-  const archived = await call('job.set_archived', { id: jobId, archived: true })
-  assert.deepEqual(await call('job.set_archived', { id: jobId, archived: true }), archived)
+  await call('job.set_archived', { id: jobId, archived: true })
+  await assert.rejects(call('job.set_archived', { id: jobId, archived: true }), { code: 'TOOL_GUARD_DUPLICATE' })
   assert.deepEqual((await call('application.get', { jobId }) as ReturnType<typeof applicationState>).allowedNextStatuses, [])
   await assert.rejects(call('application.set_status', { jobId, status: 'INTERVIEW' }), { code: 'TOOL_CONFLICT' })
   const note = { jobId, text: 'Still keep a note', requestId: randomUUID() }
@@ -56,6 +56,7 @@ test('application tools enforce transitions, archive rules, event ownership and 
   await assert.rejects(call('application.add_note', { ...note, text: 'Conflict' }), { code: 'TOOL_CONFLICT' })
   const schedule = { jobId, requestId: randomUUID(), type: 'INTERVIEW', title: 'Interview', startsAt: '2026-10-27T03:00:00.000Z' }
   await assert.rejects(call('application.schedule_event', schedule), { code: 'TOOL_CONFLICT' })
+  await tools.close(); tools = await f.mcp.session('application', signal())
   await call('job.set_archived', { id: jobId, archived: false })
   const scheduled = await call('application.schedule_event', schedule) as JobEvent
   assert.deepEqual(await call('application.schedule_event', schedule), scheduled)
@@ -68,16 +69,19 @@ test('application tools enforce transitions, archive rules, event ownership and 
   assert.equal((await call('application.list_events', { jobId }) as PageResult<JobEvent>).items.find(event => event.id === scheduled.id)?.startsAt, reschedule.startsAt)
 })
 
-test('operation receipts survive concurrent independent Server writes and a Server restart', async t => {
+test('operation receipts survive sequential independent Server writes and a Server restart', async t => {
   const f = await firstPartyFixture(t)
-  const [a, b] = await Promise.all([f.mcp.session('job-capture', signal()), f.mcp.session('application', signal())])
+  const a = await f.mcp.session('job-capture', signal())
+  await assert.rejects(f.mcp.session('application', signal()), { code: 'TOOL_BUSY' })
   const request = { requestId: randomUUID(), details: { title: 'Concurrent', companyNameRaw: 'Company' } }
-  const [left, right] = await Promise.all([a.call('job.import', request, signal()), b.call('job.import', request, signal())])
-  assert.deepEqual(left, right)
+  const left = await a.call('job.import', request, signal())
   const note = { requestId: randomUUID(), jobId: f.job.id, text: 'One note' }
-  const [one, two] = await Promise.all([a.call('application.add_note', note, signal()), b.call('application.add_note', note, signal())])
-  assert.deepEqual(one, two)
+  const one = await a.call('application.add_note', note, signal())
   await a.close()
+  const b = await f.mcp.session('application', signal())
+  assert.deepEqual(await b.call('job.import', request, signal()), left)
+  assert.deepEqual(await b.call('application.add_note', note, signal()), one)
+  await b.close()
   const restarted = await f.mcp.session('job-capture', signal())
   assert.deepEqual(await restarted.call('job.import', request, signal()), left)
   assert.deepEqual(await restarted.call('application.add_note', note, signal()), one)

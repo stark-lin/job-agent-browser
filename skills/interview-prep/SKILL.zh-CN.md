@@ -8,6 +8,10 @@ description: 通过 Job Agent Browser MCP，结合已保存职位、个人证据
 
 语言：[English](SKILL.md) · 简体中文
 
+## MCP 执行
+
+保持 JAB Main 运行。业务读写前调用 `run.begin({})`，每次业务调用都将返回的 `runId` 作为必需的 `executionRunId`，保留全部业务参数（包括 Resume 自身的 `runId`）。完成、报错或 Guard 阻断后调用 `run.end({runId})`。每次成功调用都已保存；End、取消、超时和断连不撤销写入。准入繁忙或不可用时停止并报告，不绕过 MCP 或复用旧执行 UUID。
+
 ## 工作流程
 
 1. 通过 job.list/job.get 读取目标职位，通过 profile.list/profile.get/profile.list_items/profile.list_facts 读取用户证据。缺少上下文时提问，不编造信息。

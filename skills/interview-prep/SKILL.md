@@ -8,6 +8,10 @@ Status: implemented Agent workflow; there is no Interview Prep application page.
 
 Language: English · [简体中文](SKILL.zh-CN.md)
 
+## MCP execution
+
+Keep JAB Main running. Before business reads or writes call `run.begin({})`; pass its returned `runId` as required `executionRunId` on every business call, preserving all business fields (including any Resume `runId`). Call `run.end({runId})` when finished, including after errors or Guard blocking. Each successful call is already saved: End, cancellation, timeout and disconnect do not undo writes. If admission is busy/unavailable, stop and report it; do not bypass MCP or reuse an old execution UUID.
+
 ## Workflow
 
 1. Read the intended job using job.list/job.get, and the user's profile using profile.list/profile.get/profile.list_items/profile.list_facts. Ask for missing context instead of inventing it.

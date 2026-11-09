@@ -124,8 +124,10 @@ export function createJobImporter(deps: Dependencies) {
       task.saving = (async () => {
         try {
           const tools = await deps.mcp.session('job-capture', task.controller.signal)
-          const saved = await tools.call('job.import', { ...payload, requestId: task.requestId }, task.controller.signal) as Job
-          task.saved = saved; task.state = 'saved'; return saved
+          try {
+            const saved = await tools.call('job.import', { ...payload, requestId: task.requestId }, task.controller.signal) as Job
+            task.saved = saved; task.state = 'saved'; return saved
+          } finally { await tools.close() }
         } catch (error) {
           task.state = 'ready'
           if (importErrorCode(error) === 'TOOL_INVALID_INPUT') { task.fingerprint = undefined; task.requestId = randomUUID() }
