@@ -20,6 +20,7 @@ erDiagram
     PROFILE o|..o{ OPERATION_RECEIPT : logical_profile
     PROFILE_ITEM o|..o{ OPERATION_RECEIPT : logical_item
     FACT o|..o{ OPERATION_RECEIPT : logical_fact
+    PROFILE ||--o| PROFILE_BASELINE : approves_once
     PROFILE ||--o{ PROFILE_ITEM : contains
     PROFILE ||--o{ FACT : owns
     PROFILE ||--o| PROFILE_ORDER_COUNTER : reserves
@@ -139,8 +140,15 @@ erDiagram
         datetime starts_at
         datetime ends_at
     }
+    PROFILE_BASELINE {
+        string profile_id PK,FK
+        int schema_version
+        json snapshot_json
+        datetime created_at
+    }
     PROFILE {
         string id PK
+        string title
         string name
         string email
         text introduction

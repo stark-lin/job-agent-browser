@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useServices } from '../../app/providers'
-import type { Fact, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
+import type { Fact, Profile, ProfileItem, ProfileBaselineStatus } from '../../domain/candidate/candidate.types'
 import type { PageResult } from '../../domain/common/ports'
 import type { Result } from '../../shared/ipc'
 
@@ -17,9 +17,11 @@ async function all<T>(get: (offset: number) => Promise<Result<PageResult<T>>>): 
 export function useProfile() {
   const { data, context } = useServices()
   const [profile, setProfile] = useState<Profile | null>(null), [items, setItems] = useState<ProfileItem[]>([]), [facts, setFacts] = useState<Fact[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([]), [baselineStatus, setBaselineStatus] = useState<ProfileBaselineStatus | null>(null)
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [saving, setSaving] = useState(false), [notice, setNotice] = useState(false)
   const lock = useRef(false), mounted = useRef(true)
   const refresh = useCallback(async (id?: string) => {
+    const profiles = await all(offset => data.profiles.listProfiles({ limit: 100, offset }))
     let profile: Profile | null = null
     const current = id ?? context.getSnapshot().profileId
     if (current) {
@@ -36,7 +38,10 @@ export function useProfile() {
       all(offset => data.profiles.listItems({ profileId: profile!.id, limit: 100, offset })),
       all(offset => data.profiles.listFacts({ profileId: profile!.id, limit: 100, offset }))
     ]) : [[], []]
+    const status = profile ? await data.profiles.getBaselineStatus({ profileId: profile.id }) : null
+    if (status && !status.ok) throw new Error(status.error)
     if (!mounted.current) return
+    setProfiles(profiles); setBaselineStatus(status?.ok ? status.value : null)
     setProfile(profile); setItems(items); setFacts(facts); context.setReferences({ profileId: profile?.id ?? null })
   }, [context, data])
   const reload = useCallback(async () => {
@@ -60,5 +65,5 @@ export function useProfile() {
     } catch { if (mounted.current) setError('STORAGE_UNAVAILABLE'); return null }
     finally { lock.current = false; if (mounted.current) setSaving(false) }
   }
-  return { profile, items, facts, loading, error, saving, notice, reload, refresh, perform }
+  return { profile, profiles, baselineStatus, items, facts, loading, error, saving, notice, reload, refresh, perform }
 }

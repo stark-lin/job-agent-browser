@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, DetailsList, Dialog, SectionCard, StatusMessage } from '../../shared/ui'
+import { ActionRow, Checkbox, Button, DetailsList, Dialog, SectionCard, StatusMessage } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { en } from '../../shared/i18n/locales/en'
@@ -23,6 +23,7 @@ export function ProfileImport({ profile, onDirty, onSaved, disabled }: { profile
       {state.error && <StatusMessage tone="error">{error}</StatusMessage>}
       {state.saved && <StatusMessage tone="success">{t($ => $.profile.importSaved)}</StatusMessage>}
       {busy && <StatusMessage>{state.stage === 'parsing' ? t($ => $.profile.parsing) : state.progress.pages ? t($ => $.profile.progress, state.progress) : t($ => $.profile.extracting)}</StatusMessage>}
+      {!state.hasFile && profile && <Checkbox label={t($ => $.profile.appendCurrent)} checked={state.append} disabled={disabled || busy} onChange={event => state.setAppend(event.target.checked)} />}
       <ActionRow>
         {!state.hasFile && !busy && <Button variant="primary" disabled={disabled || !configured} onClick={() => void state.upload()}>{t($ => $.profile.upload)}</Button>}
         {state.stage === 'failed' && state.hasFile && <Button disabled={disabled} onClick={() => void state.start(state.retryable)}>{state.retryable ? t($ => $.profile.parseAgain) : t($ => $.profile.parseAgain)}</Button>}

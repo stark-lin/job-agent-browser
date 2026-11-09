@@ -1,3 +1,4 @@
+import { Store } from '../src/platform/database/repositories/store'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
@@ -12,15 +13,15 @@ import { published, value } from './helpers'
 const rows = (db: DatabaseSync, table: string) => db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()
 const objects = (db: DatabaseSync) => db.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger')").all().map(row => String(row.name))
 
-test('historical V1–V21 generated SQL keeps every original checksum', () => {
+test('historical V1–V22 generated SQL keeps every original checksum', () => {
   const expected = JSON.parse(readFileSync('tests/fixtures/migration-checksums.json', 'utf8'))
-  assert.deepEqual(migrations.slice(0, 21).map(step => ({ version: step.version, checksum: createHash('sha256').update(step.sql).digest('hex') })), expected)
+  assert.deepEqual(migrations.slice(0, 22).map(step => ({ version: step.version, checksum: createHash('sha256').update(step.sql).digest('hex') })), expected)
 })
 
 test('fresh database reaches V22 with business constraints and no legacy audit objects', () => {
   const db = new DatabaseSync(':memory:')
   try {
-    migrate(db)
+    migrate(db, migrations.slice(0, 22))
     assert.equal(db.prepare('PRAGMA application_id').get()?.application_id, DATABASE_GENERATION)
     assert.equal(db.prepare('SELECT max(version) v FROM schema_migrations').get()?.v, 22)
     const names = objects(db)
@@ -38,7 +39,8 @@ function legacy(t: import('node:test').TestContext) {
   const backend = composeBackend({ connection: db, transactions, close: () => db.close() })
   t.after(() => backend.close())
   const job = backend.jobs.saveJob({ details: { title: 'Keep job', companyNameRaw: 'Keep company' } }, randomUUID())
-  const profile = backend.profiles.createProfile({ name: 'Keep person' })
+  const profile = { id: randomUUID(), name: 'Keep person', introduction: '', email: '', phone: '', location: '', links: [], revision: 1, updatedAt: new Date().toISOString() }
+  transactions.write(() => new Store(db).insert('profile', profile))
   const item = backend.profiles.addItem({ profileId: profile.id, details: { type: 'PROJECT', title: 'Keep project' } })
   const fact = backend.profiles.addFact({ profileId: profile.id, profileItemId: item.id, details: { kind: 'OTHER', content: 'Keep fact' } })
   const run = backend.resumes.createRun({ jobId: job.id, profileId: profile.id }, { start: true })
@@ -67,7 +69,7 @@ test('V21 upgrade discards audit history while preserving business state, receip
   const before = tables.map(table => rows(db, table))
   const versions = rows(db, 'schema_migrations')
   db.exec("CREATE TRIGGER guard_custom_business BEFORE UPDATE ON jobs BEGIN SELECT 1; END")
-  migrate(db)
+  migrate(db, migrations.slice(0, 22))
   tables.forEach((table, index) => assert.deepEqual(rows(db, table), before[index], table))
   assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=21 ORDER BY version').all(), versions)
   assert(objects(db).includes('guard_custom_business'))

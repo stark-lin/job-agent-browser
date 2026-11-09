@@ -1,5 +1,5 @@
 import type { PageResult } from '../common/ports'
-import type { Fact, Profile, ProfileItem } from './candidate.types'
+import type { Fact, Profile, ProfileItem, ProfileBaseline } from './candidate.types'
 
 export interface CandidateRepository {
   getProfile(id: string): Profile
@@ -13,6 +13,11 @@ export interface CandidateRepository {
   insertItem(item: ProfileItem): void
   saveItem(item: ProfileItem): void
   removeItem(id: string): void
+  getBaseline(profileId: string): ProfileBaseline | null
+  insertBaseline(baseline: ProfileBaseline): void
+  clearWorkingContent(profileId: string): void
+  syncOrderCounters(profileId: string): void
+  orderedFacts(profileId: string): Array<Fact & { sortOrder: number }>
   allFacts(profileId: string): Fact[]
   getFact(id: string): Fact
   facts(profileId: string, limit: number, offset: number): PageResult<Fact>

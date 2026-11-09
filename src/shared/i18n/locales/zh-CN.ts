@@ -113,7 +113,7 @@ export const zhCN = {
   "thought": "思考了 {{seconds}} 秒",
   copyContent: '复制', reasoning: '推理内容', encryptedReasoning: '加密推理', encryptedUnavailable: '提供商返回了加密推理，没有可读文本。',
   source: '来源', elapsed: '耗时', toolName: '工具', callId: '调用 ID', executionState: '状态', arguments: '参数 · JSON', result: '结果 · JSON', toolError: '错误',
-  guard: { level: '进展保护', warning: '告警', recovery: '恢复', nextAction: '下一步', changeStrategy: '切换其他已授权数据源，或根据已确认的信息回答。', runId: 'Chat Run ID', runState: '运行状态', status: '运行保护', active: '生效中', blocked: '已停止', calls: '调用次数', executedCalls: '已派发调用', rejections: '拦截次数', noProgress: '连续无进展次数', reason: '保护原因', confirmedEffect: '已确认操作', archived: '已归档', restored: '已恢复', notExecuted: '未执行',
+  guard: { executionId: '执行 ID', level: '进展保护', warning: '告警', recovery: '恢复', nextAction: '下一步', changeStrategy: '切换其他已授权数据源，或根据已确认的信息回答。', runId: 'Chat Run ID', runState: '运行状态', status: '运行保护', active: '生效中', blocked: '已停止', calls: '调用次数', executedCalls: '已派发调用', rejections: '拦截次数', noProgress: '连续无进展次数', reason: '保护原因', confirmedEffect: '已确认操作', archived: '已归档', restored: '已恢复', notExecuted: '未执行',
     reasons: { DUPLICATE_WRITE: '此前已确认该操作成功。', REVERSED_WRITE: '此操作会反转本轮已确认的结果。', NO_PROGRESS_LOOP: '重复调用未取得进展。', CALL_BUDGET_EXCEEDED: '已达到本轮调用上限。', REPEATED_VIOLATION: '再次尝试了相同的被拦截操作。', WRITE_OUTCOME_UNKNOWN: '无法确认写入结果，请核对当前状态后继续。' } },
   itemStates: { streaming: '正在思考', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已停止', uncertain: '结果不确定', interrupted: '已中断' },
   "summary": "思考摘要",
@@ -636,6 +636,12 @@ export const zhCN = {
     }
 },
   profile: {
+    profiles: '履历管理', chooseProfile: '当前履历', profileTitle: '履历标题', newProfile: '新建履历', duplicate: '复制履历', freeze: '确认并冻结', restore: '恢复确认版本', confirm: '确认', appendCurrent: '追加到当前履历',
+    status: { DRAFT: '草稿', READY: '已确认' }, actions: { new: '新建履历', duplicate: '复制当前工作履历', freeze: '确认并冻结', restore: '恢复确认版本' },
+    freezeDescription: '请确认已复查当前结构化履历。基准只保存一次且不可修改，后续编辑仅改变工作副本。',
+    restoreDescription: '将当前履历的标题、联系方式、简介、条目和事实替换为人工确认版本，当前工作副本的修改会被替换。其他履历、聊天和已生成简历保持不变。',
+    switchTitle: '放弃未保存修改？', switchDescription: '未保存的表单和当前导入草稿将被丢弃，已经保存的内容会保留。', leave: '放弃并切换',
+
     unmapped: '待归类原文', sourcePosition: '第 {{page}} 页第 {{line}} 行', mapField: '归入字段',
     basic: '基本信息', independent: '独立事实', noProfile: '保存姓名以创建资料，或导入 PDF。', empty: '暂无记录。',
     add: '新增', edit: '编辑', remove: '删除', cancel: '取消', save: '保存', saving: '保存中…', saved: '已保存', retry: '重试',

@@ -56,7 +56,13 @@
 
 [显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦具体无效字段。忽略父项会排除其事实。导入允许姓名、名称、事实内容和链接名称/URL 留空或省略；已填值仍校验格式、日期范围和长度。手动创建资料仍需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
 
-导入在同一事务写入全部业务记录。[导入服务](../src/domain/candidate/import.service.ts)为每次导入预留经历和 Fact 的序号，分批保存使用原位置。[迁移 18](../src/platform/database/migrations/resume-module.ts)新增排序和版本字段，历史 Fact 保留时间顺序。PDF 页码与行号用于本次审核，随草稿缓存释放。
+每个显式提交批次以短事务即时保存；后续失败或内存 Session 丢失保留此前成功批次。新 PDF 默认创建新 DRAFT Profile，追加必须显式选择，导入完成不自动冻结基准。[导入服务](../src/domain/candidate/import.service.ts)为每次导入预留经历和 Fact 的序号，分批保存使用原位置。[迁移 18](../src/platform/database/migrations/resume-module.ts)新增排序和版本字段，历史 Fact 保留时间顺序。PDF 页码与行号用于本次审核，随草稿缓存释放。
+
+### 工作履历与人工确认基准
+
+**已实现（V23）：**[迁移](../src/platform/database/migrations/profile-baseline.ts) 新增独立的 Profile `title` 和 `profile_baselines`；V1–V22 保持不变。已有履历为 DRAFT。READY 仅由基准是否存在推导。[基准服务](../src/domain/candidate/baseline.service.ts) 仅通过可信 UI IPC 冻结经过 Revision 检查的结构化快照。SQL 拒绝基准 UPDATE；删除所属 Profile 时级联清理。
+
+复制将当前工作内容映射到新 UUID，创建 DRAFT。恢复以一次同步业务短事务仅替换指定 Profile 的工作内容，重建条目父子关系和事实关联，保留排序并重置排序计数器，返回 Trigger 实际推进后的 Revision。Generation 快照和 Artifact 内容不变；旧引用可以变为 MISSING。工作编辑即时持久化且永不更新基准。PDF 原文不是恢复来源。
 
 ## 三、生成、成品与删除
 
@@ -95,7 +101,7 @@
 
 ### Ask AI 会话存储
 
-[统一 Agent 存储](../src/platform/database/repositories/chats.ts)为两个定义保存有序 Item、请求回执和诊断。Ask Run 关联 Session 并复用会话序号和检查点。隔离的 Resume Run 的 Session 为空，Item 在本 Run 内排序。聊天仍限制每个 Session 只有一个已放行 Run。删除时级联清理私有记录。智能粘贴的来源标记保留历史并禁用通用重试。
+[统一 Agent 存储](../src/platform/database/repositories/chats.ts)为两个定义保存有序 Item、请求回执和诊断。Ask Run 关联 Session 并复用会话序号和检查点。隔离的 Resume Run 的 Session 为空，Item 在本 Run 内排序。聊天存储仍限制每个 Session 只有一个已放行 Run，全局执行 Guard 进一步限制活动 Agent 执行最多一个。删除时级联清理私有记录。智能粘贴的来源标记保留历史并禁用通用重试。
 
 只有 [Main 记录器](../src/platform/electron/agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。工具条目还保存经白名单解析的 Guard 计数、原因、执行标记、已确认归档效果，以及可选告警/恢复级别与固定 nextAction，不含凭证或证据指纹；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/app/components/AgentTimelineItem.tsx)展示这些字段。复用现有 JSON 存储，无需迁移，历史快照可缺少新增字段。派发前跳过的调用不创建工具 Item 或不确定写入。
 

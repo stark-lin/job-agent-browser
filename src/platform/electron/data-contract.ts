@@ -4,7 +4,7 @@ import type { Preferences, PreferencePatch } from '../../shared/settings'
 import type { ErrorCode } from '../../domain/common/errors'
 import type { Page, PageResult } from '../../domain/common/ports'
 import type { ApplicationStatus, Company, CompanyInput, Job, JobFilter, JobInput, JobSource, SourceInput } from '../../domain/job/job.types'
-import type { ProfileInput, Fact, FactInput, ItemInput, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
+import type { ProfileBaselineStatus, ProfileInput, Fact, FactInput, ItemInput, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
 import type { ApplyImport, ImportSaved } from '../../domain/candidate/import.types'
 import type { JobEvent, ScheduleInput } from '../../domain/application/application.types'
 import type { Artifact, ArtifactView, CreateRunInput, GenerationRun, ResumeDocument, RunView } from '../../domain/resume/resume.types'
@@ -41,6 +41,10 @@ export interface DataContract {
     listCompanies: Endpoint<Page, PageResult<Company>>
   }
   profiles: {
+    freezeBaseline: Endpoint<{ profileId: string; expectedRevision: number }, ProfileBaselineStatus>
+    duplicateProfile: Endpoint<{ profileId: string; expectedRevision: number; title: string }, Profile>
+    restoreBaseline: Endpoint<{ profileId: string; expectedRevision: number }, Profile>
+    getBaselineStatus: Endpoint<{ profileId: string }, ProfileBaselineStatus>
     applyImport: Endpoint<ApplyImport, ImportSaved>
     createProfile: Endpoint<ProfileInput, Profile>
     editContact: Endpoint<{ id: string; details: ProfileInput }, Profile>
@@ -102,7 +106,7 @@ export type ServiceContract = {
 export const methodNames = {
   chats: ['listSessions', 'getSession', 'getRun', 'listItems', 'listRuns', 'listModelRequests', 'renameSession', 'setModel', 'copyDebugJson', 'deleteSession'],
   jobs: ['saveJob', 'updateDetails', 'attachSource', 'setArchived', 'deleteJob', 'getJob', 'listJobs', 'listSources', 'registerCompany', 'updateCompany', 'deleteCompany', 'listCompanies'],
-  profiles: ['createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
+  profiles: ['freezeBaseline', 'duplicateProfile', 'restoreBaseline', 'getBaselineStatus', 'createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
   applications: ['changeStatus', 'scheduleEvent', 'rescheduleEvent', 'addNote', 'deleteEvent', 'listEvents', 'listCalendar'],
   resumes: ['createRun', 'cancelRun', 'deleteRun', 'getRun', 'listRuns', 'getArtifact', 'editArtifact', 'deleteArtifact'],
   settings: ['get', 'savePreferences'], secrets: ['hasProviderKey', 'saveProviderKey', 'deleteProviderKey']

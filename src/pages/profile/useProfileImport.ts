@@ -17,6 +17,8 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
   const file = useRef<PdfSelection | null>(null), task = useRef<ImportTask | null>(null), alive = useRef(true), lock = useRef(false)
   const pending = useRef<ApplyImport | null>(null), early = useRef<ImportEvent[]>([]), starting = useRef(false)
   const selected = useRef<AIChoice | null>(null), [choice, setChoice] = useState<AIChoice | null>(null)
+  const [append, setAppend] = useState(false)
+  const targetProfileId = useRef<string | null>(null)
   const importedProfileId = useRef<string | null>(null)
   function event(message: ImportEvent) {
     if (!alive.current) return
@@ -60,7 +62,8 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
       if (!alive.current) { if (result.ok && result.value) void profileImport.discard({ fileId: result.value.fileId }); return }
       if (!result.ok) { setError(result.error); setStage('failed'); return }
       if (!result.value) { setStage('idle'); return }
-      if (!parseImmediately && file.current) await profileImport.discard({ fileId: file.current.fileId })
+      if (file.current) await profileImport.discard({ fileId: file.current.fileId })
+      importedProfileId.current = null; targetProfileId.current = append ? profile?.id ?? null : null
       setDraft(null); setSaved(false); setFrozen(false); pending.current = null; task.current = null
       file.current = result.value; if (parseImmediately) await start(); else setStage('idle')
     } catch { if (alive.current) { setError('PDF_INVALID'); setStage('failed') } }
@@ -70,7 +73,7 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
     if (saving) return
     try {
       if (file.current) await profileImport.discard({ fileId: file.current.fileId })
-      file.current = null; task.current = null; pending.current = null
+      file.current = null; task.current = null; pending.current = null; importedProfileId.current = null; targetProfileId.current = null
       setDraft(null); setError(''); setRetryable(false); setStage('idle'); setSaved(false); setFrozen(false)
     } catch { setError('STORAGE_UNAVAILABLE') }
   }
@@ -89,7 +92,7 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
       }
       return
     }
-    const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), profile?.id ?? importedProfileId.current)
+    const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), importedProfileId.current ?? targetProfileId.current)
     if (!Object.keys(input.contact).length && !input.items.length && !input.facts.length && !input.links.length) { setError('noContent'); return }
     lock.current = true; setSaving(true); setError(''); pending.current = input; setFrozen(true)
     try {
@@ -103,6 +106,6 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
     } catch { if (alive.current) setError('STORAGE_UNAVAILABLE') }
     finally { lock.current = false; if (alive.current) setSaving(false) }
   }
-  return { settings, choice, retryable, draft, setDraft, stage, error, progress, saved, saving, frozen, upload, start, discard, save,
+  return { append, setAppend, settings, choice, retryable, draft, setDraft, stage, error, progress, saved, saving, frozen, upload, start, discard, save,
     fileName: file.current?.name ?? '', hasFile: Boolean(file.current), stop: () => { if (task.current) void profileImport.cancel({ sessionId: task.current.sessionId }).catch(() => setError('AI_CONNECT_FAILED')) } }
 }

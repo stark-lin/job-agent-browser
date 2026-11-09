@@ -57,7 +57,7 @@ test('version 18 resume history, managed PDF and provenance survive the upgrade'
   const unfinishedId = randomUUID()
   transactions.write(() => {
     store.insert('job', f.job)
-    store.insert('profile', f.profile)
+    store.insert('profile', (({ title: _title, ...profile }) => profile)(f.profile))
     store.insert('profile_item', f.item)
     store.insert('fact', f.fact)
     store.insert('generation_run', legacy)

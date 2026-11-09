@@ -27,7 +27,7 @@ test('migrations create all tables once and enforce configured SQLite settings',
   const f = fixture(t), db = f.database.connection
   assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1)
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all()
-  assert.equal(tables.length, 25)
+  assert.equal(tables.length, 26)
   assert(tables.some(table => table.name === 'profile_order_counters'))
   assert(tables.some(table => table.name === 'agent_react_cycles'))
   migrate(db)
@@ -93,7 +93,7 @@ test('nested and asynchronous transaction callbacks cannot partially commit', as
   assert.equal(value(await f.api.jobs.getJob({ id: f.job.id })).title, 'PRIVATE_JOB_TITLE')
 })
 
-for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V22 preserving business rows and historical checksums`, t => {
+for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V23 preserving business rows and historical checksums`, t => {
   const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path)
   migrate(connection, migrations.slice(0, version))
   const transactions = new LegacyTransactions(connection)
@@ -106,7 +106,7 @@ for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V22
   assert.deepEqual(next.connection.prepare('SELECT * FROM jobs').all(), before)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(job.id)?.title, job.title)
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=? ORDER BY version').all(version), versions)
-  assert.equal(next.connection.prepare('SELECT max(version) v FROM schema_migrations').get()?.v, 22)
+  assert.equal(next.connection.prepare('SELECT max(version) v FROM schema_migrations').get()?.v, 23)
   assert.equal(next.connection.prepare("SELECT count(*) n FROM sqlite_master WHERE name IN ('audit_logs','capability_audit','invocation_owners')").get()?.n, 0)
 })
 
@@ -128,6 +128,6 @@ test('V6 upgrade preserves incomplete profile values and initializes introductio
   const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
   const next = openDatabase(path); resources.after(next.close)
-  assert.deepEqual(new Store(next.connection).get('profile', profile.id), { ...profile, introduction: '', revision: 1 })
+  assert.deepEqual(new Store(next.connection).get('profile', profile.id), { ...profile, title: profile.name, introduction: '', revision: 1 })
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
 })

@@ -6,7 +6,7 @@ import * as v from '../common/validation'
 import { profileDetails, itemDetails, factDetails, importContact, importItemDetails, importFactDetails, contactLink, validateItemDates } from './candidate.validation'
 import { assertParent } from './item.service'
 
-const profileKeys = ['name', 'email', 'phone', 'location', 'links', 'introduction']
+const profileKeys = ['title', 'name', 'email', 'phone', 'location', 'links', 'introduction']
 const itemKeys = ['title', 'organization', 'role', 'location', 'startDate', 'endDate', 'summary', 'sortOrder', 'metadata', 'parentItemId']
 const factKeys = ['kind', 'content', 'tags', 'profileItemId']
 function patch(keys: string[]): v.Parser<Record<string, unknown>> {
@@ -41,7 +41,7 @@ export function createProfileWriteService(repo: CandidateRepository, tx: UnitOfW
       return tx.write(() => {
         const args = v.object({ requestId: v.id, details: profileDetails })(input)
         return withReceipt(receipts, 'profile.create', args.requestId, args, 'profile', () => {
-          const profile = { ...args.details, id: runtime.id(), updatedAt: runtime.now(), revision: 1 }
+          const profile = { ...args.details, title: args.details.title || args.details.name || 'Profile', id: runtime.id(), updatedAt: runtime.now(), revision: 1 }
           repo.insertProfile(profile)
           return profile
         })
@@ -53,7 +53,9 @@ export function createProfileWriteService(repo: CandidateRepository, tx: UnitOfW
         const current = check(args.id, args.expectedRevision)
         if (Object.hasOwn(args.changes, 'name')) v.text(300, 1)(args.changes.name)
         if (Object.hasOwn(args.changes, 'links')) v.array(contactLink, 20)(args.changes.links)
-        const details = importContact({ ...pick(current, profileKeys), ...args.changes })
+        const { title: _title, ...contact } = pick(current, profileKeys)
+        const { title: changedTitle, ...changes } = args.changes
+        const details = { ...importContact({ ...contact, ...changes }), title: changedTitle === undefined ? current.title : v.text(300)(changedTitle) }
         if (!same(current, details)) repo.saveProfile({ ...current, ...details, updatedAt: runtime.now() })
         return repo.getProfile(current.id)
       })

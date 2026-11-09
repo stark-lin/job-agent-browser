@@ -87,7 +87,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal((await data('listFacts', { profileId: firstProfile.id })).value.total, 2)
     await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://ai'); await call('navigate', 'app://profile')
-    await waitFor(() => evaluate('!!document.querySelector(".profile-page form input") && document.body.innerText.includes("Local profile fixture")'), 'manual creation after deleted context fallback')
+    await waitFor(() => evaluate('!!document.querySelector(".profile-page form input:not([name=profileTitle])") && document.body.innerText.includes("Local profile fixture")'), 'manual creation after deleted context fallback')
     await field('Name', 'Manual candidate'); await field('Email', 'keep@example.com'); await field('Personal introduction', 'Manual introduction.\nSecond sentence.')
     await evaluate('document.querySelector(".profile-page form").requestSubmit()')
     let profile
@@ -136,6 +136,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     facts = (await data('listFacts', { profileId: profile.id })).value.items
     assert(facts.some(fact => fact.content === 'Manual first edited'))
     assert(facts.every(fact => !('verificationStatus' in fact)))
+    await checkbox('Append to current profile')
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'built PDF worker and SSE parsed draft')
     await checkbox('Ignore', '[...document.querySelectorAll("[data-import-id=contact-name] .ui-checkbox")][0].parentElement')
@@ -169,6 +170,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert(await evaluate('document.querySelector("dialog[open]").innerText.includes("0 descendant entries and 2 attached facts")'))
     await button('Delete', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listItems', { profileId: profile.id })).value.total === 2, 'entry deleted through impact dialog')
+    await require('./profile-baseline-smoke.cjs')({ data, evaluate, button, field, checkbox, waitFor, profile, frame })
     // Renderer reload exercises current-profile fallback and complete pagination.
     for (let index = 0; index < 101; index++) await data('addFact', { profileId: profile.id, details: { kind: 'SKILL', content: `Pagination ${index}` } })
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded
@@ -199,7 +201,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await call('createTab'); const otherTabId = active(await read()).id
     await call('activateTab', profileTabId)
     await call('navigate', 'app://profile')
-    await waitFor(() => evaluate('!!document.querySelector(".profile-page form input")'), 'profile restored for leave guards')
+    await waitFor(() => evaluate('!!document.querySelector(".profile-page form input:not([name=profileTitle])")'), 'profile restored for leave guards')
     await field('Personal introduction', 'Unsaved introduction')
     let prompts = 0
     dialog.showMessageBox = async () => { prompts++; return { response: 0, checkboxChecked: false } }
@@ -218,13 +220,13 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.equal(active(await read()).destination.page, 'profile')
     let refreshPrompts = 0
     dialog.showMessageBoxSync = () => { refreshPrompts++; return 0 }
-    await window.webContents.executeJavaScript('document.querySelector(".profile-page form input").focus()', true)
+    await window.webContents.executeJavaScript('document.querySelector(".profile-page form input:not([name=profileTitle])").focus()', true)
     window.webContents.reload(); await waitFor(() => Promise.resolve(refreshPrompts === 1), 'profile refresh cancellation')
     assert.equal(await evaluate('document.querySelector(".profile-page form textarea").value'), 'Unsaved introduction')
     dialog.showMessageBoxSync = () => 1
     const refreshed = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await refreshed
-    await waitFor(() => evaluate('document.querySelector(".profile-page form input")?.value === "Imported candidate"'), 'saved profile restored after discarded edit')
-    assert.equal(await evaluate('document.querySelector(".profile-page form input").value'), 'Imported candidate')
+    await waitFor(() => evaluate('document.querySelector(".profile-page form input:not([name=profileTitle])")?.value === "Imported candidate"'), 'saved profile restored after discarded edit')
+    assert.equal(await evaluate('document.querySelector(".profile-page form input:not([name=profileTitle])").value'), 'Imported candidate')
     await call('closeTab', otherTabId)
     console.log('Profile smoke passed: manual CRUD, multiple facts, real PDF Worker/SSE, explicit saves and ignored content, partial saves, duplicate upload, pagination/reload, bilingual themes/responsive layout and leave/window guards.')
   } finally {
