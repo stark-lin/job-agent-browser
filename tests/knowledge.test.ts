@@ -240,7 +240,7 @@ test('watcher observes external atomic changes, updates search and releases reso
   assert(changes > 0)
   assert((await service.search('更新')).items.some((h) => h.path === 'outside.md'))
 })
-test('MCP knowledge contracts share files, carry revisions and keep paths/content out of capability audit', async (t) => {
+test('MCP knowledge contracts share files, carry revisions and preserve content and input limits', async (t) => {
   const { directory, files, dispose } = await fixture(t),
     backend = createBackend(join(directory, 'database.sqlite')),
     service = new KnowledgeService(directory, { preferences: () => defaultKnowledgePreferences }),
@@ -268,11 +268,6 @@ test('MCP knowledge contracts share files, carry revisions and keep paths/conten
   await assert.rejects(
     scope.execute('knowledge.write', { path: 'PRIVATE_PATH.md', content: 'stale', expectedRevision: hash('other') })
   )
-  const audit = JSON.stringify(backend.toolAudit.list())
-  assert(audit.includes('knowledge.write'))
-  assert(!audit.includes('PRIVATE_PATH'))
-  assert(!audit.includes('PRIVATE_BODY'))
-  assert(backend.toolAudit.list().some((row) => row.target_type === 'knowledge'))
 })
 test('knowledge preferences preserve old settings and validate remote/semantic disclosure prerequisites', async (t) => {
   const { directory } = await fixture(t),

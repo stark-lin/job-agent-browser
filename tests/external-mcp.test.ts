@@ -200,20 +200,20 @@ test('real generated stdio configuration discovers the public tools without busi
         { closed() { closed = true }, changed() {} }, { processEnv: launch.env })
       return client
     } })
-  const before = f.backend.dispatch('audit', 'list', {})
+  const before = f.backend.jobs.listJobs({})
   const status = service.inspect({}).clients[0]
   service.install({ target: status.target, revision: status.revision, replace: false })
   assert.deepEqual(await service.test(1, { target: 'codex' }), { toolCount: jobAgentAllowlist.length })
   assert(closed)
   assert.equal(f.outputs(), 0)
-  assert.deepEqual(f.backend.dispatch('audit', 'list', {}), before)
+  assert.deepEqual(f.backend.jobs.listJobs({}), before)
   await assert.rejects(client!.listTools(), { code: 'TOOL_UNAVAILABLE' })
   const current = service.inspect({}).clients[0]
   const reconnect = await service.reconnect(1, { target: 'codex', revision: current.revision })
   assert.equal(reconnect.toolCount, jobAgentAllowlist.length)
   assert.equal(reconnect.error, undefined)
   assert.equal(f.outputs(), 0)
-  assert.deepEqual(f.backend.dispatch('audit', 'list', {}), before)
+  assert.deepEqual(f.backend.jobs.listJobs({}), before)
   assert(reconnect.backupPath)
   assert.equal(service.remove({ target: 'codex', revision: reconnect.status.revision }).status.state, 'missing')
   await assert.rejects(service.test(1, { target: 'other' }), { code: 'INVALID_INPUT' })

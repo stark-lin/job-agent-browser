@@ -24,6 +24,10 @@ export async function firstPartyFixture(t: TestContext) {
   writeFileSync(join(directory, 'job-agent-mcp.js'), `
 const { existsSync, readFileSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { consola } = require(${JSON.stringify(require.resolve('consola'))});
+consola.options.throttle = 0;
+consola.options.stdout = process.stderr;
+consola.options.stderr = process.stderr;
 const { StdioServerTransport } = require(${JSON.stringify(require.resolve('@modelcontextprotocol/server/stdio'))});
 const { createServerRuntime } = require(${JSON.stringify(runtimePath)});
 const { compileHTML } = require(${JSON.stringify(compilerPath)});
@@ -42,10 +46,6 @@ void (async () => {
 const authorized = await redeemMemoryLaunch(process.env.JOB_BROWSER_MEMORY_LAUNCH, directory);
 const runtime = createServerRuntime(directory, __dirname, renderer, process.env.JOB_BROWSER_MCP_CALLER, authorized, process.env.JOB_BROWSER_ASK_READ_ONLY === '1');
 await runtime.ready;
-const sink = runtime.backend.toolAudit.sink;
-const start = sink.start.bind(sink), finish = sink.finish.bind(sink);
-sink.start = context => { if (existsSync(marker('fail-audit-start'))) throw new Error('fixture'); return start(context) };
-sink.finish = (...args) => { if (existsSync(marker('fail-audit-finish'))) throw new Error('fixture'); return finish(...args) };
 let closing;
 const close = () => closing ??= runtime.dispose();
 runtime.server.onclose = () => { void close() };

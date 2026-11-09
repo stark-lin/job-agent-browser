@@ -11,7 +11,6 @@ import { composeBackend } from '../src/platform/database/backend'
 import type { AIEvent, AIInput, AISettings } from '../src/shared/ai'
 import { AIStreamClient } from '../src/app/ai/streamClient'
 import type { AIAPI } from '../src/shared/ai'
-import { value } from './helpers'
 
 const input: AIInput = { choice: { providerId: 'custom', modelId: 'custom/model' }, messages: [{ role: 'user', content: 'PRIVATE_PROMPT_EMAIL@example.com' }] }
 const chunk = (delta: object, finish: string | null = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason: finish }] })}\r\n\r\n`
@@ -31,9 +30,9 @@ async function server(t: TestContext, handler: (response: ServerResponse, body: 
 function fixture(t: TestContext, baseURL: string, timeoutMs = 2000) {
   const database = openDatabase(':memory:'), backend = composeBackend(database)
   const settings: AISettings = { providers: [{ id: 'custom', name: 'PRIVATE_PROVIDER', baseURL, requiresKey: true, models: ['custom/model'], defaultModel: 'custom/model' }], default: input.choice }
-  const service = createAIService({ settings: () => settings, key: () => 'PRIVATE_API_KEY', audit: backend.recordAI, timeoutMs })
+  const service = createAIService({ settings: () => settings, key: () => 'PRIVATE_API_KEY', timeoutMs })
   t.after(async () => { await service.dispose(); backend.close() })
-  return { database, backend, settings, service, logs: () => value(backend.dispatch('audit', 'list', { targetType: 'ai_request' }) as import('../src/shared/ipc').Result<import('../src/domain/common/ports').PageResult<import('../src/domain/common/ports').AuditEntry>>) }
+  return { database, backend, settings, service }
 }
 function run(service: AIService, onEvent: (event: AIEvent) => void = () => {}, args = input) {
   const events: AIEvent[] = []
@@ -45,7 +44,7 @@ function run(service: AIService, onEvent: (event: AIEvent) => void = () => {}, a
   })
 }
 
-test('real compatible SSE streams split UTF-8, preserves base paths and audits only startup with existing fields', async t => {
+test('real compatible SSE streams split UTF-8, preserves base paths and emits validated lifecycle events', async t => {
   const url = await server(t, (response, body, authorization, path) => {
     assert.equal(path, '/gateway/v1/chat/completions')
     assert.equal(authorization, 'Bearer PRIVATE_API_KEY')
@@ -58,32 +57,23 @@ test('real compatible SSE streams split UTF-8, preserves base paths and audits o
   const f = fixture(t, url), events = await run(f.service)
   assert.deepEqual(events.map(event => event.type), ['started', 'delta', 'completed'])
   assert.equal(events.filter(event => event.type === 'delta').map(event => event.text).join(''), 'PRIVATE_REPLY中文')
-  const logs = f.logs()
-  assert.equal(logs.total, 1)
-  assert.equal(logs.items[0].status, 'SUCCESS')
-  assert.equal(logs.items[0].eventType, 'AI_STREAM_START')
-  assert.equal(logs.items[0].targetId, events[0].requestId)
-  assert.equal(logs.items[0].requestId, events[0].requestId)
-  assert.equal(Object.keys(logs.items[0]).length, 15)
-  for (const marker of ['PRIVATE_', url, 'custom/model']) assert.equal(JSON.stringify(logs).includes(marker), false)
 })
 
 test('HTTP failures are classified without storing provider bodies and retries have distinct request IDs', async t => {
   const url = await server(t, response => { response.writeHead(401); response.end('PRIVATE_ERROR_BODY') })
   const f = fixture(t, url)
+  const requestIds = new Set<string>()
   for (let i = 0; i < 2; i++) {
     const events = await run(f.service)
+    requestIds.add(events[0].requestId)
+    assert(!JSON.stringify(events).includes('PRIVATE_ERROR_BODY'))
     assert.deepEqual(events.map(event => event.type), ['failed'])
     assert.equal(events[0].type === 'failed' && events[0].error, 'AI_AUTH_FAILED')
   }
-  const logs = f.logs()
-  assert.equal(logs.total, 2)
-  assert.equal(new Set(logs.items.map(entry => entry.requestId)).size, 2)
-  assert(logs.items.every(entry => entry.error === 'AI_AUTH_FAILED' && entry.status === 'FAILURE'))
-  assert.equal(JSON.stringify(logs).includes('PRIVATE'), false)
+  assert.equal(requestIds.size, 2)
 })
 
-test('a midstream failure leaves the single successful startup audit unchanged', async t => {
+test('a midstream protocol failure follows the delivered text', async t => {
   const url = await server(t, response => {
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
     response.end(chunk({ content: 'partial' }) + 'data: {broken PRIVATE_ERROR}\n\n')
@@ -91,11 +81,9 @@ test('a midstream failure leaves the single successful startup audit unchanged',
   const f = fixture(t, url), events = await run(f.service)
   assert.deepEqual(events.map(event => event.type), ['started', 'delta', 'failed'])
   assert.equal(events.at(-1)?.type === 'failed' && (events.at(-1) as { error: string }).error, 'AI_PROTOCOL_ERROR')
-  assert.equal(f.logs().total, 1)
-  assert.equal(f.logs().items[0].status, 'SUCCESS')
 })
 
-test('cancelling after startup stops the stream, enforces owner isolation and creates no terminal audit', async t => {
+test('cancelling after startup stops the stream, enforces owner isolation', async t => {
   const url = await server(t, response => {
     response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.write(chunk({ content: 'partial' }))
   })
@@ -107,11 +95,9 @@ test('cancelling after startup stops the stream, enforces owner isolation and cr
     }
   })
   assert.equal(events.at(-1)?.type, 'cancelled')
-  assert.equal(f.logs().total, 1)
-  assert.equal(f.logs().items[0].status, 'SUCCESS')
 })
 
-test('cancellation before any SSE event and timeout each produce one failed startup audit', async t => {
+test('cancellation before any SSE event and timeout each produce one terminal event', async t => {
   const url = await server(t, response => { response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.flushHeaders() })
   const f = fixture(t, url, 30)
   const cancelled = await new Promise<AIEvent>(resolve => {
@@ -121,18 +107,15 @@ test('cancellation before any SSE event and timeout each produce one failed star
   assert.equal(cancelled.type, 'cancelled')
   const events = await run(f.service)
   assert.equal(events.at(-1)?.type === 'failed' && (events.at(-1) as { error: string }).error, 'AI_TIMEOUT')
-  assert.deepEqual(new Set(f.logs().items.map(entry => entry.error)), new Set(['AI_CANCELLED', 'AI_TIMEOUT']))
 })
 
-test('audit write failure aborts before any text is delivered and does not claim success', async t => {
+test('read-only business storage cannot prevent provider streaming', async t => {
   const url = await server(t, response => { response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.end(success) })
   const f = fixture(t, url)
   f.database.connection.exec('PRAGMA query_only=ON')
   const events = await run(f.service)
-  assert.deepEqual(events.map(event => event.type), ['failed'])
-  assert.equal(events[0].type === 'failed' && events[0].error, 'AUDIT_UNAVAILABLE')
+  assert.deepEqual(events.map(event => event.type), ['started', 'delta', 'completed'])
   f.database.connection.exec('PRAGMA query_only=OFF')
-  assert.equal(f.logs().total, 0)
 })
 
 test('request configuration is frozen, no-key providers send no authorization, and malformed inputs do not execute', async t => {
@@ -150,7 +133,6 @@ test('request configuration is frozen, no-key providers send no authorization, a
   f.settings.providers[0].requiresKey = true
   f.settings.providers[0].models = []
   assert.equal((await result).at(-1)?.type, 'completed')
-  assert.equal(f.logs().total, 1)
 })
 
 test('redirects are not followed and provider credentials never reach the redirect destination', async t => {
@@ -160,7 +142,6 @@ test('redirects are not followed and provider credentials never reach the redire
   const f = fixture(t, source), events = await run(f.service)
   assert.equal(events.at(-1)?.type, 'failed')
   assert.equal(forwarded, false)
-  assert.equal(f.logs().items[0].status, 'FAILURE')
 })
 
 test('renderer client buffers events emitted before invoke resolves and cleans terminal subscriptions', async () => {
@@ -202,8 +183,6 @@ test('missing configuration fails once without contacting a provider', async t =
   f.settings.providers = []
   const events = await run(f.service)
   assert.equal(events[0].type === 'failed' && events[0].error, 'AI_NOT_CONFIGURED')
-  assert.equal(f.logs().total, 1)
-  assert.equal(f.logs().items[0].error, 'AI_NOT_CONFIGURED')
 })
 
 test('renderer disposal cancels a request whose ID arrives late and removes its listener', async () => {

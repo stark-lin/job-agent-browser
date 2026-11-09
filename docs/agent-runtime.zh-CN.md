@@ -82,3 +82,5 @@ Copy Debug JSON v2 包含按序排列的 Cycle 和最新状态，同时保留宿
 Resume Agent Run 完成后，Controller 通过 MCP 校验并发布已持久化的文档。Agent 最终文本作为 Trace 摘要。Agent Run 完成后业务校验仍可能失败。文件输出具有独立生命周期。[Resume Controller](../src/platform/electron/resume-tasks.ts)
 
 Resume 失败报告通过 `resume.fail` 保留受支持的模型、工具、MCP 和存储错误码；未知原因使用 `GENERATION_FAILED`。`VALIDATION_FAILED` 仅用于已确认的文档校验失败，不代表模型主张的语义判断。这些错误码不改变 Run/Cycle 转换。[Resume 定义](../src/platform/agent/engine/definitions.ts)、[MCP 工具](../src/platform/tools/resume.ts)和[外部 Skill](../skills/tailor-resume/SKILL.zh-CN.md)只允许改写列表返回的要点 ID，条目要点中的成组技能保留为一条；个人简介和独立 Skills 沿用复制的原文。
+
+终态由现有 Recorder 原子持久化；Consola 仅在执行边界输出终端诊断，不参与状态转换或最终提交。诊断失败不会改变 Run/Cycle 结果；详见[数据架构](data-architecture.zh-CN.md#四事务与终端诊断)。

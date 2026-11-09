@@ -212,11 +212,11 @@ export const zhCN = {
     "CLIPBOARD_FAILED": "无法确认剪贴板中的完整内容，请重试。",
     "NOT_IMPLEMENTED": "当前宿主不支持复制调试数据。",
     "STORAGE_UNAVAILABLE": "无法保存或加载对话。",
-    "AUDIT_UNAVAILABLE": "无法记录必要审计，执行已停止。",
+
     "TOOL_GUARD_DUPLICATE": "本次未重复执行，此前的操作结果已确认。",
     "TOOL_GUARD_CONFLICT": "本次操作会反转已确认的结果，因此未执行。",
     "TOOL_GUARD_TERMINATED": "运行保护已停止执行，已完成的修改仍然保留。",
-    "TOOL_AUDIT_UNAVAILABLE": "无法记录操作审计，请核对当前状态后继续。",
+
     "AI_NOT_CONFIGURED": "请在设置中选择已配置的提供商和模型。",
     "ENCRYPTION_UNAVAILABLE": "无法读取提供商密钥，请检查设置。",
     "AI_AUTH_FAILED": "提供商拒绝了凭据。",
@@ -361,7 +361,7 @@ export const zhCN = {
       "INVALID_INPUT": "请检查职位名称、公司名称、URL、薪资范围及字段长度。",
       "STORAGE_BUSY": "存储正忙，请重试保存。",
       "STORAGE_UNAVAILABLE": "无法保存本地数据，已保留填写内容。",
-      "AUDIT_UNAVAILABLE": "无法保存必需的审计记录，工作未创建。",
+
       "NOT_FOUND": "关联记录已不存在，请重新加载后重试。",
       "CONFLICT": "存在数据冲突，无法保存工作。",
       "JOB_ACCESS_RESTRICTED": "该页面需要登录、验证或限制访问，请手工填写。",
@@ -531,22 +531,7 @@ export const zhCN = {
     save: '保存更改', saveKey: '保存密钥', replaceKey: '替换密钥', deleteKey: '删除密钥', saving: '正在保存…', saved: '更改已保存。', keySaved: '密钥已安全保存。', keyDeleted: '密钥已删除。', deleteTitle: '删除已保存的 API 密钥？', deleteDescription: '你可以稍后添加新的密钥。', cancel: '取消',
     unsaved: '有未保存的更改', loading: '正在加载设置…', loadFailed: '无法加载设置。', saveFailed: '无法保存更改。之前的设置仍然保留。', retry: '重试', discardTitle: '放弃更改并离开？', discardDescription: '未保存的设置将被丢弃。', discard: '放弃更改', stay: '继续编辑'
   },
-  audit: {
-    title: '审计日志', description: '查看本地审计记录，最新记录优先。查看和筛选不会产生审计记录。',
-    scope: '设置与密钥保存不产生审计记录。AI 成功表示流已启动，不代表响应完成。日志仅包含元数据。',
-    targetType: '目标类型', target: '目标', targetId: '目标 ID', status: '状态', all: '全部',
-    from: '开始时间', to: '结束时间', localTime: '本地时间，包含边界时刻。', advanced: '高级筛选', exactMatch: '精确匹配 ID。',
-    requestId: '请求 ID', transactionId: '事务 ID', query: '查询日志', reset: '重置', refresh: '刷新',
-    time: '时间', event: '事件', action: '操作', details: '审计详情', viewEntry: '查看第 {{sequence}} 条审计记录',
-    recordId: '记录 ID', sequence: '序号', errorCode: '错误码', component: '组件', location: '位置', source: '来源', actor: '执行者',
-    detailDescription: '审计元数据。此处不存储业务内容、提示词、响应或密钥。', close: '关闭', noValue: '无',
-    loading: '正在加载审计记录…', loadFailed: '无法加载审计记录。', empty: '暂无审计记录。', noMatches: '没有符合筛选条件的记录。',
-    pagination: '共 {{total}} 条记录 · 第 {{page}} / {{pages}} 页', previous: '上一页', next: '下一页',
-    invalidId: '请输入精确目标 ID（最多 120 个字符），请求和事务 ID 必须为有效 UUID。',
-    invalidTime: '请输入有效的本地日期和时间。', invalidRange: '结束时间不得早于开始时间。',
-    statuses: { SUCCESS: '成功', FAILURE: '失败' }, actions: { CREATE: '创建', UPDATE: '更新', DELETE: '删除' },
-    targets: { company: '公司', job: '职位', job_source: '职位来源', job_event: '职位事件', profile: '个人资料', profile_item: '资料条目', fact: '事实', generation_run: '生成任务', artifact: '产物', artifact_fact: '产物事实', ai_request: 'AI 请求' }
-  },
+
   ai: {
   "model": "模型",
   "subtitle": "使用你选择的 Provider 和模型对话。",
@@ -566,7 +551,7 @@ export const zhCN = {
   "errors": {
     "INVALID_INPUT": "请求格式或上下文长度超出支持范围。",
     "FORBIDDEN": "无权执行此请求。",
-    "AUDIT_UNAVAILABLE": "无法记录调用审计，已停止流式响应。",
+
     "ENCRYPTION_UNAVAILABLE": "安全密钥存储不可用。",
     "STORAGE_UNAVAILABLE": "无法读取 AI 设置或凭据。",
     "AI_NOT_CONFIGURED": "请在设置中保存 Provider、模型以及所需密钥。",
@@ -646,8 +631,8 @@ export const zhCN = {
         "OUTPUT_FAILED": "HTML / PDF 输出失败，简历仍然保留，请重建输出。",
         "OUTPUT_INTERRUPTED": "输出已中断，可直接重建，无需重新生成内容。",
         "EDIT_CONFLICT": "简历已更新，或 PDF 正在编译。草稿仍保留，请核对最新版本后再保存。",
-        "OUTPUT_MISSING": "输出文件缺失，请重建 HTML / PDF。",
-        "AUDIT_UNAVAILABLE": "审计存储不可用，已停止生成。"
+        "OUTPUT_MISSING": "输出文件缺失，请重建 HTML / PDF。"
+
     }
 },
   profile: {

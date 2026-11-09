@@ -17,7 +17,7 @@ export const defaultAISettings: AISettings = {
   timeouts: { ...defaultAITimeouts },
   providers: [{ id: 'openai', name: 'OpenAI', baseURL: 'https://api.openai.com', requiresKey: true, models: [], defaultModel: '' }], default: null
 }
-export type AIError = 'INVALID_INPUT' | 'FORBIDDEN' | 'AUDIT_UNAVAILABLE' | 'ENCRYPTION_UNAVAILABLE' | 'STORAGE_UNAVAILABLE'
+export type AIError = 'INVALID_INPUT' | 'FORBIDDEN' | 'ENCRYPTION_UNAVAILABLE' | 'STORAGE_UNAVAILABLE'
   | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_PROTOCOL_ERROR'
   | 'AI_CONNECT_FAILED' | 'AI_TIMEOUT' | 'AI_CANCELLED'
 export interface AIMessage { role: 'user' | 'assistant'; content: string }

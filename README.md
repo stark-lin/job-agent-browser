@@ -1,6 +1,6 @@
 # Job Agent Browser
 
-A local-first desktop workspace for job seeking. Status: **Implemented** React navigation, Browser/Inbox, Settings, streaming AI, SQLite/audit, Profile editing/PDF import, job capture/applications and Resume V3 with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
+A local-first desktop workspace for job seeking. Status: **Implemented** React navigation, Browser/Inbox, Settings, streaming AI, SQLite, Profile editing/PDF import, job capture/applications and Resume V3 with HTML/PDF. Smart Note is **Implemented**; additional product workflows remain **Planned**.
 
 Language: English · [简体中文](README.zh-CN.md)
 
@@ -96,9 +96,9 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 | [Current architecture](docs/architecture.md) · [简体中文](docs/architecture.zh-CN.md) | Implemented runtime, security boundaries, and limitations |
 | [Product architecture](docs/product-architecture.md) · [简体中文](docs/product-architecture.zh-CN.md) | Planned scope, entry points, and delivery order |
 | [Code architecture](docs/code-architecture.md) · [简体中文](docs/code-architecture.zh-CN.md) | Target organization, dependency boundaries, and migration constraints |
-| [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, audit privacy, deletion rules and business API |
+| [V1 data architecture and API](docs/data-architecture.md) · [简体中文](docs/data-architecture.zh-CN.md) | Implemented entities, transactions, terminal diagnostics, deletion rules and business API |
 | [Ask AI Agent runtime](docs/agent-runtime.md) · [简体中文](docs/agent-runtime.zh-CN.md) | Single-prompt execution, Cycle states and finalization |
-| [Tools and MCP runtime](docs/mcp-architecture.md) · [简体中文](docs/mcp-architecture.zh-CN.md) | Scoped tools, audited capability bindings, stdio integration and lifecycle |
+| [Tools and MCP runtime](docs/mcp-architecture.md) · [简体中文](docs/mcp-architecture.zh-CN.md) | Scoped tools, protected capability bindings, stdio integration and lifecycle |
 | [Capture Job Skill](skills/capture-job/SKILL.md) · [简体中文](skills/capture-job/SKILL.zh-CN.md) | Host source understanding followed by structured MCP persistence |
 | [Manage Applications Skill](skills/manage-applications/SKILL.md) · [简体中文](skills/manage-applications/SKILL.zh-CN.md) | State, notes, local events, details and archive workflow |
 | [Resume Skill](skills/tailor-resume/SKILL.md) · [简体中文](skills/tailor-resume/SKILL.zh-CN.md) | Evidence-grounded generation and rebuilding saved resumes through MCP |

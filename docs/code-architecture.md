@@ -128,12 +128,12 @@ Cross-page business rules stay in Domain; navigation and context switching remai
 | Application lifecycle, events and calendar | `domain/application/`; UI in `pages/applications/` |
 | Profile, ProfileItem and Fact | `domain/candidate/`; UI in `pages/profile/` |
 | GenerationRun, Artifact and provenance | `domain/resume/`; UI in `pages/tailor-resume/` |
-| SQLite, migrations, repositories and audit persistence | Main-side `platform/database/` |
+| SQLite, migrations, repositories and business persistence | Main-side `platform/database/` |
 | AI, settings, encrypted secrets and output files | `platform/ai/`, `platform/storage/`, `platform/filesystem/`; AI chat/settings/secrets are implemented; Resume generation/output live in `platform/agent/` and `platform/resume-output/` |
 
 Domain defines repository and [snapshot reader/extractor interfaces](../src/domain/job/job.extractor.ts). The [URL reader](../src/platform/job-import/url-reader.ts), HTML parsing and AI extraction belong to `platform/job-import/`; future Browser adapters share the same plain-data snapshot, never DOM/Electron objects. Pages coordinate tasks through the [asynchronous bridge](../src/platform/electron/job-import-contract.ts); database methods still handle only confirmed saves.
 
-The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, timeout and the injected database audit capability; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
+The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, and timeout; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
 
 [Shared Agent contracts](../src/shared/agent/index.ts) own AgentModel/AgentTools. [Platform Tools](../src/platform/tools/index.ts) is the sole public MCP registry; ToolScope is Server-only. Only platform/mcp and platform/mcp-server import the MCP SDK. Agent modules may import pure Domain workflow/validation, but never services, repositories, registries or database adapters, including indirectly. [MCP architecture](mcp-architecture.md) owns capabilities and session behavior.
 
@@ -149,11 +149,11 @@ Add Job and Profile reuse the App-owned [unsaved guard](../src/app/navigation/us
 
 [Quality checks](../scripts/quality.cjs) enforce App/Page/Renderer privileged-import boundaries, Domain/Shared dependencies, runtime import cycles, data-boundary types/module lengths and bilingual document parity/links/lengths. TypeScript checks unused declarations/parameters and casing. Pure navigation/store tests complement Electron SQLite integration and production-window smoke. Commands are owned by README.
 
-Keep business capabilities in [DataContract](../src/platform/electron/data-contract.ts); repositories, transaction contexts, audit writers and generation-stage persistence remain private. Storage modules separate migrations, transaction/audit control, mapping and domain adapters; Domain services own business validation.
+Keep business capabilities in [DataContract](../src/platform/electron/data-contract.ts); repositories, transaction internals and generation-stage persistence remain private. Storage modules separate migrations, transaction control, mapping and domain adapters; Domain services own business validation.
 
 Calendar remains an Applications view; Resume Builder belongs to Tailor Resume. Inbox reuses configured webmail without a mail database. Remaining business forms are future work, not completed by accessible page skeletons. History restoration/eviction is also deferred.
 
-Update the owning document and both language editions with behavior, interface, directory or configuration changes. Preserve build output, SQLite/audit behavior and Session partition during future migrations. Add Product Areas only when scale requires them; full DDD remains unnecessary.
+Update the owning document and both language editions with behavior, interface, directory or configuration changes. Preserve build output, SQLite behavior and Session partition during future migrations. Add Product Areas only when scale requires them; full DDD remains unnecessary.
 
 ## 7. Related documents
 

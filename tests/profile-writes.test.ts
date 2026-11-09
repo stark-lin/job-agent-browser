@@ -6,7 +6,7 @@ import { createFixtureAskTasks as createAskAgentTasks } from './ask-fixture'
 import { firstPartyFixture } from './first-party-fixture'
 import { fixture, value } from './helpers'
 import { migrate, migrations } from '../src/platform/database/migrations'
-import { Transactions } from '../src/platform/database/transactions'
+import { LegacyTransactions as Transactions } from './legacy-migration-fixture'
 import type { Profile, ProfileItem, Fact } from '../src/domain/candidate/candidate.types'
 import type { PageResult } from '../src/domain/common/ports'
 
@@ -46,9 +46,6 @@ test('profile MCP creates and patches without clearing omitted fields, preserves
   assert.equal(page.total, 1); assert.equal(page.items[0].id, item.id)
   assert.equal((await call<PageResult<ProfileItem>>('profile.list_items', { profileId: profile.id, offset: 1 })).items.length, 0)
   await assert.rejects(call('profile.create', { ...request, details: { ...request.details, name: 'Changed payload' } }), { code: 'TOOL_CONFLICT' })
-  const audit = value(await f.api.audit.list({ targetType: 'fact', targetId: fact.id, limit: 100 }))
-  assert(audit.items.some(entry => entry.actorId === 'mcp-client' && entry.source === 'MCP_SERVER'))
-  assert(!JSON.stringify(f.backend.toolAudit.list()).includes('keep@example.com'))
 })
 
 test('concurrent profile writes reject stale revisions; identical retries survive independent sessions and restart', async t => {
@@ -115,7 +112,7 @@ test('profile tools reject invalid patches, ownership changes, cycles and imposs
   assert.equal(f.database.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 0)
 })
 
-test('profile receipts and revisions roll back together; a new Run can explicitly reconcile uncertain writes', async t => {
+test('profile receipts and revisions roll back together; a new Run can reconcile identical retries', async t => {
   const f = await firstPartyFixture(t); let tools = await f.askRun(signal())
   const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const request = { profileId: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), details: { kind: 'OTHER', content: 'Atomic sourced fact' } }
@@ -124,13 +121,12 @@ test('profile receipts and revisions roll back together; a new Run can explicitl
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 1)
   assert.equal(value(await f.api.profiles.getProfile({ id: profile.id })).revision, profile.revision)
   f.database.connection.exec('DROP TRIGGER fixture_receipt_failure')
-  f.flag('fail-audit-finish')
-  await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+  const committed = await tools.call('profile.add_fact', request, signal()) as Versioned<Fact>
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
-  f.flag('fail-audit-finish', false)
-  await assert.rejects(tools.call('profile.add_fact', request, signal()), { code: 'TOOL_GUARD_TERMINATED' })
+  assert.deepEqual(await tools.call('profile.add_fact', request, signal()), committed)
   tools = await f.askRun(signal()) // A new user attempt may reconcile with the identical business receipt.
   const saved = await tools.call('profile.add_fact', request, signal()) as Versioned<Fact>
+  assert.deepEqual(saved, committed)
   assert.equal(saved.content, request.details.content)
   assert.equal(value(await f.api.profiles.getProfile({ id: profile.id })).revision, saved.revision)
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
@@ -157,7 +153,6 @@ test('Ask profile edits affect dedicated Resume snapshots while prior snapshots 
   assert.equal(old.context.profile.name, f.profile.name); assert.equal(next.context.profile.name, 'Updated name')
   assert.equal(old.facts.items[0].content, f.fact.content); assert.equal(next.facts.items[0].content, 'Updated source claim')
   assert([...old.facts.items, ...next.facts.items].every(fact => !('evidence' in fact)))
-
 })
 
 test('migration preserves existing profile data and old receipts and initializes revision without rewriting history', () => {
@@ -166,16 +161,14 @@ test('migration preserves existing profile data and old receipts and initializes
     const tx = new Transactions(db)
     migrate(db, migrations.slice(0, 7))
     const id = randomUUID(), requestId = randomUUID()
-    tx.forActor('USER').write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => {
+    tx.write(() => {
       db.prepare('INSERT INTO profiles(id,name,email,phone,location,links_json,updated_at,introduction) VALUES(?,?,?,?,?,?,?,?)').run(id, 'Old profile', 'old@example.com', '', '', '[]', '2026-01-01T00:00:00.000Z', 'Keep introduction')
     })
     db.prepare('INSERT INTO operation_receipts VALUES(?,?,?,?,?,?,?)').run('job.import', requestId, 'hash', 'job', randomUUID(), '{"id":"old"}', '2026-01-01T00:00:00.000Z')
-    const audits = db.prepare('SELECT count(*) n FROM audit_logs').get()?.n
     migrate(db)
     const profile = db.prepare('SELECT * FROM profiles WHERE id=?').get(id)
     assert.equal(profile?.revision, 1); assert.equal(profile?.introduction, 'Keep introduction'); assert.equal(profile?.email, 'old@example.com')
     assert.equal(db.prepare('SELECT result_json FROM operation_receipts WHERE request_id=?').get(requestId)?.result_json, '{"id":"old"}')
-    assert.equal(db.prepare('SELECT count(*) n FROM audit_logs').get()?.n, audits)
     migrate(db)
   } finally { db.close() }
 })

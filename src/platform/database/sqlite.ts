@@ -13,7 +13,6 @@ export function openDatabase(path: string) {
     connection.exec('PRAGMA busy_timeout=1000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA recursive_triggers=ON;')
     const transactions = new Transactions(connection)
     migrate(connection)
-    transactions.protectAudit()
     return { connection, transactions, close: () => connection.close() }
   } catch (error) { connection.close(); throw error }
 }

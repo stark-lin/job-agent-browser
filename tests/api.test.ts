@@ -7,9 +7,9 @@ import { methodNames } from '../src/platform/electron/data-contract'
 
 test('public bridge exposes business capabilities only, with no SQL, audit write or generator steps', (t) => {
   const f = fixture(t)
-  assert.deepEqual(Object.keys(f.api.audit), ['list'])
+  assert.equal(Object.hasOwn(f.api, 'audit'), false)
   for (const [group, methods] of Object.entries(methodNames)) assert.deepEqual(Object.keys(f.api[group as keyof typeof f.api]), [...methods])
-  for (const [group, method] of [['audit', 'append'], ['jobs', 'executeSQL'], ['resumes', 'publishArtifact'], ['generation', 'start'], ['__proto__', 'toString'], ['jobs', 'constructor']]) {
+  for (const [group, method] of [['audit', 'list'], ['audit', 'append'], ['jobs', 'executeSQL'], ['resumes', 'publishArtifact'], ['generation', 'start'], ['__proto__', 'toString'], ['jobs', 'constructor']]) {
     assert.deepEqual(f.backend.dispatch(group, method, {}), { ok: false, error: 'INVALID_INPUT' })
   }
 })
@@ -41,16 +41,16 @@ test('backend without storage adapters fails explicitly and does not log credent
   const f = fixture(t)
   assert.deepEqual(await f.api.settings.get({}), { ok: false, error: 'NOT_IMPLEMENTED' })
   assert.deepEqual(await f.api.secrets.saveProviderKey({ provider: 'openai', apiKey: 'PRIVATE_API_KEY' }), { ok: false, error: 'NOT_IMPLEMENTED' })
-  assert.equal(value(await f.api.audit.list({})).total, 0)
 })
 
-test('deleted IDs cannot be resurrected, failed deletes do not create deleted markers', async (t) => {
+test('hard deletion releases historical IDs while live IDs still conflict', async (t) => {
   const f = await seed(t), id = f.job.id
   value(await f.api.jobs.deleteJob({ id }))
-  assert.throws(() => f.database.transactions.forActor('USER').write({ event: 'JOB_SAVE', action: 'CREATE', target: 'job' }, () => {
+  f.database.transactions.write(() => {
     f.database.connection.prepare(`INSERT INTO jobs(id,company_name_raw,title,description,location_text,locations_json,employment_type,requirements_json,application_status,saved_at,notes,created_at,updated_at)
       VALUES(?,?,?,'','','[]','','[]','NOT_STARTED',?,'',?,?)`).run(id, 'Company', 'Revived', new Date().toISOString(), new Date().toISOString(), new Date().toISOString())
-  }), { code: 'CONFLICT' })
+  })
+  assert.equal(value(await f.api.jobs.getJob({ id })).title, 'Revived')
+  assert.throws(() => f.database.connection.exec(`INSERT INTO jobs SELECT * FROM jobs WHERE id='${id}'`))
   assert.deepEqual(await f.api.jobs.deleteJob({ id: randomUUID() }), { ok: false, error: 'NOT_FOUND' })
-  assert.equal(value(await f.api.audit.list({ targetId: id })).items.filter((e) => e.action === 'DELETE' && e.status === 'SUCCESS').length, 1)
 })

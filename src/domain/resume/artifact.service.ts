@@ -15,7 +15,7 @@ export function createArtifactService(repo: ResumeRepository, tx: UnitOfWork, ru
       return { artifact, provenance: [...grouped].map(([blockId, factIds]) => ({ blockId, factIds })), references: snapshotReferences(run.inputSnapshot, refs) }
     }) },
     editArtifact(input: unknown) {
-      return tx.write({ event: 'ARTIFACT_EDIT', action: 'UPDATE', target: 'artifact' }, () => {
+      return tx.write(() => {
         const args = v.object({ id: v.id, title: v.text(500, 1), expectedRevision: v.integer(1, Number.MAX_SAFE_INTEGER), content: check.editedContent })(input)
         const artifact = repo.getArtifact(args.id)
         if (artifact.revision !== args.expectedRevision) fail('CONFLICT')
@@ -28,7 +28,7 @@ export function createArtifactService(repo: ResumeRepository, tx: UnitOfWork, ru
       })
     },
     deleteArtifact(input: unknown) {
-      return tx.write({ event: 'ARTIFACT_DELETE', action: 'DELETE', target: 'artifact' }, () => { const { id } = v.byId(input); repo.getArtifact(id); repo.removeArtifact(id); return { id } })
+      return tx.write(() => { const { id } = v.byId(input); repo.getArtifact(id); repo.removeArtifact(id); return { id } })
     }
   }
 }

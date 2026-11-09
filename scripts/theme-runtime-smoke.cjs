@@ -52,7 +52,7 @@ app.once('browser-window-created', (_event, window) => {
       await call('navigate', 'app://settings'); await formsReady()
       await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState,
         views: () => require('./native-views.cjs').views(window), origin, field,
-        submit: index => evaluate(`document.querySelectorAll('.settings-page form:not([data-audit-filters])')[${index}].requestSubmit()`), formsReady, capture, data })
+        submit: index => evaluate(`document.querySelectorAll('.settings-page form')[${index}].requestSubmit()`), formsReady, capture, data })
       await data('settings', 'savePreferences', { language: 'zh-CN', theme: 'dark', mailbox: { provider: 'custom', url: 'https://example.invalid/mail' } })
       const status = (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value
       if (status.available) await data('secrets', 'saveProviderKey', { provider: 'openai', apiKey: 'smoke-key-restart' })

@@ -34,7 +34,7 @@ async function fetchModels(config: ReturnType<typeof providerConfig>, signal: Ab
   return [...new Set(models)].sort()
 }
 
-/** Metadata only: no generation, settings writes or provider payloads in audit logs. */
+/** Metadata only: no generation, settings writes or provider payload persistence. */
 export function createModelDiscovery(deps: { settings(): AISettings; key(id: string): string | null; transport?: Fetch; timeoutMs?: number }) {
   const requests = new Map<AbortController, { owner: number; done: Promise<string[]> }>()
   let disposed = false

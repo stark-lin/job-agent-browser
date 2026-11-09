@@ -65,9 +65,7 @@ test('application tools enforce transitions, archive rules, event ownership and 
   const moved = await call('application.reschedule_event', reschedule)
   assert.deepEqual(await call('application.reschedule_event', reschedule), moved)
   assert.equal((await call('application.list_events', { jobId }) as PageResult<JobEvent>).total, 3)
-  const events = f.backend.dispatch('audit', 'list', { targetType: 'job_event', targetId: scheduled.id })
-  assert(events.ok)
-  assert.equal((events.value as PageResult<{ eventType: string; status: string }>).items.filter(item => item.eventType === 'APPLICATION_RESCHEDULE' && item.status === 'SUCCESS').length, 1)
+  assert.equal((await call('application.list_events', { jobId }) as PageResult<JobEvent>).items.find(event => event.id === scheduled.id)?.startsAt, reschedule.startsAt)
 })
 
 test('operation receipts survive concurrent independent Server writes and a Server restart', async t => {
@@ -87,7 +85,7 @@ test('operation receipts survive concurrent independent Server writes and a Serv
   assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).total, 1)
 })
 
-test('receipt and business changes roll back together, while a lost terminal audit can be retried without duplication', async t => {
+test('receipt and business changes roll back together, while committed requests can be retried without duplication', async t => {
   const f = await firstPartyFixture(t), tools = await f.mcp.session('job-capture', signal())
   const request = { requestId: randomUUID(), details: { title: 'Atomic receipt', companyNameRaw: 'Company' } }
   f.database.connection.exec("CREATE TRIGGER fixture_receipt_failure BEFORE INSERT ON operation_receipts BEGIN SELECT RAISE(ABORT,'fixture'); END")
@@ -95,15 +93,13 @@ test('receipt and business changes roll back together, while a lost terminal aud
   assert.equal(f.backend.jobs.listJobs({}).total, 1)
   assert.equal(f.database.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 0)
   f.database.connection.exec('DROP TRIGGER fixture_receipt_failure')
-  f.flag('fail-audit-finish')
-  await assert.rejects(tools.call('job.import', request, signal()), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+  const committed = await tools.call('job.import', request, signal()) as Job
   assert.equal(f.backend.jobs.listJobs({}).total, 2)
   assert.equal(f.database.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 1)
-  f.flag('fail-audit-finish', false)
   const saved = await tools.call('job.import', request, signal()) as Job
+  assert.deepEqual(saved, committed)
   assert.equal(saved.title, request.details.title)
   assert.equal(f.backend.jobs.listJobs({}).total, 2)
-  assert(!JSON.stringify(f.backend.toolAudit.list()).includes('Atomic receipt'))
 })
 
 test('cancelling one pending first-party connection waiter preserves the shared session for another owner', async t => {

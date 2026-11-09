@@ -30,7 +30,7 @@ test('archive confirmation, canonical arguments, conflict, duplicate and repeate
   const snapshot = tools.getRunGuardSnapshot()!
   assert.equal(snapshot.executed, false); assert.equal(snapshot.status, 'BLOCKED'); assert.equal(snapshot.calls, 4)
   assert.equal(snapshot.executedCalls, 1); assert.equal(snapshot.rejections, 3)
-  assert.equal(f.backend.toolAudit.list().filter(r => r.tool_name === 'job.set_archived' && r.phase === 'START').length, 1)
+
   assert(f.backend.jobs.getJob({ id: f.job.id }).archivedAt)
   await run.close()
   await assert.rejects(tools.call('job.list', {}, signal()))
@@ -125,7 +125,7 @@ for (const mode of ['archive', 'read'] as const) test(`Pi ${mode} circuit break 
   const last = tools.at(-1)!
   assert(last.content.type === 'tool_call' && last.content.guard?.status === 'BLOCKED')
   assert.equal(last.state, mode === 'read' ? 'completed' : 'failed')
-  assert.equal(f.backend.toolAudit.list().filter(r => r.phase === 'START' && r.tool_name === 'job.set_archived').length, mode === 'archive' ? 1 : 0)
+
   assert.equal(Boolean(f.backend.jobs.getJob({ id: f.job.id }).archivedAt), mode === 'archive')
   assert(!JSON.stringify(snapshot).includes('jabRunGrant'))
   f.backend.chats.deleteSession(ids.sessionId)
@@ -157,7 +157,7 @@ for (const recovery of ['warning-answer', 'answer', 'source', 'discovery'] as co
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
   assert.equal(snapshot.run.writeStarted, false)
   assert(!snapshot.items.some(i => i.content.type === 'tool_call' && ['application.add_note'].includes(i.content.toolName)))
-  assert(!f.backend.toolAudit.list().some(row => row.phase === 'START' && row.tool_name === 'application.add_note'))
+
   const completed = snapshot.items.filter(i => i.content.type === 'tool_call' && i.content.toolName === 'job.list')
   assert.equal(completed.length, reads.length)
   assert(completed.every(i => i.content.type === 'tool_call' && i.state === 'completed' && i.content.result && i.content.guard?.executed))
@@ -181,7 +181,6 @@ test('real stdio stops a 62-call Recall loop with changing queries after five ex
     } else await assert.rejects(attempt(), { code: 'TOOL_GUARD_TERMINATED' })
   }
   assert.equal(tools.getRunGuardSnapshot()?.executedCalls, 5)
-  assert.equal(f.backend.toolAudit.list().filter(r => r.phase === 'START' && r.tool_name === 'memory.recall').length, 5)
 })
 
 test('schema failures do not consume Guard state; tool-specific large inputs and bound child views retain their contracts', async t => {
@@ -272,7 +271,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
   assert.deepEqual(cycles.map(c => c.modelRequestOrdinal), cycles.map(c => c.index))
   assert.equal(requests, ending === 'blocked' ? 5 : 6)
   assert.equal(snapshot.run.writeStarted, false)
-  assert(!f.backend.toolAudit.list().some(row => row.phase === 'START' && row.tool_name === 'application.add_note'))
+
   if (ending === 'blocked') {
     assert.equal(snapshot.run.error, 'TOOL_GUARD_TERMINATED')
     assert.equal(cycles.at(-1)?.reason, 'NO_PROGRESS_LOOP')

@@ -42,7 +42,7 @@ export type AgentRuntimeEvent =
   | { type: 'model.request.prepared'; request: RequestDiagnostic; cycleIndex?: number }
   | { type: 'model.request.activation'; activation: ActivationDiagnostic }
 export type AgentErrorCode = 'AGENT_CANCELLED' | 'AGENT_TIMEOUT' | 'AGENT_PROTOCOL_ERROR' | 'AGENT_STEP_LIMIT'
-  | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED' | 'AUDIT_UNAVAILABLE'
+  | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED'
   | 'ASK_CONTEXT_UNKNOWN' | 'ASK_CONTEXT_TOO_SMALL' | 'ASK_CONTEXT_OVERFLOW'
 export class AgentError extends Error {
   constructor(readonly code: AgentErrorCode) { super(code) }

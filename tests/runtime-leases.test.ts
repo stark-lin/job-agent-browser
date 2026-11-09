@@ -17,21 +17,19 @@ function directory(t: import('node:test').TestContext) {
   })
   return { root, resources: { after: (fn: () => void | Promise<void>) => { cleanups.push(fn) } } }
 }
-test('a second backend preserves live generation and audit; only a dead owner is recovered and fenced', async t => {
+test('a second backend preserves live generation; only a dead owner is recovered and fenced', async t => {
   const { root, resources } = directory(t), path = join(root, 'database.sqlite'), a = await seed(resources, path)
   const run = a.backend.resumes.createRun({ jobId: a.job.id, profileId: a.profile.id }, { start: true })
-  const invocationId = randomUUID()
   const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, text: 'Supported', requestId: randomUUID() }
-  a.backend.toolAudit.sink.start({ invocationId, agentId: 'resume', runId: run.id, tool: a.backend.toolCapabilities.read[0].descriptor })
   const b = fixture(resources, path)
   assert.equal(b.backend.resumes.getRun({ id: run.id }).run.state, 'REWRITING')
-  assert.equal(b.backend.toolAudit.list().filter(row => row.invocation_id === invocationId).length, 1)
+
   assert.throws(() => b.backend.resumes.cancelRun({ id: run.id }), { code: 'FORBIDDEN' })
   assert.throws(() => b.backend.generation.rewriteBullet(input), { code: 'FORBIDDEN' })
   a.database.connection.prepare('UPDATE runtime_instances SET expires_at=0 WHERE id=?').run(a.backend.lease.id)
   b.backend.recover()
   assert.equal(b.backend.resumes.getRun({ id: run.id }).run.state, 'INTERRUPTED')
-  assert.equal(b.backend.toolAudit.list().find(row => row.invocation_id === invocationId && row.phase === 'END')?.status, 'INTERRUPTED')
+
   assert.throws(() => a.backend.generation.rewriteBullet(input))
 })
 
@@ -48,7 +46,7 @@ test('a separate process write lock cannot partially commit a generation stage; 
   })
   await new Promise<void>((resolve, reject) => { child.once('message', () => resolve()); child.once('error', reject); child.once('exit', code => { if (code) reject(new Error('Lock fixture exited')) }) })
   const input = { runId: run.id, bulletId: run.assembled!.experience[0].bullets[0].id, text: 'Supported', requestId: randomUUID() }
-  assert.throws(() => f.backend.generation.rewriteBullet(input), { code: 'AUDIT_UNAVAILABLE' })
+  assert.throws(() => f.backend.generation.rewriteBullet(input), { code: 'STORAGE_BUSY' })
   assert.deepEqual(f.backend.rewrittenBulletIds(run.id), [])
   const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
   child.send({ release: true }); await exited

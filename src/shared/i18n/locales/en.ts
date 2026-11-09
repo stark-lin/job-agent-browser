@@ -210,11 +210,11 @@ export const en = {
     "CLIPBOARD_FAILED": "Could not verify the copied text in the clipboard. Please try again.",
     "NOT_IMPLEMENTED": "Debug copying is unavailable in this host.",
     "STORAGE_UNAVAILABLE": "Could not save or load the conversation.",
-    "AUDIT_UNAVAILABLE": "The required audit could not be recorded. Execution stopped.",
+
     "TOOL_GUARD_DUPLICATE": "This operation was not repeated; its earlier result is confirmed.",
     "TOOL_GUARD_CONFLICT": "This operation would reverse a confirmed result and was not executed.",
     "TOOL_GUARD_TERMINATED": "Run protection stopped execution. Completed changes remain saved.",
-    "TOOL_AUDIT_UNAVAILABLE": "The operation audit is unavailable. Check the current state before continuing.",
+
     "AI_NOT_CONFIGURED": "Choose a configured provider and model in Settings.",
     "ENCRYPTION_UNAVAILABLE": "The provider key is unavailable. Check Settings.",
     "AI_AUTH_FAILED": "The provider rejected the credentials.",
@@ -373,7 +373,7 @@ export const en = {
       "INVALID_INPUT": "Check the job title, company name, URL, salary range and field limits.",
       "STORAGE_BUSY": "Storage is busy. Retry saving.",
       "STORAGE_UNAVAILABLE": "Unable to save local data. Your entries have been retained.",
-      "AUDIT_UNAVAILABLE": "The required audit could not be saved. The job was not created.",
+
       "NOT_FOUND": "A related record no longer exists. Reload and try again.",
       "CONFLICT": "The job could not be saved due to a data conflict.",
       "JOB_ACCESS_RESTRICTED": "This page requires login, verification or restricts access. Enter the job manually.",
@@ -560,22 +560,7 @@ export const en = {
     discardTitle: 'Leave without saving?', discardDescription: 'Your unsaved settings will be discarded.',
     discard: 'Discard changes', stay: 'Keep editing',
   },
-  audit: {
-    title: 'Audit Viewer', description: 'Read local audit records, newest first. Viewing and filtering do not create records.',
-    scope: 'Settings and key saves are not audited. AI success means streaming started; it does not confirm completion. Logs contain metadata only.',
-    targetType: 'Target type', target: 'Target', targetId: 'Target ID', status: 'Status', all: 'All',
-    from: 'From', to: 'To', localTime: 'Local time; inclusive boundary.', advanced: 'Advanced filters', exactMatch: 'Exact ID match.',
-    requestId: 'Request ID', transactionId: 'Transaction ID', query: 'Search logs', reset: 'Reset', refresh: 'Refresh',
-    time: 'Time', event: 'Event', action: 'Action', details: 'Audit details', viewEntry: 'View audit record {{sequence}}',
-    recordId: 'Record ID', sequence: 'Sequence', errorCode: 'Error code', component: 'Component', location: 'Location', source: 'Source', actor: 'Actor',
-    detailDescription: 'Audit metadata. Business content, prompts, responses and keys are not stored here.', close: 'Close', noValue: 'None',
-    loading: 'Loading audit records…', loadFailed: 'Audit records could not be loaded.', empty: 'No audit records yet.', noMatches: 'No records match these filters.',
-    pagination: '{{total}} records · Page {{page}} of {{pages}}', previous: 'Previous page', next: 'Next page',
-    invalidId: 'Enter an exact target ID (up to 120 characters) or a valid UUID for request and transaction IDs.',
-    invalidTime: 'Enter a valid local date and time.', invalidRange: 'The end time must be at or after the start time.',
-    statuses: { SUCCESS: 'Success', FAILURE: 'Failure' }, actions: { CREATE: 'Create', UPDATE: 'Update', DELETE: 'Delete' },
-    targets: { company: 'Company', job: 'Job', job_source: 'Job source', job_event: 'Job event', profile: 'Profile', profile_item: 'Profile item', fact: 'Fact', generation_run: 'Generation run', artifact: 'Artifact', artifact_fact: 'Artifact fact', ai_request: 'AI request' }
-  },
+
   ai: {
   "model": "Model",
   "subtitle": "Chat using your selected provider and model.",
@@ -595,7 +580,7 @@ export const en = {
   "errors": {
     "INVALID_INPUT": "The request exceeds the supported format or context limit.",
     "FORBIDDEN": "This request is not permitted.",
-    "AUDIT_UNAVAILABLE": "The request could not be audited. Streaming has been stopped.",
+
     "ENCRYPTION_UNAVAILABLE": "Secure key storage is unavailable.",
     "STORAGE_UNAVAILABLE": "AI settings or credentials could not be read.",
     "AI_NOT_CONFIGURED": "Save a provider, model and any required key in Settings.",
@@ -675,8 +660,8 @@ export const en = {
         "OUTPUT_FAILED": "HTML / PDF output failed. Your resume is retained; rebuild the output.",
         "OUTPUT_INTERRUPTED": "Output was interrupted. Rebuild it without generating again.",
         "EDIT_CONFLICT": "The resume changed or a PDF build is active. Your draft is still here. Review the latest version before saving again.",
-        "OUTPUT_MISSING": "An output file is missing. Rebuild HTML / PDF.",
-        "AUDIT_UNAVAILABLE": "Audit storage is unavailable. Generation stopped."
+        "OUTPUT_MISSING": "An output file is missing. Rebuild HTML / PDF."
+
     }
 },
   profile: {

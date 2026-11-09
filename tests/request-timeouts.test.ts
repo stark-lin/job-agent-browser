@@ -19,7 +19,7 @@ const pendingTransport: typeof fetch = async (_input, init) => new Promise((_res
 test('chat snapshots the configured deadline and later requests use the new saved limit', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const config = settings(), events: AIEvent[] = []
-  const ai = createAIService({ settings: () => config, key: () => null, audit() {}, transport: pendingTransport })
+  const ai = createAIService({ settings: () => config, key: () => null,  transport: pendingTransport })
   t.after(() => ai.dispose())
   const start = () => new Promise<void>(resolve => ai.start(1, { choice, messages: [{ role: 'user', content: 'test' }] }, event => {
     events.push(event); if (event.type === 'failed') resolve()
@@ -39,7 +39,7 @@ test('chat snapshots the configured deadline and later requests use the new save
 test('model detection uses its separate timeout and keeps the active deadline when settings change', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const config = settings()
-  const ai = createAIService({ settings: () => config, key: () => null, audit() {}, transport: pendingTransport })
+  const ai = createAIService({ settings: () => config, key: () => null,  transport: pendingTransport })
   t.after(() => ai.dispose())
   let settled = false
   const pending = ai.listModels(1, { providerId: 'local' }).finally(() => { settled = true })
@@ -53,7 +53,7 @@ test('resume model calls inherit the configured AI timeout through the shared co
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const config = settings(), snapshot = requestConfig(config, () => null, choice)
   config.timeouts!.requestSeconds = 10
-  const model = compatibleAgentModel(snapshot, { audit() {}, transport: pendingTransport })
+  const model = compatibleAgentModel(snapshot, { transport: pendingTransport })
   let settled = false
   const pending = model.complete({ messages: [], tools: [], signal: new AbortController().signal }).finally(() => { settled = true })
   const rejected = assert.rejects(pending, /AGENT_TIMEOUT/)

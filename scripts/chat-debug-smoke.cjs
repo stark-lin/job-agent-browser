@@ -28,7 +28,7 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
   }
   const db = new DatabaseSync(resolve(directory, 'database.sqlite'), { readOnly: true })
   const plain = value => JSON.parse(JSON.stringify(value))
-  const snapshot = () => plain(['chat_sessions', 'agent_runs', 'agent_items', 'agent_model_requests', 'agent_model_responses', 'chat_context_checkpoints', 'chat_memory_progress', 'audit_logs', 'capability_audit'].map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]))
+  const snapshot = () => plain(['chat_sessions', 'agent_runs', 'agent_items', 'agent_model_requests', 'agent_model_responses', 'chat_context_checkpoints', 'chat_memory_progress'].map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]))
   try {
     const before = running ? null : snapshot()
     await clipboard.writeText('DEBUG_COPY_SENTINEL')
@@ -67,7 +67,7 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
       assert.deepEqual(bundle.context.checkpoint, plain(db.prepare('SELECT * FROM chat_context_checkpoints WHERE session_id=?').get(session.id) ?? null))
       assert.deepEqual(bundle.context.memoryProgress, rows('chat_memory_progress', 'ORDER BY sequence,message_id'))
       assert.equal(text.includes('OPAQUE_PROVIDER_STATE'), true, 'raw persisted provider capsules are not redacted again')
-      assert.deepEqual(snapshot(), before, 'copy does not write business or audit rows')
+      assert.deepEqual(snapshot(), before, 'copy does not write business rows')
     }
     // Simulate a real host clipboard failure without substituting the Data handler's result.
     const write = clipboard.writeText

@@ -26,8 +26,7 @@ interface Work {
 }
 export function resumeError(error: unknown): string {
   if (error instanceof OutputFailure) return error.code
-  if (error instanceof ToolError) return error.code === 'TOOL_AUDIT_UNAVAILABLE' ? 'AUDIT_UNAVAILABLE'
-    : error.code === 'TOOL_TIMEOUT' ? 'AGENT_TIMEOUT' : error.code === 'TOOL_CANCELLED' ? 'AGENT_CANCELLED' : error.code
+  if (error instanceof ToolError) return error.code === 'TOOL_TIMEOUT' ? 'AGENT_TIMEOUT' : error.code === 'TOOL_CANCELLED' ? 'AGENT_CANCELLED' : error.code
   return error instanceof DataError || error instanceof AgentError ? error.code : 'GENERATION_FAILED'
 }
 /** Main owns windows and UI projection; Agent capabilities always use its MCP session. */
@@ -103,7 +102,7 @@ export function createResumeTasks(deps: {
       try {
         const args = v.object({ jobId: v.id, profileId: v.id })(input), settings = deps.settings()
         const config = requestConfig(settings, deps.key, settings.default)
-        const model = deps.model?.(settings.default!) ?? compatibleAgentModel(config, { audit: backend.recordAgentModel })
+        const model = deps.model?.(settings.default!) ?? compatibleAgentModel(config, {})
         tools = await deps.mcp.session('resume', controller.signal, requestId)
         const signal = AbortSignal.any([controller.signal, tools.signal])
         startInput = { ...args, requestId, model: { providerId: settings.default!.providerId, modelId: config.model } }

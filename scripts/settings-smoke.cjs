@@ -10,7 +10,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   const openForms = () => openSectionCards(evaluate, '[data-settings-general], [data-ai-config], [data-settings-mailbox-form]')
   const assertCardGaps = async () => {
     const gaps = await evaluate(`(() => {
-      const cards = [...document.querySelectorAll('.settings-sections > details, [data-audit-viewer] > details')];
+      const cards = [...document.querySelectorAll('.settings-sections > details')];
       return cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom);
     })()`)
     assert(gaps.length > 0 && gaps.every(gap => gap === 24), `Expected 24px between Settings cards, got ${gaps}`)
@@ -55,7 +55,6 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
       labels: [...document.querySelectorAll('label.ui-field-label')].every(label => !!document.getElementById(label.htmlFor)) };
   })()`)
   assert.deepEqual(geometry, { padding: '24px', radius: '16px', height: 40, labels: true })
-  await require('./audit-viewer-smoke.cjs')({ window, call, evaluate, waitFor, field, data, capture })
   await formsReady()
   await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data })
   await openForms()
@@ -68,8 +67,6 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await submit(0)
   await waitFor(() => evaluate('document.documentElement.lang === "zh-CN" && document.querySelector(".settings-page").getAttribute("aria-label") === "设置"'), 'saved Chinese UI')
   await waitState(state => state.language === 'zh-CN' && active(state).title === '设置', 'Main language follows saved preference')
-  assert.equal(await evaluate('document.querySelector("[data-audit-viewer] h2").textContent'), '审计日志')
-  assert.equal(await evaluate('document.querySelector("[data-audit-viewer] button[type=submit]").textContent'), '查询日志')
   assert.equal((await data('settings', 'get', {})).value.language, 'zh-CN')
   await capture('settings-zh.png')
   const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve))

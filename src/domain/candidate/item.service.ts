@@ -19,7 +19,7 @@ export function assertParent(repo: CandidateRepository, profileId: string, paren
 export function createItemService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   return {
     addItem(input: unknown) {
-      return tx.write({ event: 'PROFILE_ITEM_ADD', action: 'CREATE', target: 'profile_item' }, () => {
+      return tx.write(() => {
         const args = v.object({ profileId: v.id, parentItemId: v.optionalId, details: itemDetails })(input)
         repo.getProfile(args.profileId)
         assertParent(repo, args.profileId, args.parentItemId)
@@ -32,7 +32,7 @@ export function createItemService(repo: CandidateRepository, tx: UnitOfWork, run
       })
     },
     editItem(input: unknown) {
-      return tx.write({ event: 'PROFILE_ITEM_EDIT', action: 'UPDATE', target: 'profile_item' }, () => {
+      return tx.write(() => {
         const { id, details } = v.object({ id: v.id, details: itemDetails })(input)
         const current = repo.getItem(id)
         if (current.type !== details.type) fail('CONFLICT')
@@ -43,7 +43,7 @@ export function createItemService(repo: CandidateRepository, tx: UnitOfWork, run
       })
     },
     moveItem(input: unknown) {
-      return tx.write({ event: 'PROFILE_ITEM_MOVE', action: 'UPDATE', target: 'profile_item' }, () => {
+      return tx.write(() => {
         const args = v.object({ id: v.id, parentItemId: v.nullable(v.id), sortOrder: v.integer(0, Number.MAX_SAFE_INTEGER - 1) })(input)
         const item = repo.getItem(args.id)
         assertParent(repo, item.profileId, args.parentItemId, item.id)
@@ -53,7 +53,7 @@ export function createItemService(repo: CandidateRepository, tx: UnitOfWork, run
       })
     },
     deleteItem(input: unknown) {
-      return tx.write({ event: 'PROFILE_ITEM_DELETE', action: 'DELETE', target: 'profile_item' }, () => { const { id } = v.byId(input); repo.getItem(id); repo.removeItem(id); return { id } })
+      return tx.write(() => { const { id } = v.byId(input); repo.getItem(id); repo.removeItem(id); return { id } })
     },
     listItems(input: unknown) { return tx.read(() => { const args = v.object({ profileId: v.id, ...v.pageFields })(input); repo.getProfile(args.profileId); return repo.items(args.profileId, args.limit, args.offset) }) }
   }

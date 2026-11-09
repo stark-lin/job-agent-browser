@@ -1,20 +1,18 @@
+import { consola } from 'consola'
 import { randomUUID } from 'node:crypto'
 import { ToolError, toolError, toolFail } from '../../shared/tools/errors'
 import { validateDescriptor } from '../../shared/tools/policy'
 import { frozenCopy } from '../../shared/tools/immutable'
 import type { RegisteredTool, ToolCaller, ToolDescriptor, ToolExecutionContext, ToolOutput } from '../../shared/tools/tool.types'
-import type { CapabilityAudit, CapabilityAuditContext } from './audit.types'
 import { compileSchema, jsonCopy, limits, toolOutput } from './schema'
 
 type Operation = (input: unknown, context: ToolExecutionContext) => ToolOutput | Promise<ToolOutput>
 interface Options {
   timeoutMs?: number
   inputLimit?: number
-  runId?(input: unknown): string | undefined
-  target?(input: unknown): CapabilityAuditContext['target']
 }
-/** Tools bind these already audited capabilities; adapters never assemble audit records. */
-export function createAuditedCapabilities(audit: CapabilityAudit, defaults: { timeoutMs?: number; maxActive?: number } = {}) {
+/** Shared execution protections for native and MCP tools. */
+export function createCapabilities(defaults: { timeoutMs?: number; maxActive?: number } = {}) {
   const active = new Map<AbortController, Promise<void>>()
   let disposed = false
   function bind(mode: 'read' | 'write', input: ToolDescriptor, operation: Operation, options: Options = {}): RegisteredTool {
@@ -38,14 +36,12 @@ export function createAuditedCapabilities(audit: CapabilityAudit, defaults: { ti
         if (active.size >= (defaults.maxActive ?? 16)) toolFail('TOOL_BUSY')
         const args = prepareInput(value)
         const invocationId = randomUUID(), controller = new AbortController()
-        const context: CapabilityAuditContext = { invocationId, agentId: caller.agentId, runId: caller.runId ?? options.runId?.(args), tool: descriptor, target: options.target?.(args) }
         const began = performance.now()
         let timedOut = false, settle!: () => void
         const done = new Promise<void>(resolve => { settle = resolve })
         active.set(controller, done)
         let timer: ReturnType<typeof setTimeout> | undefined, onAbort: (() => void) | undefined
         try {
-          try { audit.start(context) } catch { toolFail('TOOL_AUDIT_UNAVAILABLE') }
           let result: ToolOutput | undefined, failure: ToolError | undefined
           try {
             const signal = AbortSignal.any([caller.signal, controller.signal])
@@ -65,7 +61,11 @@ export function createAuditedCapabilities(audit: CapabilityAudit, defaults: { ti
             failure = timedOut ? new ToolError('TOOL_TIMEOUT') : caller.signal.aborted && caller.signal.reason instanceof ToolError ? caller.signal.reason :
               caller.signal.aborted || controller.signal.aborted ? new ToolError('TOOL_CANCELLED') : toolError(error)
           }
-          try { audit.finish(context, Math.max(0, Math.round(performance.now() - began)), failure?.code ?? null) } catch { toolFail('TOOL_AUDIT_UNAVAILABLE') }
+          try {
+            const message = `[TOOL] ${descriptor.name} ${failure?.code ?? 'SUCCESS'} ${Math.max(0, Math.round(performance.now() - began))}ms`
+            if (failure) consola.warn(message)
+            else consola.success(message)
+          } catch { /* Diagnostics never change tool outcomes. */ }
           if (failure) throw failure
           return result!
         } finally { clearTimeout(timer); active.delete(controller); controller.abort(); settle() }
@@ -83,4 +83,4 @@ export function createAuditedCapabilities(audit: CapabilityAudit, defaults: { ti
     }
   }
 }
-export type AuditedCapabilities = ReturnType<typeof createAuditedCapabilities>
+export type Capabilities = ReturnType<typeof createCapabilities>

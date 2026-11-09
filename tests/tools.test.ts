@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createToolRegistry } from '../src/shared/tools/registry'
-import { createAuditedCapabilities } from '../src/platform/tools/capabilities'
+import { createCapabilities } from '../src/platform/tools/capabilities'
 import { compileSchema, jsonCopy, limits } from '../src/platform/tools/schema'
 import { fixture } from './helpers'
 import { caller, descriptor, inputSchema } from './tool-fixtures'
@@ -32,18 +32,18 @@ test('scope is deny-by-default, denies take priority, and only exact or namespac
   await assert.rejects(scope.execute('test.echo', { text: 'private' }), { code: 'TOOL_FORBIDDEN' })
   await assert.rejects(scope.execute('test.modify', { text: 'private' }), { code: 'TOOL_FORBIDDEN' })
   for (const pattern of ['*', '*.delete', 'test.*.read', 'test*']) assert.throws(() => registry.scope({ allow: [pattern] }, caller()), { code: 'TOOL_INVALID_CONFIG' })
-  assert.equal(f.backend.toolAudit.list().length, 0)
 })
 
 test('scope freezes permissions and caller identity, and revocation cancels active calls without rebinding stale scopes', async t => {
   const f = fixture(t), registry = createToolRegistry(), identity = caller(), policy = { allow: ['test.*'] }
-  let started!: () => void
+  let executedAgent = '', started!: () => void
   const began = new Promise<void>(resolve => { started = resolve })
-  registry.register(f.backend.capabilities.read(descriptor(), async () => { started(); return await new Promise(() => {}) }))
+  registry.register(f.backend.capabilities.read(descriptor(), async (_input, context) => { executedAgent = context.agentId; started(); return await new Promise(() => {}) }))
   const scope = registry.scope(policy, identity)
   policy.allow[0] = 'other.*'; identity.agentId = 'forged'
   const pending = scope.execute('test.echo', { text: 'PRIVATE_TOKEN' })
   await began
+  assert.equal(executedAgent, 'test-agent')
   registry.unregister('test.echo')
   await assert.rejects(pending, { code: 'TOOL_UNAVAILABLE' })
   registry.register(f.backend.capabilities.read(descriptor(), () => ({ content: [] })))
@@ -51,8 +51,6 @@ test('scope freezes permissions and caller identity, and revocation cancels acti
   assert.deepEqual(scope.list(), [])
   await assert.rejects(scope.execute('test.echo', { text: 'private' }), { code: 'TOOL_UNAVAILABLE' })
   await assert.rejects(scope.execute('test.new', { text: 'private' }), { code: 'TOOL_FORBIDDEN' })
-  assert.equal(f.backend.toolAudit.list()[0].agent_id, 'test-agent')
-  assert.equal(JSON.stringify(f.backend.toolAudit.list()).includes('PRIVATE_TOKEN'), false)
 })
 
 test('lower read/write capabilities validate both boundaries, preserve inputs and redact raw errors', async t => {
@@ -68,7 +66,7 @@ test('lower read/write capabilities validate both boundaries, preserve inputs an
   await assert.rejects(broken.execute({ text: 'secret' }, context), error => {
     assert.equal((error as Error).message, 'TOOL_EXECUTION_FAILED'); return true
   })
-  assert.equal(JSON.stringify(f.backend.toolAudit.list()).includes('PRIVATE_PROCESS_PATH_TOKEN'), false)
+
   assert.throws(() => f.backend.capabilities.write(descriptor(), () => ({ content: [] })), { code: 'TOOL_INVALID_CONFIG' })
 })
 
@@ -84,20 +82,20 @@ test('JSON boundaries reject external references, schema dialects, coercion, get
   await assert.rejects(tool.execute({ text: 'test' }, caller()), { code: 'TOOL_INVALID_OUTPUT' })
 })
 
-test('timeout and cancellation finish once even when an underlying operation ignores the signal', async t => {
-  const f = fixture(t), capabilities = createAuditedCapabilities(f.backend.toolAudit.sink, { timeoutMs: 10 })
+test('timeout and cancellation finish once even when an underlying operation ignores the signal', async () => {
+  const capabilities = createCapabilities({ timeoutMs: 10 })
   const tool = capabilities.read(descriptor(), async () => await new Promise(() => {}))
   await assert.rejects(tool.execute({ text: 'private' }, caller()), { code: 'TOOL_TIMEOUT' })
   const cancelled = new AbortController(), pending = tool.execute({ text: 'private' }, { agentId: 'test-agent', signal: cancelled.signal })
   cancelled.abort()
   await assert.rejects(pending, { code: 'TOOL_CANCELLED' })
-  assert.deepEqual(f.backend.toolAudit.list().filter(row => row.phase === 'END').map(row => row.error), ['TOOL_TIMEOUT', 'TOOL_CANCELLED'])
+
   await capabilities.dispose()
   await assert.rejects(tool.execute({ text: 'private' }, caller()), { code: 'TOOL_UNAVAILABLE' })
 })
 
-test('capability concurrency is bounded, scope disposal cancels work, and descriptors retain approved schemas', async t => {
-  const f = fixture(t), capabilities = createAuditedCapabilities(f.backend.toolAudit.sink, { maxActive: 1 }), registry = createToolRegistry()
+test('capability concurrency is bounded, scope disposal cancels work, and descriptors retain approved schemas', async () => {
+  const capabilities = createCapabilities({ maxActive: 1 }), registry = createToolRegistry()
   const tool = capabilities.read(descriptor(), async () => await new Promise(() => {}))
   registry.register(tool)
   const scope = registry.scope({ allow: ['test.echo'] }, caller()), pending = scope.execute('test.echo', { text: 'test' })
@@ -125,11 +123,9 @@ test('server replacement validates the whole batch atomically and never overwrit
   assert.throws(() => { native.descriptor.source.type = 'mcp' }, TypeError)
 })
 
-test('capability disposal settles audit before resolving even when underlying work ignores cancellation', async t => {
-  const f = fixture(t), capabilities = createAuditedCapabilities(f.backend.toolAudit.sink)
+test('capability disposal settles active work before resolving even when underlying work ignores cancellation', async () => {
+  const capabilities = createCapabilities()
   const pending = capabilities.read(descriptor(), async () => await new Promise(() => {})).execute({ text: 'private' }, caller())
   const rejected = assert.rejects(pending, { code: 'TOOL_CANCELLED' })
   await capabilities.dispose(); await rejected
-  assert.deepEqual(f.backend.toolAudit.list().map(row => row.phase), ['START', 'END'])
-  assert.equal(f.backend.toolAudit.list()[1].error, 'TOOL_CANCELLED')
 })

@@ -44,8 +44,7 @@ test('ordinary chat only loads Core, refreshes it every admitted turn, and never
   await core.write('CORE.md', 'Core version two', initial.revision); expected = 'Core version two'
   const second = tasks.start(1, start('Hello again', first.sessionId), () => {}); await wait(tasks, second.runId)
   assert.equal(requests, 2)
-  const names = f.backend.toolAudit.list().filter(r => r.phase === 'START').map(r => r.tool_name)
-  assert.deepEqual(names, ['memory.read', 'memory.read'])
+
   assert.equal(f.database.connection.prepare('SELECT count(*) n FROM chat_memory_progress').get()?.n, 0)
 })
 
@@ -65,7 +64,6 @@ test('the sole Agent handles explicit and proactive Memory decisions through sou
   for (const path of ['decision-1.md', 'decision-2.md']) assert.equal((await f.workspace.spaces.memory.files.read(path)).content, 'Supported durable preference.')
   const protectedState = f.backend.chats.protectedState(first.sessionId).join('\n')
   assert(protectedState.includes('decision-2.md')); assert(!protectedState.includes('Supported durable preference.'))
-  assert.equal(f.backend.toolAudit.list().filter(r => r.tool_name === 'memory.write' && r.status === 'SUCCESS').length, 2)
 })
 
 test('different Agent Sessions resolve a deterministic CAS conflict by rereading and merging outside the lock', async t => {
@@ -124,7 +122,7 @@ test('terminal persistence failure holds the next turn and retries records witho
   assert.equal(requests, 2); assert.equal(f.backend.chats.getRun(first.runId).state, 'failed')
 })
 
-for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory ${failure} retains uncertain state and never retries the write`, async t => {
+for (const failure of ['lost-response', 'stop'] as const) test(`Memory ${failure} retains uncertain state and never retries the write`, async t => {
   const f = await firstPartyFixture(t)
   let writes = 0, step = 0
   const open = f.mcp.openAgentRun.bind(f.mcp), blocked = gate(), entered = gate()
@@ -133,7 +131,6 @@ for (const failure of ['audit', 'lost-response', 'stop'] as const) test(`Memory 
     tools.call = async (name, input, callSignal) => {
       if (name !== 'memory.write') return original(name, input, callSignal)
       writes++
-      if (failure === 'audit') f.flag('fail-audit-finish')
       const output = await original(name, input, callSignal)
       if (failure === 'lost-response') throw new Error('Response lost after commit')
       if (failure === 'stop') { entered.release(); await blocked.ready }

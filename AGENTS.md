@@ -14,9 +14,9 @@ Applies to documentation additions and edits in this repository; bring existing 
 | [docs/code-architecture.md](docs/code-architecture.md) · [Chinese](docs/code-architecture.zh-CN.md) | Target code organization, dependency boundaries, and migration constraints, distinguishing current from target state. |
 | [DESIGN.md](DESIGN.md) · [Chinese](DESIGN.zh-CN.md) | Visual direction, interaction principles, and design entry point; detailed component rules remain in the design-system specification. |
 | [docs/design-system.md](docs/design-system.md) · [Chinese](docs/design-system.zh-CN.md) | Shared UI rules, component reference gallery, design tokens, and design validation. |
-| [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, audit, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
+| [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
 | [docs/agent-runtime.md](docs/agent-runtime.md) · [Chinese](docs/agent-runtime.zh-CN.md) | Ask AI Prompt/Run boundary, Cycle execution states and finalization rules. |
-| [docs/mcp-architecture.md](docs/mcp-architecture.md) · [Chinese](docs/mcp-architecture.zh-CN.md) | Tool registration, Agent scopes, audited capability bindings, MCP Provider/Client behavior, and lifecycle. |
+| [docs/mcp-architecture.md](docs/mcp-architecture.md) · [Chinese](docs/mcp-architecture.zh-CN.md) | Tool registration, Agent scopes, protected capability bindings, MCP Provider/Client behavior, and lifecycle. |
 | [CI/CD](docs/ci-cd.md) · [Chinese](docs/ci-cd.zh-CN.md) | Branch integration, validation, model supply, packaging, signing and release operations. |
 
 Check this table before adding a document; create one only for a distinct topic that does not fit an existing owner, and link it from the README index.

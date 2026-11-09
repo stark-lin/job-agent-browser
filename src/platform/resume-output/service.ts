@@ -13,7 +13,7 @@ export function createResumeOutput(backend: ReturnType<typeof composeBackend>, d
   const active = new Set<Promise<unknown>>()
   async function build(id: string, signal: AbortSignal, started?: () => void) {
     signal.throwIfAborted()
-    const { original, token } = backend.outputTransaction.write({ event: 'ARTIFACT_OUTPUT_CLAIM', action: 'UPDATE', target: 'artifact', targetId: id }, () => ({
+    const { original, token } = backend.outputTransaction.write(() => ({
       original: backend.artifactForOutput(id), token: backend.lease.claim('output', id)
     }))
     const owned = () => backend.lease.valid('output', id, token)

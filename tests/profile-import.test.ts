@@ -25,10 +25,6 @@ test('one imported experience owns multiple saved facts with separate IDs and a 
   assert.notEqual(saved.facts[0].id, saved.facts[1].id)
   assert(saved.facts.every(fact => fact.profileItemId === saved.items[0].id))
   assert.equal(saved.items[0].startDate, null); assert.equal(saved.items[0].metadata.startDateText, '2020-03')
-  const logs = value(await f.api.audit.list({ limit: 100 })).items
-  assert.equal(new Set(logs.map(log => log.transactionId)).size, 1)
-  assert.equal(logs.filter(log => log.targetType === 'fact' && log.action === 'CREATE').length, 2)
-  assert(!JSON.stringify(logs).includes('Built services'))
 })
 test('contact import applies only submitted fields, appends links and supports standalone facts', async t => {
   const f = fixture(t), profile = value(await f.api.profiles.createProfile({ name: 'Old name', email: 'keep@example.com', phone: '123' }))
@@ -39,13 +35,11 @@ test('contact import applies only submitted fields, appends links and supports s
   assert.equal(saved.profile.email, 'keep@example.com'); assert.equal(saved.profile.phone, '123'); assert.equal(saved.profile.name, 'Updated name')
   assert.equal(saved.profile.links.length, 1); assert.equal(saved.facts[0].profileItemId, null)
 })
-test('late relationship failure rolls back profile, items, facts and success audits', async t => {
+test('late relationship failure rolls back profile, items, facts', async t => {
   const f = fixture(t), args = input()
   args.facts = [args.items[0].draftId, randomUUID()].map(itemDraftId => ({ draftId: randomUUID(), itemDraftId, profileItemId: null, details: { kind: 'SKILL', content: 'SQL' } }))
   assert.deepEqual(await f.api.profiles.applyImport(args), { ok: false, error: 'CONFLICT' })
   assert.equal(value(await f.api.profiles.listProfiles({})).total, 0)
-  const logs = value(await f.api.audit.list({})).items
-  assert.equal(logs.length, 1); assert.equal(logs[0].status, 'FAILURE')
 })
 test('import permits missing name but rejects duplicate draft IDs, invalid dates and cross-profile parents', async t => {
   const f = fixture(t), args = input(); args.contact = {}

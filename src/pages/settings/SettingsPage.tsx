@@ -6,7 +6,6 @@ import { mailURLs, type MailProvider } from '../../shared/settings'
 import { useOnboarding } from '../../app/onboarding'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
-import { AuditViewerSection } from './AuditViewerSection'
 import { ExternalMCPSettings } from './ExternalMCPSettings'
 import { SmartPasteSettings } from './SmartPasteSettings'
 import './settings.css'
@@ -63,7 +62,6 @@ export function SettingsPage() {
         <KnowledgeSettings onDirty={settings.setKnowledgeDirty} />
         <ExternalMCPSettings />
       </div>}
-      <AuditViewerSection />
     </div>
   </main>
 }

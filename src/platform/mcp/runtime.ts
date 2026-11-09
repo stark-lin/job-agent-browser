@@ -1,7 +1,7 @@
 import { createToolRegistry } from '../../shared/tools/registry'
 import { toolError, toolFail, type ToolErrorCode } from '../../shared/tools/errors'
 import type { RegisteredTool, ToolCaller, ToolScopePolicy } from '../../shared/tools/tool.types'
-import type { AuditedCapabilities } from '../tools/capabilities'
+import type { Capabilities } from '../tools/capabilities'
 import { createMCPClientPool } from './client-pool'
 import type { ClientHooks, MCPClient } from './client'
 import { createMCPProvider } from './provider'
@@ -11,9 +11,8 @@ interface ServerStatus { id: string; state: 'disabled' | 'connecting' | 'ready' 
 interface Session { config: MCPServerConfig; controller: AbortController; dirty: boolean; refresh?: Promise<void> }
 interface Dependencies {
   configuration(): MCPConfiguration
-  capabilities: AuditedCapabilities
+  capabilities: Capabilities
   native: RegisteredTool[]
-  recoverAudit(): void
   clientFactory?: (config: MCPServerConfig, hooks: ClientHooks) => MCPClient
 }
 /** Main-owned composition. No SDK types, registry mutations or arbitrary policy enter Renderer. */
@@ -85,7 +84,6 @@ export function createToolRuntime(deps: Dependencies) {
       if (!started) started = (async () => {
         if (disposed) return
         try {
-          deps.recoverAudit()
           configurations = parseMCPConfiguration(deps.configuration()).servers
           if (disposed) return
           for (const config of configurations) if (!config.enabled) statuses.set(config.id, { id: config.id, state: 'disabled', rejected: 0 })

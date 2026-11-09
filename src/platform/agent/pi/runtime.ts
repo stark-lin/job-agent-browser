@@ -71,7 +71,7 @@ export async function runPiAgent(deps: {
           const blocked = snapshot?.status === 'BLOCKED' || code === 'TOOL_GUARD_TERMINATED'
           if (uncertain) failed(isAgentCancellation(error, userSignal) ? new ToolError('TOOL_EXECUTION_FAILED') : error)
           else if (blocked) failed(new ToolError('TOOL_GUARD_TERMINATED'))
-          else if (combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'TOOL_AUDIT_UNAVAILABLE', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE', 'MCP_INVALID_RESPONSE'].includes(code)) observeFailure(error)
+          else if (combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE', 'MCP_INVALID_RESPONSE'].includes(code)) observeFailure(error)
           try { if (!rejected) deps.protect(name, args, null, uncertain) }
           finally { deps.emit({ type: 'tool.failed', id, name, error: code, durationMs: Date.now() - began, uncertain, guard: snapshot }) }
           return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(snapshot ? { reason: snapshot.reason, executed: snapshot.executed, effectAlreadyConfirmed: snapshot.effectAlreadyConfirmed } : {}) }) }, ...guidance(snapshot)], details: {}, isError: true }

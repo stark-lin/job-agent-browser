@@ -29,6 +29,8 @@ async function main() {
   const fact = dispatch('profiles', 'addFact', { profileId: profile.id, profileItemId: item.id, details: { kind: 'ACHIEVEMENT', content: 'Built TypeScript services with automated tests.' } })
   const baseline = backend.resumes.createRun({ jobId: job.id, profileId: profile.id }, { start: true })
   const client = new Client({ name: 'codex-smoke', version: '1' })
+  const protocolErrors = []
+  client.onerror = error => protocolErrors.push(error)
   const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: resolve(__dirname, '..'), env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'pipe', maxBufferSize: 2097152 })
   let diagnostics = ''
   transport.stderr?.on('data', chunk => { if (diagnostics.length < 4000) diagnostics += chunk })
@@ -39,6 +41,9 @@ async function main() {
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING', 'MCP startup must preserve another process task')
     assert.equal((await call('job.list', {})).items[0].id, job.id)
     assert.equal((await call('profile.list', {})).items[0].id, profile.id)
+    await until(() => diagnostics.includes('[TOOL] job.list SUCCESS'), 'Tool diagnostics did not reach stderr')
+    assert.deepEqual(protocolErrors, [], 'MCP stdout must contain only protocol messages')
+    assert(!diagnostics.includes(job.title)); assert(!diagnostics.includes(profile.email))
     // Exercise the built profile surface, not only the compiled test runtime.
     const imported = await call('profile.create', { requestId: randomUUID(), details: { name: 'Distillation fixture', email: 'keep@example.com' } })
     const updated = await call('profile.update', { id: imported.id, requestId: randomUUID(), expectedRevision: imported.revision, changes: { phone: '123' } })
@@ -89,8 +94,7 @@ async function main() {
     const editedPages = await extractPdf(new Uint8Array(editedPdf), new AbortController().signal, () => {}, resolve(__dirname, '../out/main/pdf-worker.mjs'))
     const editedText = editedPages.map(page => page.text).join(' ')
     for (const text of ['portfolio.example/my work', 'Summer 2020 (part-time)', 'After graduation', 'github.com/example/project']) assert(editedText.includes(text))
-    // Audit has no model call, and the still-open parent backend remains independently writable.
-    assert.equal(backend.dispatch('audit', 'list', { targetType: 'ai_request' }).value.total, 0)
+    // The still-open parent backend remains independently writable.
     const cancel = new AbortController(), cancelled = client.callTool({ name: 'artifact.build', arguments: { artifactId: artifact.id } }, { signal: cancel.signal })
     await until(() => backend.resumes.getArtifact({ id: artifact.id }).artifact.output.status === 'RUNNING', 'Second build did not start')
     cancel.abort(); await assert.rejects(cancelled)

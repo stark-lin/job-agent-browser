@@ -5,7 +5,7 @@ import { mkdir, symlink, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
-import { Transactions } from '../src/platform/database/transactions'
+import { LegacyTransactions as Transactions } from './legacy-migration-fixture'
 import { Store } from '../src/platform/database/repositories/store'
 import { migrate, migrations } from '../src/platform/database/migrations'
 import { composeBackend } from '../src/platform/database/backend'
@@ -48,14 +48,14 @@ test('version 18 resume history, managed PDF and provenance survive the upgrade'
   const root = mkdtempSync(join(tmpdir(), 'resume-upgrade-'))
   t.after(() => { if (db.isOpen) db.close(); rmSync(root, { recursive: true, force: true }) })
   migrate(db, migrations.slice(0, 18))
-  const store = new Store(db, transactions)
+  const store = new Store(db)
   const pdf = Buffer.from('%PDF-1.4 fixture from the old version')
   const files = await artifactFiles(root).write(f.artifact.id, { html: 'Historical preview', pdf }, new AbortController().signal)
   const artifact = f.artifact
   const { agentRunId: _agent, state: _state, stateVersion: _stateVersion, ...run } = f.run
   const legacy = { ...run, language: 'en', status: 'SUCCEEDED', stage: 'output' }
   const unfinishedId = randomUUID()
-  transactions.forActor('USER').write({ event: 'LEGACY_FIXTURE', action: 'CREATE', target: 'generation_run' }, () => {
+  transactions.write(() => {
     store.insert('job', f.job)
     store.insert('profile', f.profile)
     store.insert('profile_item', f.item)
