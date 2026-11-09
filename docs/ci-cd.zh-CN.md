@@ -18,7 +18,7 @@
 
 两个工作流均将 `electron_config_cache` 设为工作区内的 `.cache/electron`，按 runner 系统/架构和锁文件哈希缓存官方下载归档。npm 干净安装通过官方下载器复用归档缓存；不会复制 node_modules 或仓库中已解压的二进制。
 
-[Electron 冒烟测试](../scripts/smoke.cjs) 记录 Main 未捕获异常并立即退出，避免错误弹窗阻塞无人值守运行。其 [AI fixture](../scripts/ai-smoke.cjs) 提供模型发现、运行时上下文元数据和流式回复；Ask 在推理前验证 fixture 的实际部署上下文。独立的[智能粘贴与全局通知冒烟测试](../scripts/smart-paste-smoke.cjs)先于通用 Electron 冒烟测试运行。
+[Electron 冒烟测试](../scripts/smoke.cjs) 记录 Main 未捕获异常并立即退出，避免错误弹窗阻塞无人值守运行。其 [AI fixture](../scripts/ai-smoke.cjs) 提供模型发现、运行时上下文元数据和流式回复；Ask 在推理前验证 fixture 的实际部署上下文。独立的[智能粘贴与全局通知冒烟测试](../scripts/smart-paste-smoke.cjs)先于通用 Electron 冒烟测试运行。其替换 iframe 样本先提交文档，再返回表单；测试独立于 Agent 取消状态，等待文档完整加载且目标字段出现后，才读取或填充。
 
 [打包](../.github/workflows/package.yml) 包含两个作业：附带已校验离线 Seed/推理的 Full DMG，以及经过干净安装/运行时冒烟测试的不含模型 npm tarball。两者使用相同发布元数据。不接受跨架构运行结果。Windows、Linux 和 macOS x64 仍为**脚手架**，不参与发布。
 
