@@ -159,3 +159,28 @@ test('source order survives reversed partial saves with manual entries inserted 
   assert.deepEqual(f.backend.profiles.listItems({ profileId }).items.map(item => item.title), ['Project 1', 'Project 2', 'Manual'])
   assert.deepEqual(f.backend.profiles.listFacts({ profileId }).items.map(fact => fact.content), ['Fact 1', 'Fact 2', 'Manual fact'])
 })
+
+test('review confirmation saves the complete selection and immutable snapshot in one short transaction', async t => {
+  const f = fixture(t), mock = aiFixture(), db = f.database.connection
+  const importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: f.backend.applyProfileImport })
+  t.after(() => importer.dispose())
+  const task = await ready(importer, 1, importer.select(1, new Uint8Array([1])).fileId)
+  const input = { ...selection(task.draft, task.sessionId), facts: task.draft.facts.map(({ draftId, itemDraftId, details }) => ({ draftId, itemDraftId, details, profileItemId: null })) }
+  assert.equal(f.backend.profiles.listProfiles({}).total, 0)
+  assert.equal(db.prepare('SELECT count(*) n FROM profile_baselines').get()?.n, 0, 'unconfirmed Review stays temporary')
+  db.exec("CREATE TRIGGER fixture_snapshot_failure BEFORE INSERT ON profile_baselines BEGIN SELECT RAISE(ABORT,'fixture'); END")
+  assert.deepEqual(importer.apply(1, input), { ok: false, error: 'CONFLICT' })
+  for (const table of ['profiles', 'profile_items', 'facts', 'profile_order_counters', 'profile_baselines']) assert.equal(db.prepare(`SELECT count(*) n FROM ${table}`).get()?.n, 0, table)
+  db.exec('DROP TRIGGER fixture_snapshot_failure')
+  const saved = value(importer.apply(1, input))
+  const baseline = db.prepare('SELECT snapshot_json FROM profile_baselines WHERE profile_id=?').get(saved.profile.id)!
+  const snapshot = JSON.parse(String(baseline.snapshot_json))
+  assert.equal(snapshot.profile.name, 'Candidate')
+  assert.deepEqual(snapshot.items, saved.items)
+  assert.deepEqual(snapshot.facts.map(({ sortOrder: _sort, ...fact }: { sortOrder: number }) => fact), saved.facts)
+  assert.equal(saved.facts.length, 2)
+  assert.deepEqual(value(importer.apply(1, input)), saved)
+  assert.deepEqual(db.prepare('SELECT snapshot_json FROM profile_baselines WHERE profile_id=?').get(saved.profile.id), baseline)
+  importer.discard(1, { sessionId: task.sessionId })
+  assert.equal(f.backend.profiles.listFacts({ profileId: saved.profile.id }).total, 2)
+})

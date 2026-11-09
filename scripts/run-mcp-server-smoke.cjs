@@ -9,6 +9,8 @@ const { StdioClientTransport } = require('@modelcontextprotocol/client/stdio')
 const { createBackend } = require('../.cache/tests/src/platform/database/backend.js')
 const { extractPdf } = require('../.cache/tests/src/platform/import/pdf.js')
 const { nativeMCPEnvironment } = require('../.cache/tests/src/platform/mcp/native-environment.js')
+const { createRunAdmission } = require('../.cache/tests/src/platform/mcp/run-admission.js')
+const { createAdmissionBroker } = require('../.cache/tests/src/platform/mcp/run-admission-broker.js')
 const { jobAgentAllowlist } = require('../.cache/tests/src/platform/tools/index.js')
 
 async function until(check, message) {
@@ -28,16 +30,20 @@ async function main() {
   const item = dispatch('profiles', 'addItem', { profileId: profile.id, details: { type: 'EXPERIENCE', title: 'Engineer', organization: 'Fixture Team' } })
   const fact = dispatch('profiles', 'addFact', { profileId: profile.id, profileItemId: item.id, details: { kind: 'ACHIEVEMENT', content: 'Built TypeScript services with automated tests.' } })
   const baseline = backend.resumes.createRun({ jobId: job.id, profileId: profile.id }, { start: true })
+  const admission = createRunAdmission(), mainAdmission = createAdmissionBroker(directory, admission)
+  await mainAdmission.ready
+  let executionRunId
   const client = new Client({ name: 'codex-smoke', version: '1' })
   const protocolErrors = []
   client.onerror = error => protocolErrors.push(error)
   const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: resolve(__dirname, '..'), env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'pipe', maxBufferSize: 2097152 })
   let diagnostics = ''
   transport.stderr?.on('data', chunk => { if (diagnostics.length < 4000) diagnostics += chunk })
-  const call = async (name, args) => { const result = await client.callTool({ name, arguments: args }, { timeout: 100000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
+  const call = async (name, args) => { const result = await client.callTool({ name, arguments: name.startsWith('run.') ? args : { ...args, executionRunId } }, { timeout: 100000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
   try {
     await client.connect(transport)
-    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist].sort())
+    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'run.begin', 'run.end'].sort())
+    executionRunId = (await call('run.begin', {})).runId
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING', 'MCP startup must preserve another process task')
     assert.equal((await call('job.list', {})).items[0].id, job.id)
     assert.equal((await call('profile.list', {})).items[0].id, profile.id)
@@ -95,10 +101,12 @@ async function main() {
     const editedText = editedPages.map(page => page.text).join(' ')
     for (const text of ['portfolio.example/my work', 'Summer 2020 (part-time)', 'After graduation', 'github.com/example/project']) assert(editedText.includes(text))
     // The still-open parent backend remains independently writable.
-    const cancel = new AbortController(), cancelled = client.callTool({ name: 'artifact.build', arguments: { artifactId: artifact.id } }, { signal: cancel.signal })
+    const cancel = new AbortController(), cancelled = client.callTool({ name: 'artifact.build', arguments: { executionRunId, artifactId: artifact.id } }, { signal: cancel.signal })
     await until(() => backend.resumes.getArtifact({ id: artifact.id }).artifact.output.status === 'RUNNING', 'Second build did not start')
     cancel.abort(); await assert.rejects(cancelled)
     await until(() => backend.resumes.getArtifact({ id: artifact.id }).artifact.output.status === 'CANCELLED', 'Cancelled worker did not settle')
+    await until(() => !admission.current(), 'Cancelled Run admission was not released')
+    executionRunId = (await call('run.begin', {})).runId
     assert.equal((await call('artifact.build', { artifactId: artifact.id })).output.status, 'READY')
     const unfinished = await call('resume.start', { jobId: job.id, profileId: profile.id, requestId: randomUUID() })
     const pid = transport.pid
@@ -111,10 +119,13 @@ async function main() {
     const crashTransport = new StdioClientTransport({ command: process.execPath, args: [entry], env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'ignore' })
     try {
       await crashed.connect(crashTransport)
-      const result = await crashed.callTool({ name: 'resume.start', arguments: { jobId: job.id, profileId: profile.id, requestId: randomUUID() } })
+      const began = await crashed.callTool({ name: 'run.begin', arguments: {} })
+      assert(!began.isError)
+      const result = await crashed.callTool({ name: 'resume.start', arguments: { executionRunId: began.structuredContent.runId, jobId: job.id, profileId: profile.id, requestId: randomUUID() } })
       assert(!result.isError)
       process.kill(crashTransport.pid, 'SIGKILL')
       await until(() => { try { process.kill(crashTransport.pid, 0); return false } catch { return true } }, 'Crashed MCP process was not reaped')
+      await until(() => !admission.current(), 'Crashed MCP admission was not released')
       backend.recover()
       assert.equal(backend.resumes.getRun({ id: result.structuredContent.runId }).run.state, 'INTERRUPTED')
       assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING')
@@ -123,6 +134,6 @@ async function main() {
     const missing = spawnSync(process.execPath, [entry], { env, encoding: 'utf8', timeout: 10000 })
     assert.equal(missing.status, 1); assert.equal(missing.stdout, ''); assert(missing.stderr.includes('MCP_DATA_REQUIRED'))
     console.log('Outbound MCP smoke passed: built Node stdio entry, shared SQLite across processes, immutable snapshot, full external workflow, real Electron HTML/PDF worker, PDF text/page validation, cancellation/rebuild, EOF/crash recovery and zero application model calls.')
-  } finally { await client.close().catch(() => {}); backend.close(); await workspace.close(); rmSync(directory, { recursive: true, force: true }) }
+  } finally { await client.close().catch(() => {}); await mainAdmission.close(); backend.close(); await workspace.close(); rmSync(directory, { recursive: true, force: true }) }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1 })

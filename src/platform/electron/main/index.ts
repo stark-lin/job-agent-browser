@@ -119,6 +119,7 @@ app.whenReady().then(async () => {
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
   profileImporter = createProfileImporter({ ai, apply: (input, order) => backend!.applyProfileImport(input, order) })
   firstParty = createFirstPartyRuntime(directory, __dirname)
+  await firstParty.ready
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
   jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   const engine = createAgentEngine(backend.chats.agentSnapshot)

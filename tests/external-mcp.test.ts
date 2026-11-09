@@ -203,14 +203,14 @@ test('real generated stdio configuration discovers the public tools without busi
   const before = f.backend.jobs.listJobs({})
   const status = service.inspect({}).clients[0]
   service.install({ target: status.target, revision: status.revision, replace: false })
-  assert.deepEqual(await service.test(1, { target: 'codex' }), { toolCount: jobAgentAllowlist.length })
+  assert.deepEqual(await service.test(1, { target: 'codex' }), { toolCount: jobAgentAllowlist.length + 2 })
   assert(closed)
   assert.equal(f.outputs(), 0)
   assert.deepEqual(f.backend.jobs.listJobs({}), before)
   await assert.rejects(client!.listTools(), { code: 'TOOL_UNAVAILABLE' })
   const current = service.inspect({}).clients[0]
   const reconnect = await service.reconnect(1, { target: 'codex', revision: current.revision })
-  assert.equal(reconnect.toolCount, jobAgentAllowlist.length)
+  assert.equal(reconnect.toolCount, jobAgentAllowlist.length + 2)
   assert.equal(reconnect.error, undefined)
   assert.equal(f.outputs(), 0)
   assert.deepEqual(f.backend.jobs.listJobs({}), before)

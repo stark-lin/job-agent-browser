@@ -55,12 +55,14 @@ await runtime.server.connect(new StdioServerTransport(process.stdin, process.std
 })().catch(() => { process.exitCode = 1 });
 `)
   const mcp = createFirstPartyRuntime(directory, directory)
+  await mcp.ready
+  let lastRun: Awaited<ReturnType<typeof mcp.openAgentRun>> | undefined
   t.after(async () => { for (const close of runCleanups) await close(); await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
   return { ...f, directory, mcp, workspace,
     async askRun(signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []) {
       const run = await mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId, sourceMessageIds, signal })
-      runCleanups.push(() => run.close().catch(() => {})); return run.tools
-    }, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
+      lastRun = run; runCleanups.push(() => run.close().catch(() => {})); return run.tools
+    }, endAskRun: async () => { await lastRun?.close(); lastRun = undefined }, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
     flag(name: string, on = true) { if (on) writeFileSync(join(directory, name), '1'); else rmSync(join(directory, name), { force: true }) },
     has: (name: string) => existsSync(join(directory, name)),
     outputs: () => existsSync(join(directory, 'output-count')) ? Number(readFileSync(join(directory, 'output-count'), 'utf8')) : 0 }

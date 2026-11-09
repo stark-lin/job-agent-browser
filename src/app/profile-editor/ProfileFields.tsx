@@ -6,7 +6,7 @@ import { factKinds, itemTypes } from '../../domain/candidate/candidate.types'
 
 export const contactKeys = ['name', 'email', 'phone', 'location'] as const
 export const basicKeys = [...contactKeys, 'introduction'] as const
-export const emptyContact: ProfileDetails = { name: '', email: '', phone: '', location: '', links: [], introduction: '' }
+export const emptyContact: ProfileDetails = { name: '', email: '', phone: '', location: '', links: [], title: '', introduction: '' }
 export function ItemFields({ value, onChange, disabled = false, fixedType = false, review = false, resume = false }: {
   resume?: boolean; value: ItemInput; onChange: (value: ItemInput) => void; disabled?: boolean; fixedType?: boolean; review?: boolean
 }) {

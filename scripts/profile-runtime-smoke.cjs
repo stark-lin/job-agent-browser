@@ -3,7 +3,8 @@ const assert = require('node:assert/strict')
 const { resolve } = require('node:path')
 assert(process.env.JOB_BROWSER_SMOKE_DATA, 'Profile runner requires disposable storage')
 app.setPath('userData', process.env.JOB_BROWSER_SMOKE_DATA)
-const timeout = setTimeout(() => { console.error('Profile smoke timed out'); app.exit(1) }, 30_000)
+// Covers CRUD, multi-batch PDF import, baseline approval/restore and bilingual viewport checks.
+const timeout = setTimeout(() => { console.error('Profile smoke timed out'); app.exit(1) }, 60_000)
 app.once('browser-window-created', (_event, window) => {
   window.webContents.setBackgroundThrottling(false)
   window.webContents.once('did-finish-load', async () => {

@@ -37,7 +37,7 @@ test('Ask AI streams read/write tools over real first-party MCP, stores full too
 
   assert.throws(() => tasks.getRun(2, { runId: ids.runId }), { code: 'FORBIDDEN' })
 })
-test('per-session exclusion, two simultaneous sessions, targeted cancellation, owner disposal and durable model snapshots', async t => {
+test('global single Run rejects a second session while same-session turns retain FIFO and targeted cancellation', async t => {
   const f = await firstPartyFixture(t)
   let streaming = 0
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
@@ -46,14 +46,19 @@ test('per-session exclusion, two simultaneous sessions, targeted cancellation, o
     await new Promise<void>(resolve => input.signal.addEventListener('abort', () => resolve(), { once: true }))
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
-  const a = tasks.start(1, start('A'), () => {}), b = tasks.start(1, start('B'), () => {})
-  const queued = tasks.start(1, start('Again', a.sessionId), () => {}); assert.equal(tasks.getRun(1, { runId: queued.runId }).run.admission, 'pending')
-  for (let n = 0; n < 800 && streaming < 2; n++) await new Promise(resolve => setTimeout(resolve, 10))
-  assert.equal(streaming, 2, JSON.stringify([tasks.getRun(1, { runId: a.runId }).run, tasks.getRun(1, { runId: b.runId }).run])); assert.equal(tasks.listActive(1, {}).length, 3)
+  const a = tasks.start(1, start('A'), () => {})
+  for (let n = 0; n < 500 && streaming < 1; n++) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(streaming, 1)
+  const b = tasks.start(1, start('B'), () => {})
+  const denied = await wait(tasks, b.runId)
+  assert.equal(denied.run.state, 'failed'); assert.equal(denied.run.error, 'TOOL_BUSY'); assert.equal(streaming, 1)
+  const queued = tasks.start(1, start('Again', a.sessionId), () => {})
+  assert.equal(tasks.getRun(1, { runId: queued.runId }).run.admission, 'pending')
+  assert.throws(() => tasks.cancel(2, { runId: a.runId }), { code: 'FORBIDDEN' })
   tasks.cancel(1, { runId: a.runId }); assert.equal((await wait(tasks, a.runId)).run.state, 'cancelled')
-  assert.equal(tasks.getRun(1, { runId: b.runId }).run.state, 'running')
-  assert.throws(() => tasks.cancel(2, { runId: b.runId }), { code: 'FORBIDDEN' })
-  tasks.disposeOwner(1); assert.equal((await wait(tasks, b.runId)).run.state, 'cancelled')
+  for (let n = 0; n < 500 && streaming < 2; n++) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(streaming, 2)
+  tasks.disposeOwner(1); assert.equal((await wait(tasks, queued.runId)).run.state, 'cancelled')
   assert.equal(f.backend.chats.getRun(b.runId).modelId, choice.modelId)
   assert.equal(tasks.listActive(1, {}).length, 0)
 })

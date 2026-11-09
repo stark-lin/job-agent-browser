@@ -111,7 +111,7 @@ export const en = {
   "thought": "Thought for {{seconds}}s",
   copyContent: 'Copy', reasoning: 'Reasoning', encryptedReasoning: 'Encrypted reasoning', encryptedUnavailable: 'The provider returned encrypted reasoning; readable text is unavailable.',
   source: 'Source', elapsed: 'Elapsed', toolName: 'Tool', callId: 'Call ID', executionState: 'State', arguments: 'Arguments · JSON', result: 'Result · JSON', toolError: 'Error',
-  guard: { level: 'Progress protection', warning: 'Warning', recovery: 'Recovery', nextAction: 'Next action', changeStrategy: 'Use another authorized source or answer with confirmed information.', runId: 'Chat Run ID', runState: 'Run state', status: 'Run protection', active: 'Active', blocked: 'Stopped', calls: 'Calls', executedCalls: 'Dispatched calls', rejections: 'Rejected calls', noProgress: 'Consecutive calls without progress', reason: 'Protection reason', confirmedEffect: 'Confirmed effect', archived: 'Archived', restored: 'Restored', notExecuted: 'Not executed',
+  guard: { executionId: 'Execution ID', level: 'Progress protection', warning: 'Warning', recovery: 'Recovery', nextAction: 'Next action', changeStrategy: 'Use another authorized source or answer with confirmed information.', runId: 'Chat Run ID', runState: 'Run state', status: 'Run protection', active: 'Active', blocked: 'Stopped', calls: 'Calls', executedCalls: 'Dispatched calls', rejections: 'Rejected calls', noProgress: 'Consecutive calls without progress', reason: 'Protection reason', confirmedEffect: 'Confirmed effect', archived: 'Archived', restored: 'Restored', notExecuted: 'Not executed',
     reasons: { DUPLICATE_WRITE: 'This effect was already confirmed.', REVERSED_WRITE: 'This would reverse a confirmed effect.', NO_PROGRESS_LOOP: 'Repeated calls made no progress.', CALL_BUDGET_EXCEEDED: 'The Run call limit was reached.', REPEATED_VIOLATION: 'The same rejected operation was attempted again.', WRITE_OUTCOME_UNKNOWN: 'A write could not be confirmed. Check its state before continuing.' } },
   itemStates: { streaming: 'Thinking', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Stopped', uncertain: 'Outcome uncertain', interrupted: 'Interrupted' },
   "summary": "Reasoning summary",
@@ -665,6 +665,12 @@ export const en = {
     }
 },
   profile: {
+    profiles: 'Profiles', chooseProfile: 'Current profile', profileTitle: 'Profile title', newProfile: 'New profile', duplicate: 'Duplicate', freeze: 'Confirm profile', restore: 'Restore approved version', confirm: 'Confirm', appendCurrent: 'Append to current profile',
+    actions: { new: 'Create profile', duplicate: 'Duplicate working profile', freeze: 'Confirm profile', restore: 'Restore approved version' },
+    freezeDescription: 'Confirm the reviewed profile. Keep this structured snapshot for restoring later; subsequent edits change only the working copy.',
+    restoreDescription: 'Replace this profile’s current title, contact, introduction, items and facts with the approved version. Current working changes will be replaced. Other profiles, chat and generated resumes remain unchanged.',
+    switchTitle: 'Leave without saving?', switchDescription: 'Unsaved forms and the current import draft will be discarded. Previously saved content stays saved.', leave: 'Discard and switch',
+
     unmapped: 'Unclassified text', sourcePosition: 'Page {{page}}, line {{line}}', mapField: 'Assign to a field',
     basic: 'Basic information', independent: 'Independent facts', noProfile: 'Save your name to create a profile, or import a PDF.', empty: 'No entries yet.',
     add: 'Add', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', save: 'Save', saving: 'Saving…', saved: 'Saved', retry: 'Retry',

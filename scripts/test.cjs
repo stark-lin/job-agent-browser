@@ -20,8 +20,8 @@ const mcpOnly = process.argv.includes('--mcp')
 const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => name.endsWith('.test.js') &&
   (!knowledgeOnly || /^(knowledge(?:-remote)?|memory(?:-workspace|-mcp|-agent)?)\.test\.js$/.test(name)) &&
   (!askOnly || /^(mcp-run-(?:guard|progress)|memory-mcp|memory-agent|smart-paste|banner|chat|chat-model-requests|chat-debug-export|chat-debug-service|chat-debug-ipc|api|reasoning|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-react-cycle|ask-routing|ask-store|ask-context)\.test\.js$/.test(name)) &&
-  (!agentOnly || /^(mcp-run-(?:guard|progress)|chat|chat-model-requests|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-react-cycle|ask-routing|ask-store|business-tools|profile-writes|application-agent|capture-agent|job-import|agent|resume-document|resume-agent|resume-output|resume-tools|resume-runtime-parity|runtime-leases|profile-import|profile-session|fact-evidence-migration|storage)\.test\.js$/.test(name)) &&
-  (!serverOnly || /^(mcp-run-(?:guard|progress)|memory-mcp|business-tools|profile-writes|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
+  (!agentOnly || /^(mcp-run-(?:guard|progress)|chat|chat-model-requests|agent-stream|agent-disclosure|ask-disclosure|ask-agent|ask-react-cycle|ask-routing|ask-store|business-tools|profile-writes|profile-baseline|run-admission|application-agent|capture-agent|job-import|agent|resume-document|resume-agent|resume-output|resume-tools|resume-runtime-parity|runtime-leases|profile-import|profile-session|fact-evidence-migration|storage)\.test\.js$/.test(name)) &&
+  (!serverOnly || /^(mcp-run-(?:guard|progress)|memory-mcp|business-tools|profile-writes|profile-baseline|run-admission|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
   (!mcpOnly || /^(tools|mcp|capabilities)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))
 if (tests.length === 0) throw new Error('No tests discovered')
 run(['--test', '--test-timeout=60000', '--test-concurrency=1', ...tests])

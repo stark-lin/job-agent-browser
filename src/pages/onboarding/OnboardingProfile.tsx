@@ -5,6 +5,7 @@ import type { Fact, Profile } from '../../domain/candidate/candidate.types'
 import type { AIChoice } from '../../shared/ai'
 import { ActionRow, Button, Checkbox, CopyButton, FormField, QuietPanel, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useProfileImport } from '../profile/useProfileImport'
+import { ImportReview } from '../profile/ImportReview'
 
 export function useOnboardingProfile(model: AIChoice | null) {
   const { data, context } = useServices(), { t } = useTranslation()
@@ -12,14 +13,7 @@ export function useOnboardingProfile(model: AIChoice | null) {
   const [name, setName] = useState(''), [role, setRole] = useState(''), [about, setAbout] = useState('')
   const [saved, setSaved] = useState(false), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState('')
   const [method, setMethod] = useState('manual'), [externalConfirmed, setExternalConfirmed] = useState(false), lock = useRef(false)
-  const [importing, setImporting] = useState(false), applyingImport = useRef(false)
   const pdf = useProfileImport(profile, async value => { setProfile(value); setName(value.name); setAbout(value.introduction); setSaved(true) }, model)
-  useEffect(() => {
-    if (pdf.stage === 'failed') setImporting(false)
-    if (!importing || pdf.stage !== 'ready' || !pdf.draft || applyingImport.current) return
-    applyingImport.current = true
-    void pdf.save().finally(() => { applyingImport.current = false; setImporting(false) })
-  }, [importing, pdf.stage, pdf.draft])
   async function load() {
     setLoading(true); setError('')
     try {
@@ -62,8 +56,8 @@ export function useOnboardingProfile(model: AIChoice | null) {
   }
   const parsing = ['selecting', 'extracting', 'parsing'].includes(pdf.stage)
   return { name, role, about, profile, setName: (v: string) => { setName(v); setSaved(false) }, setRole: (v: string) => { setRole(v); setSaved(false) },
-    setAbout: (v: string) => { setAbout(v); setSaved(false) }, saved, loading, busy: busy || parsing || pdf.saving || importing, error, method, setMethod,
-    externalConfirmed, setExternalConfirmed, save, pdf, load, importPdf: () => { setImporting(true); if (!pdf.draft) void pdf.start(pdf.retryable) } }
+    setAbout: (v: string) => { setAbout(v); setSaved(false) }, saved, loading, busy: busy || parsing || pdf.saving, error, method, setMethod,
+    externalConfirmed, setExternalConfirmed, save, pdf, load, importPdf: () => { void pdf.start(pdf.retryable) } }
 }
 export function OnboardingProfile({ state: s, model, agent }: { state: ReturnType<typeof useOnboardingProfile>; model: AIChoice | null; agent: boolean }) {
   const { t } = useTranslation(), { pdf } = s
@@ -86,8 +80,11 @@ export function OnboardingProfile({ state: s, model, agent }: { state: ReturnTyp
     {method === 'pdf' && <><QuietPanel variant="dashed" className="onboarding-drop"><StatusMessage>{pdf.fileName || 'PDF'}</StatusMessage>
       <Button disabled={s.busy} onClick={() => void pdf.upload(false)}>{t($ => $.onboarding.choosePdf)}</Button>
     </QuietPanel>
-      {pdf.hasFile && <ActionRow align="start"><Button disabled={s.busy || pdf.saved} onClick={s.importPdf}>{t($ => $.onboarding.importPdf)}</Button>
+      {pdf.hasFile && !pdf.draft && <ActionRow align="start"><Button disabled={s.busy || pdf.saved} onClick={s.importPdf}>{t($ => $.onboarding.importPdf)}</Button>
         {pdf.saved && <StatusMessage tone="success">{t($ => $.settings.saved)}</StatusMessage>}</ActionRow>}
+      {pdf.draft && <><ImportReview draft={pdf.draft} setDraft={pdf.setDraft} profile={null} disabled={s.busy || pdf.frozen} />
+        <ActionRow align="start"><Button disabled={s.busy} onClick={() => void pdf.save()}>{t($ => $.profile.saveImport)}</Button></ActionRow></>}
+      {pdf.saved && <StatusMessage tone="success">{t($ => $.settings.saved)}</StatusMessage>}
       {s.busy && <StatusMessage>{t($ => $.onboarding.working)}</StatusMessage>}
       {pdf.error && <StatusMessage tone="error">{t($ => $.onboarding.importFailed, { error: pdf.error })}</StatusMessage>}
     </>}

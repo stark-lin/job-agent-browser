@@ -37,6 +37,7 @@ function AgentTimelineItemView({ item, run }: { item: AgentItem; run?: AgentRun 
         ...(content.durationMs !== undefined ? [{ label: t($ => $.ask.elapsed), value: t($ => $.ask.duration, { seconds: (content.durationMs / 1000).toFixed(1) }) }] : [])
       ]} />
       {content.guard && <DetailsList items={[
+        { label: t($ => $.ask.guard.executionId), value: content.guard.executionRunId },
         { label: t($ => $.ask.guard.status), value: t($ => $.ask.guard[content.guard!.status === 'BLOCKED' ? 'blocked' : 'active']) },
         { label: t($ => $.ask.guard.calls), value: String(content.guard.calls) },
         { label: t($ => $.ask.guard.executedCalls), value: String(content.guard.executedCalls) },

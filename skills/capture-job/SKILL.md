@@ -9,6 +9,10 @@ Purpose: follow the implemented capture workflow. The host Agent understands the
 
 Language: English · [简体中文](SKILL.zh-CN.md)
 
+## MCP execution
+
+Keep JAB Main running. Before business reads or writes call `run.begin({})`; pass its returned `runId` as required `executionRunId` on every business call, preserving all business fields (including any Resume `runId`). Call `run.end({runId})` when finished, including after errors or Guard blocking. Each successful call is already saved: End, cancellation, timeout and disconnect do not undo writes. If admission is busy/unavailable, stop and report it; do not bypass MCP or reuse an old execution UUID.
+
 ## Understand the source
 
 Use the host's available browsing, file or text tools to read the supplied source. If the source is already available in your working context, analyze it directly. Do not call Job Agent Browser while extracting or interpreting it. The application is the system of record, not the parser.

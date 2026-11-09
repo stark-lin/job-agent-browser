@@ -1,3 +1,4 @@
+import { createExternalRun } from '../mcp/external-run'
 import type { MemoryAuthorization } from '../mcp/memory-authority'
 import { resumeAgentTools, resumeAgentLifecycle } from '../../shared/agent/resume-policy'
 import { askToolAllowlist } from '../../shared/agent/ask-policy'
@@ -21,8 +22,9 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
   const internalResume = memoryAuthorization?.kind === 'resume'
   const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge,
-    memoryAuthorization ? knowledge.spaces.memory : undefined, internalResume)
-  const allow = internalResume ? [...resumeAgentTools, ...resumeAgentLifecycle] : memoryAuthorization ? askToolAllowlist : jobAgentAllowlist
+    memoryAuthorization && memoryAuthorization.kind !== 'business' ? knowledge.spaces.memory : undefined, internalResume)
+  const allow = internalResume ? [...resumeAgentTools, ...resumeAgentLifecycle] : memoryAuthorization?.kind === 'ask' ? askToolAllowlist : jobAgentAllowlist
+  const external = memoryAuthorization ? undefined : createExternalRun(directory)
   const mcp = createMCPServer(tooling.registry, { allow, maxRisk: askReadOnly && memoryAuthorization ? 'COMPUTE' : 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
     async (name, args, metadata) => {
       if (!['memory.write', 'memory.mkdir'].includes(name)) return true
@@ -34,18 +36,18 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
         if (grant?.kind === 'resume') {
           try {
             const run = backend.generationRun(grant.generationRunId!)
-            if (run.agentRunId !== grant.agentRunId || run.state !== 'REWRITING' || backend.chats.getAgentRun(grant.agentRunId).state !== 'running') return
+            if (run.agentRunId !== grant.agentRunId || run.state !== 'REWRITING' || backend.chats.getAgentRun(grant.agentRunId!).state !== 'running') return
             backend.lease.assert('generation', run.id)
           } catch { return }
         }
         return grant
       },
       onClosed: listener => memoryAuthorization.onRunClosed(listener)
-    } : undefined)
+    } : undefined, external, () => backend.capabilities.settle())
   let disposal: Promise<void> | undefined
-  return { backend, tooling, ready: knowledge.ready, server: mcp.server, dispose() {
+  return { backend, tooling, ready: Promise.all([knowledge.ready, external?.attach()]).then(() => {}), server: mcp.server, dispose() {
     return disposal ??= (async () => {
-      lifecycle.abort(); memoryAuthorization?.close(); await mcp.dispose(); tooling.dispose(); await backend.capabilities.dispose(); await output.settle(); await knowledge.close(); backend.close()
+      lifecycle.abort(); await mcp.dispose(); memoryAuthorization?.close(); tooling.dispose(); await backend.capabilities.dispose(); await output.settle(); await knowledge.close(); backend.close()
     })()
   } }
 }

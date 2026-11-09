@@ -6,7 +6,7 @@ const array = (items: JsonSchema, maxItems: number) => ({ type: 'array', items, 
 const nullable = (schema: JsonSchema) => ({ anyOf: [schema, { type: 'null' }] })
 const choices = (values: readonly string[]) => ({ type: 'string', enum: [...values] })
 const revision = { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER }
-const contact = { name: text(300, 1), email: text(320), phone: text(100), location: text(1000), introduction: text(2000),
+const contact = { title: text(300), name: text(300, 1), email: text(320), phone: text(100), location: text(1000), introduction: text(2000),
   links: array(object({ label: text(100, 1), url: text(4096, 1) }), 20) }
 const metadata = { employmentType: text(100), technologies: array(text(100, 1), 100), url: text(4096), degree: text(200), major: text(200), gpa: text(50),
   startDateText: text(10), endDateText: text(10), isCurrent: { type: 'boolean' } }

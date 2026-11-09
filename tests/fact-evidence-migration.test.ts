@@ -19,7 +19,8 @@ function legacyFixture(t: TestContext) {
   t.after(() => { if (db.isOpen) { lease.close(); db.close() } })
   const repo = repositories(store, lease), runtime = { id: randomUUID, now: () => new Date().toISOString() }
   const profiles = createCandidateService(repo.candidate, tx, runtime), jobs = createJobService(repo.jobs, tx, runtime, operationReceipts(db))
-  const profile = profiles.createProfile({ name: 'Keep person', introduction: 'Keep introduction' })
+  const profile = { id: randomUUID(), name: 'Keep person', introduction: 'Keep introduction', email: '', phone: '', location: '', links: [], revision: 1, updatedAt: new Date().toISOString() }
+  tx.write(() => store.insert('profile', profile))
   const item = profiles.addItem({ profileId: profile.id, details: { type: 'PROJECT', title: 'Keep project', sortOrder: 0 } })
   const job = jobs.saveJob({ details: { title: 'Keep role', companyNameRaw: 'Keep company' } })
   const facts = ['Page 2\nOriginal quote: 原文片段', ''].map((evidence, index) => {

@@ -22,8 +22,10 @@ test('internal and external MCP sessions use distinct capabilities and produce e
     { processEnv: { JOB_BROWSER_USER_DATA: f.directory, JOB_BROWSER_MCP_CALLER: 'codex', ELECTRON_RUN_AS_NODE: '1' } })
   f.cleanup(() => client.close())
   await client.connect()
+  const secondExternal = createMCPClient({ id: 'second-external', enabled: true, transport: 'stdio', command: process.execPath, args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} }, { processEnv: { JOB_BROWSER_USER_DATA: f.directory, ELECTRON_RUN_AS_NODE: '1' } })
+  await assert.rejects(secondExternal.connect()); await secondExternal.close()
   const external = new MCPAgentTools(client, await client.listTools(), signal)
-  assert.deepEqual((await external.list()).map(tool => tool.name).sort(), [...jobAgentAllowlist].sort())
+  assert.deepEqual((await external.list()).map(tool => tool.name).sort(), [...jobAgentAllowlist, 'run.begin', 'run.end'].sort())
   assert.deepEqual((await internal.list()).map(tool => tool.name).sort(), [...resumeAgentLifecycle].sort())
   const start = { jobId: f.job.id, profileId: f.profile.id }, requestId = randomUUID()
   const { runId } = await internal.call('resume.start', { ...start, requestId }, signal) as { runId: string }
@@ -31,7 +33,8 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   const { agentRunId } = await internal.call('resume.attach_agent', { runId, requestId, ownerRuntimeId: f.backend.lease.id }, signal) as { agentRunId: string }
   const agent = await f.mcp.openAgentRun({ agent: 'resume', agentRunId, sessionId: 'default', generationRunId: runId, signal })
   assert.deepEqual((await agent.tools.list()).map(tool => tool.name).sort(), [...resumeAgentTools].sort())
-  const other = await external.call('resume.start', { ...start, requestId: randomUUID() }, signal) as { runId: string }
+  await assert.rejects(external.call('run.begin', {}, signal), { code: 'TOOL_BUSY' })
+  const other: { runId: string } = { runId: randomUUID() }
   assert(!(await external.list()).some(tool => tool.name === 'resume.attach_agent'))
   await assert.rejects(agent.tools.call('resume.get_context', { runId: other.runId }, signal), { code: 'TOOL_FORBIDDEN' })
   await assert.rejects(agent.tools.call('resume.publish', { runId }, signal), { code: 'TOOL_FORBIDDEN' })
@@ -45,17 +48,25 @@ test('internal and external MCP sessions use distinct capabilities and produce e
     return input
   }
   const input = await rewrite(agent.tools, runId)
+  assert.notEqual(agent.tools.getRunGuardSnapshot()?.executionRunId, agentRunId)
   await agent.close()
   await assert.rejects(agent.tools.call('resume.rewrite_bullet', input, signal))
   createAgentRecorder(f.backend.chats, f.backend.chats.agentSnapshot(agentRunId), () => {}, () => {}).finish('completed', null)
   const { artifact } = await internal.call('resume.publish', { runId }, signal) as { artifact: Artifact }
   await internal.call('artifact.build', { artifactId: artifact.id }, signal)
+  await assert.rejects(internal.call('resume.fail', { runId: other.runId, error: 'VALIDATION_FAILED' }, signal), { code: 'TOOL_FORBIDDEN' })
+  await internal.close()
+  const rawCall = external.call.bind(external)
+  let executionRunId = (await rawCall('run.begin', {}, signal) as { runId: string }).runId
+  external.call = (name, args, live) => rawCall(name, { ...(args as object), executionRunId }, live)
+  other.runId = (await external.call('resume.start', { ...start, requestId: randomUUID() }, signal) as { runId: string }).runId
   await rewrite(external, other.runId)
   const { artifact: otherArtifact } = await external.call('resume.publish', { runId: other.runId }, signal) as { artifact: Artifact }
   await external.call('artifact.build', { artifactId: otherArtifact.id }, signal)
   const a = f.backend.resumes.getArtifact({ id: artifact.id }), b = f.backend.resumes.getArtifact({ id: otherArtifact.id })
   assert.equal(a.artifact.content.experience[0].bullets[0].text, b.artifact.content.experience[0].bullets[0].text)
   assert.deepEqual(a.provenance.map(block => block.factIds), b.provenance.map(block => block.factIds))
+  await rawCall('run.end', { runId: executionRunId }, signal)
   const ask = await f.askRun(signal, 'artifact-reader')
   const saved = await ask.call('artifact.get', { id: artifact.id }, signal) as { artifact: Artifact }
   assert.deepEqual(saved.artifact, a.artifact)
@@ -63,7 +74,8 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   const html = (item: Artifact) => readFileSync(join(f.outputDirectory, item.outputFiles.find(file => file.format === 'HTML')!.relativePath), 'utf8')
   assert.equal(html(a.artifact), html(b.artifact))
 
-  await assert.rejects(internal.call('resume.fail', { runId: other.runId, error: 'VALIDATION_FAILED' }, signal), { code: 'TOOL_FORBIDDEN' })
+  await f.endAskRun()
+  executionRunId = (await rawCall('run.begin', {}, signal) as { runId: string }).runId
   const { runId: concurrentRunId } = await external.call('resume.start', { ...start, requestId: randomUUID() }, signal) as { runId: string }
   const concurrent = { runId: concurrentRunId }
   const page = await external.call('resume.list_bullets', concurrent, signal) as { items: { bulletId: string }[] }

@@ -9,6 +9,10 @@ description: 通过 MCP 将 Job Agent Browser 已保存的个人资料定制到�
 
 语言：简体中文 · [English](SKILL.md)
 
+## MCP 执行
+
+保持 JAB Main 运行。业务读写前调用 `run.begin({})`，每次业务调用都将返回的 `runId` 作为必需的 `executionRunId`，保留全部业务参数（包括 Resume 自身的 `runId`）。完成、报错或 Guard 阻断后调用 `run.end({runId})`。每次成功调用都已保存；End、取消、超时和断连不撤销写入。准入繁忙或不可用时停止并报告，不绕过 MCP 或复用旧执行 UUID。
+
 ## 选择输入并冻结上下文
 
 使用 `job.list` 和 `profile.list` 找到用户指定的记录。若有多条匹配且用户尚未选择，先确认要使用哪一条。

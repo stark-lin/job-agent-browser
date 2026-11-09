@@ -20,7 +20,7 @@ React App → Page → Preload → IPC → Main
 
 只有 [BrowserPage](../src/pages/browser/BrowserPage.tsx) 渲染标签、地址输入与浏览器控件。其他工作区页面隐藏浏览器栏和内部 URL。[Settings](../src/pages/settings/SettingsPage.tsx) 实现本地偏好和加密密钥管理。[Inbox](../src/pages/inbox/InboxPage.tsx) 管理全内容区网页邮箱视图、配置引导和加载恢复。[Ask AI](../src/pages/ai/AskAIPage.tsx) 已实现持久化多会话流式 Agent。[My Profile](../src/pages/profile/ProfilePage.tsx) 实现手动编辑及经核对的 PDF 导入，新增工作及申请记录基础列表已实现，定制简历已实现；智能笔记已实现。
 
-[OnboardingGate](../src/app/onboarding.tsx) 在 `onboardingCompleted` 缺失/为 false 时先展示[初始化向导](../src/pages/onboarding/OnboardingPage.tsx)，并隐藏原生网页表面。保留参考的步骤布局、可选模型/Agent 路径、返回和跳过。模型发现/测试、MCP/Skills 和资料保存复用现有桥接。选择 PDF 后由“导入”通过现有导入契约完成解析和保存。手动填写需要姓名；求职方向使用带 `target-role` 标签的 `OTHER` 事实。
+[OnboardingGate](../src/app/onboarding.tsx) 在 `onboardingCompleted` 缺失/为 false 时先展示[初始化向导](../src/pages/onboarding/OnboardingPage.tsx)，并隐藏原生网页表面。保留参考的步骤布局、可选模型/Agent 路径、返回和跳过。模型发现/测试、MCP/Skills 和资料保存复用现有桥接。选择 PDF 后点击“导入”进行解析，结构化 Review 保持临时状态，人工确认时原子保存整份履历和快照。手动填写需要姓名；求职方向使用带 `target-role` 标签的 `OTHER` 事实。
 
 “进入 JAB”持久化完成状态。Settings 可重新初始化且不删除数据，有未保存修改时禁用入口。未保存的草稿和步骤位置不跨重载保留。[初始化冒烟测试](../scripts/onboarding-runtime-smoke.cjs) 覆盖本地模型调用、资料持久化、双语主题、响应式尺寸及已完成/未完成的进程重启；真实服务商和外部 Agent 客户端仍未验证。
 
@@ -95,11 +95,11 @@ React App → Page → Preload → IPC → Main
 
 [旧 AI IPC](../src/platform/electron/main/ai-ipc.ts)暴露启动/取消及模型发现，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，对话使用已保存的 AI 请求超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
 
-[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)，每个活跃 Run 只有一个 [Pi Agent](../src/platform/agent/pi/runtime.ts)。同一 Session 按 FIFO 完成能力解析、Core 加载、上下文准备、串行推理/工具及终态持久化，不同 Session 可以并发。后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止取消当前链路，保留部分内容与已提交写入；中断 Run 不续跑。仅恢复宿主记录落盘时保持该 Session 队列屏障，不重放工具。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿及分页。存储与 MCP 权限由所属文档管理。 每次准入 Send 具有独立可信的 MCP Run 身份；[MCP 架构](mcp-architecture.zh-CN.md#ask-run-保护)拥有防护及终止策略，[模型观察器](../src/platform/agent/pi/request-observer.ts)将主循环和摘要请求合计限制为 64 次。 每个 Pi 决策及其工具批次由 [Cycle 状态机](agent-runtime.zh-CN.md)控制，执行状态取自最新 Cycle。
+[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)，每个活跃 Run 只有一个 [Pi Agent](../src/platform/agent/pi/runtime.ts)。同一 Session 按 FIFO 完成能力解析、Core 加载、上下文准备、串行推理/工具及终态持久化，不同 Session 竞争全局唯一执行占用，繁忙时在推理前拒绝。后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止取消当前链路，保留部分内容与已提交写入；中断 Run 不续跑。仅恢复宿主记录落盘时保持该 Session 队列屏障，不重放工具。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿及分页。存储与 MCP 权限由所属文档管理。 每次准入 Send 具有独立可信的 MCP Run 身份；[MCP 架构](mcp-architecture.zh-CN.md#ask-run-保护)拥有防护及终止策略，[模型观察器](../src/platform/agent/pi/request-observer.ts)将主循环和摘要请求合计限制为 64 次。 每个 Pi 决策及其工具批次由 [Cycle 状态机](agent-runtime.zh-CN.md)控制，执行状态取自最新 Cycle。
 
 **已实现请求校验：**[稳定 Provider 名称](../src/platform/ai/agent-protocol.ts)保留语义化名称片段、短哈希及 Description 中的逻辑名称前缀。[Pi 适配器](../src/platform/agent/pi/model-adapter.ts)在发送前核对运行时 loadout、Pi 声明和已组装的 Provider 名称/完整输入 Schema 指纹；不一致时以 AGENT_PROTOCOL_ERROR 停止。[MCP 架构](mcp-architecture.zh-CN.md)管理激活循环限制，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除的逐请求诊断。[披露集成测试](../tests/ask-disclosure.test.ts)通过真实 HTTP 与第一方 MCP 验证链路，不使用自动激活辅助层；真实模型的工具选择质量仍未验证。
 
-[流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装及校验成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、并发、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
+[流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装及校验成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、准入隔离、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
 
 [SessionSidebar](../src/pages/ai/SessionSidebar.tsx)确认后通过 App 注入的 Data IPC 复制调试 JSON；完整持久化快照留在 Main，回读剪贴板一致后才成功，详见[数据架构](data-architecture.zh-CN.md#copy-debug-json)。
 
@@ -111,7 +111,7 @@ React App → Page → Preload → IPC → Main
 
 [设置选择器](../src/pages/settings/ModelDiscovery.tsx)将选中 ID 加入草稿（最多 100 个），保存后生效。空列表/错误不影响手填；切换 Provider 或控件卸载后忽略迟到结果。检测不调用生成、不写设置，也不证明模型支持对话/工具。[回归测试](../tests/ai-models.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)使用本地样本；另已在本机 LM Studio 验证模型发现及短流式对话，其他真实服务的兼容性仍未验证。
 
-**已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与显式保存语义归属[数据架构](data-architecture.zh-CN.md)。
+**已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与显式保存语义归属[数据架构](data-architecture.zh-CN.md)。 履历选择会确认放弃未保存修改并清理旧编辑/导入状态；界面不显示草稿状态；导入沿用人工审查确认并保留首次快照，手动新建或复制可点击确认履历。确认和恢复通过可信 IPC 校验审查时的 Revision。[基准规则](data-architecture.zh-CN.md#工作履历与人工确认基准)
 
 [导入 IPC](../src/platform/electron/main/profile-import-ipc.ts)使用原生选择器选择一个 PDF，仅返回不透明文件 ID。[会话服务](../src/platform/profile-import/service.ts)在内存中管理文件字节、任务、草稿 ID、保存回执和窗口归属校验。[PDF.js 提取](../src/platform/import/pdf-worker.mjs)运行于可取消的 Node Worker，构建时复制到 Main 旁；CMaps、标准字体和 WASM 从已安装依赖解析。上限为 10 MB、20 页、60,000 个提取字符，加密/损坏/无文字/超限均明确报错。行列阅读顺序使用启发式重建，仍需人工核对。
 
@@ -152,7 +152,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 ## 六、验证与限制
 
-[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、分批导入、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、精简草稿、PDF 限制与错误。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、取消、Provider 配置及真实 IPC。[事务测试](../tests/transactions.test.ts)验证原子提交与回滚，[迁移测试](../tests/remove-audit-migration.test.ts)验证 V22 数据保留；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、工作区/历史分离、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、固定图标栏尺寸、提示名称及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
+[个人资料 smoke](../scripts/profile-smoke.cjs)使用本地样本验证手动编辑、多事实分组、构建后的 PDF Worker/SSE、审核确认导入及快照、分页/重载及双语主题/布局。[导入测试](../tests/profile-import.test.ts)、[会话测试](../tests/profile-session.test.ts)和 [PDF 测试](../tests/profile-pdf.test.ts)覆盖原子回滚、回执、窗口归属、精简草稿、PDF 限制与错误。[AI 测试](../tests/ai.test.ts)和[AI smoke](../scripts/ai-smoke.cjs)验证本地兼容 SSE、取消、Provider 配置及真实 IPC。[事务测试](../tests/transactions.test.ts)验证原子提交与回滚，[迁移测试](../tests/remove-audit-migration.test.ts)验证 V22 数据保留；[导航 store 测试](../tests/navigation-store.test.ts) 覆盖订阅顺序与 StrictMode 清理。[Electron smoke](../scripts/smoke.cjs) 验证构建后的 Main/Preload、IPC 和来源拒绝。[浏览器 smoke](../scripts/browser-smoke.cjs) 覆盖标签、边界、快捷键、隔离与失败；[导航 smoke](../scripts/navigation-smoke.cjs) 覆盖功能入口 UI、工作区/历史分离、分叉/释放、SPA/重复历史、重载、过期可见性和加载竞争。[主题 smoke](../scripts/theme-smoke.cjs) 验证仅颜色的尺寸一致性、保存/草稿主题、原生变化和导航不变。[设置 smoke](../scripts/settings-smoke.cjs) 验证真实表单、双语重载、响应式尺寸、校验、离开确认、Inbox 导航和加密密钥生命周期；[重启 smoke](../scripts/settings-restart-smoke.cjs) 验证新的生产进程恢复设置。[Inbox smoke](../scripts/inbox-smoke.cjs) 使用本地测试页验证无顶部偏移的原生边界、无应用顶部条、重定向/历史/重载/弹窗、草稿保留、缩放、隔离和加载恢复。[侧栏 smoke](../scripts/sidebar-smoke.cjs)验证全部目标、当前状态、键盘激活、固定图标栏尺寸、提示名称及矮窗口可访问性。[窗口关闭 smoke](../scripts/window-close-smoke.cjs) 验证自有窗口关闭后释放保留视图。命令见 README 索引。
 
 标签历史和上下文引用仅存于内存。网页段通过分叉或关闭标签/窗口释放；自动淘汰和跨重启恢复尚未实现。其余业务流程、登录态网页提取、完整 Shared Context 捕获仍未实现；打包及其验收状态归属 [CI/CD](ci-cd.zh-CN.md)。
 

@@ -19,6 +19,21 @@ export function candidateRepository(store: Store): CandidateRepository {
   const factOrder = 'sort_order, created_at, id'
   const factFields = 'id, profile_id, profile_item_id, kind, content, tags_json, created_at, updated_at'
   return {
+    getBaseline: id => {
+      const row = store.db.prepare('SELECT * FROM profile_baselines WHERE profile_id=?').get(id)
+      return row ? store.decode(row) : null
+    },
+    insertBaseline: baseline => { store.db.prepare('INSERT INTO profile_baselines VALUES(?,?,?,?)').run(baseline.profileId, baseline.schemaVersion, JSON.stringify(baseline.snapshot), baseline.createdAt) },
+    clearWorkingContent: id => {
+      store.db.prepare('DELETE FROM facts WHERE profile_id=?').run(id)
+      store.db.prepare('DELETE FROM profile_items WHERE profile_id=?').run(id)
+    },
+    syncOrderCounters: id => {
+      store.db.prepare('DELETE FROM profile_order_counters WHERE profile_id=?').run(id)
+      const next = reserveOrder(id, 0, 0)
+      store.db.prepare('INSERT INTO profile_order_counters VALUES(?,?,?)').run(id, next.item, next.fact)
+    },
+    orderedFacts: id => store.db.prepare(`SELECT * FROM facts WHERE profile_id=? ORDER BY ${factOrder}`).all(id).map(row => store.decode<Fact & { sortOrder: number }>(row)),
     getProfile: (id) => store.get('profile', id), profiles: (limit, offset) => store.list('profiles', '1=1', [], 'updated_at DESC, id', limit, offset),
     insertProfile: (profile) => store.insert('profile', profile), saveProfile: (profile) => store.save('profile', profile), removeProfile: (id) => store.remove('profile', id),
     getItem: (id) => store.get('profile_item', id), items: (id, limit, offset) => store.list('profile_items', 'profile_id=?', [id], 'sort_order, id', limit, offset),

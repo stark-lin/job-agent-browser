@@ -71,6 +71,18 @@ RunGuard owns progress detection and hard blocks. Runtime uses the latest truste
 
 [Smart Paste](architecture.md#smart-paste-and-global-banner) observes the existing assistant deltas and a host-only tool-turn result from Pi. The host can retract that turn's temporary field text without altering the recorded conversation or Cycle transitions.
 
+
+The volatile Guard execution has its own lifecycle below. Main allocates its UUID automatically for internal work or on external Begin. At most one execution is active globally; a competing internal execution fails with `TOOL_BUSY` before model/tool execution. Same-Session queued Prompts keep their existing FIFO. Guard closure waits for started tools and frees admission; business writes remain persisted on failure, cancellation, timeout or disconnect. Resume Controller retains the same occupancy across Agent finalization and business publication/output. [Protocol and authorization](mcp-architecture.md#execution-identity-and-external-protocol)
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE: Main admission allocates execution UUID
+    ACTIVE --> CLOSED: end / finish / cancel / timeout / disconnect, then drain
+    CLOSED --> [*]: release volatile occupancy
+```
+
+`executionRunId` identifies Guard snapshots; legacy Trace `agentRunId` fields are normalized by [parseRunGuard](../src/shared/agent/run-guard.ts) on read. Stored Trace is not rewritten. Guard blocking is behavioral protection, never business rollback or a semantic correctness check.
+
 ## 4. Finalization and trace
 
 Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/agent-recorder.ts)

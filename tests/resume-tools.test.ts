@@ -93,7 +93,7 @@ test('version 20 receipts retain replay and eligibility after migration, includi
   migrate(db, migrations.slice(0, 20))
   const store = new Store(db), tx = transactions
   tx.write(() => {
-    store.insert('job', f.job); store.insert('profile', f.profile)
+    store.insert('job', f.job); store.insert('profile', (({ title: _title, ...profile }) => profile)(f.profile))
     store.insert('profile_item', f.item); store.insert('fact', f.fact)
   })
   const backend = composeBackend({ connection: db, transactions, close: () => db.close() })

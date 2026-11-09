@@ -39,7 +39,16 @@ UI    → typed IPC → Domain
 
 [读取进展](../src/platform/mcp-server/run-guard/read-progress.ts)累计实体/字段证据及各空间文件版本与覆盖行范围。旧结果换序、重组或取子集，以及查询、分数、展示变化不算进展；新分页、Facts、片段和版本算进展。空结果按数据集只计一次。未知 READ 使用规范化结构结果或文本，保留未知字段和数组顺序。读取失败计为无进展；已确认的已知业务修改也贡献进展。连续两次无进展告警，三次进入恢复，之后首个仍无进展的业务结果以 NO_PROGRESS_LOOP 熔断；新证据清零连续计数。发现和激活工具不重置该状态。
 
-[Pi 适配器](../src/platform/agent/pi/runtime.ts)将固定告警/恢复提示与原始业务结果分开传递，压缩后也在模型系统上下文更新提示。恢复时 beforeToolCall 在 tool.started 前非致命地跳过旧批次余项，让模型重新决策；跳过调用不产生业务执行或不确定写入。Run 熔断时保留触发检测的成功结果，再停止后续调用/推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止工作、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 保持未启用 Guard 的行为；外部 Run 边界和第三方出站保护仍为规划。[Guard 测试](../tests/mcp-run-guard.test.ts)与[进展测试](../tests/mcp-run-progress.test.ts)覆盖这些契约，诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
+[Pi 适配器](../src/platform/agent/pi/runtime.ts)将固定告警/恢复提示与原始业务结果分开传递，压缩后也在模型系统上下文更新提示。恢复时 beforeToolCall 在 tool.started 前非致命地跳过旧批次余项，让模型重新决策；跳过调用不产生业务执行或不确定写入。Run 熔断时保留触发检测的成功结果，再停止后续调用/推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止工作、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 现要求下述执行协议；访问其他第三方 Server 的出站保护仍为规划。[Guard 测试](../tests/mcp-run-guard.test.ts)与[进展测试](../tests/mcp-run-progress.test.ts)覆盖这些契约，诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
+
+
+### 执行身份与外部协议
+
+**已实现：**[Main 准入](../src/platform/mcp/run-admission.ts)限制全局一个活动执行，统一分配 `executionRunId`，与持久化 `agentRunId`、`GenerationRun.id` 及单次操作 `requestId` 独立。内部可信 Grant 自动申请；Resume Controller 与模型共享同一次占用，覆盖发布和输出。关闭模型视图撤销其 Grant，Controller 直到工作流连接关闭才释放占用。
+
+外部宿主调用 `run.begin({}) → {runId}`，每次业务调用均须提供此 UUID 作为 `executionRunId`。[Gateway](../src/platform/mcp-server/server.ts)检查归属和生命周期，剥离协议字段，再按原有严格业务 Schema 校验并调用现有 Guard/Registry/Domain 实现。内部 Schema 不变。`run.end({runId})` 在 BLOCKED 时可用且幂等；已关闭 ID 无法复用。控制操作不进入业务 Registry。不存在 `run.success`、提交、回滚、刷新或暂存协议。业务调用成功即持久化，失败不撤销之前的写入。
+
+[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线，离线仍可发现工具。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)将控制通道握手限制为 5 秒，建立后流连接跨工具调用和 Run 持续开放；普通控制请求仍保留 5 秒超时。在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts)
 
 ## 三、内部与第三方 Client
 

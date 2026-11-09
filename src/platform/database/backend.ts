@@ -94,7 +94,7 @@ export function composeBackend(database: ReturnType<typeof openDatabase>, storag
   }
   return {
     applyProfileImport(input: Parameters<typeof services.profiles.applyImport>[0], order: Parameters<typeof services.profiles.applyImport>[1]) {
-      try { return { ok: true, value: services.profiles.applyImport(input, order) } as const }
+      try { return { ok: true, value: services.profiles.confirmImport(input, order) } as const }
       catch (error) { return { ok: false, error: errorCode(error) } as const }
     },
     generation,

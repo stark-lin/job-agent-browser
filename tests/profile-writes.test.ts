@@ -50,7 +50,7 @@ test('profile MCP creates and patches without clearing omitted fields, preserves
 
 test('concurrent profile writes reject stale revisions; identical retries survive independent sessions and restart', async t => {
   const f = await firstPartyFixture(t)
-  const [a, b] = await Promise.all([f.askRun(signal()), f.mcp.session('application', signal())])
+  const a = await f.askRun(signal()), b = a.view(['profile.add_item', 'profile.update'])
   const current = await a.call('profile.get', { id: f.profile.id }, signal()) as Profile
   const request = { profileId: current.id, expectedRevision: current.revision, requestId: randomUUID(), details: { type: 'PROJECT', title: 'One project' } }
   const [left, right] = await Promise.all([a.call('profile.add_item', request, signal()), b.call('profile.add_item', request, signal())])
@@ -76,6 +76,8 @@ test('UI contact, item, fact, import and delete mutations advance the aggregate 
   const advanced = async () => { const next = await revision(); assert(next > previous); previous = next }
   value(await f.api.profiles.editContact({ id: profile.id, details: { name: 'Person', phone: '123' } })); await advanced()
   value(await f.api.profiles.editContact({ id: profile.id, details: { name: 'Person', phone: '123' } })); assert.equal(await revision(), previous)
+  const named = value(await f.api.profiles.editContact({ id: profile.id, details: { name: 'Person', title: 'Independent title' } })); await advanced()
+  assert.equal(named.name, 'Person'); assert.equal(named.title, 'Independent title')
   const item = value(await f.api.profiles.addItem({ profileId: profile.id, details: { type: 'PROJECT', title: 'A' } })); await advanced()
   value(await f.api.profiles.editItem({ id: item.id, details: { type: 'PROJECT', title: 'B' } })); await advanced()
   value(await f.api.profiles.moveItem({ id: item.id, parentItemId: null, sortOrder: 5 })); await advanced()
@@ -124,6 +126,7 @@ test('profile receipts and revisions roll back together; a new Run can reconcile
   const committed = await tools.call('profile.add_fact', request, signal()) as Versioned<Fact>
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
   assert.deepEqual(await tools.call('profile.add_fact', request, signal()), committed)
+  await f.endAskRun()
   tools = await f.askRun(signal()) // A new user attempt may reconcile with the identical business receipt.
   const saved = await tools.call('profile.add_fact', request, signal()) as Versioned<Fact>
   assert.deepEqual(saved, committed)
@@ -132,27 +135,22 @@ test('profile receipts and revisions roll back together; a new Run can reconcile
   assert.equal(value(await f.api.profiles.listFacts({ profileId: profile.id })).total, 2)
 })
 
-test('Ask profile edits affect dedicated Resume snapshots while prior snapshots remain immutable', async t => {
-  const f = await firstPartyFixture(t), tools = await f.askRun(signal()), resume = await f.mcp.session('resume', signal())
-  const firstRequest = randomUUID(), secondRequest = randomUUID()
-  const first = await resume.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: firstRequest }, signal()) as { runId: string }
-  const profile = await tools.call('profile.get', { id: f.profile.id }, signal()) as Profile
-  const updated = await tools.call('profile.update', { id: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), changes: { name: 'Updated name' } }, signal()) as Profile
-  await tools.call('profile.update_fact', { id: f.fact.id, profileId: profile.id, expectedRevision: updated.revision, requestId: randomUUID(), changes: { content: 'Updated source claim' } }, signal())
-  const second = await resume.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: secondRequest }, signal()) as { runId: string }
-  const read = async (runId: string, requestId: string) => {
-    const { agentRunId } = await resume.call('resume.attach_agent', { runId, requestId, ownerRuntimeId: f.backend.lease.id }, signal()) as { agentRunId: string }
-    const agent = await f.mcp.openAgentRun({ agent: 'resume', agentRunId, generationRunId: runId, sessionId: 'default', signal: signal() })
-    try {
-      const context = await agent.tools.call('resume.get_context', { runId }, signal()) as { profile: Profile }
-      const facts = await agent.tools.call('resume.list_facts', { runId }, signal()) as PageResult<Fact>
-      return { context, facts }
-    } finally { await agent.close() }
-  }
-  const old = await read(first.runId, firstRequest), next = await read(second.runId, secondRequest)
-  assert.equal(old.context.profile.name, f.profile.name); assert.equal(next.context.profile.name, 'Updated name')
-  assert.equal(old.facts.items[0].content, f.fact.content); assert.equal(next.facts.items[0].content, 'Updated source claim')
-  assert([...old.facts.items, ...next.facts.items].every(fact => !('evidence' in fact)))
+test('Ask profile edits affect subsequent dedicated Resume snapshots while prior snapshots remain immutable', async t => {
+  const f = await firstPartyFixture(t), signalValue = signal()
+  let resume = await f.mcp.session('resume', signalValue)
+  const first = await resume.call('resume.start', { jobId: f.job.id, profileId: f.profile.id, requestId: randomUUID() }, signalValue) as { runId: string }
+  await resume.close()
+  const tools = await f.askRun(signalValue)
+  const profile = await tools.call('profile.get', { id: f.profile.id }, signalValue) as Profile
+  const updated = await tools.call('profile.update', { id: profile.id, expectedRevision: profile.revision, requestId: randomUUID(), changes: { name: 'Updated name' } }, signalValue) as Profile
+  await tools.call('profile.update_fact', { id: f.fact.id, profileId: profile.id, expectedRevision: updated.revision, requestId: randomUUID(), changes: { content: 'Updated source claim' } }, signalValue)
+  await f.endAskRun()
+  resume = await f.mcp.session('resume', signalValue)
+  const second = await resume.call('resume.start', { jobId: f.job.id, profileId: profile.id, requestId: randomUUID() }, signalValue) as { runId: string }
+  const old = f.backend.resumes.getRun({ id: first.runId }).run.inputSnapshot, next = f.backend.resumes.getRun({ id: second.runId }).run.inputSnapshot
+  assert.equal(old.profile.name, f.profile.name); assert.equal(next.profile.name, 'Updated name')
+  assert.equal(old.facts[0].content, f.fact.content); assert.equal(next.facts[0].content, 'Updated source claim')
+  assert([...old.facts, ...next.facts].every(fact => !('evidence' in fact)))
 })
 
 test('migration preserves existing profile data and old receipts and initializes revision without rewriting history', () => {
@@ -173,7 +171,7 @@ test('migration preserves existing profile data and old receipts and initializes
   } finally { db.close() }
 })
 
-test('external MCP partial updates preserve incomplete fields and repeated no-op receipts without RunGuard enforcement', async t => {
+test('external MCP partial updates preserve incomplete fields and repeated no-op receipts under RunGuard enforcement', async t => {
   const f = await firstPartyFixture(t), tools = await f.mcp.session('application', signal())
   const imported = value(await f.api.profiles.applyImport({ sessionId: randomUUID(), batchId: randomUUID(), profileId: null,
     contact: {}, links: [{ draftId: randomUUID(), label: '', url: '' }],

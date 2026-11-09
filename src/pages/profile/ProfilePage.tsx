@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea } from '../../shared/ui'
+import { ActionRow, Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import type { ProfileDetails, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
 import { itemTypes } from '../../domain/candidate/candidate.types'
@@ -18,11 +18,31 @@ export function ProfilePage() {
   const [contact, setContact] = useState<ProfileDetails>(emptyContact), [invalid, setInvalid] = useState(false), [importDirty, setImportDirty] = useState(false)
   const [item, setItem] = useState<{ id: string | null; details: ItemInput } | null>(null)
   const [fact, setFact] = useState<{ id: string | null; profileItemId: string | null; details: FactInput } | null>(null)
+  const [importEpoch, setImportEpoch] = useState(0)
+  const [switchTo, setSwitchTo] = useState<string | null>(null), [action, setAction] = useState<'new' | 'duplicate' | 'freeze' | 'restore' | null>(null), [newTitle, setNewTitle] = useState('')
   const [remove, setRemove] = useState<{ kind: 'item' | 'fact'; id: string } | null>(null)
-  const baseline = state.profile ? { name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links, introduction: state.profile.introduction ?? '' } : emptyContact
+  const baseline = state.profile ? { title: state.profile.title, name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links, introduction: state.profile.introduction ?? '' } : emptyContact
   const contactDirty = JSON.stringify(contact) !== JSON.stringify(baseline)
-  useEffect(() => { setContact(state.profile ? { name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links, introduction: state.profile.introduction ?? '' } : emptyContact) }, [state.profile])
-  useProfileGuard(contactDirty || Boolean(item || fact) || importDirty || state.saving)
+  useEffect(() => { setContact(state.profile ? { title: state.profile.title, name: state.profile.name, email: state.profile.email, phone: state.profile.phone, location: state.profile.location, links: state.profile.links, introduction: state.profile.introduction ?? '' } : emptyContact) }, [state.profile])
+  const dirty = contactDirty || Boolean(item || fact) || importDirty
+  useProfileGuard(dirty || state.saving)
+  async function selectProfile(id: string) {
+    if (state.saving) return
+    if (dirty) { setSwitchTo(id); return }
+    await changeProfile(id)
+  }
+  async function changeProfile(id: string) {
+    setItem(null); setFact(null); setRemove(null); setInvalid(false); setSwitchTo(null); setImportDirty(false); setImportEpoch(value => value + 1)
+    await state.perform(() => data.profiles.getProfile({ id }), value => value.id)
+  }
+  async function profileAction() {
+    const profile = state.profile
+    const result = action === 'new' ? await state.perform(() => data.profiles.createProfile({ name: newTitle, title: newTitle }))
+      : profile && action === 'duplicate' ? await state.perform(() => data.profiles.duplicateProfile({ profileId: profile.id, expectedRevision: profile.revision, title: newTitle }), value => value.id)
+      : profile && action === 'freeze' ? await state.perform(() => data.profiles.freezeBaseline({ profileId: profile.id, expectedRevision: profile.revision }))
+      : profile && action === 'restore' ? await state.perform(() => data.profiles.restoreBaseline({ profileId: profile.id, expectedRevision: profile.revision })) : null
+    if (result) { setAction(null); if (action === 'new' && 'id' in result) await changeProfile(result.id) }
+  }
   const profileId = state.profile?.id
   const manualDisabled = state.saving || importDirty
   const beginItem = (details: ItemInput, id: string | null = null) => { setItem({ id, details }); setInvalid(false) }
@@ -73,10 +93,21 @@ export function ProfilePage() {
     {state.error && <StatusMessage tone="error">{state.error === 'loadFailed' ? t($ => $.profile.loadFailed) : t($ => $.profile.errors[state.error as keyof typeof en.profile.errors], { defaultValue: t($ => $.ai.errors[state.error as keyof typeof en.ai.errors], { defaultValue: t($ => $.errors.actionFailed) }) })}</StatusMessage>}
     {state.notice && <StatusMessage tone="success">{t($ => $.profile.saved)}</StatusMessage>}
     {state.loading ? <StatusMessage>{t($ => $.profile.loading)}</StatusMessage> : state.error === 'loadFailed' ? <ActionRow><Button onClick={() => void state.reload()}>{t($ => $.profile.retry)}</Button></ActionRow> : <>
-      <ProfileImport profile={state.profile} onDirty={setImportDirty} onSaved={async profile => { await state.refresh(profile.id) }} disabled={state.saving || contactDirty || Boolean(item || fact)} />
+      <SectionCard title={t($ => $.profile.profiles)}><div className="profile-stack">
+        <FormField label={t($ => $.profile.chooseProfile)}>{props => <Select {...props} value={profileId ?? ''} disabled={state.saving} onChange={event => void selectProfile(event.target.value)}>
+          {!profileId && <option value="">{t($ => $.profile.noProfile)}</option>}{state.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.title}</option>)}
+        </Select>}</FormField>
+        <ActionRow><Button disabled={manualDisabled || dirty} onClick={() => { setNewTitle(''); setAction('new') }}>{t($ => $.profile.newProfile)}</Button>
+          <Button disabled={!profileId || manualDisabled || dirty} onClick={() => { setNewTitle(state.profile!.title); setAction('duplicate') }}>{t($ => $.profile.duplicate)}</Button>
+          {state.baselineStatus?.status === 'DRAFT' && <Button disabled={manualDisabled || dirty} onClick={() => setAction('freeze')}>{t($ => $.profile.freeze)}</Button>}
+          {state.baselineStatus?.status === 'READY' && <Button disabled={manualDisabled || dirty} onClick={() => setAction('restore')}>{t($ => $.profile.restore)}</Button>}
+        </ActionRow>
+      </div></SectionCard>
+      <ProfileImport key={importEpoch} profile={state.profile} onDirty={setImportDirty} onSaved={async profile => { await state.refresh(profile.id) }} disabled={state.saving || contactDirty || Boolean(item || fact)} />
       {!profileId && <StatusMessage>{t($ => $.profile.noProfile)}</StatusMessage>}
       <SectionCard title={t($ => $.profile.basic)}><form className="profile-stack" onSubmit={event => { event.preventDefault(); void saveContact() }}>
-        <ContactFields value={contact} required disabled={manualDisabled} onChange={value => { setContact({ ...value, introduction: contact.introduction }); setInvalid(false) }} />
+        <FormField label={t($ => $.profile.profileTitle)}>{props => <TextInput {...props} name="profileTitle" value={contact.title} maxLength={300} disabled={manualDisabled} onChange={event => setContact({ ...contact, title: event.target.value })} />}</FormField>
+        <ContactFields value={contact} required disabled={manualDisabled} onChange={value => { setContact({ ...value, title: contact.title, introduction: contact.introduction }); setInvalid(false) }} />
         <FormField label={t($ => $.profile.introduction)} help={t($ => $.profile.introductionHelp)}>{props => <TextArea {...props} value={contact.introduction} maxLength={2000} disabled={manualDisabled} onChange={event => { setContact({ ...contact, introduction: event.target.value }); setInvalid(false) }} />}</FormField>
         <ActionRow><Button variant="primary" type="submit" disabled={manualDisabled || (!contactDirty && Boolean(profileId))}>{state.saving ? t($ => $.profile.saving) : t($ => $.profile.save)}</Button></ActionRow>
         {invalid && !item && !fact && <StatusMessage tone="error">{t($ => $.profile.invalid)}</StatusMessage>}
@@ -92,6 +123,12 @@ export function ProfilePage() {
         <Button variant="add-card" disabled={!profileId || manualDisabled} onClick={() => beginFact({ kind: 'SKILL', content: '' }, null)}>{t($ => $.profile.addFact)}</Button>
       </section>
     </>}
+    <Dialog open={switchTo !== null} title={t($ => $.profile.switchTitle)} description={t($ => $.profile.switchDescription)} onClose={() => setSwitchTo(null)}>
+      <Button onClick={() => setSwitchTo(null)}>{t($ => $.profile.cancel)}</Button><Button variant="danger" onClick={() => { if (switchTo) void changeProfile(switchTo) }}>{t($ => $.profile.leave)}</Button>
+    </Dialog>
+    <Dialog open={action !== null} title={action ? t($ => $.profile.actions[action]) : ''} description={action === 'freeze' ? t($ => $.profile.freezeDescription) : action === 'restore' ? t($ => $.profile.restoreDescription) : undefined} onClose={() => { if (!state.saving) setAction(null) }} content={(action === 'new' || action === 'duplicate') ? <FormField label={t($ => $.profile.profileTitle)}>{props => <TextInput {...props} value={newTitle} maxLength={300} disabled={state.saving} onChange={event => setNewTitle(event.target.value)} />}</FormField> : undefined}>
+      <Button disabled={state.saving} onClick={() => setAction(null)}>{t($ => $.profile.cancel)}</Button><Button variant={action === 'restore' ? 'danger' : 'primary'} disabled={state.saving || ((action === 'new' || action === 'duplicate') && !newTitle.trim())} onClick={() => void profileAction()}>{t($ => $.profile.confirm)}</Button>
+    </Dialog>
     <EditorDialog open={Boolean(item || fact)} disabled={manualDisabled} invalid={invalid} onSave={() => void saveEditor()}
       onClose={() => { if (!state.saving) { setItem(null); setFact(null) } }}>
       {item && <ItemFields value={item.details} fixedType={Boolean(item.id)} disabled={manualDisabled} onChange={details => { setItem({ ...item, details }); setInvalid(false) }} />}

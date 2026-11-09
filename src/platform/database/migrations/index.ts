@@ -1,3 +1,5 @@
+import { profileBaselineBackfillMigration } from './profile-baseline-backfill'
+import { profileBaselineMigration } from './profile-baseline'
 import { removeAuditMigration } from './remove-audit'
 import { registerLegacyMigrationFunctions } from './legacy-functions'
 import { removeFactEvidenceMigration } from './remove-fact-evidence'
@@ -28,7 +30,7 @@ import { resumeModuleMigration } from './resume-module'
 export interface Migration { version: number; sql: string }
 export const migrations: readonly Migration[] = [{ version: 1, sql: initialSchema + auditTriggers() }, { version: 2, sql: aiAuditMigration },
   { version: 3, sql: capabilityAuditMigration }, { version: 4, sql: runtimeLeaseMigration }, { version: 5, sql: operationReceiptMigration }, { version: 6, sql: chatMigration },
-  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }, { version: 10, sql: memoryAuditMigration }, { version: 11, sql: askRuntimeMigration }, { version: 12, sql: chatProtocolMigration }, { version: 13, sql: askSerialMigration }, { version: 14, sql: chatModelRequestsMigration }, { version: 15, sql: removeFactEvidenceMigration }, { version: 16, sql: chatReactCyclesMigration }, { version: 17, sql: chatReactCycleConstraintsMigration }, { version: 18, sql: resumeModuleMigration }, { version: 19, sql: agentStorageMigration }, { version: 20, sql: resumeV3Migration }, { version: 21, sql: resumeOnceMigration }, { version: 22, sql: removeAuditMigration }]
+  { version: 7, sql: profileIntroductionMigration }, { version: 8, sql: profileWriteMigration }, { version: 9, sql: knowledgeAuditMigration }, { version: 10, sql: memoryAuditMigration }, { version: 11, sql: askRuntimeMigration }, { version: 12, sql: chatProtocolMigration }, { version: 13, sql: askSerialMigration }, { version: 14, sql: chatModelRequestsMigration }, { version: 15, sql: removeFactEvidenceMigration }, { version: 16, sql: chatReactCyclesMigration }, { version: 17, sql: chatReactCycleConstraintsMigration }, { version: 18, sql: resumeModuleMigration }, { version: 19, sql: agentStorageMigration }, { version: 20, sql: resumeV3Migration }, { version: 21, sql: resumeOnceMigration }, { version: 22, sql: removeAuditMigration }, { version: 23, sql: profileBaselineMigration }, { version: 24, sql: profileBaselineBackfillMigration }]
 
 // A new incompatible schema generation. Inspect before any journal/schema writes.
 export const DATABASE_GENERATION = 0x4a415632

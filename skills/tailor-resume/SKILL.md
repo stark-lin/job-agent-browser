@@ -9,6 +9,10 @@ Purpose. Run the external Resume V3 workflow. The host reads and rewrites bullet
 
 Language: English · [简体中文](SKILL.zh-CN.md)
 
+## MCP execution
+
+Keep JAB Main running. Before business reads or writes call `run.begin({})`; pass its returned `runId` as required `executionRunId` on every business call, preserving all business fields (including any Resume `runId`). Call `run.end({runId})` when finished, including after errors or Guard blocking. Each successful call is already saved: End, cancellation, timeout and disconnect do not undo writes. If admission is busy/unavailable, stop and report it; do not bypass MCP or reuse an old execution UUID.
+
 ## Select inputs and freeze context
 
 Use `job.list` and `profile.list` to resolve the requested records. If several match and the user has not chosen, ask which to use.

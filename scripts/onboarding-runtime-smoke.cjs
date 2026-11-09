@@ -31,7 +31,7 @@ app.once('browser-window-created', (_event, window) => {
       if (stage === 'unfinished') {
         await heading('Language & background')
         assert.equal((await data('settings', 'get')).value.onboardingCompleted, false)
-        assert.equal((await data('profiles', 'listProfiles')).value.total, 1)
+        assert.equal((await data('profiles', 'listProfiles')).value.total, 2)
       } else if (stage === 'restart') {
         await wait(() => evaluate('!!document.querySelector(".app-shell")'), 'completed startup skips setup')
         assert.equal((await data('settings', 'get')).value.onboardingCompleted, true)
@@ -102,8 +102,13 @@ app.once('browser-window-created', (_event, window) => {
         await wait(() => evaluate('document.body.innerText.includes("setup-fixture.pdf")'), 'selected PDF filename')
         assert.equal(requests, 1, 'selection alone does not parse')
         await button('Import')
+        await wait(() => evaluate('!!document.querySelector("[data-import-id]")'), 'review PDF before confirmation')
+        assert.equal((await data('profiles', 'listProfiles')).value.total, 1, 'unconfirmed import has not saved another profile')
+        await button('Save imported content')
         await wait(() => evaluate('document.querySelector(".onboarding-step:not([hidden])").innerText.includes("Changes saved.")'), 'PDF saved')
         assert.equal(requests, 2)
+        const importedProfile = (await data('profiles', 'listProfiles')).value.items[0]
+        assert.equal((await data('profiles', 'getBaselineStatus', { profileId: importedProfile.id })).value.status, 'READY')
         await button('Continue'); await heading('Done'); await button('Open JAB')
         await wait(() => evaluate('!!document.querySelector(".app-shell")'), 'workspace opens')
         assert.equal((await data('settings', 'get')).value.onboardingCompleted, true)

@@ -32,9 +32,15 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
   const server = createServer((request, response) => {
     if (request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-      response.end(`<!doctype html><title>Form fixture</title>${fields}
+      response.write('<!doctype html><title>Form fixture</title>')
+      const complete = () => response.end(`${fields}
         ${request.url.startsWith('/frame') ? '' : `<iframe id="same" src="${origin}/frame-same" style="width:420px;height:240px"></iframe>
         <iframe id="cross" src="${crossOrigin}/frame-cross?token=hidden" style="width:420px;height:240px"></iframe>`}`)
+      if (request.url === '/frame-replaced') {
+        // Commit the new document before its fields arrive, as on a slower CI runner.
+        const timer = setTimeout(complete, 1000)
+        response.once('close', () => clearTimeout(timer))
+      } else complete()
       return
     }
     let body = ''
@@ -255,8 +261,13 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     await mainFrame.executeJavaScript(`document.querySelector('#same').src = ${JSON.stringify(origin + '/frame-replaced')}`)
     await endActive()
     await waitBanner('Stopped filling')
-    const replaced = mainFrame.frames.find(frame => frame.url.includes('frame-replaced'))
-    assert(replaced)
+    // Run cancellation and a matching frame URL do not imply that the new DOM has loaded.
+    let replaced
+    await waitFor(async () => {
+      replaced = mainFrame.frames.find(frame => frame.url === origin + '/frame-replaced')
+      return replaced && !replaced.detached && !replaced.isDestroyed() && await replaced.executeJavaScript(
+        'document.readyState === "complete" && !!document.querySelector("#field")')
+    }, 'replacement iframe form loaded')
     assert.equal(await value(replaced), 'left OLD right')
 
     await choose(page, '#field', replaced, '#same')
