@@ -22,12 +22,13 @@ async function setup(t: import('node:test').TestContext, timeout = 15000, build?
   const clients: Client[] = [], servers: ReturnType<typeof createMCPServer>[] = []
   t.after(async () => { for (const client of clients) await client.close(); for (const server of servers) await server.dispose(); tooling.dispose(); await broker.close(); rmSync(directory, { recursive: true, force: true }) })
   async function client() {
-    const runtime = createMCPServer(tooling.registry, { allow: jobAgentAllowlist, maxRisk: 'WRITE' }, new AbortController().signal, undefined, undefined, undefined, createExternalRun(directory), () => f.backend.capabilities.settle())
+    const external = createExternalRun(directory)
+    const runtime = createMCPServer(tooling.registry, { allow: jobAgentAllowlist, maxRisk: 'WRITE' }, new AbortController().signal, undefined, undefined, undefined, external, () => f.backend.capabilities.settle())
     const [a, b] = InMemoryTransport.createLinkedPair(), client = new Client({ name: 'external', version: '1' })
     clients.push(client); servers.push(runtime)
     runtime.server.onclose = () => { void runtime.dispose() }
     await runtime.server.connect(b); await client.connect(a)
-    return { client, runtime }
+    return { client, runtime, external }
   }
   return { ...f, admission, broker, directory, client }
 }
@@ -114,4 +115,33 @@ test('cancellation retains global occupancy until a started native operation saf
   assert(f.admission.current()); assert.throws(() => f.admission.acquire('internal'), { code: 'TOOL_BUSY' })
   release(); await until(() => !f.admission.current())
   assert.equal(f.backend.profiles.getProfile({ id: saved.id }).name, 'Saved before cancel')
+})
+
+test('a cancelled Begin releases its acquired execution before another Run can start', async t => {
+  const f = await setup(t), a = await f.client(), original = a.external.begin.bind(a.external)
+  let release!: () => void, acquired = false
+  const gate = new Promise<void>(resolve => { release = resolve })
+  a.external.begin = async () => { const created = await original(); acquired = true; await gate; return created }
+  const controller = new AbortController()
+  const pending = a.client.callTool({ name: 'run.begin', arguments: {} }, { signal: controller.signal })
+  await until(() => acquired); controller.abort(); await assert.rejects(pending)
+  assert(f.admission.current()); release(); await until(() => !f.admission.current())
+  const next = f.admission.acquire('internal'); f.admission.release(next.owner, next.id)
+})
+
+test('Main shutdown drains an external execution before releasing occupancy', async t => {
+  let release!: () => void, started = false, stopped = false
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const f = await setup(t, 15000, async (_id, signal) => {
+    started = true; signal.addEventListener('abort', () => { stopped = true }, { once: true }); await gate; return {}
+  })
+  const a = await f.client(), { runId } = data(await call(a.client, 'run.begin'))
+  const tool = call(a.client, 'artifact.build', { executionRunId: runId, artifactId: randomUUID() })
+  await until(() => started)
+  let closed = false
+  const shutdown = f.broker.close().then(() => { closed = true })
+  await until(() => stopped); assert.equal(closed, false); assert(f.admission.current())
+  release(); await tool; await shutdown
+  assert.equal(f.admission.current(), undefined)
+  denied(await call(a.client, 'run.begin'), 'TOOL_UNAVAILABLE')
 })

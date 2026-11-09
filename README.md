@@ -4,6 +4,9 @@ A local-first desktop workspace for job seeking. Status: **Implemented** React n
 
 Language: English · [简体中文](README.zh-CN.md)
 
+
+External MCP business execution now requires running JAB Main, `run.begin`, per-call `executionRunId`, and `run.end`; see [execution protocol](docs/mcp-architecture.md#execution-identity-and-external-protocol). Profile UI supports independent titles and immutable structured snapshots retained on reviewed import confirmation; [data rules](docs/data-architecture.md#working-profiles-and-approved-baselines).
+
 ## Quick start
 
 Requires Node.js 24.10 or newer and npm, as declared in [package.json](package.json).

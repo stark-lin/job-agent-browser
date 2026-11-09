@@ -54,13 +54,13 @@
 
 [条目校验](../src/domain/candidate/candidate.validation.ts)支持 `metadata.startDateText` / `endDateText`（`YYYY`、`YYYY-MM`、`YYYY-MM-DD`）及 `isCurrent`。导入/手动界面只在完整日期时写入日级列，校验范围，不补造月份/日期。新数据库世代通过 JSON metadata 保留部分日期精度。
 
-[显式导入](../src/domain/candidate/import.service.ts)原子应用提交的联系方式、追加链接并插入条目/Fact。[核对选择](../src/pages/profile/import-state.ts)保存全部有效且未忽略内容；未忽略的无效条目阻止提交并聚焦具体无效字段。忽略父项会排除其事实。导入允许姓名、名称、事实内容和链接名称/URL 留空或省略；已填值仍校验格式、日期范围和长度。手动创建资料仍需要姓名。[Main 会话](../src/platform/profile-import/service.ts)强制校验归属、草稿 ID、父项映射、已消费条目及相同批次回执。部分保存保留父项供剩余事实使用。重复上传明确创建新会话；重放回执仅存内存，随窗口/会话清理。
+[显式导入](../src/domain/candidate/import.service.ts)保留原有未确认的临时 Review。一次确认以同步短事务保存全部已复查且未忽略的联系方式、链接、条目和事实及首次不可变快照；快照写入失败会撤销该次确认的整份业务保存。[选择校验](../src/pages/profile/import-state.ts)拒绝未忽略的无效内容并聚焦字段，忽略父项会排除其事实。导入字段可留空，仍校验格式、日期和长度。[Main 会话](../src/platform/profile-import/service.ts)检查归属、草稿 ID 与同次保存的幂等重放；原文和 Review 为临时数据。旧的部分保存业务 API 保持兼容，界面不提供分批流程。
 
-每个显式提交批次以短事务即时保存；后续失败或内存 Session 丢失保留此前成功批次。新 PDF 默认创建新 DRAFT Profile，追加必须显式选择，导入完成不自动冻结基准。[导入服务](../src/domain/candidate/import.service.ts)为每次导入预留经历和 Fact 的序号，分批保存使用原位置。[迁移 18](../src/platform/database/migrations/resume-module.ts)新增排序和版本字段，历史 Fact 保留时间顺序。PDF 页码与行号用于本次审核，随草稿缓存释放。
+新 PDF 默认创建新 Profile；追加必须显式选择，且保留已有不可变快照。确认未确认的 Profile 时创建首次快照。成功后清理临时导入，下一份 PDF 使用全新目标映射。[排序](../src/domain/candidate/import.service.ts)保留来源位置，[迁移 18](../src/platform/database/migrations/resume-module.ts)保留历史事实顺序。
 
 ### 工作履历与人工确认基准
 
-**已实现（V23）：**[迁移](../src/platform/database/migrations/profile-baseline.ts) 新增独立的 Profile `title` 和 `profile_baselines`；V1–V22 保持不变。已有履历为 DRAFT。READY 仅由基准是否存在推导。[基准服务](../src/domain/candidate/baseline.service.ts) 仅通过可信 UI IPC 冻结经过 Revision 检查的结构化快照。SQL 拒绝基准 UPDATE；删除所属 Profile 时级联清理。
+**已实现（V23–V24）：**[迁移](../src/platform/database/migrations/profile-baseline.ts) 新增独立的 Profile `title` 和 `profile_baselines`；V1–V23 的 SQL/校验和保持不变。[V24](../src/platform/database/migrations/profile-baseline-backfill.ts)兼容已执行 V23 的数据库并保留已有快照，不改写校验和。已有履历将当前结构化数据保存为初始快照。快照是否可用仅由基准是否存在推导，界面不显示 DRAFT/READY 状态。[基准服务](../src/domain/candidate/baseline.service.ts) 仅通过可信 UI IPC 冻结经过 Revision 检查的结构化快照。SQL 拒绝基准 UPDATE；删除所属 Profile 时级联清理。
 
 复制将当前工作内容映射到新 UUID，创建 DRAFT。恢复以一次同步业务短事务仅替换指定 Profile 的工作内容，重建条目父子关系和事实关联，保留排序并重置排序计数器，返回 Trigger 实际推进后的 Revision。Generation 快照和 Artifact 内容不变；旧引用可以变为 MISSING。工作编辑即时持久化且永不更新基准。PDF 原文不是恢复来源。
 

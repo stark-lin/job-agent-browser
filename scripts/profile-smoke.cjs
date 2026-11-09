@@ -84,8 +84,8 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     const firstProfile = (await data('listProfiles')).value.items[0]
     assert.equal(firstProfile.introduction, body.contact.introduction)
     assert.equal(firstProfile.name, '', 'empty imported name saves without a required-field check')
+    assert.equal((await data('getBaselineStatus', { profileId: firstProfile.id })).value.status, 'READY', 'the existing import confirmation retains its structured snapshot')
     assert.equal((await data('listFacts', { profileId: firstProfile.id })).value.total, 2)
-    await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await data('deleteProfile', { id: firstProfile.id }); await call('navigate', 'app://ai'); await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form input:not([name=profileTitle])") && document.body.innerText.includes("Local profile fixture")'), 'manual creation after deleted context fallback')
     await field('Name', 'Manual candidate'); await field('Email', 'keep@example.com'); await field('Personal introduction', 'Manual introduction.\nSecond sentence.')
@@ -136,6 +136,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     facts = (await data('listFacts', { profileId: profile.id })).value.items
     assert(facts.some(fact => fact.content === 'Manual first edited'))
     assert(facts.every(fact => !('verificationStatus' in fact)))
+    await require('./profile-baseline-smoke.cjs')({ data, evaluate, button, field, checkbox, waitFor, profile, frame })
     await checkbox('Append to current profile')
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'built PDF worker and SSE parsed draft')
@@ -145,32 +146,28 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await field('Fact', 'Reviewed first', importedFact('Built services'))
     await button('Save imported content')
     await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 3, 'first import subset saved')
-    await waitFor(() => evaluate('document.body.innerText.includes("Entry already saved")'), 'saved parent retained for remaining facts')
+    await waitFor(() => evaluate('!document.querySelector("[data-import-id]")'), 'one confirmation completes the reviewed import')
     const contact = (await data('getProfile', { id: profile.id })).value
     assert.equal(contact.name, 'Manual candidate'); assert.equal(contact.email, 'imported@example.com')
-    await checkbox('Ignore', importedFact('Improved latency')); await button('Save imported content')
-    await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 4, 'remaining fact saved')
+    assert.equal((await data('listFacts', { profileId: profile.id })).value.total, 3, 'ignored content is excluded from this import')
     const items = (await data('listItems', { profileId: profile.id })).value.items
     assert.equal(items.length, 2)
     const imported = items.find(item => item.title === 'Imported project')
     assert.equal(imported.startDate, null); assert.equal(imported.metadata.startDateText, '2021')
     facts = (await data('listFacts', { profileId: profile.id })).value.items
-    assert.equal(facts.filter(fact => fact.profileItemId === imported.id).length, 2)
+    assert.equal(facts.filter(fact => fact.profileItemId === imported.id).length, 1)
     assert(facts.filter(fact => fact.profileItemId === imported.id).every(fact => !('evidence' in fact)))
-    await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]") && document.body.innerText.includes("Upload PDF and parse")'), 'import draft discarded')
     // A second upload deliberately permits the same material to be added again.
     await button('Upload PDF and parse'); await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'second upload parsed')
     await button('Save imported content'); await waitFor(async () => (await data('listItems', { profileId: profile.id })).value.total === 3, 'duplicate upload adds a new entry')
-    await button('Discard import'); await button('Discard import', 'document.querySelector("dialog[open]")')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'second draft discarded')
-    assert.equal(requests, 3)
+    assert.equal(requests, 5)
     const duplicateSection = `[...document.querySelectorAll('details.ui-section-card')].filter(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === 'Imported project').at(-1)`
     await button('Delete', duplicateSection)
     assert(await evaluate('document.querySelector("dialog[open]").innerText.includes("0 descendant entries and 2 attached facts")'))
     await button('Delete', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listItems', { profileId: profile.id })).value.total === 2, 'entry deleted through impact dialog')
-    await require('./profile-baseline-smoke.cjs')({ data, evaluate, button, field, checkbox, waitFor, profile, frame })
     // Renderer reload exercises current-profile fallback and complete pagination.
     for (let index = 0; index < 101; index++) await data('addFact', { profileId: profile.id, details: { kind: 'SKILL', content: `Pagination ${index}` } })
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded
@@ -178,7 +175,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await waitFor(() => evaluate(`document.querySelector(".profile-page form textarea")?.value === ${JSON.stringify(body.contact.introduction)}`), 'contact draft hydrated after profile reload')
     assert.equal(await evaluate('document.querySelector(".profile-page form textarea").value'), body.contact.introduction)
     await button('Delete', factCard('Pagination 0')); await button('Delete', 'document.querySelector("dialog[open]")')
-    await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 104, 'individual fact deletion')
+    await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 103, 'individual fact deletion')
     window.setMinimumSize(320, 320)
     mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {
@@ -228,7 +225,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await waitFor(() => evaluate('document.querySelector(".profile-page form input:not([name=profileTitle])")?.value === "Imported candidate"'), 'saved profile restored after discarded edit')
     assert.equal(await evaluate('document.querySelector(".profile-page form input:not([name=profileTitle])").value'), 'Imported candidate')
     await call('closeTab', otherTabId)
-    console.log('Profile smoke passed: manual CRUD, multiple facts, real PDF Worker/SSE, explicit saves and ignored content, partial saves, duplicate upload, pagination/reload, bilingual themes/responsive layout and leave/window guards.')
+    console.log('Profile smoke passed: manual CRUD, multiple facts, real PDF Worker/SSE, single reviewed confirmation and snapshot, ignored content, duplicate upload, pagination/reload, bilingual themes/responsive layout and leave/window guards.')
   } finally {
     dialog.showOpenDialog = oldOpen; dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); dialog.showMessageBoxSync = () => 1
     window.setMinimumSize(...minimum); window.setContentSize(...originalSize)

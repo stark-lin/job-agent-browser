@@ -636,9 +636,9 @@ export const zhCN = {
     }
 },
   profile: {
-    profiles: '履历管理', chooseProfile: '当前履历', profileTitle: '履历标题', newProfile: '新建履历', duplicate: '复制履历', freeze: '确认并冻结', restore: '恢复确认版本', confirm: '确认', appendCurrent: '追加到当前履历',
-    status: { DRAFT: '草稿', READY: '已确认' }, actions: { new: '新建履历', duplicate: '复制当前工作履历', freeze: '确认并冻结', restore: '恢复确认版本' },
-    freezeDescription: '请确认已复查当前结构化履历。基准只保存一次且不可修改，后续编辑仅改变工作副本。',
+    profiles: '履历管理', chooseProfile: '当前履历', profileTitle: '履历标题', newProfile: '新建履历', duplicate: '复制履历', freeze: '确认履历', restore: '恢复确认版本', confirm: '确认', appendCurrent: '追加到当前履历',
+    actions: { new: '新建履历', duplicate: '复制当前工作履历', freeze: '确认履历', restore: '恢复确认版本' },
+    freezeDescription: '确认已复查当前履历，保留这份结构化快照供日后恢复。后续编辑只改变工作副本。',
     restoreDescription: '将当前履历的标题、联系方式、简介、条目和事实替换为人工确认版本，当前工作副本的修改会被替换。其他履历、聊天和已生成简历保持不变。',
     switchTitle: '放弃未保存修改？', switchDescription: '未保存的表单和当前导入草稿将被丢弃，已经保存的内容会保留。', leave: '放弃并切换',
 

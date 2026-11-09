@@ -4,6 +4,9 @@
 
 语言：简体中文 · [English](README.md)
 
+
+外部 MCP 业务执行现要求 JAB Main 在线，并使用 `run.begin`、每次调用的 `executionRunId` 及 `run.end`，详见[执行协议](docs/mcp-architecture.zh-CN.md#执行身份与外部协议)。Profile UI 支持独立标题和导入确认后保留的不可变结构化快照，详见[数据规则](docs/data-architecture.zh-CN.md#工作履历与人工确认基准)。
+
 ## 快速开始
 
 需要 Node.js 24.10 或更新版本及 npm，以 [package.json](package.json) 为准。

@@ -39,6 +39,11 @@ export function validateBaseline(input: unknown, profileId: string): ProfileBase
   return snapshot
 }
 
+export function captureProfileBaseline(repo: CandidateRepository, profile: Profile) {
+  const { id, revision: _revision, updatedAt: _updated, ...details } = profile
+  return validateBaseline({ profile: details, items: repo.allItems(id), facts: repo.orderedFacts(id) }, id)
+}
+
 /** User approval endpoints belong to trusted UI IPC, never the Agent registry. */
 export function createBaselineService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   function check(id: string, revision: number) {
@@ -49,10 +54,6 @@ export function createBaselineService(repo: CandidateRepository, tx: UnitOfWork,
   function status(profileId: string): ProfileBaselineStatus {
     const baseline = repo.getBaseline(profileId)
     return { profileId, status: baseline ? 'READY' : 'DRAFT', createdAt: baseline?.createdAt ?? null }
-  }
-  function capture(profile: Profile) {
-    const { id, revision: _revision, updatedAt: _updated, ...details } = profile
-    return validateBaseline({ profile: details, items: repo.allItems(id), facts: repo.orderedFacts(id) }, id)
   }
   function rebuild(profileId: string, snapshot: ProfileBaselineV1) {
     // Existing repositories break equal sortOrder ties by UUID. Allocate fresh IDs in source
@@ -80,14 +81,14 @@ export function createBaselineService(repo: CandidateRepository, tx: UnitOfWork,
       return tx.write(() => {
         const args = v.object(versioned)(input), profile = check(args.profileId, args.expectedRevision)
         if (repo.getBaseline(profile.id)) fail('CONFLICT')
-        repo.insertBaseline({ profileId: profile.id, schemaVersion: 1, snapshot: capture(profile), createdAt: runtime.now() })
+        repo.insertBaseline({ profileId: profile.id, schemaVersion: 1, snapshot: captureProfileBaseline(repo, profile), createdAt: runtime.now() })
         return status(profile.id)
       })
     },
     duplicateProfile(input: unknown) {
       return tx.write(() => {
         const args = v.object({ ...versioned, title: v.text(300, 1) })(input), source = check(args.profileId, args.expectedRevision)
-        const snapshot = capture(source), profile = { ...snapshot.profile, title: args.title, id: runtime.id(), revision: 1, updatedAt: runtime.now() }
+        const snapshot = captureProfileBaseline(repo, source), profile = { ...snapshot.profile, title: args.title, id: runtime.id(), revision: 1, updatedAt: runtime.now() }
         repo.insertProfile(profile)
         return rebuild(profile.id, snapshot)
       })

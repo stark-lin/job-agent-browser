@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput, Badge } from '../../shared/ui'
+import { ActionRow, Button, DetailsList, Dialog, FormField, SectionCard, Select, StatusMessage, TextArea, TextInput } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import type { ProfileDetails, Fact, FactInput, ItemInput, ProfileItem } from '../../domain/candidate/candidate.types'
 import { itemTypes } from '../../domain/candidate/candidate.types'
@@ -97,7 +97,6 @@ export function ProfilePage() {
         <FormField label={t($ => $.profile.chooseProfile)}>{props => <Select {...props} value={profileId ?? ''} disabled={state.saving} onChange={event => void selectProfile(event.target.value)}>
           {!profileId && <option value="">{t($ => $.profile.noProfile)}</option>}{state.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.title}</option>)}
         </Select>}</FormField>
-        {state.baselineStatus && <Badge>{t($ => $.profile.status[state.baselineStatus!.status])}</Badge>}
         <ActionRow><Button disabled={manualDisabled || dirty} onClick={() => { setNewTitle(''); setAction('new') }}>{t($ => $.profile.newProfile)}</Button>
           <Button disabled={!profileId || manualDisabled || dirty} onClick={() => { setNewTitle(state.profile!.title); setAction('duplicate') }}>{t($ => $.profile.duplicate)}</Button>
           {state.baselineStatus?.status === 'DRAFT' && <Button disabled={manualDisabled || dirty} onClick={() => setAction('freeze')}>{t($ => $.profile.freeze)}</Button>}

@@ -3,19 +3,33 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { migrate, migrations } from '../src/platform/database/migrations'
+import { validateBaseline } from '../src/domain/candidate/baseline.service'
 import { published } from './helpers'
 
-test('V22 upgrade preserves all rows/checksums, initializes independent titles, leaves drafts', () => {
+test('V22 upgrade preserves all rows/checksums, initializes titles and preserves existing profiles as initial snapshots', () => {
   const db = new DatabaseSync(':memory:'); db.exec('PRAGMA foreign_keys=ON')
   try {
     migrate(db, migrations.slice(0, 22))
     for (const name of ['Person', '']) db.prepare("INSERT INTO profiles(id,name,email,phone,location,links_json,updated_at) VALUES(?,?,'','','','[]','2026-01-01')").run(randomUUID(), name)
+    const owner = String(db.prepare('SELECT id FROM profiles ORDER BY id').get()!.id), itemId = randomUUID(), factId = randomUUID()
+    db.prepare("INSERT INTO profile_items VALUES(?,?,NULL,'PROJECT','Legacy project','Legacy org','Developer','Sydney',NULL,NULL,'Legacy summary','{\"technologies\":[\"SQLite\"]}',7)").run(itemId, owner)
+    db.prepare("INSERT INTO facts(id,profile_id,profile_item_id,kind,content,tags_json,created_at,updated_at,sort_order) VALUES(?,?,?,'OTHER','Legacy fact','[\"SQL\"]','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z',9)").run(factId, owner, itemId)
     const rows = db.prepare('SELECT * FROM profiles ORDER BY id').all(), checksums = db.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
     migrate(db)
     assert.deepEqual(db.prepare('SELECT * FROM profiles ORDER BY id').all().map(row => ({ ...row })), rows.map(row => ({ ...row, title: row.name || 'Profile' })))
     assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=22 ORDER BY version').all(), checksums)
-    assert.equal(db.prepare('SELECT count(*) n FROM profile_baselines').get()?.n, 0)
-    assert.equal(db.prepare('SELECT max(version) n FROM schema_migrations').get()?.n, 23)
+    assert.equal(db.prepare('SELECT count(*) n FROM profile_baselines').get()?.n, 2)
+    for (const row of rows) {
+      const snapshot = JSON.parse(String(db.prepare('SELECT snapshot_json FROM profile_baselines WHERE profile_id=?').get(String(row.id))?.snapshot_json))
+      assert.equal(snapshot.profile.name, row.name); assert.equal(snapshot.profile.title, row.name || 'Profile')
+      validateBaseline(snapshot, String(row.id))
+      if (row.id === owner) {
+        assert.equal(snapshot.items[0].id, itemId); assert.equal(snapshot.items[0].sortOrder, 7)
+        assert.deepEqual(snapshot.items[0].metadata, { technologies: ['SQLite'] })
+        assert.equal(snapshot.facts[0].id, factId); assert.equal(snapshot.facts[0].profileItemId, itemId); assert.equal(snapshot.facts[0].sortOrder, 9)
+      } else { assert.deepEqual(snapshot.items, []); assert.deepEqual(snapshot.facts, []) }
+    }
+    assert.equal(db.prepare('SELECT max(version) n FROM schema_migrations').get()?.n, 24)
   } finally { db.close() }
 })
 
@@ -97,4 +111,28 @@ test('duplicate and restore retain equal-order ties with fresh UUIDs', async t =
   p.restoreBaseline({ profileId: id, expectedRevision: revision })
   assert.deepEqual(p.listItems({ profileId: id }).items.map(i => i.title), items)
   assert.deepEqual(p.listFacts({ profileId: id }).items.map(f => f.content), facts)
+})
+
+test('already-applied V23 keeps its checksum and approved snapshots while V24 adopts only missing snapshots', () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    migrate(db, migrations.slice(0, 23))
+    const ids = [randomUUID(), randomUUID()]
+    for (const id of ids) db.prepare("INSERT INTO profiles(id,title,name,email,phone,location,links_json,introduction,updated_at) VALUES(?,'CV','Existing','','','','[]','','2026-01-01T00:00:00.000Z')").run(id)
+    const original = { profile: { title: 'Approved title', name: 'Approved person', email: '', phone: '', location: '', links: [], introduction: '' }, items: [], facts: [] }
+    db.prepare('INSERT INTO profile_baselines VALUES(?,1,?,?)').run(ids[0], JSON.stringify(original), '2026-01-01T00:00:00.000Z')
+    const journal = db.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
+    assert.equal(journal.at(-1)?.checksum, '83556ef54b40512ba411ccde182d5a4baefda4ca9310fcf9a230e4a1a13dccdb')
+    const step = migrations[23]
+    assert.throws(() => migrate(db, [...migrations.slice(0, 23), { ...step, sql: step.sql + '\nSELECT missing_migration_function();' }]))
+    assert.equal(db.prepare('SELECT count(*) n FROM profile_baselines').get()?.n, 1)
+    assert.deepEqual(db.prepare('SELECT * FROM schema_migrations ORDER BY version').all(), journal)
+    migrate(db)
+    assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=23 ORDER BY version').all(), journal)
+    assert.deepEqual(JSON.parse(String(db.prepare('SELECT snapshot_json FROM profile_baselines WHERE profile_id=?').get(ids[0])?.snapshot_json)), original)
+    const adopted = JSON.parse(String(db.prepare('SELECT snapshot_json FROM profile_baselines WHERE profile_id=?').get(ids[1])?.snapshot_json))
+    assert.equal(adopted.profile.title, 'CV'); assert.equal(adopted.profile.name, 'Existing')
+    migrate(db)
+    assert.equal(db.prepare('SELECT count(*) n FROM profile_baselines').get()?.n, 2)
+  } finally { db.close() }
 })

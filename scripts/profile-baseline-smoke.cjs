@@ -8,7 +8,7 @@ module.exports = async function ({ data, evaluate, button, field, waitFor, profi
   }
   const name = async () => evaluate('document.querySelector(".profile-page form input:not([name=profileTitle])")?.value')
   assert.equal((await data('getBaselineStatus', { profileId: profile.id })).value.status, 'DRAFT')
-  await button('Confirm and freeze'); await button('Confirm', dialog)
+  await button('Confirm profile'); await button('Confirm', dialog)
   await waitFor(async () => (await data('getBaselineStatus', { profileId: profile.id })).value.status === 'READY', 'explicit baseline approval')
   const approved = (await data('getProfile', { id: profile.id })).value
   await field('Personal introduction', 'Working edits after approval')
@@ -37,12 +37,11 @@ module.exports = async function ({ data, evaluate, button, field, waitFor, profi
     await waitFor(async () => (await data('listProfiles')).value.total === index + 3, 'new PDF creates independent profile')
     const selected = await evaluate('document.querySelector(".profile-page select").value')
     assert.notEqual(selected, profile.id); assert.notEqual(selected, copy.id)
-    assert.equal((await data('getBaselineStatus', { profileId: selected })).value.status, 'DRAFT')
-    await button('Discard import'); await button('Discard import', dialog)
-    await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'saved import session discarded')
+    assert.equal((await data('getBaselineStatus', { profileId: selected })).value.status, 'READY')
+    await waitFor(() => evaluate('!document.querySelector("[data-import-id]") && document.body.innerText.includes("Upload PDF and parse")'), 'confirmed import clears its temporary review')
     if (index === 1) await data('deleteProfile', { id: selected })
   }
   await select(profile.id)
   await waitFor(async () => await name() === approved.name, 'original profile reselected')
-  console.log('Profile baseline UI verified: explicit freeze/restore, working duplicate, draft imports, fresh PDF targets and unsaved switching.')
+  console.log('Profile baseline UI verified: explicit freeze/restore, working duplicate, confirmed import snapshots, fresh PDF targets and unsaved switching.')
 }

@@ -33,6 +33,6 @@ export function ProfileImport({ profile, onDirty, onSaved, disabled }: { profile
       </ActionRow>
       <Dialog open={discard} title={t($ => $.profile.discardImportTitle)} description={t($ => $.profile.discardImportDescription)} onClose={() => setDiscard(false)}><Button onClick={() => setDiscard(false)}>{t($ => $.profile.cancel)}</Button><Button variant="danger" onClick={() => { setDiscard(false); void state.discard() }}>{t($ => $.profile.discard)}</Button></Dialog>
     </div></SectionCard>
-    {state.draft && <ImportReview draft={state.draft} setDraft={state.setDraft} profile={profile} disabled={disabled || state.saving || state.frozen} />}
+    {state.draft && <ImportReview draft={state.draft} setDraft={state.setDraft} profile={state.append ? profile : null} disabled={disabled || state.saving || state.frozen} />}
   </>
 }

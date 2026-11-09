@@ -32,7 +32,9 @@ export function createMCPServer(registry: ToolRegistry, policy: ToolScopePolicy,
         if (name === 'run.begin') {
           if (Object.keys(args).length) toolFail('TOOL_INVALID_INPUT')
           if (!external) toolFail('TOOL_UNAVAILABLE')
-          return mcpResult({ content: [], structuredContent: await external.begin() })
+          const created = await external.begin()
+          if (context.mcpReq.signal.aborted || signal.aborted) { await external.end(created.runId); toolFail('TOOL_CANCELLED') }
+          return mcpResult({ content: [], structuredContent: created })
         }
         if (Object.keys(args).join(',') !== 'runId' || typeof args.runId !== 'string' || !uuid.test(args.runId)) toolFail('TOOL_INVALID_INPUT')
         if (!external) toolFail('TOOL_UNAVAILABLE')
@@ -55,6 +57,7 @@ export function createMCPServer(registry: ToolRegistry, policy: ToolScopePolicy,
         signal: AbortSignal.any([signal, context.mcpReq.signal, run.signal]) })
       const cancel = () => { if (!runAuthorization) void external?.end(run.executionRunId).catch(() => {}) }
       context.mcpReq.signal.addEventListener('abort', cancel, { once: true })
+      if (context.mcpReq.signal.aborted) cancel()
       try {
         // Trusted controller grants are lifecycle orchestration within the same global occupancy.
         if (run.kind === 'resume-controller') return mcpResult(await scope.execute(name, input))

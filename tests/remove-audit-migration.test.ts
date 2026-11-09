@@ -13,9 +13,9 @@ import { published, value } from './helpers'
 const rows = (db: DatabaseSync, table: string) => db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()
 const objects = (db: DatabaseSync) => db.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger')").all().map(row => String(row.name))
 
-test('historical V1–V22 generated SQL keeps every original checksum', () => {
+test('historical V1–V24 generated SQL keeps every original checksum', () => {
   const expected = JSON.parse(readFileSync('tests/fixtures/migration-checksums.json', 'utf8'))
-  assert.deepEqual(migrations.slice(0, 22).map(step => ({ version: step.version, checksum: createHash('sha256').update(step.sql).digest('hex') })), expected)
+  assert.deepEqual(migrations.slice(0, 24).map(step => ({ version: step.version, checksum: createHash('sha256').update(step.sql).digest('hex') })), expected)
 })
 
 test('fresh database reaches V22 with business constraints and no legacy audit objects', () => {

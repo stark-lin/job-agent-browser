@@ -93,7 +93,7 @@ test('nested and asynchronous transaction callbacks cannot partially commit', as
   assert.equal(value(await f.api.jobs.getJob({ id: f.job.id })).title, 'PRIVATE_JOB_TITLE')
 })
 
-for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V23 preserving business rows and historical checksums`, t => {
+for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V24 preserving business rows and historical checksums`, t => {
   const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path)
   migrate(connection, migrations.slice(0, version))
   const transactions = new LegacyTransactions(connection)
@@ -106,7 +106,7 @@ for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V23
   assert.deepEqual(next.connection.prepare('SELECT * FROM jobs').all(), before)
   assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(job.id)?.title, job.title)
   assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=? ORDER BY version').all(version), versions)
-  assert.equal(next.connection.prepare('SELECT max(version) v FROM schema_migrations').get()?.v, 23)
+  assert.equal(next.connection.prepare('SELECT max(version) v FROM schema_migrations').get()?.v, 24)
   assert.equal(next.connection.prepare("SELECT count(*) n FROM sqlite_master WHERE name IN ('audit_logs','capability_audit','invocation_owners')").get()?.n, 0)
 })
 

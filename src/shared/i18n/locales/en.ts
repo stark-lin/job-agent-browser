@@ -665,9 +665,9 @@ export const en = {
     }
 },
   profile: {
-    profiles: 'Profiles', chooseProfile: 'Current profile', profileTitle: 'Profile title', newProfile: 'New profile', duplicate: 'Duplicate', freeze: 'Confirm and freeze', restore: 'Restore approved version', confirm: 'Confirm', appendCurrent: 'Append to current profile',
-    status: { DRAFT: 'Draft', READY: 'Ready' }, actions: { new: 'Create profile', duplicate: 'Duplicate working profile', freeze: 'Confirm and freeze', restore: 'Restore approved version' },
-    freezeDescription: 'Confirm that you have reviewed this structured profile. Its baseline will be saved once and cannot be changed. Later edits affect only the working copy.',
+    profiles: 'Profiles', chooseProfile: 'Current profile', profileTitle: 'Profile title', newProfile: 'New profile', duplicate: 'Duplicate', freeze: 'Confirm profile', restore: 'Restore approved version', confirm: 'Confirm', appendCurrent: 'Append to current profile',
+    actions: { new: 'Create profile', duplicate: 'Duplicate working profile', freeze: 'Confirm profile', restore: 'Restore approved version' },
+    freezeDescription: 'Confirm the reviewed profile. Keep this structured snapshot for restoring later; subsequent edits change only the working copy.',
     restoreDescription: 'Replace this profile’s current title, contact, introduction, items and facts with the approved version. Current working changes will be replaced. Other profiles, chat and generated resumes remain unchanged.',
     switchTitle: 'Leave without saving?', switchDescription: 'Unsaved forms and the current import draft will be discarded. Previously saved content stays saved.', leave: 'Discard and switch',
 

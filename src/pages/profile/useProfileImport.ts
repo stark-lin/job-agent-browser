@@ -5,7 +5,7 @@ import type { ApplyImport, ImportDraft } from '../../domain/candidate/import.typ
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { ImportEvent, ImportTask, PdfSelection } from '../../platform/electron/profile-import-contract'
 import { revealSectionCards } from '../../shared/ui'
-import { importError, importSelection, savedSelection } from './import-state'
+import { importError, importSelection } from './import-state'
 
 export function useProfileImport(profile: Profile | null, onSaved: (profile: Profile) => Promise<void>, preferredChoice?: AIChoice | null) {
   const { data, profileImport, context } = useServices()
@@ -19,7 +19,6 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
   const selected = useRef<AIChoice | null>(null), [choice, setChoice] = useState<AIChoice | null>(null)
   const [append, setAppend] = useState(false)
   const targetProfileId = useRef<string | null>(null)
-  const importedProfileId = useRef<string | null>(null)
   function event(message: ImportEvent) {
     if (!alive.current) return
     if (!task.current) { if (starting.current) early.current.push(message); return }
@@ -63,7 +62,7 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
       if (!result.ok) { setError(result.error); setStage('failed'); return }
       if (!result.value) { setStage('idle'); return }
       if (file.current) await profileImport.discard({ fileId: file.current.fileId })
-      importedProfileId.current = null; targetProfileId.current = append ? profile?.id ?? null : null
+      targetProfileId.current = append ? profile?.id ?? null : null
       setDraft(null); setSaved(false); setFrozen(false); pending.current = null; task.current = null
       file.current = result.value; if (parseImmediately) await start(); else setStage('idle')
     } catch { if (alive.current) { setError('PDF_INVALID'); setStage('failed') } }
@@ -73,7 +72,7 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
     if (saving) return
     try {
       if (file.current) await profileImport.discard({ fileId: file.current.fileId })
-      file.current = null; task.current = null; pending.current = null; importedProfileId.current = null; targetProfileId.current = null
+      file.current = null; task.current = null; pending.current = null; targetProfileId.current = null
       setDraft(null); setError(''); setRetryable(false); setStage('idle'); setSaved(false); setFrozen(false)
     } catch { setError('STORAGE_UNAVAILABLE') }
   }
@@ -92,16 +91,19 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
       }
       return
     }
-    const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), importedProfileId.current ?? targetProfileId.current)
+    const input = pending.current ?? importSelection(draft, task.current.sessionId, crypto.randomUUID(), targetProfileId.current)
     if (!Object.keys(input.contact).length && !input.items.length && !input.facts.length && !input.links.length) { setError('noContent'); return }
     lock.current = true; setSaving(true); setError(''); pending.current = input; setFrozen(true)
     try {
       const result = await data.profiles.applyImport(input)
       if (!alive.current) return
       if (!result.ok) { setError(result.error); pending.current = null; setFrozen(false); return }
-      importedProfileId.current = result.value.profile.id
       context.setReferences({ profileId: result.value.profile.id })
-      setDraft(savedSelection(draft, input, result.value)); pending.current = null; setFrozen(false); setSaved(true)
+      // Main saves the complete reviewed selection and its initial snapshot atomically.
+      setDraft(null); pending.current = null; setFrozen(false); setSaved(true)
+      const source = file.current
+      file.current = null; task.current = null; targetProfileId.current = null
+      if (source) await profileImport.discard({ fileId: source.fileId })
       await onSaved(result.value.profile)
     } catch { if (alive.current) setError('STORAGE_UNAVAILABLE') }
     finally { lock.current = false; if (alive.current) setSaving(false) }
