@@ -11,7 +11,7 @@ export function createFactService(repo: CandidateRepository, tx: UnitOfWork, run
   }
   return {
     addFact(input: unknown) {
-      return tx.write({ event: 'FACT_ADD', action: 'CREATE', target: 'fact' }, () => {
+      return tx.write(() => {
         const args = v.object({ profileId: v.id, profileItemId: v.optionalId, details: factDetails })(input)
         repo.getProfile(args.profileId)
         checkItem(args.profileId, args.profileItemId)
@@ -22,7 +22,7 @@ export function createFactService(repo: CandidateRepository, tx: UnitOfWork, run
       })
     },
     editFact(input: unknown) {
-      return tx.write({ event: 'FACT_EDIT', action: 'UPDATE', target: 'fact' }, () => {
+      return tx.write(() => {
         const args = v.object({ id: v.id, profileItemId: v.optionalId, details: factDetails })(input)
         const current = repo.getFact(args.id)
         checkItem(current.profileId, args.profileItemId)
@@ -32,7 +32,7 @@ export function createFactService(repo: CandidateRepository, tx: UnitOfWork, run
       })
     },
     deleteFact(input: unknown) {
-      return tx.write({ event: 'FACT_DELETE', action: 'DELETE', target: 'fact' }, () => { const { id } = v.byId(input); repo.getFact(id); repo.removeFact(id); return { id } })
+      return tx.write(() => { const { id } = v.byId(input); repo.getFact(id); repo.removeFact(id); return { id } })
     },
     listFacts(input: unknown) { return tx.read(() => { const args = v.object({ profileId: v.id, ...v.pageFields })(input); repo.getProfile(args.profileId); return repo.facts(args.profileId, args.limit, args.offset) }) }
   }

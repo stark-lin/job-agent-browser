@@ -99,7 +99,7 @@ test('an unwritable preference directory preserves the previous file and emits n
   assert.deepEqual(notifications, ['en'])
 })
 
-test('keys are encrypted, replaceable and removable; API returns only status and never audits key material', t => {
+test('keys are encrypted, replaceable and removable; API returns only status and never returns key material', t => {
   const directory = temporary(t), path = join(directory, 'secrets.enc'), protector = protection()
   const secrets = createSecrets(path, protector), settings = createPreferences(join(directory, 'settings.json'))
   const backend = composeBackend(openDatabase(':memory:'), { secrets, settings })
@@ -115,7 +115,7 @@ test('keys are encrypted, replaceable and removable; API returns only status and
   body = readFileSync(path, 'utf8')
   assert.equal(protector.decrypt(Buffer.from(JSON.parse(body).providers.openai, 'base64')), 'PRIVATE_KEY_TWO')
   assert.deepEqual(createSecrets(path, protector).hasProviderKey({ provider: 'openai' }), { configured: true, available: true })
-  assert.equal(JSON.stringify(backend.dispatch('audit', 'list', {})).includes('PRIVATE_KEY'), false)
+  assert.equal(JSON.stringify(backend.dispatch('secrets', 'hasProviderKey', { provider: 'custom' })).includes('PRIVATE_KEY'), false)
   assert.deepEqual(secrets.deleteProviderKey({ provider: 'openai' }), { configured: false, available: true })
   assert.equal(JSON.parse(readFileSync(path, 'utf8')).providers.openai, undefined)
 })
@@ -135,7 +135,6 @@ test('unavailable encryption and encryption failures preserve the key; invalid i
   assert.equal(readFileSync(path, 'utf8'), before)
   assert.deepEqual(unavailable.deleteProviderKey({ provider: 'openai' }), { configured: false, available: false })
 })
-
 
 test('legacy OpenAI ciphertext migrates on write without decrypting other providers', t => {
   const path = join(temporary(t), 'secrets.enc'), protector = protection()

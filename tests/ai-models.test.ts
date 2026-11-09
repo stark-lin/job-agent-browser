@@ -15,10 +15,10 @@ async function server(t: TestContext, handler: (request: IncomingMessage, respon
 }
 function fixture(t: TestContext, baseURL: string, requiresKey = false, timeoutMs = 1000) {
   const settings: AISettings = { providers: [{ id: 'local', name: 'LM Studio', baseURL, requiresKey, models: [], defaultModel: '' }], default: null }
-  let keys = 0, audits = 0
-  const ai = createAIService({ settings: () => settings, key: () => { keys++; return 'PRIVATE_KEY' }, audit: () => { audits++ }, timeoutMs })
+  let keys = 0
+  const ai = createAIService({ settings: () => settings, key: () => { keys++; return 'PRIVATE_KEY' }, timeoutMs })
   t.after(() => ai.dispose())
-  return { ai, settings, keys: () => keys, audits: () => audits }
+  return { ai, settings, keys: () => keys }
 }
 const input = { providerId: 'local' }
 
@@ -34,7 +34,7 @@ test('bare endpoints and explicit API roots share GET model discovery and POST c
     const f = fixture(t, root + suffix)
     assert.deepEqual(await f.ai.listModels(1, input), ['a-model', 'z/model'])
     assert.deepEqual(f.settings.providers[0].models, [])
-    assert.equal(f.keys(), 0); assert.equal(f.audits(), 0)
+    assert.equal(f.keys(), 0)
     const response = await postChat({ provider: f.settings.providers[0], key: null, model: 'a-model' }, { messages: [] }, new AbortController().signal, false)
     await response.body?.cancel()
     assert.deepEqual(requests.slice(-2), [`GET ${path}/models`, `POST ${path}/chat/completions`])
@@ -51,7 +51,7 @@ test('discovery snapshots saved configuration and credentials without requiring 
   f.settings.providers[0].baseURL = 'http://127.0.0.1:1'
   f.settings.providers[0].requiresKey = false
   assert.deepEqual(await pending, ['local/model'])
-  assert.equal(f.keys(), 1); assert.equal(f.audits(), 0)
+  assert.equal(f.keys(), 1)
 })
 
 test('invalid inputs and missing provider/key fail before network access', async t => {
@@ -60,7 +60,7 @@ test('invalid inputs and missing provider/key fail before network access', async
     assert.throws(() => f.ai.listModels(1, value), { code: 'INVALID_INPUT' })
   }
   assert.throws(() => f.ai.listModels(1, { providerId: 'missing' }), { code: 'AI_NOT_CONFIGURED' })
-  const ai = createAIService({ settings: () => ({ ...f.settings, providers: [{ ...f.settings.providers[0], requiresKey: true }] }), key: () => null, audit: () => assert.fail('no generation audit') })
+  const ai = createAIService({ settings: () => ({ ...f.settings, providers: [{ ...f.settings.providers[0], requiresKey: true }] }), key: () => null,  })
   t.after(() => ai.dispose())
   assert.throws(() => ai.listModels(1, input), { code: 'AI_NOT_CONFIGURED' })
 })

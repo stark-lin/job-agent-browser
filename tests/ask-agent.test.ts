@@ -1,3 +1,4 @@
+import { ToolError } from '../src/shared/tools/errors'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -33,7 +34,7 @@ test('Ask AI streams read/write tools over real first-party MCP, stores full too
   assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).items.filter(e => e.type === 'NOTE').length, 1)
   assert(events.every((e, index) => e.eventSequence === index + 1))
   assert.equal(f.backend.chats.snapshot(ids.runId).run.eventSequence, events.at(-1)?.eventSequence)
-  assert(f.backend.toolAudit.list().filter(a => a.agent_id === 'internal.ask-ai').length >= 8)
+
   assert.throws(() => tasks.getRun(2, { runId: ids.runId }), { code: 'FORBIDDEN' })
 })
 test('per-session exclusion, two simultaneous sessions, targeted cancellation, owner disposal and durable model snapshots', async t => {
@@ -57,14 +58,24 @@ test('per-session exclusion, two simultaneous sessions, targeted cancellation, o
   assert.equal(tasks.listActive(1, {}).length, 0)
 })
 
-test('uncertain write audits stop execution without offering a replay and retains attempted inputs', async t => {
+test('uncertain write responses stop execution without offering a replay and retains attempted inputs', async t => {
   const f = await firstPartyFixture(t), input = start('Add a note'), events: AgentRunEvent[] = []
+  const open = f.mcp.openAgentRun.bind(f.mcp)
+  f.mcp.openAgentRun = async (...args) => {
+    const run = await open(...args), call = run.tools.call.bind(run.tools)
+    run.tools.call = async (name, input, signal) => {
+      const output = await call(name, input, signal)
+      if (name === 'application.add_note' || name === 'job.import') throw new ToolError('TOOL_EXECUTION_FAILED')
+      return output
+    }
+    return run
+  }
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream() {
-    f.flag('fail-audit-finish'); yield* batch({ id: 'note', name: 'application.add_note', arguments: { requestId: randomUUID(), jobId: f.job.id, text: 'Uncertain committed note' } })
+    yield* batch({ id: 'note', name: 'application.add_note', arguments: { requestId: randomUUID(), jobId: f.job.id, text: 'Uncertain committed note' } })
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
   const ids = tasks.start(1, input, e => events.push(e)), snapshot = await wait(tasks, ids.runId)
-  assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'TOOL_AUDIT_UNAVAILABLE'); assert(snapshot.run.writeStarted)
+  assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'TOOL_EXECUTION_FAILED'); assert(snapshot.run.writeStarted)
   assert.equal(snapshot.items.at(-1)?.state, 'uncertain')
   assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).total, 1)
   assert(JSON.stringify(snapshot).includes('Uncertain committed note'))
@@ -97,19 +108,28 @@ for (const name of ['resume.start', 'resume.cancel', 'resume.fail', 'artifact.bu
   assert.equal(snapshot.run.error, 'AGENT_PROTOCOL_ERROR')
   assert.equal(snapshot.run.writeStarted, false)
   assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.outputs(), 0)
-  assert(!f.backend.toolAudit.list().some(row => row.tool_name === name))
 })
 
 test('uncertain job import marks the new write and never replays it', async t => {
   const f = await firstPartyFixture(t)
   let calls = 0
+  const open = f.mcp.openAgentRun.bind(f.mcp)
+  f.mcp.openAgentRun = async (...args) => {
+    const run = await open(...args), call = run.tools.call.bind(run.tools)
+    run.tools.call = async (name, input, signal) => {
+      const output = await call(name, input, signal)
+      if (name === 'application.add_note' || name === 'job.import') throw new ToolError('TOOL_EXECUTION_FAILED')
+      return output
+    }
+    return run
+  }
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream() {
-    calls++; f.flag('fail-audit-finish')
+    calls++;
     yield* batch({ id: 'import', name: 'job.import', arguments: { requestId: randomUUID(), details: { title: 'PRIVATE_UNCERTAIN_IMPORT', companyNameRaw: 'Fixture' } } })
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
   const ids = tasks.start(1, start('Save this job'), () => {}), snapshot = await wait(tasks, ids.runId)
-  assert.equal(snapshot.run.error, 'TOOL_AUDIT_UNAVAILABLE'); assert(snapshot.run.writeStarted)
+  assert.equal(snapshot.run.error, 'TOOL_EXECUTION_FAILED'); assert(snapshot.run.writeStarted)
   assert.equal(snapshot.items.at(-1)?.state, 'uncertain'); assert.equal(calls, 1)
   assert.equal(f.backend.jobs.listJobs({ search: 'PRIVATE_UNCERTAIN_IMPORT' }).total, 1)
   assert(JSON.stringify(snapshot).includes('PRIVATE_UNCERTAIN_IMPORT'))
@@ -133,5 +153,4 @@ test('Ask AI reads and writes shared Markdown through real MCP and records compl
   assert.equal(snapshot.run.state,'completed',snapshot.run.error??'');assert(snapshot.run.writeStarted)
   const {readFileSync}=await import('node:fs');const {join}=await import('node:path');assert.equal(readFileSync(join(f.directory,'smart-note','knowledge','interview','notes.md'),'utf8'),'PRIVATE_KNOWLEDGE_BODY final pricing')
   const text=JSON.stringify(snapshot);assert(text.includes('PRIVATE_KNOWLEDGE_BODY'));assert(snapshot.items.filter(item=>item.content.type==='tool_call'&&!item.content.toolName.startsWith('tool.')).every(item=>item.content.type==='tool_call'&&['knowledgeRead','knowledgeWrite'].includes(item.content.display.key)))
-  assert(!JSON.stringify(f.backend.toolAudit.list()).includes('interview/notes.md'))
 })

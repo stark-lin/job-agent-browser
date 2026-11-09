@@ -26,7 +26,7 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
   }
   return {
     saveJob(input: unknown, requestId?: string) {
-      return tx.write({ event: 'JOB_SAVE', action: 'CREATE', target: 'job' }, () => {
+      return tx.write(() => {
         const args = v.object({ details: jobDetails, source: v.optional(v.nullable(sourceDetails), null) })(input)
         return withReceipt(receipts, 'job.import', requestId, args, 'job', () => {
           const now = runtime.now()
@@ -38,7 +38,7 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       })
     },
     patchDetails(input: unknown) {
-      return tx.write({ event: 'JOB_EDIT', action: 'UPDATE', target: 'job' }, () => {
+      return tx.write(() => {
         const { id, changes } = v.object({ id: v.id, changes: parseJobChanges })(input), previous = repo.get(id)
         const details = validateDetails({ ...Object.fromEntries(persistableJobFields.map(key => [key, previous[key]])), ...changes })
         if (Object.entries(details).every(([key, value]) => JSON.stringify(previous[key as keyof Job]) === JSON.stringify(value))) return previous
@@ -48,7 +48,7 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       })
     },
     updateDetails(input: unknown) {
-      return tx.write({ event: 'JOB_EDIT', action: 'UPDATE', target: 'job' }, () => {
+      return tx.write(() => {
         const { id, details } = v.object({ id: v.id, details: jobDetails })(input)
         const job = { ...repo.get(id), ...validateDetails(details), updatedAt: runtime.now() }
         repo.save(job)
@@ -56,14 +56,14 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       })
     },
     attachSource(input: unknown) {
-      return tx.write({ event: 'JOB_SOURCE_ATTACH', action: 'CREATE', target: 'job_source' }, () => {
+      return tx.write(() => {
         const args = v.object({ jobId: v.id, source: sourceDetails })(input)
         repo.get(args.jobId)
         return addSource(args.jobId, args.source)
       })
     },
     setArchived(input: unknown) {
-      return tx.write({ event: 'JOB_ARCHIVE', action: 'UPDATE', target: 'job' }, () => {
+      return tx.write(() => {
         const { id, archived } = v.object({ id: v.id, archived: v.boolean })(input)
         const job = repo.get(id)
         if (Boolean(job.archivedAt) === archived) return job
@@ -74,13 +74,13 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       })
     },
     deleteJob(input: unknown) {
-      return tx.write({ event: 'JOB_DELETE', action: 'DELETE', target: 'job' }, () => { const { id } = v.byId(input); repo.get(id); repo.remove(id); return { id } })
+      return tx.write(() => { const { id } = v.byId(input); repo.get(id); repo.remove(id); return { id } })
     },
     getJob(input: unknown) { return tx.read(() => { const { id } = v.byId(input); return repo.get(id) }) },
     listJobs(input: unknown) { return tx.read(() => repo.list(jobFilter(input))) },
     listSources(input: unknown) { return tx.read(() => { const args = v.object({ jobId: v.id, ...v.pageFields })(input); repo.get(args.jobId); return repo.sources(args.jobId, args.limit, args.offset) }) },
     registerCompany(input: unknown) {
-      return tx.write({ event: 'COMPANY_REGISTER', action: 'CREATE', target: 'company' }, () => {
+      return tx.write(() => {
         const details = companyDetails(input), now = runtime.now()
         const company = { ...details, id: runtime.id(), normalizedName: details.name.trim().toLowerCase(), createdAt: now, updatedAt: now }
         repo.insertCompany(company)
@@ -88,7 +88,7 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       })
     },
     updateCompany(input: unknown) {
-      return tx.write({ event: 'COMPANY_EDIT', action: 'UPDATE', target: 'company' }, () => {
+      return tx.write(() => {
         const { id, details } = v.object({ id: v.id, details: companyDetails })(input)
         const company = { ...repo.getCompany(id), ...details, normalizedName: details.name.trim().toLowerCase(), updatedAt: runtime.now() }
         repo.saveCompany(company)
@@ -96,7 +96,7 @@ export function createJobService(repo: JobRepository, tx: UnitOfWork, runtime: R
       })
     },
     deleteCompany(input: unknown) {
-      return tx.write({ event: 'COMPANY_DELETE', action: 'DELETE', target: 'company' }, () => { const { id } = v.byId(input); repo.getCompany(id); repo.removeCompany(id); return { id } })
+      return tx.write(() => { const { id } = v.byId(input); repo.getCompany(id); repo.removeCompany(id); return { id } })
     },
     listCompanies(input: unknown) { return tx.read(() => { const args = v.page(input); return repo.companies(args.limit, args.offset) }) }
   }

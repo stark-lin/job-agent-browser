@@ -18,12 +18,10 @@ const choice = { providerId: 'fixture', modelId: 'test' }
 const diagnostic = (ordinal: number): RequestDiagnostic => ({ ordinal, ...choice, preparedAt: new Date().toISOString(), purpose: ordinal === 2 ? 'context-summary' : 'agent-turn', loadoutVersion: 1,
   expectedTools: toolSnapshot([descriptor()]), piTools: toolSnapshot([descriptor()]), tools: toolSnapshot([descriptor()]), verification: 'matched' })
 
-test('Main stores deletable diagnostics with pagination, terminal failure and no transcript or audit changes', async t => {
+test('Main stores deletable diagnostics with pagination, terminal failure and independent transcript state', async t => {
   const f = await seed(t), repo = f.backend.chats
   const ids = repo.start({ requestId: randomUUID(), message: 'PRIVATE_REQUEST_BODY', choice })
   const snapshot = repo.snapshot(ids.runId), recorder = createAgentRecorder(repo, snapshot, () => {}, () => {})
-  const audits = f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all()
-  const capabilities = f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all()
   recorder.receive({ type: 'model.request.prepared', request: diagnostic(1) })
   recorder.receive({ type: 'model.request.prepared', request: diagnostic(2) })
   recorder.receive({ type: 'model.request.activation', activation: { names: ['job.list'], repeats: 1, reason: 'already-active' } })
@@ -47,8 +45,6 @@ test('Main stores deletable diagnostics with pagination, terminal failure and no
   assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
   assert.equal(repo.listModelRequests(other.runId, 100, 0).total, 1)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).id, f.job.id)
-  assert.deepEqual(f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all(), audits)
-  assert.deepEqual(f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all(), capabilities)
 })
 test('request diagnostics survive reopen and cascade after deletion', t => {
   const directory = mkdtempSync(join(tmpdir(), 'chat-requests-')), path = join(directory, 'database.sqlite')

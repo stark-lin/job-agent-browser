@@ -3,7 +3,7 @@ import type { ChatModelRequest } from '../../../domain/chat/chat.types'
 import type { ActivationDiagnostic, RequestDiagnostic } from '../../../shared/agent'
 import { fail } from '../../../domain/common/errors'
 
-/** Main-owned private diagnostics, intentionally independent of audit writers. */
+/** Main-owned private Agent request diagnostics. */
 export function chatModelRequestsRepository(db: DatabaseSync, transaction: <T>(op: () => T) => T, assertRunning: (id: string) => void, read: <T>(op: () => T) => T, linkRequest: (runId: string, index: number, ordinal: number) => void) {
   return {
     saveModelRequest(runId: string, request: RequestDiagnostic, cycleIndex?: number) {

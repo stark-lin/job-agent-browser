@@ -46,7 +46,7 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => { server.closeAllConnections(); server.close() })
-  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, { audit() {} })
+  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {  })
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'Find my saved jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
@@ -57,7 +57,7 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
   assert.equal(requests.length, 4)
   assert(snapshot.items.some(item => item.content.type === 'assistant_message' && item.content.text === 'Saved job found.'))
-  assert.equal(f.backend.toolAudit.list().filter(row => row.phase === 'START' && row.tool_name === 'job.list').length, 1)
+
   const diagnostics = f.backend.chats.listModelRequests(ids.runId, 100, 0)
   assert.equal(diagnostics.total, 4)
   for (const [index, row] of diagnostics.items.entries()) {
@@ -66,13 +66,9 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
     assert.deepEqual(row.tools.map(tool => tool.providerName), requests[index].tools.map(tool => tool.function.name))
     assert.deepEqual(row.tools.map(tool => tool.schemaHash), requests[index].tools.map(tool => fingerprint(tool.function.parameters)))
   }
-  const auditBefore = f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all()
-  const capabilitiesBefore = f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all()
   f.backend.chats.deleteSession(ids.sessionId)
   assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).id, f.job.id)
-  assert.deepEqual(f.database.connection.prepare('SELECT * FROM audit_logs ORDER BY rowid').all(), auditBefore)
-  assert.deepEqual(f.database.connection.prepare('SELECT * FROM capability_audit ORDER BY rowid').all(), capabilitiesBefore)
 })
 test('activation loop fails the persisted Run, retains diagnostics, and stops the remaining MCP batch', async t => {
   const f = await firstPartyFixture(t)
@@ -84,7 +80,7 @@ test('activation loop fails the persisted Run, retains diagnostics, and stops th
   const snapshot = tasks.getRun(1, { runId: ids.runId })
   assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'AGENT_STEP_LIMIT')
   assert.equal(fixture.requests.length, 3)
-  assert.equal(f.backend.toolAudit.list().filter(row => row.phase === 'START' && row.tool_name === 'job.list').length, 0)
+
   const records = f.backend.chats.listModelRequests(ids.runId, 100, 0).items
   assert.deepEqual(records.flatMap(row => row.activations.map(value => value.repeats)), [1, 2])
   assert.equal(records[2].activations[0].reason, 'activation-loop')
@@ -100,5 +96,4 @@ for (const sink of ['saveModelRequest', 'saveActivationDiagnostic'] as const) te
   const snapshot = tasks.getRun(1, { runId: ids.runId })
   assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'STORAGE_UNAVAILABLE')
   assert.equal(fixture.requests.length, sink === 'saveModelRequest' ? 0 : 2)
-  assert.equal(f.backend.toolAudit.list().filter(row => row.phase === 'START' && row.tool_name === 'job.list').length, 0)
 })

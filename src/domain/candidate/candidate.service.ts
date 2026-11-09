@@ -10,14 +10,14 @@ export function createCandidateService(repo: CandidateRepository, tx: UnitOfWork
   return {
     ...createItemService(repo, tx, runtime), ...createFactService(repo, tx, runtime), ...createImportService(repo, tx, runtime),
     createProfile(input: unknown) {
-      return tx.write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => {
+      return tx.write(() => {
         const profile = { ...profileDetails(input), id: runtime.id(), updatedAt: runtime.now(), revision: 1 }
         repo.insertProfile(profile)
         return profile
       })
     },
     editContact(input: unknown) {
-      return tx.write({ event: 'PROFILE_CONTACT_EDIT', action: 'UPDATE', target: 'profile' }, () => {
+      return tx.write(() => {
         const { id, details } = v.object({ id: v.id, details: profileEdit })(input)
         const existing = repo.getProfile(id)
         const profile = { ...existing, ...details, introduction: details.introduction ?? existing.introduction, updatedAt: runtime.now() }
@@ -26,7 +26,7 @@ export function createCandidateService(repo: CandidateRepository, tx: UnitOfWork
       })
     },
     deleteProfile(input: unknown) {
-      return tx.write({ event: 'PROFILE_DELETE', action: 'DELETE', target: 'profile' }, () => { const { id } = v.byId(input); repo.getProfile(id); repo.removeProfile(id); return { id } })
+      return tx.write(() => { const { id } = v.byId(input); repo.getProfile(id); repo.removeProfile(id); return { id } })
     },
     getProfile(input: unknown) { return tx.read(() => repo.getProfile(v.byId(input).id)) },
     listProfiles(input: unknown) { return tx.read(() => { const args = v.page(input); return repo.profiles(args.limit, args.offset) }) }

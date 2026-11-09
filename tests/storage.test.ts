@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Transactions } from '../src/platform/database/transactions'
+import { LegacyTransactions } from './legacy-migration-fixture'
 import { Store } from '../src/platform/database/repositories/store'
 import { jobRepository } from '../src/platform/database/repositories/jobs'
 import { createJobService } from '../src/domain/job/job.service'
@@ -27,7 +27,7 @@ test('migrations create all tables once and enforce configured SQLite settings',
   const f = fixture(t), db = f.database.connection
   assert.equal(db.prepare('PRAGMA foreign_keys').get()?.foreign_keys, 1)
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all()
-  assert.equal(tables.length, 28)
+  assert.equal(tables.length, 25)
   assert(tables.some(table => table.name === 'profile_order_counters'))
   assert(tables.some(table => table.name === 'agent_react_cycles'))
   migrate(db)
@@ -53,7 +53,7 @@ test('future versions and checksum mismatches fail startup without resetting sto
   assert.throws(() => openDatabase(path), /MIGRATION_MISMATCH/)
 })
 
-test('data survives reopen and interrupted generation is recovered with SYSTEM audit', async (t) => {
+test('data survives reopen and interrupted generation is recovered', async (t) => {
   const { path, resources } = tempDatabase(t), first = fixture(resources, path)
   const job = value(await first.api.jobs.saveJob({ details: { title: 'Persisted', companyNameRaw: 'Company' } }))
   const profile = value(await first.api.profiles.createProfile({ name: 'Person', introduction: 'Original introduction.\nSecond sentence.' }))
@@ -65,91 +65,49 @@ test('data survives reopen and interrupted generation is recovered with SYSTEM a
   assert.equal(value(await second.api.resumes.getRun({ id: run.id })).run.inputSnapshot.profile.introduction, profile.introduction)
   assert.equal(value(await second.api.jobs.getJob({ id: job.id })).title, 'Persisted')
   assert.equal(value(await second.api.resumes.getRun({ id: run.id })).run.state, 'INTERRUPTED')
-  const audit = value(await second.api.audit.list({ targetId: run.id })).items
-  assert.equal(audit[0].eventType, 'GENERATION_RECOVER')
-  assert.equal(audit[0].actorId, 'system')
-  assert.equal(audit[0].source, 'STARTUP')
   assert.equal(second.database.connection.prepare('PRAGMA journal_mode').get()?.journal_mode, 'wal')
 })
 
-test('audit append failure rolls business back and records the failed operation', async (t) => {
+test('failed business writes and read-only storage preserve their original errors and data', async t => {
   const f = await seed(t), db = f.database.connection
-  let denied = false
-  db.setAuthorizer((action, table) => {
-    if (!denied && table === 'audit_logs' && action === constants.SQLITE_INSERT) { denied = true; return constants.SQLITE_DENY }
-    return constants.SQLITE_OK
-  })
-  const result = await f.api.jobs.setArchived({ id: f.job.id, archived: true })
-  assert.deepEqual(result, { ok: false, error: 'STORAGE_UNAVAILABLE' })
-  f.database.transactions.protectAudit()
+  db.setAuthorizer((action, table) => action === constants.SQLITE_UPDATE && table === 'jobs' ? constants.SQLITE_DENY : constants.SQLITE_OK)
+  assert.deepEqual(await f.api.jobs.setArchived({ id: f.job.id, archived: true }), { ok: false, error: 'STORAGE_UNAVAILABLE' })
+  db.setAuthorizer(null)
   assert.equal(value(await f.api.jobs.getJob({ id: f.job.id })).archivedAt, null)
-  const latest = value(await f.api.audit.list({})).items[0]
-  assert.equal(latest.status, 'FAILURE')
-  assert.equal(latest.eventType, 'JOB_ARCHIVE')
-})
-
-test('unwritable failure audit is reported explicitly and produces no false success', async (t) => {
-  const f = await seed(t), before = value(await f.api.audit.list({})).total
-  f.database.connection.exec('PRAGMA query_only=ON')
-  assert.deepEqual(await f.api.jobs.setArchived({ id: f.job.id, archived: true }), { ok: false, error: 'AUDIT_UNAVAILABLE' })
-  f.database.connection.exec('PRAGMA query_only=OFF')
-  assert.equal(value(await f.api.audit.list({})).total, before)
+  db.exec('PRAGMA query_only=ON')
+  assert.deepEqual(await f.api.jobs.setArchived({ id: f.job.id, archived: true }), { ok: false, error: 'STORAGE_UNAVAILABLE' })
+  db.exec('PRAGMA query_only=OFF')
   assert.equal(value(await f.api.jobs.getJob({ id: f.job.id })).archivedAt, null)
 })
 
 test('nested and asynchronous transaction callbacks cannot partially commit', async (t) => {
-  const f = await seed(t), tx = f.database.transactions.forActor('USER')
-  const command = { event: 'JOB_EDIT', action: 'UPDATE' as const, target: 'job' as const }
-  assert.throws(() => tx.write(command, () => {
+  const f = await seed(t), tx = f.database.transactions
+  assert.throws(() => tx.write(() => {
     f.database.connection.prepare('UPDATE jobs SET title=? WHERE id=?').run('partial', f.job.id)
-    return tx.write(command, () => 1)
+    return tx.write(() => 1)
   }), { code: 'INVALID_STATE' })
-  assert.throws(() => tx.write(command, () => {
+  assert.throws(() => tx.write(() => {
     f.database.connection.prepare('UPDATE jobs SET title=? WHERE id=?').run('partial', f.job.id)
     return Promise.resolve(1)
   }), { code: 'INVALID_STATE' })
   assert.equal(value(await f.api.jobs.getJob({ id: f.job.id })).title, 'PRIVATE_JOB_TITLE')
 })
 
-test('matching-generation version-1 upgrade preserves business rows, audit sequences and existing migration checksums', t => {
+for (const version of [1, 2, 4, 5, 9, 14, 21]) test(`V${version} upgrades to V22 preserving business rows and historical checksums`, t => {
   const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path)
-  // Exercise incremental initialization within the new schema generation.
-  const transactions = new Transactions(connection)
-  migrate(connection, migrations.slice(0, 1)); transactions.protectAudit()
-  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
+  migrate(connection, migrations.slice(0, version))
+  const transactions = new LegacyTransactions(connection)
+  const jobs = createJobService(jobRepository(new Store(connection)), transactions, { id: randomUUID, now: () => new Date().toISOString() })
   const job = jobs.saveJob({ details: { title: 'Persisted private role', companyNameRaw: 'Company' } })
-  const before = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all()
-  const checksum = connection.prepare('SELECT checksum FROM schema_migrations WHERE version=1').get()?.checksum
-  connection.close()
-  const next = openDatabase(path)
-  resources.after(next.close)
-  assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(job.id)?.title, 'Persisted private role')
-  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), before)
-  assert.equal(next.connection.prepare('SELECT checksum FROM schema_migrations WHERE version=1').get()?.checksum, checksum)
-  const requestId = randomUUID()
-  next.transactions.recordAI(requestId, null)
-  assert.throws(() => next.transactions.recordAI(requestId, null), { code: 'AUDIT_UNAVAILABLE' })
-  assert.equal(next.connection.prepare('SELECT count(*) count FROM audit_logs WHERE request_id=?').get(requestId)?.count, 1)
-  assert.throws(() => next.connection.exec('DELETE FROM audit_logs'))
-  assert.throws(() => next.connection.exec("UPDATE audit_logs SET component='forged'"))
-  assert.throws(() => next.connection.exec('INSERT INTO audit_logs SELECT * FROM audit_logs LIMIT 1'))
-})
-
-test('matching-generation version-2 upgrade adds capability audit without changing historical rows or migration checksums', t => {
-  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
-  migrate(connection, migrations.slice(0, 2)); transactions.protectAudit()
-  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
-  jobs.saveJob({ details: { title: 'Retained role', companyNameRaw: 'Retained company' } })
-  transactions.recordAI(randomUUID(), 'AI_CANCELLED')
-  const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all()
+  const before = connection.prepare('SELECT * FROM jobs').all()
   const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
-  const next = openDatabase(path)
-  resources.after(next.close)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=2 ORDER BY version').all(), versions)
-  assert.equal(next.connection.prepare('SELECT count(*) count FROM capability_audit').get()?.count, 0)
-  assert.equal(next.connection.prepare('SELECT count(*) count FROM jobs').get()?.count, 1)
+  const next = openDatabase(path); resources.after(next.close)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM jobs').all(), before)
+  assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(job.id)?.title, job.title)
+  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=? ORDER BY version').all(version), versions)
+  assert.equal(next.connection.prepare('SELECT max(version) v FROM schema_migrations').get()?.v, 22)
+  assert.equal(next.connection.prepare("SELECT count(*) n FROM sqlite_master WHERE name IN ('audit_logs','capability_audit','invocation_owners')").get()?.n, 0)
 })
 
 test('legacy generation is rejected before journal/schema writes and bytes remain unchanged', t => {
@@ -161,65 +119,15 @@ test('legacy generation is rejected before journal/schema writes and bytes remai
   assert.deepEqual(readFileSync(path), bytes)
 })
 
-test('matching-generation version-4 upgrade adds durable receipts and preserves business data, audits and migration checksums', t => {
-  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
-  migrate(connection, migrations.slice(0, 4)); transactions.protectAudit()
-  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
-  const saved = jobs.saveJob({ details: { title: 'Existing v4 job', companyNameRaw: 'Company' } })
-  const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all()
-  const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
-  connection.close()
-  const next = openDatabase(path)
-  resources.after(next.close)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=4 ORDER BY version').all(), versions)
-  assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v4 job')
-  assert.equal(next.connection.prepare('SELECT count(*) n FROM operation_receipts').get()?.n, 0)
-})
-
-test('matching-generation version-5 upgrade adds chat storage without changing prior checksums, jobs or audits', t => {
-  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
-  migrate(connection, migrations.slice(0, 5)); transactions.protectAudit()
-  const jobs = createJobService(jobRepository(new Store(connection, transactions)), transactions.forActor('USER'), { id: randomUUID, now: () => new Date().toISOString() })
-  const saved = jobs.saveJob({ details: { title: 'Existing v5 job', companyNameRaw: 'Company' } })
-  const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
-  connection.close()
-  const next = openDatabase(path); resources.after(next.close)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=5 ORDER BY version').all(), versions)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
-  assert.equal(next.connection.prepare('SELECT title FROM jobs WHERE id=?').get(saved.id)?.title, 'Existing v5 job')
-  for (const table of ['chat_sessions', 'agent_runs', 'agent_items']) assert.equal(next.connection.prepare(`SELECT COUNT(*) n FROM ${table}`).get()?.n, 0)
-})
-
-
-test('version-6 upgrade adds introduction and revision defaults without changing old profile values, audits or checksums', t => {
-  const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path), transactions = new Transactions(connection)
-  migrate(connection, migrations.slice(0, 6)); transactions.protectAudit()
-  const store = new Store(connection, transactions), profile = { id: randomUUID(), name: 'Existing person', email: '', phone: '', location: '', links: [], updatedAt: new Date().toISOString() }
-  transactions.forActor('USER').write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => store.insert('profile', profile))
-  const audits = connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
-  connection.close()
-  const next = openDatabase(path); resources.after(next.close)
-  assert.deepEqual(new Store(next.connection, next.transactions).get('profile', profile.id), { ...profile, introduction: '', revision: 1 })
-  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM audit_logs ORDER BY sequence').all(), audits)
-})
-
-test('version-9 Memory audit migration preserves every existing capability row, sequence and checksum', t => {
+test('V6 upgrade preserves incomplete profile values and initializes introduction and revision', t => {
   const { path, resources } = tempDatabase(t), connection = new DatabaseSync(path)
-  const transactions = new Transactions(connection)
-  migrate(connection, migrations.slice(0, 9)); transactions.protectAudit()
-  const audit = transactions.capabilities
-  const context = { invocationId: randomUUID(), agentId: 'legacy', tool: { name: 'knowledge.read', description: 'Read note', inputSchema: { type: 'object' }, source: { type: 'native' as const }, tags: ['knowledge'], mode: 'read' as const, risk: 'READ' as const }, target: { type: 'knowledge' as const, id: randomUUID() } }
-  audit.sink.start(context); audit.sink.finish(context, 1, null)
-  const rows = connection.prepare('SELECT * FROM capability_audit ORDER BY sequence').all()
+  migrate(connection, migrations.slice(0, 6))
+  const transactions = new LegacyTransactions(connection), store = new Store(connection)
+  const profile = { id: randomUUID(), name: 'Existing person', email: '', phone: '', location: '', links: [], updatedAt: new Date().toISOString() }
+  transactions.write(() => store.insert('profile', profile))
   const versions = connection.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
   connection.close()
   const next = openDatabase(path); resources.after(next.close)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM capability_audit ORDER BY sequence').all(), rows)
-  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=9 ORDER BY version').all(), versions)
-  const memory = next.transactions.capabilities, updated = { ...context, invocationId: randomUUID(), tool: { ...context.tool, name: 'memory.read' }, target: { type: 'memory' as const, id: randomUUID() } }
-  memory.sink.start(updated); memory.sink.finish(updated, 1, null)
-  assert.equal(next.connection.prepare('SELECT max(sequence) seq FROM capability_audit').get()?.seq, 4)
-  assert.throws(() => next.connection.exec('DELETE FROM capability_audit'))
+  assert.deepEqual(new Store(next.connection).get('profile', profile.id), { ...profile, introduction: '', revision: 1 })
+  assert.deepEqual(next.connection.prepare('SELECT * FROM schema_migrations WHERE version<=6 ORDER BY version').all(), versions)
 })

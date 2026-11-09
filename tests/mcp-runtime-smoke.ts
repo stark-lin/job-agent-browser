@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { randomUUID } from 'node:crypto'
 import { createBackend } from '../src/platform/database/backend'
 import { createToolRuntime } from '../src/platform/mcp/runtime'
 import { readMCPConfiguration } from '../src/platform/storage/mcp-config'
@@ -15,7 +14,7 @@ async function main() {
   writeJSON(configPath, { version: 1, servers: [config] })
   let backend = createBackend(databasePath)
   const compose = () => createToolRuntime({ configuration: () => readMCPConfiguration(configPath), capabilities: backend.capabilities,
-    native: backend.toolCapabilities.read, recoverAudit: backend.toolAudit.recoverInterrupted })
+    native: backend.toolCapabilities.read })
   let runtime = compose()
   try {
     await runtime.start()
@@ -41,20 +40,12 @@ async function main() {
     await runtime.reconnect('fixture')
     assert.equal(scope.get('fixture.echo'), null)
     assert.notEqual(runtime.scope({ allow: ['fixture.echo'] }, caller()).get('fixture.echo'), null)
-    const records = backend.toolAudit.list(), serialized = JSON.stringify(records)
-    assert.equal(records.filter(row => row.phase === 'START').length, 4)
-    assert.equal(records.filter(row => row.phase === 'END').length, 4)
-    for (const secret of ['PRIVATE_SMOKE_PAYLOAD', 'PRIVATE_SMOKE_JOB', 'PRIVATE_SMOKE_COMPANY']) assert.equal(serialized.includes(secret), false)
-    const orphanId = randomUUID()
-    backend.toolAudit.sink.start({ invocationId: orphanId, agentId: 'smoke-agent', tool: backend.toolCapabilities.read[0].descriptor })
+    assert(backend.jobs.getJob({ id: job.id }).archivedAt)
     await runtime.dispose(); backend.close()
     backend = createBackend(databasePath); runtime = compose()
     await runtime.start()
-    assert.equal(backend.toolAudit.list().find(row => row.invocation_id === orphanId && row.phase === 'END')?.status, 'INTERRUPTED')
-    const audits = backend.dispatch('audit', 'list', { targetId: job.id })
-    assert(audits.ok)
-    assert.equal((audits.value as { total: number }).total, 2)
-    console.log('MCP runtime smoke passed: bundled Electron runtime, real stdio, scoped native/external calls, audited read/write, cancellation, revocation, restart recovery and process cleanup.')
+    assert(backend.jobs.getJob({ id: job.id }).archivedAt)
+    console.log('MCP runtime smoke passed: bundled Electron runtime, real stdio, scoped native/external calls, business read/write, cancellation, revocation, restart persistence and process cleanup.')
   } finally { await runtime.dispose(); backend.close(); rmSync(directory, { recursive: true, force: true }) }
 }
 void main().catch(() => { console.error('MCP runtime smoke failed.'); process.exitCode = 1 })

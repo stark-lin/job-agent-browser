@@ -25,7 +25,7 @@ const same = (a: object, b: object) => Object.entries(b).every(([key, value]) =>
 /** MCP commands own a single business transaction; never wrap another service transaction. */
 export function createProfileWriteService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime, receipts: OperationReceipts) {
   function write<T extends { requestId: string }, R extends { id: string }>(name: string, target: TargetType, input: unknown, parse: v.Parser<T>, operation: (args: T) => R) {
-    return tx.write({ event: name.toUpperCase().replace(/[.]/g, '_'), action: name.includes('create') || name.includes('add_') ? 'CREATE' : 'UPDATE', target }, () => {
+    return tx.write(() => {
       const args = parse(input)
       return withReceipt(receipts, name, args.requestId, args, target, () => operation(args))
     })
@@ -38,7 +38,7 @@ export function createProfileWriteService(repo: CandidateRepository, tx: UnitOfW
   const result = <T extends { id: string }>(profileId: string, record: T) => ({ ...record, revision: repo.getProfile(profileId).revision })
   return {
     create(input: unknown) {
-      return tx.write({ event: 'PROFILE_CREATE', action: 'CREATE', target: 'profile' }, () => {
+      return tx.write(() => {
         const args = v.object({ requestId: v.id, details: profileDetails })(input)
         return withReceipt(receipts, 'profile.create', args.requestId, args, 'profile', () => {
           const profile = { ...args.details, id: runtime.id(), updatedAt: runtime.now(), revision: 1 }

@@ -12,7 +12,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   const save = async theme => {
     await chooseTheme(theme)
     await submit(0)
-    await waitFor(() => evaluate("document.querySelector('.settings-page form:not([data-audit-filters]) button[type=submit]').disabled && document.querySelector('.settings-page form:not([data-audit-filters]) button[type=submit]').textContent === 'Save changes'"), 'theme form saved')
+    await waitFor(() => evaluate("document.querySelector('.settings-page form button[type=submit]').disabled && document.querySelector('.settings-page form button[type=submit]').textContent === 'Save changes'"), 'theme form saved')
     assert.equal((await data('settings', 'get', {})).value.theme, theme)
     if (theme !== 'system') await applied(theme)
   }

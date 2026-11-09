@@ -1,12 +1,12 @@
 export const errorCodes = [
   'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'INVALID_STATE', 'STORAGE_BUSY',
-  'STORAGE_UNAVAILABLE', 'AUDIT_UNAVAILABLE', 'NOT_IMPLEMENTED', 'FORBIDDEN', 'ENCRYPTION_UNAVAILABLE',
+  'STORAGE_UNAVAILABLE', 'NOT_IMPLEMENTED', 'FORBIDDEN', 'ENCRYPTION_UNAVAILABLE',
   'AI_NOT_CONFIGURED', 'AI_AUTH_FAILED', 'AI_RATE_LIMITED', 'AI_PROVIDER_FAILED', 'AI_PROTOCOL_ERROR',
   'AI_CONNECT_FAILED', 'AI_TIMEOUT', 'AI_CANCELLED', 'DEBUG_SERIALIZATION_FAILED', 'CLIPBOARD_FAILED'
 ] as const
 export type ErrorCode = typeof errorCodes[number]
 
-/** Only codes cross the IPC/audit boundary; exception text may contain private data. */
+/** Only codes cross the IPC boundary; exception text may contain private data. */
 export class DataError extends Error {
   constructor(readonly code: ErrorCode) { super(code) }
 }

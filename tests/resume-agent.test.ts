@@ -36,7 +36,7 @@ async function done(tasks: ReturnType<typeof createResumeTasks>, runId: string) 
     await new Promise(resolve => setTimeout(resolve, 10))
   }
 }
-test('fixture executes all stages, audits calls, publishes immutable evidence and outputs; retry never calls the model', async t => {
+test('fixture executes all stages, records execution, publishes immutable evidence and outputs; retry never calls the model', async t => {
   const f = await setup(t)
   value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id, details: { kind: 'OTHER', content: 'Second supported claim' } }))
   const { runId } = await f.start()
@@ -54,8 +54,6 @@ test('fixture executes all stages, audits calls, publishes immutable evidence an
   assert(trace.items.some(item => item.content.type === 'tool_call' && item.content.toolName === 'resume.rewrite_bullet'))
   assert.equal(result.artifact?.outputFiles.length, 2)
   assert.equal(f.server.requests(), 4)
-  assert.equal(f.database.connection.prepare("SELECT count(*) n FROM audit_logs WHERE event_type='AGENT_MODEL_RESULT' AND status='SUCCESS'").get()?.n, 4)
-  assert(f.database.connection.prepare("SELECT count(*) n FROM capability_audit WHERE agent_id='internal.resume'").get()!.n as number > 0)
   assert(f.events.every((event, index) => event.sequence === index + 1 && event.runId === runId))
   const before = f.server.requests()
   await f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, event => f.events.push(event)); await done(f.tasks, runId)
@@ -192,8 +190,6 @@ test('live profile changes after start do not alter tool reads or generated basi
   const result = await done(f.tasks, runId)
   assert.equal(result.artifact?.content.basics.name, f.profile.name)
   assert.equal(result.artifact?.content.experience[0].bullets[0].text, f.fact.content + '.')
-  const audit = value(await f.api.audit.list({ limit: 100 }))
-  assert(!JSON.stringify(audit).includes(f.fact.content))
 })
 test('cancelling at publish boundary prevents Artifact creation and terminal state occurs once', async t => {
   const f = await setup(t)
@@ -202,8 +198,6 @@ test('cancelling at publish boundary prevents Artifact creation and terminal sta
   })
   const result = await done(f.tasks, runId)
   assert.equal(result.run.state, 'CANCELLED'); assert.equal(result.artifact, null)
-  const audits = value(await f.api.audit.list({ targetId: runId, limit: 100 }))
-  assert.equal(audits.items.filter(row => row.eventType === 'GENERATION_CANCEL' && row.status === 'SUCCESS').length, 1)
 })
 test('missing recorded output becomes a recoverable output failure and rebuild does not call the model', async t => {
   const f = await setup(t), result = await done(f.tasks, (await f.start()).runId)
@@ -227,20 +221,11 @@ test('post-publication cancellation bounds a late output worker and preserves th
   assert.equal(f.tasks.getTask(1, { runId })?.artifact?.outputFiles.length, 0)
 })
 
-test('unavailable tool audit stops ResumeAgent immediately without draft or publication', async t => {
+test('unavailable first-party connection stops Resume before publication', async t => {
   const f = await setup(t)
-  f.flag('fail-audit-start')
-  await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
+  await f.mcp.dispose()
+  await assert.rejects(f.start())
   assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.server.requests(), 0)
-})
-
-test('uncertain start audit is recovered without an unowned active task', async t => {
-  const f = await setup(t)
-  f.flag('fail-audit-finish')
-  await assert.rejects(f.start(), { code: 'TOOL_AUDIT_UNAVAILABLE' })
-  f.backend.recover()
-  const run = f.backend.resumes.listRuns({}).items[0].run
-  assert.equal(run.state, 'INTERRUPTED'); assert.equal(run.error, 'PROCESS_INTERRUPTED'); assert.equal(f.server.requests(), 0)
 })
 
 test('maximum-length valid contact and job titles do not fail publication or change copied basics', async t => {

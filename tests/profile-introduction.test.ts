@@ -17,7 +17,6 @@ test('profile introduction validates, preserves omitted updates and supports exp
   assert.equal(value(await f.api.profiles.editContact({ id: profile.id, details: { name: 'Candidate', introduction: '' } })).introduction, '')
   assert.equal(value(await f.api.profiles.createProfile({ name: 'Old client' })).introduction, '')
   assert.equal(value(await f.api.profiles.createProfile({ name: 'Limit', introduction: '字'.repeat(2000) })).introduction.length, 2000)
-  assert(!JSON.stringify(value(await f.api.audit.list({ limit: 100 }))).includes(introduction))
 })
 
 test('import review preserves original introduction, ignores missing text and allows explicit replacement or clearing', async t => {

@@ -19,18 +19,15 @@ test('one-shot completion has no tools and rejects unexpected calls', async () =
   await assert.rejects(pending, /AGENT_CANCELLED/)
 })
 
-test('adapter rejects illegal JSON arguments, protocol variants, truncation and empty output; timeout and auditing are bounded', async () => {
+test('adapter rejects illegal JSON arguments, protocol variants, truncation and empty output; timeouts are bounded', async () => {
   const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
   const input = { messages: [], tools: [descriptor('profile.get'), descriptor('profile_get')], signal: signal() }
   for (const payload of [null, { choices: [] }, { choices: [{ finish_reason: 'length', message: { role: 'assistant', content: 'partial' } }] },
     { choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '' } }] },
     { choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', tool_calls: [{ id: 'a', type: 'function', function: { name: 'tool_0', arguments: '{' } }] } }] }]) {
-    const audits: unknown[] = []
-    const adapter = compatibleAgentModel(config, { audit: (_id, error) => audits.push(error), transport: async () => new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } }) })
-    await assert.rejects(adapter.complete(input), /AGENT_PROTOCOL_ERROR/); assert.deepEqual(audits, ['AI_PROTOCOL_ERROR'])
+    const adapter = compatibleAgentModel(config, { transport: async () => new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } }) })
+    await assert.rejects(adapter.complete(input), /AGENT_PROTOCOL_ERROR/)
   }
-  const audits: unknown[] = []
-  await assert.rejects(compatibleAgentModel(config, { audit: (_id, error) => audits.push(error), transport: () => new Promise(() => {}), timeoutMs: 10 }).complete(input), /AGENT_TIMEOUT/)
-  assert.deepEqual(audits, ['AI_TIMEOUT'])
-  await assert.rejects(compatibleAgentModel(config, { audit: () => { throw new Error('disk') }, transport: async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'ok' } }] }), { headers: { 'content-type': 'application/json' } }) }).complete(input), /AUDIT_UNAVAILABLE/)
+  await assert.rejects(compatibleAgentModel(config, { transport: () => new Promise(() => {}), timeoutMs: 10 }).complete(input), /AGENT_TIMEOUT/)
+  assert.equal((await compatibleAgentModel(config, { transport: async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'ok' } }] }), { headers: { 'content-type': 'application/json' } }) }).complete(input)).content, 'ok')
 })

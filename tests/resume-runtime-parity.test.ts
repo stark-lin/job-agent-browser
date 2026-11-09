@@ -62,8 +62,7 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   await assert.rejects(ask.call('artifact.build', { artifactId: artifact.id }, signal), { code: 'TOOL_FORBIDDEN' })
   const html = (item: Artifact) => readFileSync(join(f.outputDirectory, item.outputFiles.find(file => file.format === 'HTML')!.relativePath), 'utf8')
   assert.equal(html(a.artifact), html(b.artifact))
-  const audit = f.backend.toolAudit.list()
-  assert(audit.some(row => row.agent_id === 'internal.resume')); assert(audit.some(row => row.agent_id === 'codex'))
+
   await assert.rejects(internal.call('resume.fail', { runId: other.runId, error: 'VALIDATION_FAILED' }, signal), { code: 'TOOL_FORBIDDEN' })
   const { runId: concurrentRunId } = await external.call('resume.start', { ...start, requestId: randomUUID() }, signal) as { runId: string }
   const concurrent = { runId: concurrentRunId }

@@ -8,9 +8,9 @@ const settings: AISettings = { default: choice, providers: [{ id: 'local', name:
 const input = { choice, messages: [{ role: 'user', content: 'Extract data' }] }
 const tick = () => new Promise<void>(resolve => setImmediate(resolve))
 function fixture() {
-  const calls: { complete: () => void; owner: number }[] = [], audits: string[] = []
+  const calls: { complete: () => void; owner: number }[] = []
   let active = 0, maximum = 0
-  const service = createAIService({ settings: () => settings, key: () => null, audit: (_id, error) => { audits.push(error ?? 'SUCCESS') }, timeoutMs: 500,
+  const service = createAIService({ settings: () => settings, key: () => null, timeoutMs: 500,
     transport: async (_url, init) => {
       const owner = Number(JSON.parse(String(init?.body)).messages[0].content)
       active++; maximum = Math.max(maximum, active)
@@ -24,7 +24,7 @@ function fixture() {
       })
     }
   })
-  return { service, calls, audits, maximum: () => maximum }
+  return { service, calls, maximum: () => maximum }
 }
 
 test('import queue shares owner/global slots and cancels queued requests without calling the provider', async () => {
@@ -37,7 +37,6 @@ test('import queue shares owner/global slots and cancels queued requests without
   assert.throws(() => f.service.cancel(2, ids[5].requestId), /FORBIDDEN/)
   f.service.cancel(1, ids[5].requestId)
   assert(events.some(event => event.requestId === ids[5].requestId && event.type === 'cancelled'))
-  assert(f.audits.includes('AI_CANCELLED'))
   f.calls[0].complete(); await tick()
   assert.equal(f.calls.length, 5); assert.equal(f.maximum(), 4)
   for (let index = 1; index < 5; index++) f.calls[index].complete()

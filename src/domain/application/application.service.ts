@@ -18,7 +18,7 @@ export function createApplicationService(jobs: JobRepository, repo: ApplicationR
   return {
     getState(input: unknown) { return tx.read(() => { const { jobId } = v.object({ jobId: v.id })(input); return applicationState(jobs.get(jobId)) }) },
     changeStatus(input: unknown) {
-      return tx.write({ event: 'APPLICATION_STATUS_CHANGE', action: 'UPDATE', target: 'job' }, () => {
+      return tx.write(() => {
         const args = v.object({ jobId: v.id, status: v.choice(applicationStatuses) })(input)
         const job = editableJob(args.jobId)
         if (job.applicationStatus === args.status) return job
@@ -36,7 +36,7 @@ export function createApplicationService(jobs: JobRepository, repo: ApplicationR
       })
     },
     scheduleEvent(input: unknown, requestId?: string) {
-      return tx.write({ event: 'APPLICATION_SCHEDULE', action: 'CREATE', target: 'job_event' }, () => {
+      return tx.write(() => {
         const args = schedule(input)
         return withReceipt(receipts, 'application.schedule_event', requestId, args, 'job_event', () => {
           editableJob(args.jobId)
@@ -48,7 +48,7 @@ export function createApplicationService(jobs: JobRepository, repo: ApplicationR
       })
     },
     rescheduleEvent(input: unknown) {
-      return tx.write({ event: 'APPLICATION_RESCHEDULE', action: 'UPDATE', target: 'job_event' }, () => {
+      return tx.write(() => {
         const args = v.object({ id: v.id, jobId: v.optionalId, startsAt: v.timestamp, endsAt: v.optional(v.nullable(v.timestamp), null) })(input)
         const event = repo.getEvent(args.id)
         if (args.jobId && args.jobId !== event.jobId) fail('FORBIDDEN')
@@ -62,7 +62,7 @@ export function createApplicationService(jobs: JobRepository, repo: ApplicationR
       })
     },
     addNote(input: unknown, requestId?: string) {
-      return tx.write({ event: 'APPLICATION_NOTE', action: 'CREATE', target: 'job_event' }, () => {
+      return tx.write(() => {
         const args = v.object({ jobId: v.id, text: v.text(20_000, 1) })(input)
         return withReceipt(receipts, 'application.add_note', requestId, args, 'job_event', () => {
           jobs.get(args.jobId)
@@ -73,7 +73,7 @@ export function createApplicationService(jobs: JobRepository, repo: ApplicationR
       })
     },
     deleteEvent(input: unknown) {
-      return tx.write({ event: 'APPLICATION_EVENT_DELETE', action: 'DELETE', target: 'job_event' }, () => {
+      return tx.write(() => {
         const { id } = v.byId(input), event = repo.getEvent(id)
         if (['STATUS_CHANGED', 'APPLICATION_SUBMITTED'].includes(event.type)) fail('INVALID_STATE')
         repo.removeEvent(id)

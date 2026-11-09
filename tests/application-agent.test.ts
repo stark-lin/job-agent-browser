@@ -41,10 +41,6 @@ test('application Agent reads current state, asks before ambiguous dates, and ex
   assert.equal(events.total, 3); assert(events.items.some(event => event.startsAt === '2026-10-27T03:00:00.000Z'))
   assert(prompts.every(prompt => prompt.includes('"allowedNextStatuses"') && prompt.includes('"status":"NOT_STARTED"')))
   assert(prompts[1].includes('27 October at 14:00 Sydney'))
-  const audit = f.backend.toolAudit.list()
-  const firstWrite = audit.findIndex(row => row.mode === 'write')
-  assert(firstWrite > 0); assert(audit.slice(0, firstWrite).every(row => row.mode === 'read'))
-  assert(audit.every(row => row.agent_id === 'internal.application'))
 })
 
 test('application partial failure reports completed actions and retries only unfinished writes without repeating model reasoning', async t => {

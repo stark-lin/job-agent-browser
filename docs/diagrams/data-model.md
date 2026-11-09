@@ -31,12 +31,10 @@ erDiagram
     ARTIFACT ||--o{ ARTIFACT_FACT : references
     FACT o|..o{ ARTIFACT_FACT : logical_source
     RUNTIME_INSTANCE ||--o{ RUNTIME_WORK : owns
-    RUNTIME_INSTANCE ||--o{ INVOCATION_OWNER : owns
     RUNTIME_INSTANCE ||--o{ RESUME_START_RECEIPT : owns
     GENERATION_RUN ||--o{ RESUME_START_RECEIPT : retries
     GENERATION_RUN o|..o| RUNTIME_WORK : generation_owner
     ARTIFACT o|..o| RUNTIME_WORK : output_owner
-    INVOCATION_OWNER o|..o{ CAPABILITY_AUDIT : logical_invocation
 
     CHAT_SESSION {
         string id PK
@@ -203,32 +201,6 @@ erDiagram
         string block_id PK
         string fact_id PK
     }
-    AUDIT_LOG {
-        int sequence PK
-        string id UK
-        string event_type
-        string action
-        datetime timestamp
-        string source
-        string request_id
-        string status
-        string error
-        string actor_id
-        string target_type
-        string target_id
-        string transaction_id
-    }
-    CAPABILITY_AUDIT {
-        int sequence PK
-        string invocation_id
-        string phase
-        datetime timestamp
-        string agent_id
-        string run_id
-        string tool_name
-        string status
-        string error
-    }
     RUNTIME_INSTANCE {
         string id PK
         int pid
@@ -240,10 +212,6 @@ erDiagram
         string target_id PK
         string runtime_id FK
         string token
-    }
-    INVOCATION_OWNER {
-        string invocation_id PK
-        string runtime_id FK
     }
     RESUME_START_RECEIPT {
         string request_id PK

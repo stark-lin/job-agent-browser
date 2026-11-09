@@ -1,6 +1,5 @@
-import { randomUUID } from 'node:crypto'
 import { AgentError, abortable, type AgentModelEvent, type AgentModelInput, type AgentResponse, type AgentUsage } from '../../shared/agent'
-import { DataError, type ErrorCode } from '../../domain/common/errors'
+import { DataError } from '../../domain/common/errors'
 import type { ChatRequest, Fetch } from './compatible'
 import { outputTokenParameters, postChat, requestTimeout } from './transport'
 import { parseAgentResponse, protocol, providerMessages, providerTools } from './agent-protocol'
@@ -12,11 +11,11 @@ type ObjectValue = Record<string, unknown>
 const object = (value: unknown): ObjectValue => value && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : protocol()
 interface PartialCall { id: string; type: string; function: { name: string; arguments: string } }
 
-/** Only completed, validated and audited batches can expose executable tool calls. */
+/** Only completed and validated batches can expose executable tool calls. */
 export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: {
-  audit(requestId: string, error: ErrorCode | null): void; transport?: Fetch; timeoutMs?: number
+  transport?: Fetch; timeoutMs?: number
 }, input: AgentModelInput): AsyncIterable<AgentModelEvent> {
-  const timeout = requestTimeout(input.signal, deps.timeoutMs ?? config.timeoutMs), requestId = randomUUID()
+  const timeout = requestTimeout(input.signal, deps.timeoutMs ?? config.timeoutMs)
   let failure: unknown, result: AgentResponse | undefined, finished: string | null = null, content = '', output = 0, done = false
   const calls = new Map<number, PartialCall>()
   const reasoning = new ReasoningAccumulator()
@@ -84,9 +83,6 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
       : error instanceof AgentError || error instanceof DataError ? error : new AgentError(error instanceof SyntaxError || error instanceof TypeError && String(error).includes('encoded') ? 'AGENT_PROTOCOL_ERROR' : 'AI_CONNECT_FAILED')
   } finally {
     timeout.dispose()
-    const codes: Record<string, ErrorCode> = { AGENT_CANCELLED: 'AI_CANCELLED', AGENT_TIMEOUT: 'AI_TIMEOUT', AGENT_PROTOCOL_ERROR: 'AI_PROTOCOL_ERROR', AI_CONNECT_FAILED: 'AI_CONNECT_FAILED' }
-    const code = failure instanceof DataError ? failure.code : failure instanceof AgentError ? codes[failure.code] ?? 'AI_PROVIDER_FAILED' : result ? null : 'AI_CANCELLED'
-    try { deps.audit(requestId, code) } catch { throw new AgentError('AUDIT_UNAVAILABLE') }
   }
   if (failure) throw failure
   for (const call of result!.toolCalls) yield { type: 'tool_call.ready', call }

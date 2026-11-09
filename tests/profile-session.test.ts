@@ -40,9 +40,11 @@ test('session saves parent once, attaches remaining facts later and replays unce
   const importer = createProfileImporter({ ai: mock.ai, extract: async () => structuredClone(pages), apply: f.backend.applyProfileImport })
   t.after(() => importer.dispose())
   const file = importer.select(1, new Uint8Array([1])), task = await ready(importer, 1, file.fileId), first = selection(task.draft, task.sessionId)
-  const saved = value(importer.apply(1, first)), count = value(await f.api.audit.list({})).total
+  const saved = value(importer.apply(1, first));
+  const before = value(await f.api.profiles.getProfile({ id: saved.profile.id }))
   assert.deepEqual(value(importer.apply(1, first)), saved)
-  assert.equal(value(await f.api.audit.list({})).total, count)
+  assert.deepEqual(value(await f.api.profiles.getProfile({ id: saved.profile.id })), before)
+
   assert.throws(() => importer.apply(1, { ...first, contact: { name: 'Different' } }), /CONFLICT/)
   assert.throws(() => importer.apply(1, { ...first, batchId: randomUUID(), profileId: saved.profile.id }), /CONFLICT/)
   const { draftId, itemDraftId, details } = task.draft.facts[1]

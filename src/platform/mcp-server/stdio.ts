@@ -1,6 +1,12 @@
+import { consola } from 'consola'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { redeemMemoryLaunch } from '../mcp/memory-authority'
 import { createServerRuntime } from './runtime'
+
+// Avoid deferred reporter exceptions escaping the tool/business call boundary.
+consola.options.throttle = 0
+consola.options.stdout = process.stderr
+consola.options.stderr = process.stderr
 
 async function main() {
   const directory = process.env.JOB_BROWSER_USER_DATA
@@ -18,6 +24,6 @@ async function main() {
   catch { await close(); throw new Error('KNOWLEDGE_RECOVERY_REQUIRED_START_JAB') }
 }
 void main().catch(error => {
-  const code = error instanceof Error && ['MCP_DATA_REQUIRED', 'MCP_NODE_UNSUPPORTED', 'MCP_START_FAILED', 'MEMORY_AUTH_FAILED', 'KNOWLEDGE_RECOVERY_REQUIRED_START_JAB'].includes(error.message) ? error.message : 'MCP_START_FAILED'
+  const code = error instanceof Error && ['MCP_DATA_REQUIRED', 'MCP_START_FAILED', 'MEMORY_AUTH_FAILED', 'KNOWLEDGE_RECOVERY_REQUIRED_START_JAB'].includes(error.message) ? error.message : 'MCP_START_FAILED'
   process.stderr.write(`${code}\n`); process.exitCode = 1
 })

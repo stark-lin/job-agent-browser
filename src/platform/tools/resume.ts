@@ -26,9 +26,7 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
         throw new ToolError(error.code === 'INVALID_INPUT' ? 'TOOL_INVALID_INPUT' : error.code === 'FORBIDDEN' ? 'TOOL_FORBIDDEN' :
           ['CONFLICT', 'INVALID_STATE'].includes(error.code) ? 'TOOL_CONFLICT' : error.code === 'STORAGE_BUSY' ? 'TOOL_BUSY' : 'TOOL_EXECUTION_FAILED')
       }
-    }, { timeoutMs: name === 'artifact.build' ? 90000 : 30000, inputLimit: name === 'resume.rewrite_bullet' ? 131072 : 65536,
-      runId: input => (input as Args).runId,
-      target: input => name === 'artifact.build' ? { type: 'artifact', id: String((input as Args).artifactId) } : undefined }))
+    }, { timeoutMs: name === 'artifact.build' ? 90000 : 30000, inputLimit: name === 'resume.rewrite_bullet' ? 131072 : 65536 }))
   }
   bind('resume.start', 'Create and start an immutable resume snapshot. Reuse requestId only for an identical retry. Returns runId. Limits: 1000 facts, 200 items, context 256 KiB, each fact 8 KiB.', schemas.start, true, args => {
     const current = backend.resumes.createRun({ jobId: args.jobId, profileId: args.profileId, config: {

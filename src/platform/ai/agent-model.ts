@@ -1,18 +1,17 @@
-import { randomUUID } from 'node:crypto'
-import { AgentError, abortable, type AgentErrorCode, type StreamingAgentModel, type AgentResponse } from '../../shared/agent'
+import { AgentError, abortable, type StreamingAgentModel, type AgentResponse } from '../../shared/agent'
 import { providerTools, providerMessages, parseAgentResponse, protocol } from './agent-protocol'
 import { agentStream } from './agent-stream'
 import type { ChatRequest, Fetch } from './compatible'
 import { outputTokenParameters, postChat, requestTimeout } from './transport'
-import { DataError, type ErrorCode } from '../../domain/common/errors'
+import { DataError } from '../../domain/common/errors'
 import { preparedTools } from './agent-request'
 
 export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps: {
-  audit(requestId: string, error: ErrorCode | null): void; transport?: Fetch; timeoutMs?: number
-}): StreamingAgentModel {
+  transport?: Fetch; timeoutMs?: number
+} = {}): StreamingAgentModel {
   const snapshot = structuredClone(config)
   return { stream: input => agentStream(snapshot, deps, input), async complete(input) {
-    const timeout = requestTimeout(input.signal, deps.timeoutMs ?? snapshot.timeoutMs), requestId = randomUUID()
+    const timeout = requestTimeout(input.signal, deps.timeoutMs ?? snapshot.timeoutMs)
     let result: AgentResponse | undefined, failure: unknown
     try {
       const mapped = providerTools(input.tools, input.stableToolNames)
@@ -40,9 +39,6 @@ export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps
       failure = input.signal.aborted ? new AgentError('AGENT_CANCELLED') : timeout.timedOut() ? new AgentError('AGENT_TIMEOUT')
         : error instanceof AgentError || error instanceof DataError ? error : new AgentError(error instanceof SyntaxError || error instanceof TypeError && String(error).includes('encoded') ? 'AGENT_PROTOCOL_ERROR' : 'AI_CONNECT_FAILED')
     } finally { timeout.dispose() }
-    const auditErrors: Partial<Record<AgentErrorCode, ErrorCode>> = { AGENT_CANCELLED: 'AI_CANCELLED', AGENT_TIMEOUT: 'AI_TIMEOUT', AGENT_PROTOCOL_ERROR: 'AI_PROTOCOL_ERROR', AI_CONNECT_FAILED: 'AI_CONNECT_FAILED' }
-    const auditCode = failure instanceof DataError ? failure.code : failure instanceof AgentError ? auditErrors[failure.code] ?? 'AI_PROVIDER_FAILED' : null
-    try { deps.audit(requestId, auditCode) } catch { throw new AgentError('AUDIT_UNAVAILABLE') }
     if (failure) throw failure
     return result!
   } }

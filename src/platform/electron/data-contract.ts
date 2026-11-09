@@ -2,7 +2,7 @@ import type { ChatSession, ChatRun, ChatItem, ChatModelRequest } from '../../dom
 import type { Result } from '../../shared/ipc'
 import type { Preferences, PreferencePatch } from '../../shared/settings'
 import type { ErrorCode } from '../../domain/common/errors'
-import type { AuditEntry, AuditFilter, Page, PageResult } from '../../domain/common/ports'
+import type { Page, PageResult } from '../../domain/common/ports'
 import type { ApplicationStatus, Company, CompanyInput, Job, JobFilter, JobInput, JobSource, SourceInput } from '../../domain/job/job.types'
 import type { ProfileInput, Fact, FactInput, ItemInput, Profile, ProfileItem } from '../../domain/candidate/candidate.types'
 import type { ApplyImport, ImportSaved } from '../../domain/candidate/import.types'
@@ -12,7 +12,7 @@ import type { Artifact, ArtifactView, CreateRunInput, GenerationRun, ResumeDocum
 type Id = { id: string }
 type Endpoint<I, O> = [input: I, output: O]
 
-/** Public business capability contract. Database rows, transaction contexts and audit writers are private. */
+/** Public business capability contract. Database rows, transaction internals are private. */
 export interface DataContract {
   chats: {
     listSessions: Endpoint<Page, PageResult<ChatSession>>
@@ -76,7 +76,6 @@ export interface DataContract {
     editArtifact: Endpoint<{ id: string; title: string; expectedRevision: number; content: ResumeDocument }, Artifact>
     deleteArtifact: Endpoint<Id, Id>
   }
-  audit: { list: Endpoint<AuditFilter, PageResult<AuditEntry>> }
   settings: {
     get: Endpoint<Record<string, never>, Preferences>
     savePreferences: Endpoint<PreferencePatch, Preferences>
@@ -106,5 +105,5 @@ export const methodNames = {
   profiles: ['createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
   applications: ['changeStatus', 'scheduleEvent', 'rescheduleEvent', 'addNote', 'deleteEvent', 'listEvents', 'listCalendar'],
   resumes: ['createRun', 'cancelRun', 'deleteRun', 'getRun', 'listRuns', 'getArtifact', 'editArtifact', 'deleteArtifact'],
-  audit: ['list'], settings: ['get', 'savePreferences'], secrets: ['hasProviderKey', 'saveProviderKey', 'deleteProviderKey']
+  settings: ['get', 'savePreferences'], secrets: ['hasProviderKey', 'saveProviderKey', 'deleteProviderKey']
 } as const satisfies { [G in keyof DataContract]: readonly (keyof DataContract[G])[] }

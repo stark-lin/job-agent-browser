@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import { BannerService } from '../../banner/bannerService'
 import { SmartPasteService } from '../../smart-paste/service'
 import { createChatDebugOutput } from './chat-debug-output'
@@ -48,6 +49,9 @@ import { createToolRuntime, type ToolRuntime } from '../../mcp/runtime'
 import { createFirstPartyRuntime, type FirstPartyRuntime } from '../../mcp/first-party-client'
 import { readMCPConfiguration } from '../../storage/mcp-config'
 
+// Keep diagnostic failures synchronous so each execution boundary can contain them.
+consola.options.throttle = 0
+
 let browser: BrowserManager | undefined
 let backend: ReturnType<typeof createBackend> | undefined
 let preferences: ReturnType<typeof createPreferences>
@@ -74,6 +78,7 @@ if (process.env.JOB_BROWSER_USER_DATA) app.setPath('userData', process.env.JOB_B
 
 app.whenReady().then(async () => {
   if (process.argv.includes('--verify-package')) { await verifyPackageRuntime(); app.exit(0); return }
+  try { consola.info('[APP] starting') } catch { /* Diagnostics are optional. */ }
   const directory = app.getPath('userData')
   preferences = createPreferences(join(directory, 'settings.json'), value => {
     knowledge?.remoteChanged(value.knowledge?.remote ?? defaultKnowledgePreferences.remote)
@@ -108,21 +113,21 @@ app.whenReady().then(async () => {
   registerExternalSkillsIPC(createExternalSkillsInstaller({ home: app.getPath('home'), bundleDirectory: join(__dirname, 'skills'),
     openPath: path => shell.openPath(path) }), join(__dirname, '../renderer/index.html'))
   tools = createToolRuntime({ configuration: () => readMCPConfiguration(join(directory, 'mcp.json')), capabilities: backend.capabilities,
-    native: backend.toolCapabilities.read, recoverAudit: backend.toolAudit.recoverInterrupted })
+    native: backend.toolCapabilities.read })
   // Optional external capabilities never delay window creation or reject the application startup.
   void tools.start()
-  ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAI })
+  ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
   profileImporter = createProfileImporter({ ai, apply: (input, order) => backend!.applyProfileImport(input, order) })
   firstParty = createFirstPartyRuntime(directory, __dirname)
-  const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey, audit: backend.recordAgentModel })
-  jobImporter = createJobImporter({ model: choice => models('internal.job-capture', choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
+  const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
+  jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
   const engine = createAgentEngine(backend.chats.agentSnapshot)
   resumes = createResumeTasks({ backend, mcp: firstParty, engine, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
   askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, engine,
-    capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models('internal.ask-ai', choice) })
+    capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models(choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
-  applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models('internal.application') })
+  applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models() })
   registerApplicationIPC(applicationTasks, join(__dirname, '../renderer/index.html'))
   registerResumeIPC(resumes, join(__dirname, '../renderer/index.html'))
   registerDataIPC(backend, join(__dirname, '../renderer/index.html'), profileImporter)
@@ -139,6 +144,7 @@ app.whenReady().then(async () => {
   const banner = new BannerService()
   const smartPaste = { banner, service: new SmartPasteService(() => preferences.get({}), askAgent, banner),
     hasSession(id: string) { try { return Boolean(backend?.chats.getSession(id)) } catch { return false } } }
+  try { consola.success('[APP] initialized') } catch { /* Diagnostics are optional. */ }
   const created = createMainWindow(getInboxURL, smartPaste)
   browser = created.browser
 
@@ -150,7 +156,8 @@ app.whenReady().then(async () => {
   })
 }).catch((error: unknown) => {
   // Do not show raw SQLite errors/paths; initialization failure must never silently reset user data.
-  if (process.argv.includes('--verify-package')) { console.error(error); app.exit(1); return }
+  try { consola.error('[APP] INITIALIZATION_FAILED') } catch { /* Preserve startup failure handling. */ }
+  if (process.argv.includes('--verify-package')) { app.exit(1); return }
   dialog.showErrorBox(t($ => $.errors.storageTitle), error instanceof Error && error.message.startsWith('INCOMPATIBLE_DATABASE_GENERATION') ? t($ => $.errors.databaseGeneration) : t($ => $.errors.storageMessage))
   app.quit()
 })

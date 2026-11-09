@@ -10,7 +10,7 @@ import { createToolRuntime } from '../src/platform/mcp/runtime'
 import { parseMCPConfiguration } from '../src/platform/mcp/server-config'
 import { adaptMCPResult, schemaFingerprint } from '../src/platform/mcp/tool-adapter'
 import { readMCPConfiguration } from '../src/platform/storage/mcp-config'
-import { createAuditedCapabilities } from '../src/platform/tools/capabilities'
+import { createCapabilities } from '../src/platform/tools/capabilities'
 import { fixture } from './helpers'
 import { caller, serverConfig, until } from './tool-fixtures'
 
@@ -106,7 +106,7 @@ test('real connection failure and stalled handshake use stable, bounded errors',
 test('runtime revokes changed tools and stale scopes, never accepts new tools, handles crash and forbids high risks', async t => {
   const f = fixture(t), config = serverConfig(['echo', 'slow', 'change', 'restore', 'crash', 'fail', 'image', 'large'])
   const runtime = createToolRuntime({ configuration: () => ({ version: 1, servers: [config] }), capabilities: f.backend.capabilities,
-    native: f.backend.toolCapabilities.read, recoverAudit: f.backend.toolAudit.recoverInterrupted })
+    native: f.backend.toolCapabilities.read })
   t.after(() => runtime.dispose())
   await runtime.start()
   assert.equal(runtime.status().servers[0].state, 'ready')
@@ -131,13 +131,11 @@ test('runtime revokes changed tools and stale scopes, never accepts new tools, h
   await assert.rejects(restored.execute('fixture.crash', { text: '' }), { code: 'TOOL_UNAVAILABLE' })
   await until(() => runtime.status().servers[0].state === 'disconnected')
   assert.deepEqual(restored.list(), [])
-  const records = JSON.stringify(f.backend.toolAudit.list())
-  for (const privateValue of ['PRIVATE_INPUT', 'PRIVATE_SERVER_ERROR_TOKEN', 'UNTRUSTED_UPSTREAM_DESCRIPTION']) assert.equal(records.includes(privateValue), false)
 })
 
 test('runtime startup isolates optional configuration failures and disposal cancels calls that ignore signals', async t => {
   const f = fixture(t), runtime = createToolRuntime({ configuration() { throw new Error('PRIVATE_CONFIG_PATH') }, capabilities: f.backend.capabilities,
-    native: f.backend.toolCapabilities.read, recoverAudit: f.backend.toolAudit.recoverInterrupted })
+    native: f.backend.toolCapabilities.read })
   await runtime.start()
   assert.notEqual(runtime.status().configurationError, null)
   assert.equal(JSON.stringify(runtime.status()).includes('PRIVATE_CONFIG_PATH'), false)
@@ -146,22 +144,21 @@ test('runtime startup isolates optional configuration failures and disposal canc
   assert.throws(() => runtime.scope({ allow: [] }, caller()), { code: 'TOOL_UNAVAILABLE' })
 })
 
-test('runtime timeout is audited and does not close the shared stdio connection', async t => {
-  const f = fixture(t), config = serverConfig(['slow', 'echo']), capabilities = createAuditedCapabilities(f.backend.toolAudit.sink, { timeoutMs: 25 })
-  const runtime = createToolRuntime({ configuration: () => ({ version: 1, servers: [config] }), capabilities, native: [], recoverAudit() {} })
+test('runtime timeout is classified and does not close the shared stdio connection', async t => {
+  const config = serverConfig(['slow', 'echo']), capabilities = createCapabilities({ timeoutMs: 25 })
+  const runtime = createToolRuntime({ configuration: () => ({ version: 1, servers: [config] }), capabilities, native: [],  })
   t.after(() => runtime.dispose())
   await runtime.start()
   const scope = runtime.scope({ allow: ['fixture.*'] }, caller())
   await assert.rejects(scope.execute('fixture.slow', { text: 'private' }), { code: 'TOOL_TIMEOUT' })
   const result = await scope.execute('fixture.echo', { text: 'still alive' })
   assert.equal((result.structuredContent as { text: string }).text, 'still alive')
-  assert.deepEqual(f.backend.toolAudit.list().filter(row => row.phase === 'END').map(row => row.status), ['FAILURE', 'SUCCESS'])
 })
 
 test('optional Server startup failure retains its connection error while Native tools stay usable', async t => {
   const f = fixture(t), config = { ...serverConfig(), command: '/missing-job-mcp-executable' }
   const runtime = createToolRuntime({ configuration: () => ({ version: 1, servers: [config] }), capabilities: f.backend.capabilities,
-    native: f.backend.toolCapabilities.read, recoverAudit: f.backend.toolAudit.recoverInterrupted })
+    native: f.backend.toolCapabilities.read })
   t.after(() => runtime.dispose())
   await runtime.start()
   assert.equal(runtime.status().servers[0].state, 'disconnected')

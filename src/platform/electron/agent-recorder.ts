@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import type { AgentRunEvent, AgentItem, AgentSnapshot, ChatRunState } from '../../domain/chat/chat.types'
 import type { ChatRecorder } from '../database/repositories/chats'
 import type { AgentCompletion } from '../agent/engine'
@@ -81,6 +82,11 @@ export function createAgentRecorder<S extends string | null>(repo: ChatRecorder,
       }
       Object.assign(terminal.run, { state, error, finishedAt, runtimeStatus: 'idle', eventSequence: terminal.run.eventSequence + pending.length + 1 })
       repo.finish(terminal, state === 'cancelled' ? 'USER_CANCELLED' : state === 'failed' || state === 'interrupted' ? cycleFailureReason ?? error : null)
+      try {
+        if (state === 'completed') consola.success('[AGENT] run.completed')
+        else if (state === 'cancelled' || state === 'interrupted') consola.warn(`[AGENT] run.${state}`)
+        else consola.error('[AGENT] run.failed')
+      } catch { /* Terminal persistence is independent of diagnostic output. */ }
       const sequence = snapshot.run.eventSequence
       Object.assign(snapshot, terminal)
       pending.forEach((item, index) => send({ type: 'item.failed', item: structuredClone(item), sessionId: item.sessionId, runId: item.runId, eventSequence: sequence + index + 1 }))

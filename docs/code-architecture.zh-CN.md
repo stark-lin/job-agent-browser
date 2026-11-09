@@ -128,12 +128,12 @@ Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览�
 | 申请生命周期、事件和日历 | `domain/application/`，UI 在 `pages/applications/` |
 | Profile、ProfileItem 与 Fact | `domain/candidate/`，UI 在 `pages/profile/` |
 | GenerationRun、Artifact 与溯源 | `domain/resume/`，UI 在 `pages/tailor-resume/` |
-| SQLite、迁移、Repository 与审计持久化 | Main 侧 `platform/database/` |
+| SQLite、迁移、Repository 与业务持久化 | Main 侧 `platform/database/` |
 | AI、配置、加密密钥和输出文件 | `platform/ai/`、`platform/storage/`、`platform/filesystem/`；AI 对话/配置/密钥已实现，简历生成/输出位于 `platform/agent/` 及 `platform/resume-output/` |
 
 Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.extractor.ts)。[URL 读取器](../src/platform/job-import/url-reader.ts)、HTML 解析和 AI 提取实现归 `platform/job-import/`；Browser 后续适配器复用相同普通数据快照，不传 DOM/Electron 对象。页面通过[异步桥接](../src/platform/electron/job-import-contract.ts)协调任务；数据库接口继续只处理确认后的保存。
 
-[Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时和注入的数据库审计能力；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
+[Shared AI 契约](../src/shared/ai.ts)暴露与 Provider 无关的类型。[Platform AI](../src/platform/ai/)管理协议适配、凭据/配置解析、SSE、取消、超时；Main 负责组装，数据库事务中不等待网络。[AI Preload](../src/platform/electron/preload/ai-bridge.ts)独立于同步 DataContract 分发。页面只协调输入与展示。AI 契约不向页面暴露供应商 SDK 类型。业务专属契约归使用方 Domain，通用契约归 Shared。ResumePreview 等业务 UI 即使复用仍在 Pages；Shared 占位布局不含业务语义。
 
 [Shared Agent 契约](../src/shared/agent/index.ts)管理 AgentModel/AgentTools。[Platform Tools](../src/platform/tools/index.ts)是唯一公共 MCP Registry，ToolScope 只属于 Server。只有 platform/mcp 和 platform/mcp-server 导入 MCP SDK。Agent 模块可导入纯 Domain 流程/校验，但不得直接或间接导入 Service、Repository、Registry 或数据库适配器。[MCP 架构](mcp-architecture.zh-CN.md)管理能力和会话行为。
 
@@ -149,11 +149,11 @@ Domain 定义 Repository 和[快照读取/提取接口](../src/domain/job/job.ex
 
 [质量检查](../scripts/quality.cjs)约束 App/Page/Renderer 特权导入、Domain/Shared 依赖、运行导入环、数据边界类型/模块长度及双语文档结构/链接/篇幅。TypeScript 检查未使用声明/参数和大小写。纯导航/store 测试补充 Electron SQLite 集成与生产窗口 smoke。命令归 README 管理。
 
-公开业务能力保留在 [DataContract](../src/platform/electron/data-contract.ts)，Repository、事务上下文、审计写入及生成阶段持久化仍为私有实现。存储模块分离迁移、事务/审计控制、映射和领域适配；Domain 服务管理业务校验。
+公开业务能力保留在 [DataContract](../src/platform/electron/data-contract.ts)，Repository、事务内部实现及生成阶段持久化仍为私有实现。存储模块分离迁移、事务控制、映射和领域适配；Domain 服务管理业务校验。
 
 Calendar 仍是 Applications 视图，Resume Builder 属于 Tailor Resume。Inbox 复用配置的网页邮箱，不建立邮件数据库。其余业务表单为后续工作，不因页面骨架可访问就视为完成。历史恢复/淘汰同样延后。
 
-行为、接口、目录或配置变化时同步更新所属文档和两种语言。未来迁移保留构建产物、SQLite/审计行为和 Session 分区。规模需要时再引入 Product Areas；不要求完整 DDD。
+行为、接口、目录或配置变化时同步更新所属文档和两种语言。未来迁移保留构建产物、SQLite行为和 Session 分区。规模需要时再引入 Product Areas；不要求完整 DDD。
 
 ## 七、相关文档
 

@@ -15,7 +15,7 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
   return {
     ...createArtifactService(repo, tx, runtime, refs),
     createRun(input: unknown, options: { start?: boolean; requestId?: string; validateSnapshot?(snapshot: InputSnapshot): void; checkSize?(run: GenerationRun): void; internal?: boolean } = {}) {
-      return tx.write({ event: 'GENERATION_CREATE', action: 'CREATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const args = v.object({ jobId: v.id, profileId: v.id, config: v.optional(check.config, check.config({})) })(input)
         const identity = JSON.stringify(args)
         if (options.requestId) {
@@ -45,7 +45,7 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
       })
     },
     cancelRun(input: unknown) {
-      return tx.write({ event: 'GENERATION_CANCEL', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const run = repo.getRun(v.byId(input).id)
         transition(run, 'CANCELLED', runtime.now())
         repo.saveRun(run)
@@ -53,7 +53,7 @@ export function createResumeService(jobs: JobRepository, candidate: CandidateRep
       })
     },
     deleteRun(input: unknown) {
-      return tx.write({ event: 'GENERATION_DELETE', action: 'DELETE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const { id } = v.byId(input), run = repo.getRun(id)
         if (isGenerating(run.state) && run.state !== 'CREATED') fail('INVALID_STATE')
         repo.removeRun(id)

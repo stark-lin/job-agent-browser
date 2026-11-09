@@ -1,8 +1,7 @@
 import { askContextDefaults } from '../../shared/ask'
-import { randomUUID } from 'node:crypto'
 import type { JsonSchema, JsonValue } from '../../shared/tools/tool.types'
 import { ToolError } from '../../shared/tools/errors'
-import type { AuditedCapabilities } from './capabilities'
+import type { Capabilities } from './capabilities'
 import type { KnowledgeService } from '../knowledge/service'
 import type { KnowledgeMethods } from '../electron/knowledge-contract'
 const path = { type: 'string', minLength: 1, maxLength: 1024 },
@@ -40,7 +39,7 @@ const descriptions: Record<string, string> = {
   delete:
     'Delete a knowledge file or explicitly recursive directory after a recovery snapshot. Requires an explicit user deletion request and the latest revision. History is retained.'
 }
-export function createKnowledgeTools(capabilities: AuditedCapabilities, service?: KnowledgeService, space: 'knowledge' | 'memory' = 'knowledge') {
+export function createKnowledgeTools(capabilities: Capabilities, service?: KnowledgeService, space: 'knowledge' | 'memory' = 'knowledge') {
   return Object.keys(schemas).filter(operation => space === 'knowledge' || ['list', 'retrieve', 'read', 'write', 'mkdir'].includes(operation)).map((operation) => {
     const write = ['write', 'mkdir', 'move', 'delete'].includes(operation)
     const required =
@@ -102,7 +101,7 @@ export function createKnowledgeTools(capabilities: AuditedCapabilities, service?
           structuredContent: (result.value === null ? { ok: true } : result.value) as unknown as JsonValue
         }
       },
-      { inputLimit: write ? 600000 : 65536, target: () => ({ type: space, id: randomUUID() }) }
+      { inputLimit: write ? 600000 : 65536 }
     )
   })
 }

@@ -11,7 +11,7 @@ import type { Fact, Profile } from './candidate.types'
 export function createImportService(repo: CandidateRepository, tx: UnitOfWork, runtime: Runtime) {
   return {
     applyImport(input: unknown, order?: ImportOrder): ImportSaved {
-      return tx.write({ event: 'PROFILE_IMPORT', action: 'CREATE', target: 'profile' }, () => {
+      return tx.write(() => {
         const args = applyImportInput(input)
         if (!Object.values(args.contact).some(value => value !== undefined) && !args.items.length && !args.facts.length && !args.links.length) fail('INVALID_INPUT')
         unique([...args.items, ...args.facts, ...args.links].map(entry => entry.draftId))

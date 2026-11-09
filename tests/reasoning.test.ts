@@ -48,7 +48,7 @@ test('complete and streaming responses preserve continuation fields without maki
   const frame = (delta: unknown, finish_reason: string | null = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\r\n\r\n`
   const bytes = new TextEncoder().encode(frame(wire) + frame({ content: 'Answer' }, 'stop') + 'data: [DONE]\n\n')
   const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://localhost', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {
-    audit() {}, transport: async () => new Response(new ReadableStream({ start(c) { for (const byte of bytes) c.enqueue(new Uint8Array([byte])); c.close() } }), { headers: { 'content-type': 'text/event-stream' } })
+     transport: async () => new Response(new ReadableStream({ start(c) { for (const byte of bytes) c.enqueue(new Uint8Array([byte])); c.close() } }), { headers: { 'content-type': 'text/event-stream' } })
   })
   const events: AgentModelEvent[] = []
   for await (const e of model.stream({ messages: [], tools: [], signal: new AbortController().signal })) events.push(e)

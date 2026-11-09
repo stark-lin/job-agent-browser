@@ -1,11 +1,11 @@
 import { toolError, toolFail, type ToolErrorCode } from '../../shared/tools/errors'
 import type { RegisteredTool } from '../../shared/tools/tool.types'
-import type { AuditedCapabilities } from '../tools/capabilities'
+import type { Capabilities } from '../tools/capabilities'
 import type { MCPClient } from './client'
 import { mcpDescriptor, type MCPServerConfig } from './server-config'
 import { adaptMCPResult, schemaFingerprint } from './tool-adapter'
 
-export function createMCPProvider(config: MCPServerConfig, client: MCPClient, capabilities: AuditedCapabilities) {
+export function createMCPProvider(config: MCPServerConfig, client: MCPClient, capabilities: Capabilities) {
   return {
     async discover(signal?: AbortSignal): Promise<{ tools: RegisteredTool[]; rejected: { name: string; error: ToolErrorCode }[] }> {
       const discovered = await client.listTools(signal), names = new Set<string>()

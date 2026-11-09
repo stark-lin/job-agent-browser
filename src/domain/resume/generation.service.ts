@@ -17,7 +17,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
   function owned(id: string) { repo.assertGeneration(id); return repo.getRun(id) }
   return {
     attachAgent(input: { runId: string; requestId: string; ownerRuntimeId: string }) {
-      return tx.write({ event: 'GENERATION_AGENT_ATTACH', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const run = owned(input.runId)
         if (run.config.runtimeKind !== 'internal' || run.state !== 'REWRITING') fail('INVALID_STATE')
         if (run.agentRunId) return { agentRunId: run.agentRunId }
@@ -30,7 +30,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     rewriteBullet(input: unknown) {
-      return tx.write({ event: 'GENERATION_REWRITE_BULLET', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const args = v.object({ runId: v.id, bulletId: v.id, text: check.bulletText, requestId: v.id })(input)
         const run = owned(args.runId)
         const hash = fingerprint(JSON.stringify([args.bulletId, args.text]))
@@ -57,7 +57,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     beginValidation(runId: string) {
-      return tx.write({ event: 'GENERATION_VALIDATE', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const run = owned(runId)
         if (['VALIDATING', 'PUBLISHING', 'PUBLISHED'].includes(run.state)) return run
         if (run.config.runtimeKind === 'internal' && (!run.agentRunId || !repo.completedAgent(run.agentRunId))) fail('INVALID_STATE')
@@ -65,7 +65,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     preparePublication(runId: string) {
-      return tx.write({ event: 'GENERATION_PREPARE_PUBLICATION', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const run = owned(runId)
         if (run.state === 'PUBLISHING' || run.state === 'PUBLISHED') return run
         if (run.state !== 'VALIDATING' || !run.assembled) fail('INVALID_STATE')
@@ -74,7 +74,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     publishArtifact(input: { runId: string }) {
-      return tx.write({ event: 'GENERATION_PUBLISH', action: 'CREATE', target: 'artifact' }, () => {
+      return tx.write(() => {
         const run = owned(input.runId)
         const previous = repo.artifactForRun(run.id)
         if (run.state === 'PUBLISHED' && previous) return previous
@@ -90,7 +90,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     commitOutput(id: string, revision: number, output: Artifact['output'], files: Artifact['outputFiles'], guard: () => void) {
-      return tx.write({ event: 'ARTIFACT_OUTPUT_STATE', action: 'UPDATE', target: 'artifact' }, () => {
+      return tx.write(() => {
         guard()
         const artifact = repo.getArtifact(id)
         if (artifact.revision !== revision) fail('CONFLICT')
@@ -102,7 +102,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     recordOutputFiles(input: unknown) {
-      return tx.write({ event: 'ARTIFACT_OUTPUT_RECORD', action: 'UPDATE', target: 'artifact' }, () => {
+      return tx.write(() => {
         const args = v.object({ id: v.id, files: check.outputFiles })(input), artifact = repo.getArtifact(args.id)
         v.unique(args.files.map((file) => file.format))
         if (args.files.some((file) => !file.relativePath.endsWith(`.${file.format.toLowerCase()}`))) fail('INVALID_INPUT')
@@ -112,7 +112,7 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     recordOutputState(input: unknown) {
-      return tx.write({ event: 'ARTIFACT_OUTPUT_STATE', action: 'UPDATE', target: 'artifact' }, () => {
+      return tx.write(() => {
         const args = v.object({ id: v.id, output: check.outputState })(input), artifact = repo.getArtifact(args.id)
         artifact.output = args.output; artifact.updatedAt = runtime.now()
         repo.saveArtifact(artifact)
@@ -120,13 +120,13 @@ export function createGenerationService(repo: ResumeRepository, tx: UnitOfWork, 
       })
     },
     settle(id: string, state: 'FAILED' | 'CANCELLED' | 'INTERRUPTED', error?: string) {
-      return tx.write({ event: state === 'CANCELLED' ? 'GENERATION_CANCEL' : state === 'FAILED' ? 'GENERATION_FAIL' : 'GENERATION_INTERRUPT', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const run = owned(id)
         return isGenerating(run.state) ? advance(run, state, error) : run
       })
     },
     recoverInterrupted() {
-      return tx.write({ event: 'GENERATION_RECOVER', action: 'UPDATE', target: 'generation_run' }, () => {
+      return tx.write(() => {
         const runs = repo.running()
         for (const run of runs) advance(run, 'INTERRUPTED', 'PROCESS_INTERRUPTED')
         return runs.length
