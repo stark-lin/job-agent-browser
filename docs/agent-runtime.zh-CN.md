@@ -80,3 +80,5 @@ Main 在同一事务中结算最后一个未关闭的 Cycle，并保存宿主 Ru
 Copy Debug JSON v2 包含按序排列的 Cycle 和最新状态，同时保留宿主生命周期、模型请求、Provider 响应及实际工具记录。Cycle 的工具 ID 也包含派发前跳过的调用。存储和版本规则见[数据架构](data-architecture.zh-CN.md#copy-debug-json)。
 
 Resume Agent Run 完成后，Controller 通过 MCP 校验并发布已持久化的文档。Agent 最终文本作为 Trace 摘要。Agent Run 完成后业务校验仍可能失败。文件输出具有独立生命周期。[Resume Controller](../src/platform/electron/resume-tasks.ts)
+
+Resume 失败报告通过 `resume.fail` 保留受支持的模型、工具、MCP 和存储错误码；未知原因使用 `GENERATION_FAILED`。`VALIDATION_FAILED` 仅用于已确认的文档校验失败，不代表模型主张的语义判断。这些错误码不改变 Run/Cycle 转换。[Resume 定义](../src/platform/agent/engine/definitions.ts)、[MCP 工具](../src/platform/tools/resume.ts)和[外部 Skill](../skills/tailor-resume/SKILL.zh-CN.md)只允许改写列表返回的要点 ID，条目要点中的成组技能保留为一条；个人简介和独立 Skills 沿用复制的原文。

@@ -28,7 +28,7 @@ export function resumeError(error: unknown): string {
   if (error instanceof OutputFailure) return error.code
   if (error instanceof ToolError) return error.code === 'TOOL_AUDIT_UNAVAILABLE' ? 'AUDIT_UNAVAILABLE'
     : error.code === 'TOOL_TIMEOUT' ? 'AGENT_TIMEOUT' : error.code === 'TOOL_CANCELLED' ? 'AGENT_CANCELLED' : error.code
-  return error instanceof DataError || error instanceof AgentError ? error.code : 'VALIDATION_FAILED'
+  return error instanceof DataError || error instanceof AgentError ? error.code : 'GENERATION_FAILED'
 }
 /** Main owns windows and UI projection; Agent capabilities always use its MCP session. */
 export function createResumeTasks(deps: {
@@ -56,7 +56,7 @@ export function createResumeTasks(deps: {
   async function settle(tools: MCPAgentTools, runId: string, cancelled: boolean, error?: unknown) {
     const code = typeof error === 'string' ? error : resumeError(error)
     await tools.call(cancelled ? 'resume.cancel' : 'resume.fail', { runId,
-      ...(cancelled ? {} : { error: resumeFailures.includes(code) ? code : 'VALIDATION_FAILED' }) }, AbortSignal.timeout(10000))
+      ...(cancelled ? {} : { error: resumeFailures.includes(code) ? code : 'GENERATION_FAILED' }) }, AbortSignal.timeout(10000))
   }
   async function output(work: Work, artifactId: string) {
     event(work)

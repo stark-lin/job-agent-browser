@@ -105,7 +105,7 @@ The following public contracts are available to dedicated workflows and external
 | resume.start | Atomic immutable snapshot/start and same-session request UUID receipt; optional declared provider/model metadata |
 | resume.get_context, resume.list_facts, resume.list_bullets | Immutable context, paged Facts and paged current bullets with rewritten flags |
 | resume.rewrite_bullet | Change each bullet once per run using its ID and a request receipt |
-| resume.publish, resume.fail, resume.cancel | Publication or fixed-code failure/cancellation of the owning runtime's run |
+| resume.publish, resume.fail, resume.cancel | Publication or fixed-code failure/cancellation of the owning runtime's run; [Resume failure codes](agent-runtime.md#4-finalization-and-trace) preserve model/tool/storage causes |
 | artifact.get, artifact.build | Content/provenance or model-free HTML/PDF output and local paths |
 
 [Profile tools](../src/platform/tools/profile.ts) persist host-understood data without fetching/parsing resumes or repositories. Omitted patch fields are preserved, empty strings/arrays clear, arrays replace, metadata merges by field, and null associations detach. Revision, transaction and receipt rules belong to [data architecture](data-architecture.md#2-business-rules). Profile write input is limited to 256 KiB. Fact inputs/results omit `evidence`; supplying that removed field is rejected as unknown. Distillation Skills save concise facts and tags without source attachments or moving them into other fields.

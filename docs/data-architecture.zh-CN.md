@@ -47,7 +47,8 @@
 
 [个人资料用例](../src/domain/candidate/candidate.service.ts) 保证父条目和事实引用属于同一 Profile、条目无环、日期范围有效且条目类型不可修改。条目类型为 `EXPERIENCE / PROJECT / EDUCATION`。事实类别为 `ACHIEVEMENT / RESPONSIBILITY / SKILL / AWARD / CERTIFICATION / COURSE / LANGUAGE / OTHER`。全部已保存 Fact 均可参与生成，不存在确认状态、数据库列或确认操作。
 
-`Profile.introduction` 保存可选个人简介（最多 2,000 字符），与简历的纯联系方式 basics 和条目背景简介分开。[版本 7 迁移](../src/platform/database/migrations/profile-introduction.ts)添加默认空值，不修改历史快照。[资料编辑](../src/domain/candidate/candidate.service.ts)在字段省略时保留原简介，显式空值用于清空；[导入审核](../src/platform/profile-import/draft.ts)保留原文，缺失或空白简介默认忽略，审核后才替换已有内容。
+- `Profile.introduction` 保存可选个人简介（最多 2,000 字符），与简历的纯联系方式 basics 和条目背景简介分开。[版本 7 迁移](../src/platform/database/migrations/profile-introduction.ts)添加默认空值，不修改历史快照。[资料编辑](../src/domain/candidate/candidate.service.ts)在字段省略时保留原简介，显式空值用于清空；[导入审核](../src/platform/profile-import/draft.ts)保留原文，缺失或空白简介默认忽略，审核后才替换已有内容。
+- [内部简历解析](../src/platform/profile-import/draft.ts)、[MCP 事实工具指引](../src/platform/tools/profile.ts)和[简历导入 Skill](../skills/distill-resume/SKILL.zh-CN.md)要求模型将原文每个技能类别/分组保留为一条 SKILL Fact，包含类别名和完整技术列表。组内分隔符及 PDF 换行不拆分；不同类别/独立陈述分别保存，不重复生成单项技术 Fact。条目级和资料级技能均适用。这是模型指引，不是服务端语义强制校验，也不会迁移已有 Fact。
 
 [MCP 资料命令](../src/domain/candidate/write.service.ts)提供创建及部分更新，沿用同资料引用、日期和条目类型限制；对历史导入的空值，更新无关字段时保留。新增资料/条目/事实仍要求姓名/名称/内容。`Profile.revision` 由[版本 8 迁移](../src/platform/database/migrations/profile-writes.ts)初始化为 1，数据库触发器在基本资料、条目或事实的实际变更（包括 UI、导入、删除/级联）时单调推进。MCP 更新/新增条目和事实必须提交 expectedRevision；同一 BEGIN IMMEDIATE 事务内校验版本、写业务数据及 receipt，无实际变化不推进版本。receipt 重放先于版本检查，返回原结果及历史 revision，之后应重新读取当前版本。版本只约束带 expectedRevision 的 MCP 写入，既有人工表单仍按原 IPC 语义保存。
 

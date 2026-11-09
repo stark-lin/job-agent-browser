@@ -9,13 +9,19 @@ import { resumeFixture } from './resume-fixture'
 import { firstPartyFixture } from './first-party-fixture'
 import type { ResumeEvent } from '../src/platform/electron/resume-contract'
 import { applyResumeTraceEvent } from '../src/pages/tailor-resume/resume-trace'
+import { ToolError } from '../src/shared/tools/errors'
+import { DataError } from '../src/domain/common/errors'
+import type { StreamingAgentModel } from '../src/shared/agent'
+import { en } from '../src/shared/i18n/locales/en'
+import { zhCN } from '../src/shared/i18n/locales/zh-CN'
 
-async function setup(t: TestContext, batchSize = 1) {
+async function setup(t: TestContext, batchSize = 1, model?: StreamingAgentModel) {
   const f = await firstPartyFixture(t), server = await resumeFixture(batchSize)
   t.after(() => server.close())
   const events: ResumeEvent[] = []
   const tasks = createResumeTasks({ backend: f.backend, mcp: f.mcp, directory: f.outputDirectory, fonts: '', key: () => null,
-    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'], defaultModel: 'fixture', requiresKey: false }] }) })
+    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'], defaultModel: 'fixture', requiresKey: false }] }),
+    ...(model ? { model: () => model } : {}) })
   t.after(() => tasks.dispose())
   return { ...f, server, tasks, events, directory: f.outputDirectory, outputCount: f.outputs,
     failOutput: (value: boolean) => f.flag('fail-output', value),
@@ -67,6 +73,44 @@ test('desktop model batches independent rewrites without revision bookkeeping or
   assert.equal(writes.length, 2)
   assert(writes.every(item => item.state === 'completed'))
   assert.equal(f.server.requests(), 3)
+})
+
+test('generation preserves grouped skills, copied introduction and standalone skill categories', async t => {
+  const f = await setup(t)
+  const introduction = 'Backend developer with saved project experience.'
+  value(await f.api.profiles.editContact({ id: f.profile.id, details: { name: f.profile.name, introduction } }))
+  const grouped = 'Backend skills: SQLite / Go / REST APIs'
+  const attached = value(await f.api.profiles.addFact({ profileId: f.profile.id, profileItemId: f.item.id,
+    details: { kind: 'SKILL', content: grouped } }))
+  const skills = [grouped, 'Frontend skills: React, TypeScript']
+  for (const content of skills) value(await f.api.profiles.addFact({ profileId: f.profile.id, details: { kind: 'SKILL', content } }))
+  const result = await done(f.tasks, (await f.start()).runId)
+  assert.equal(result.run.state, 'PUBLISHED')
+  const content = result.artifact!.content
+  assert.equal(content.summary?.text, introduction)
+  assert.deepEqual(content.skills.map(skill => skill.text), skills)
+  assert.equal(content.experience[0].bullets.length, 2)
+  assert.equal(content.experience[0].bullets[1].text, grouped + '.')
+  assert.deepEqual(content.experience[0].bullets[1].factIds, [attached.id])
+})
+
+for (const [failure, expected] of [
+  [new ToolError('TOOL_EXECUTION_FAILED'), 'TOOL_EXECUTION_FAILED'],
+  [new ToolError('TOOL_INVALID_OUTPUT'), 'TOOL_INVALID_OUTPUT'],
+  [new DataError('STORAGE_UNAVAILABLE'), 'STORAGE_UNAVAILABLE'],
+  [new Error('private failure details'), 'GENERATION_FAILED']
+] as const) test(`generation retains ${expected} through Agent settlement and real MCP failure reporting`, async t => {
+  const f = await setup(t, 1, { async *stream() { throw failure }, async complete() { throw failure } })
+  const result = await done(f.tasks, (await f.start()).runId)
+  assert.equal(result.run.state, 'FAILED')
+  assert.equal(result.run.error, expected)
+  assert.equal(result.artifact, null)
+  assert.equal(f.outputCount(), 0)
+  const trace = f.tasks.getTrace(1, { runId: result.run.id })!
+  assert.equal(trace.run.error, expected)
+  assert.equal(trace.cycles.at(-1)?.status, 'FAILED')
+  assert(!JSON.stringify(trace).includes('private failure details'))
+  assert(en.resume.errors[expected]); assert(zhCN.resume.errors[expected])
 })
 
 test('live trace streams partial text, recovers from a sequence gap and preserves cancelled diagnostics', async t => {

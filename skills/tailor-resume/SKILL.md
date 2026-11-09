@@ -21,13 +21,15 @@ Read `resume.get_context`, `resume.list_facts`, and `resume.list_bullets` for th
 
 Call `resume.rewrite_bullet` only where a wording change helps match the job. Pass `runId`, `bulletId`, `text`, and a fresh UUID v4 `requestId`. Each bullet may change once per run. Unchanged text does not consume the change. Skip bullets marked `rewritten` in the list. An identical retry uses the original requestId and payload to retrieve its receipt in the same session. After a conflict or unknown outcome, reread the bullets and continue with eligible bullets.
 
+Use only `bulletId` values returned by `resume.list_bullets`, never Fact or Item IDs. Send 1–20,000 characters of plain text, not JSON or a whole document. Personal introduction and standalone Skills are already copied and are not rewrite targets. Preserve any grouped skill statement within an item bullet, including its category and full technology list; do not split or merge groups.
+
 Keep the original language and meaning. Ground the wording in the bullet's saved Facts or its source Item summary. Preserve the original scope of work and quantities. Report missing evidence. The word count is a target, and zero rewrites are valid.
 
 ## Publish and deliver
 
 Call `resume.publish`, then `artifact.build` with the returned artifact ID, then `artifact.get` with `{id: artifactId}`. Deliver the ready HTML/PDF paths and summarize the tailoring. A failed build can be retried once using the same Artifact.
 
-On execution failure call `resume.fail` with the `runId` and a supported fixed error code while the original session is live. On user cancellation call `resume.cancel`. If the session disconnects, report interruption and leave recovery to Job Agent Browser. A new session cannot take over the unfinished run.
+On execution failure call `resume.fail` with the `runId` and the original supported fixed error code while the original session is live. Reserve `VALIDATION_FAILED` for an identified document validation failure; use `GENERATION_FAILED` for an unknown cause. Do not label tool, storage or connection failures as unsupported model content. On user cancellation call `resume.cancel`. If the session disconnects, report interruption and leave recovery to Job Agent Browser. A new session cannot take over the unfinished run.
 
 ## Rebuild an existing resume
 

@@ -51,7 +51,7 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
     const facts = run(args.runId).inputSnapshot.facts, offset = Number(args.offset ?? 0), limit = Number(args.limit ?? 100)
     return { items: facts.slice(offset, offset + limit), total: facts.length }
   })
-  bind('resume.list_bullets', 'Read current bullets and their rewritten flags. Each bullet may change once per run. Advance offset by the returned item count.', schemas.facts, false, args => {
+  bind('resume.list_bullets', 'Read rewritable experience, project and education bullets and their rewritten flags. Only returned bulletId values are rewrite targets; Fact and Item IDs are not bullet IDs. Personal introduction and standalone Skills are copied unchanged. Each bullet may change once per run. Advance offset by the returned item count.', schemas.facts, false, args => {
     const current = run(args.runId), document = current.assembled
     const bullets = document ? bulletSections.flatMap(section => document[section].flatMap(entry => entry.bullets.map(bullet =>
       ({ bulletId: bullet.id, profileItemId: entry.profileItemId, section, text: bullet.text, factIds: bullet.factIds })))) : []
@@ -66,7 +66,7 @@ export function createResumeTools(backend: Backend, build: (id: string, signal: 
     }
     return { items, total: bullets.length }
   })
-  bind('resume.rewrite_bullet', 'Change one existing bullet at most once per run using a UUID v4 requestId. Unchanged text does not consume the change. Identical retries return the original receipt; new requests for a changed bullet conflict.', schemas.rewrite, true,
+  bind('resume.rewrite_bullet', 'Change one existing bullet returned by resume.list_bullets at most once per run using a UUID v4 requestId. Use its bulletId, not a Fact or Item ID. Send 1–20,000 characters of plain text, not JSON or a document. Preserve source meaning and grouped skills: keep the category and full technology list in one bullet without splitting or merging groups. Unchanged text does not consume the change. Identical retries return the original receipt; new requests for a changed bullet conflict.', schemas.rewrite, true,
     args => backend.generation.rewriteBullet(args))
   if (internal) bind('resume.attach_agent', 'Bind a trusted desktop Agent Run before model execution.', schemas.attach, true,
     args => {

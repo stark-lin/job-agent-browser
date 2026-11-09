@@ -105,7 +105,7 @@ JOB_BROWSER_MCP_CALLER = "codex"
 | resume.start | 原子快照/启动与同会话请求 UUID receipt，可声明 Provider/模型元数据 |
 | resume.get_context, resume.list_facts, resume.list_bullets | 不可变上下文、分页 Fact 及带 rewritten 标记的当前要点分页 |
 | resume.rewrite_bullet | 按要点 ID 和请求回执改写，每个运行内每条要点最多改动一次 |
-| resume.publish, resume.fail, resume.cancel | 发布或以固定错误码失败/取消本运行时拥有的 run |
+| resume.publish, resume.fail, resume.cancel | 发布或以固定错误码失败/取消本运行时拥有的 run；[Resume 失败码](agent-runtime.zh-CN.md#四收尾与诊断)保留模型/工具/存储原因 |
 | artifact.get, artifact.build | 内容/溯源或无需模型的 HTML/PDF 输出和本地路径 |
 
 [资料写入工具](../src/platform/tools/profile.ts)只持久化宿主已理解的数据，不抓取或解析简历/仓库。省略更新字段保留原值，空字符串/数组明确清空；数组整体替换，metadata 按字段合并，关联字段 null 明确解除。版本、事务和 receipt 规则由[数据架构](data-architecture.zh-CN.md#二业务规则)管理。资料写入输入上限 256 KiB。Fact 输入和结果不含 `evidence`，提交此已移除字段按未知字段拒绝。蒸馏 Skills 保存简洁事实和标签，不保存来源附件，也不转存到其他字段。
