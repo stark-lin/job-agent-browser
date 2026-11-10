@@ -18,6 +18,8 @@
 
 运行时冒烟阶段复用同一父进程守护，每阶段最多 60 秒（部分更短），包括 MCP 和打包后运行时验证。npm 安装/重装属于准备工作，使用独立的五分钟预算；模型准备与打包保留工作流时限。
 
+[npm 冒烟命令辅助函数](../scripts/npm-runtime-smoke.cjs)默认捕获 UTF-8 标准输出，用于 CLI 版本检查和 `doctor` JSON 解析；GUI/运行时阶段显式继承控制台输出。[分发回归测试](../tests/npm-distribution.test.cjs)验证有超时限制的执行器仍正确捕获输出。
+
 [真实 MCP fixture](../tests/first-party-fixture.ts) 在初始化前注册清理，先排空外部客户端再关闭 Main 的准入 broker，并在清理报错后继续其余步骤；[一致性测试](../tests/resume-runtime-parity.test.ts) 验证刻意失败的测试仍会退出并删除临时数据。
 
 验证与原生打包、本地 `electron:install`/`predev`、npm 干净安装与重装均使用同一个[共享安装器](../scripts/install-electron.cjs)。它在新的 Node 进程中初始化官方模块，遇到临时 HTTP 408/429/5xx、网络故障或进程超时时最多尝试三次，每次超时两分钟，两次等待分别为 10/20 秒。保留下载器诊断与校验机制。资源不存在、权限或校验值不匹配立即失败；重试耗尽仍会失败。运行时断言不重试（[回归测试](../tests/npm-distribution.test.cjs)）。

@@ -18,6 +18,8 @@ Feature branches use `codex/` and integrate into `dev`. Promote `dev` to `main` 
 
 Runtime smoke stages use the same parent guard with at most 60 seconds each (some use shorter limits), including MCP and packaged runtime verification. npm installation/reinstallation is setup work with a separate five-minute budget; model preparation and packaging retain their workflow limits.
 
+The [npm smoke command helper](../scripts/npm-runtime-smoke.cjs) captures UTF-8 stdout by default for CLI version checks and `doctor` JSON parsing; GUI/runtime stages explicitly inherit console output. [Distribution regression tests](../tests/npm-distribution.test.cjs) verify output capture through the bounded runner.
+
 [Real MCP fixtures](../tests/first-party-fixture.ts) register cleanup before startup, drain external clients before Main's admission broker and attempt remaining cleanup after an error; [parity tests](../tests/resume-runtime-parity.test.ts) verify a deliberately failed test exits and removes its temporary data.
 
 Electron setup in validation and native packaging, local `electron:install`/`predev`, and clean npm installation/reinstallation uses one [shared installer](../scripts/install-electron.cjs). It initializes the official module in fresh Node processes and retries transient HTTP 408/429/5xx, network failures and process timeouts up to three attempts, with a two-minute timeout each and 10/20-second backoff. Downloader diagnostics and checksum verification remain enabled. Missing assets, permissions and checksum mismatches fail immediately; exhausted retries remain fatal. Runtime assertions are not retried ([regression tests](../tests/npm-distribution.test.cjs)).

@@ -8,7 +8,7 @@ const { createHash } = require('node:crypto')
 const { initializeElectron } = require('./install-electron.cjs')
 const root = resolve(__dirname, '..')
 function run(command, args, options = {}) {
-  return checked(runTestProcess(command, args, { encoding: 'utf8', ...options }), command, args)
+  return checked(runTestProcess(command, args, { stdio: 'pipe', encoding: 'utf8', ...options }), command, args)
 }
 function checked(result, command, args) {
   assert.equal(result.error, undefined, result.error?.message)
@@ -149,5 +149,5 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     console.log('Clean npm installation verified: GUI, preload, Pi Ask, model controls, keyword retrieval, MCP, HTML/PDF and reinstall persistence.')
   } finally { rmSync(scratch, { recursive: true, force: true }) }
 }
-module.exports = { main, prepareModelFixture }
+module.exports = { main, prepareModelFixture, runSmokeCommand: run }
 if (require.main === module) void main().catch(error => { console.error(error); process.exitCode = 1 })

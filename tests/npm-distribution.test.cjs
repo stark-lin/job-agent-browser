@@ -10,9 +10,21 @@ const { distributionLock } = require('../scripts/prepare-npm-package.cjs')
 const { verifyArtifact, registryVersion, publishArtifact } = require('../scripts/publish-npm.cjs')
 const { verifyMetadataAndDocs } = require('../scripts/verify-npm-package.cjs')
 const { initializeElectron } = require('../scripts/install-electron.cjs')
-const { prepareModelFixture } = require('../scripts/npm-runtime-smoke.cjs')
+const { prepareModelFixture, runSmokeCommand } = require('../scripts/npm-runtime-smoke.cjs')
 const root = join(__dirname, '..')
 const lookupArgs = version => ['view', `@stark-lin/jab@${version}`, 'dist.integrity', '--json', '--registry=https://registry.npmjs.org/', '--fetch-retries=0', '--fetch-timeout=10000']
+test('npm smoke captures CLI version and JSON output with its bounded process runner', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'jab-cli-output-')), bin = join(directory, 'bin')
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  mkdirSync(bin)
+  const version = '0.1.0-main.89.g1ad17b7', cli = join(bin, 'jab.cjs')
+  writeFileSync(join(directory, 'package.json'), JSON.stringify({ version }))
+  writeFileSync(cli, readFileSync(join(root, 'packages/npm/bin/jab.cjs')))
+  assert.equal(runSmokeCommand(process.execPath, [cli, '--version'], { cwd: tmpdir() }).trim(), version)
+  const doctor = { electron: { executable: '/fixture/electron' }, mcp: true }
+  const output = runSmokeCommand(process.execPath, ['-e', `console.error('diagnostic'); console.log(${JSON.stringify(JSON.stringify(doctor))})`])
+  assert.deepEqual(JSON.parse(output), doctor)
+})
 test('clean-install Electron initialization retries transient downloads with bounded backoff', async t => {
   t.mock.method(console, 'error', () => {})
   for (const stderr of [
