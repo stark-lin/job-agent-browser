@@ -50,7 +50,7 @@ const {spawn}=require('node:child_process');const {existsSync}=require('node:fs'
 const main=spawn(process.execPath,[${JSON.stringify(cli)},'--data-dir',process.argv[2]],{stdio:'ignore'});
 (async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[${JSON.stringify(cli)},'mcp','--data-dir',process.argv[2]],stderr:'pipe'});
 try{const deadline=Date.now()+30000;while(!existsSync(join(process.argv[2],'run-runtime','control.json'))){if(Date.now()>deadline)throw Error('Main admission unavailable');await new Promise(r=>setTimeout(r,25));}
-await client.connect(transport);const tools=await client.listTools();assert(tools.tools.some(t=>t.name==='knowledge.retrieve'));assert(!tools.tools.some(t=>t.name.startsWith('memory.')));
+await client.connect(transport);const tools=await client.listTools();assert(tools.tools.some(t=>t.name==='knowledge.retrieve'));assert(tools.tools.some(t=>t.name==='memory.write'));assert(tools.tools.some(t=>t.name==='human.ask'));assert(!tools.tools.some(t=>t.name==='knowledge.write'));
 const begun=await client.callTool({name:'run.begin',arguments:{}});assert(!begun.isError);const executionRunId=begun.structuredContent.runId;
 const call=async(name,input)=>{const r=await client.callTool({name,arguments:{...input,executionRunId}},{timeout:180000});assert(!r.isError,JSON.stringify(r));return r.structuredContent};
 const result=await call('knowledge.retrieve',{query:'SQLite'});assert(result);
@@ -63,7 +63,7 @@ const page=await call('resume.list_bullets',{runId});
 assert.equal(page.items[0].factIds[0],fact.id);
 await call('resume.rewrite_bullet',{runId,bulletId:page.items[0].bulletId,text:'Built TypeScript services and automated tests.',requestId:randomUUID()});
 const {artifact}=await call('resume.publish',{runId});const built=await call('artifact.build',{artifactId:artifact.id});assert.equal(built.output.status,'READY');
-console.log('Pure Node jab mcp verified Main-initialized storage, public tools without Memory, and real PDF output without protocol stdout contamination.');
+console.log('Pure Node jab mcp verified Main-initialized storage, read-only Knowledge, shared Memory, Human Ask and real PDF output without protocol stdout contamination.');
 }finally{await client.close();main.kill('SIGTERM');await new Promise(resolve=>{const timer=setTimeout(()=>{main.kill('SIGKILL');resolve()},10000);main.once('close',()=>{clearTimeout(timer);resolve()})})}})().catch(e=>{console.error(e);process.exitCode=1});
 `)
     const data = join(scratch, 'user-data')

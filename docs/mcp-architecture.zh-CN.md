@@ -23,21 +23,21 @@ UI    → typed IPC → Domain
 
 [Agent Engine](../src/platform/agent/engine/index.ts)用共享 Pi 循环执行 Ask 和 Resume，串行调用工具并校验请求。[AgentModel 适配](../src/platform/ai/agent-model.ts)映射逻辑工具名，并记录不含内容的模型结果。[职位采集](../src/platform/agent/capture.ts)和[申请管理](../src/platform/agent/application.ts)使用单次无工具模型请求，由 Controller 通过 MCP 派发已授权并绑定的写入。
 
-[Ask Agent](../src/platform/agent/ask.ts)使用 [Pi Runtime](../src/platform/agent/pi/runtime.ts)。初始 loadout 只有 tool.search/tool.activate；[目录](../src/platform/agent/tools/discovery.ts)索引获授权的 MCP 描述及风险，包括五个 Memory 工具。搜索最多返回八个摘要；激活默认最多八个工具、Schema 软预算为 8%/8,192 Tokens，同时受硬上下文预算约束。Loadout 在请求边界切换，执行使用 MCPAgentTools.call。整批校验后串行执行，等待每个结果后才进入下一次推理，每 Run 的主循环及上下文摘要合计最多 64 次 Provider 请求；取消或不确定写入终止执行。
+[Ask Agent](../src/platform/agent/ask.ts)、智能粘贴和 Resume 使用 [ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts)。模型初始工具仅含有权使用的 `scope.job/profile/application/resume/artifact/knowledge/memory` 目录和 `human.ask`。内部 MCP 同时列出原始授权描述。Scope 调用真实经过 Server，按当前权限返回名称/描述/风险，下一轮模型请求加入整个领域的原始 Schema。未展开调用以 AGENT_PROTOCOL_ERROR 拒绝。重复目录幂等，多个领域累积至 Run 结束。没有搜索、激活、LRU 或工具数软预算；硬上下文超限返回 ASK_CONTEXT_OVERFLOW，不静默移除工具。校验后的批次串行执行，每 Run 最多 64 次模型请求（含摘要）和 256 次模型工具调用。
 
-**已实现激活保护：**激活保留 activeOnNextRequest，增加 alreadyActive/changed/nextAction。仅仍获授权且已在组装请求中通过校验的工具计为已激活；名称换序/重复不构成进展。同一规范化工具组容忍一次冗余激活，第二次以 AGENT_STEP_LIMIT 结束 Run，阻止同批后续工具和推理。搜索不清除计数；业务调用成功、有效 loadout 变化或目录变化会清除。同批尚未生效的激活及淘汰后重激活不算冗余。[运行时架构](architecture.zh-CN.md)管理请求校验，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除执行诊断。[回归测试](../tests/agent-disclosure.test.ts)覆盖保护及同步失败。
+[Scope 测试](../tests/scoped-toolset.test.ts)覆盖 Run 隔离、领域展开、权限、重复调用和硬预算。[Provider 测试](../tests/agent-disclosure.test.ts)与[真实 HTTP/MCP 集成](../tests/ask-disclosure.test.ts)保留名称/Schema Hash 校验。Scope 和 Human Ask 验证活动 Run，但绕过业务 RunGuard，不计业务进展、不清除警告/恢复。外部 MCP 保持扁平列表，公开授权业务工具及 `run.begin`、`run.end`、`human.ask`，不公开 Scope。
 
-[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 非删除操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume 和外部 MCP 使用各自的策略。
+[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除 Profile 写入、全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。Ask 提示词不列出这些写入接口，Scope 目录和模型 Schema 仅暴露授权操作。普通 Job/Application 管理、Profile 与 Knowledge 只读操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume、Profile 导入和外部 MCP 使用各自的策略。
 
 智能粘贴复用 Ask Run 和 RunGuard，并建立独立的认证连接。[服务端](../src/platform/mcp-server/runtime.ts) 在现有 Ask 允许列表内将发现和执行的风险上限设为 COMPUTE。智能粘贴 Run 收尾时关闭该连接。之后在同一会话中发出的普通 Ask 请求使用常规 Ask 连接。[客户端](../src/platform/mcp/first-party-client.ts) · [集成测试](../tests/smart-paste.test.ts)
 
 ### Agent Run 保护
 
-[openAgentRun](../src/platform/mcp/first-party-client.ts)为每个已放行的 Run 绑定可取消工具视图。Main 发放有效期 30 秒的一次性授权，绑定认证连接、Run、操作及规范化参数。Ask 写入 Memory 还需来源授权。桌面 Resume 连接分别使用 Controller 和模型授权，只有 Controller 可启动、绑定、校验、发布、结算或构建。模型授权绑定 Agent Run 和 GenerationRun，固定开放快照读取、要点改写以及只读 Memory 和 Knowledge。Server 校验活动绑定和生成归属。外部宿主使用公开工具，并通过原会话拥有生命周期写入权限。
+[openAgentRun](../src/platform/mcp/first-party-client.ts)为每个已放行的 Run 绑定可取消工具视图。Main 发放有效期 30 秒的一次性授权，绑定认证连接、Run、操作及规范化参数。Ask 写入 Memory 还需来源授权。桌面 Resume 连接分别使用 Controller 和模型授权，只有 Controller 可启动、绑定、校验、发布、结算或构建。模型授权绑定 Agent Run 和 GenerationRun，开放快照读取、要点改写、Memory 读写和只读 Knowledge。Server 校验活动绑定和生成归属。外部宿主使用公开工具，并通过原会话拥有生命周期写入权限。
 
 [Server RunGuard](../src/platform/mcp-server/run-guard/index.ts)位于授权及共享 capability 输入准备之后，保留各工具大小限制。Run 锁覆盖检查、派发和结果登记。已确认归档的重复/反向操作在 Domain 之前拒绝。有效请求（含 Guard 拒绝）计入 256 次预算；第 257 次或第二次相同违规阻断执行。不确定写入保留原错误并停止，不重试或回滚。 [Ask AI Cycle 状态机](agent-runtime.zh-CN.md)根据可信快照控制后续 Pi 请求，进展判定与能力安全仍由 MCP Server 负责。
 
-[读取进展](../src/platform/mcp-server/run-guard/read-progress.ts)累计实体/字段证据及各空间文件版本与覆盖行范围。旧结果换序、重组或取子集，以及查询、分数、展示变化不算进展；新分页、Facts、片段和版本算进展。空结果按数据集只计一次。未知 READ 使用规范化结构结果或文本，保留未知字段和数组顺序。读取失败计为无进展；已确认的已知业务修改也贡献进展。连续两次无进展告警，三次进入恢复，之后首个仍无进展的业务结果以 NO_PROGRESS_LOOP 熔断；新证据清零连续计数。发现和激活工具不重置该状态。
+[读取进展](../src/platform/mcp-server/run-guard/read-progress.ts)累计实体/字段证据及各空间文件版本与覆盖行范围。旧结果换序、重组或取子集，以及查询、分数、展示变化不算进展；新分页、Facts、片段和版本算进展。空结果按数据集只计一次。未知 READ 使用规范化结构结果或文本，保留未知字段和数组顺序。读取失败计为无进展；已确认的已知业务修改也贡献进展。连续两次无进展告警，三次进入恢复，之后首个仍无进展的业务结果以 NO_PROGRESS_LOOP 熔断；新证据清零连续计数。Scope 和 Human Ask 不重置该状态。
 
 [Pi 适配器](../src/platform/agent/pi/runtime.ts)将固定告警/恢复提示与原始业务结果分开传递，压缩后也在模型系统上下文更新提示。恢复时 beforeToolCall 在 tool.started 前非致命地跳过旧批次余项，让模型重新决策；跳过调用不产生业务执行或不确定写入。Run 熔断时保留触发检测的成功结果，再停止后续调用/推理；执行前 Guard 错误不记为不确定写入。无进展的相同规范化搜索首次重复提示，再次重复停止。关闭撤销凭证、中止工作、清除 Guard 状态并等待子进程确认，失败则废弃连接。外部 MCP 现要求下述执行协议；访问其他第三方 Server 的出站保护仍为规划。[Guard 测试](../tests/mcp-run-guard.test.ts)与[进展测试](../tests/mcp-run-progress.test.ts)覆盖这些契约，诊断存储归属[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)。
 
@@ -48,7 +48,13 @@ UI    → typed IPC → Domain
 
 外部宿主调用 `run.begin({}) → {runId}`，每次业务调用均须提供此 UUID 作为 `executionRunId`。[Gateway](../src/platform/mcp-server/server.ts)检查归属和生命周期，剥离协议字段，再按原有严格业务 Schema 校验并调用现有 Guard/Registry/Domain 实现。内部 Schema 不变。`run.end({runId})` 在 BLOCKED 时可用且幂等；已关闭 ID 无法复用。控制操作不进入业务 Registry。不存在 `run.success`、提交、回滚、刷新或暂存协议。业务调用成功即持久化，失败不撤销之前的写入。
 
-[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线，离线仍可发现工具。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)将控制通道握手限制为 5 秒，建立后流连接跨工具调用和 Run 持续开放；普通控制请求仍保留 5 秒超时。在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts)
+[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线；离线或其他外部 Session 占用 Main 时，仍可发现工具和测试连接。启动时连接控制通道若繁忙则延后，Begin 会重试连接，占用期间仍返回 `TOOL_BUSY`。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)将控制通道握手限制为 5 秒，建立后流连接跨工具调用和 Run 持续开放；普通控制请求仍保留 5 秒超时。在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts) · [连接测试](../tests/external-mcp.test.ts)
+
+### Human Ask
+
+[Main HumanRequests](../src/platform/mcp/human-requests.ts)管理临时问题、归属、回答和取消，不建表、不使用单例。`human.ask({question, options?})`允许省略或空选项、单选，并始终提供自由文本。提交要求选项或非空文字，返回 `{status: 'submitted', selectedOption, text}`；弹窗取消返回 `{status: 'cancelled'}`。Main/Run/窗口终止或 Session 断连会使等待失效，不返回普通回答。同一 Run 的并发问题被拒绝。
+
+内部通过既有启动/Run 授权通道认证；外部使用受保护的准入 Session 和执行 UUID。[全局弹窗](../src/app/components/HumanAskDialog.tsx)通过可信 [IPC](../src/platform/electron/main/human-ipc.ts)交互，Renderer 不能触发业务写入。问题等待期间隐藏原生 Browser/Inbox 视图，关闭后恢复，不导航或销毁。等待保留准入，不持有 SQLite 事务或业务 Guard 锁。仅 human.ask 使用随生命周期取消的长等待，绕过内部 120 秒工具限制；外部 Run 保留原有 15 分钟期限。Codex 配置的 100 秒宿主超时及其他客户端期限可能取消等待，真实 Codex/Claude 等待行为尚未验证。[协议测试](../tests/human-mcp.test.ts)
 
 ## 三、内部与第三方 Client
 
@@ -145,9 +151,9 @@ JOB_BROWSER_MCP_CALLER = "codex"
 
 ## 智能笔记知识库
 
-[Knowledge 工具](../src/platform/tools/knowledge.ts)保留 knowledge.list/read/search/retrieve/write/mkdir/move/delete 及其 Schema。Memory 仅提供 memory.list/recall/read/write/mkdir，两个命名空间均不接受 space 或物理根目录参数。路径为空间内相对路径，拒绝穿越和符号链接；更新需要当前 SHA-256 Revision（null 仅创建）。Memory 不开放 move/delete/patch。两个命名空间均受[原生保护](../src/shared/tools/policy.ts)。诊断不记录正文、查询或凭据。
+[Knowledge 工具](../src/platform/tools/knowledge.ts)保留 knowledge.list/read/search/retrieve/write/mkdir/move/delete 及其 Schema，供用户 UI/IPC 使用；所有 Agent 白名单仅开放 list/read/search/retrieve。Memory 仅提供 memory.list/recall/read/write/mkdir，两个命名空间均不接受 space 或物理根目录参数。路径为空间内相对路径，拒绝穿越和符号链接；更新需要当前 SHA-256 Revision（null 仅创建）。Memory 不开放 move/delete/patch。两个命名空间均受[原生保护](../src/shared/tools/policy.ts)。诊断不记录正文、查询或凭据。
 
-[Main 启动授权](../src/platform/mcp/memory-authority.ts)认证 Ask 会话，Caller 标签不授予权限。一次性启动凭据绑定 Main 实例/会话，30 秒过期；子进程检查描述文件/父 PID，并保持可撤销控制通道。Ask Memory 写入还要求有效期 30 秒、一次性且绑定已认证会话、本轮来源消息 ID、操作和精确输入摘要的授权。授权经 MCP 请求 metadata 传递，不进入模型 Schema/参数；服务端在执行前兑换。外部 MCP 及其他流程不获得 Memory。
+[Main 启动授权](../src/platform/mcp/memory-authority.ts)认证 Ask 会话，Caller 标签不授予权限。一次性启动凭据绑定 Main 实例/会话，30 秒过期；子进程检查描述文件/父 PID，并保持可撤销控制通道。Ask Memory 写入还要求有效期 30 秒、一次性且绑定已认证会话、本轮来源消息 ID、操作和精确输入摘要的授权。授权经 MCP 请求 metadata 传递，不进入模型 Schema/参数；服务端在执行前兑换。Resume Memory 写入使用独立的一次性授权，绑定活动 AgentRun/GenerationRun，并校验 REWRITING 与运行中的 Agent。外部 Memory 调用使用既有认证 Session、执行 Run、白名单及 RunGuard，无需内部 Memory 授权。智能粘贴保持只读。
 
 [Ask AI 策略](../src/platform/agent/ask.ts)将 Core、召回记忆及摘要作为不可信参考，Job/Profile/Fact 保持权威。唯一的 Pi Agent 决定是否保存有依据的长期信息，编辑前读取、保留无关内容，不保存凭据，也不在写入确认前声称成功。memory.recall 默认 2,048 个近似检索单位；memory.read 对缺失文件返回 TOOL_NOT_FOUND。共享[文件锁与 SHA-256 CAS](../src/platform/knowledge/filesystem.ts)跨 Session/进程串行提交；读取、模型推理及 Agent 冲突合并均在锁外完成。结果不确定时先读回核对，不盲目重试。最小 Memory 路径/Revision/结果引用在压缩后仍保留。
 

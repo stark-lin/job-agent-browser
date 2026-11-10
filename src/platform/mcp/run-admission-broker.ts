@@ -1,3 +1,4 @@
+import type { HumanRequests } from './human-requests'
 import { createServer, type ServerResponse } from 'node:http'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, unlink } from 'node:fs/promises'
@@ -8,13 +9,14 @@ import type { RunAdmission } from './run-admission'
 
 export const executionTimeoutMs = 15 * 60 * 1000
 /** Separate protected channel: its credentials never authorize Memory or internal tools. */
-export function createAdmissionBroker(directory: string, admission: RunAdmission, timeoutMs = executionTimeoutMs) {
+export function createAdmissionBroker(directory: string, admission: RunAdmission, timeoutMs = executionTimeoutMs, human?: HumanRequests) {
   const token = randomBytes(32).toString('hex'), path = join(directory, 'run-runtime', 'control.json')
   let closing = false
   const retired = new Set<() => void>()
   let session: { owner: string; secret: string; pid: number; response: ServerResponse; disconnected: boolean; runId?: string; lastId?: string; timer?: ReturnType<typeof setTimeout> } | undefined
   function end() {
     if (!session?.runId) return
+    human?.cancelOwner(session.runId)
     admission.release(session.owner, session.runId); session.lastId = session.runId; session.runId = undefined
     clearTimeout(session.timer)
   }
@@ -28,7 +30,7 @@ export function createAdmissionBroker(directory: string, admission: RunAdmission
     if (req.method !== 'POST' || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) { res.writeHead(403).end(); return }
     try {
       let body = ''
-      for await (const chunk of req) { body += chunk.toString(); if (body.length > 4096) throw new Error() }
+      for await (const chunk of req) { body += chunk.toString(); if (body.length > 65536) throw new Error() }
       const input = JSON.parse(body)
       if (closing && ['/session', '/begin'].includes(req.url ?? '')) { res.writeHead(503).end(); return }
       if (req.url === '/session') {
@@ -37,15 +39,25 @@ export function createAdmissionBroker(directory: string, admission: RunAdmission
         const entry = { owner, secret: randomBytes(32).toString('hex'), pid: input.pid, response: res, disconnected: false }
         session = entry
         res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' })
-        res.on('close', () => { entry.disconnected = true })
+        res.on('close', () => { entry.disconnected = true; if (session?.runId) human?.cancelOwner(session.runId) })
         res.write(JSON.stringify({ session: entry.secret }) + '\n'); return
       }
       if (!session || input.session !== session.secret) { res.writeHead(403).end(); return }
+      if (req.url === '/human-ask') {
+        if (!human || !session.runId || input.runId !== session.runId || session.disconnected) { res.writeHead(403).end(); return }
+        const disconnected = new AbortController()
+        res.on('close', () => disconnected.abort())
+        try {
+          const result = await human.ask(session.runId, input.input, disconnected.signal)
+          res.writeHead(200).end(JSON.stringify(result))
+        } catch { if (!res.destroyed) res.writeHead(409).end(JSON.stringify({ error: 'TOOL_CANCELLED' })) }
+        return
+      }
       if (req.url === '/begin') {
         if (Object.keys(input).join(',') !== 'session' || session.disconnected) { res.writeHead(403).end(); return }
         const run = admission.acquire(session.owner); session.runId = run.id
         session.timer = setTimeout(() => {
-          if (session?.runId === run.id) session.response.write(JSON.stringify({ type: 'timeout', runId: run.id }) + '\n')
+          if (session?.runId === run.id) { human?.cancelOwner(run.id); session.response.write(JSON.stringify({ type: 'timeout', runId: run.id }) + '\n') }
         }, timeoutMs)
         session.timer.unref()
         res.writeHead(200).end(JSON.stringify({ runId: run.id })); return
@@ -76,7 +88,7 @@ export function createAdmissionBroker(directory: string, admission: RunAdmission
   })
   ready.catch(() => {})
   return { ready, async close() {
-    closing = true; await ready.catch(() => {})
+    closing = true; if (session?.runId) human?.cancelOwner(session.runId); await ready.catch(() => {})
     if (session) {
       const drained = new Promise<void>(resolve => retired.add(resolve))
       if (!session.disconnected) session.response.write(JSON.stringify({ type: 'shutdown' }) + '\n')

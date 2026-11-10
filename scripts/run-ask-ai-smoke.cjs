@@ -8,8 +8,8 @@ delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_RENDERER_URL
 delete env.JOB_BROWSER_USER_DATA
 try {
-  for (const stage of ['main', 'restart', 'recover']) {
-    const result = spawnSync(require('electron'), [resolve(__dirname, 'ask-ai-runtime-smoke.cjs')], { env: { ...env, ASK_SMOKE_STAGE: stage }, stdio: 'inherit', timeout: 60000, killSignal: 'SIGKILL' })
+  for (const stage of process.argv.includes('--human') ? ['human'] : ['main', 'restart', 'recover', 'human']) {
+    const result = spawnSync(require('electron'), [resolve(__dirname, stage === 'human' ? 'human-runtime-smoke.cjs' : 'ask-ai-runtime-smoke.cjs')], { env: { ...env, ASK_SMOKE_STAGE: stage }, stdio: 'inherit', timeout: 60000, killSignal: 'SIGKILL' })
     if (result.error) console.error(result.error)
     if (result.status !== 0 && !(stage === 'restart' && result.signal === 'SIGKILL')) process.exitCode = result.status ?? 1
     if (process.exitCode) break

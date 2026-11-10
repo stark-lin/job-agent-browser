@@ -10,7 +10,7 @@ import type { AgentToolset } from '../tools/toolset'
 import { nextAction, resolveCycle, settleCycle, startCycle } from '../react-cycle/machine'
 import { modelToolResult } from '../../../shared/agent/tool-result'
 import { isPotentialWrite } from '../tool-presentation'
-import { ToolDiscovery } from '../tools/discovery'
+import { ScopedToolset } from '../tools/scoped-toolset'
 import { createPiStream, piReasoning } from './model-adapter'
 
 export async function runPiAgent(deps: {
@@ -37,13 +37,10 @@ export async function runPiAgent(deps: {
     if (cycle !== 'RUNNING' || outcome) throw new AgentError('AGENT_PROTOCOL_ERROR')
     return index
   }
-  const registry = deps.toolset ?? new ToolDiscovery(deps.tools, deps.budget, activation => {
-    try { deps.emit({ type: 'model.request.activation', activation }) }
-    catch (error) { failed(error); throw error }
-  }, deps.allowsTool)
+  const registry = deps.toolset ?? new ScopedToolset(deps.tools, deps.budget, deps.allowsTool)
   await abortable(registry.refresh(), deps.signal)
   function observeGuard(name: string) {
-    const snapshot = name.startsWith('tool.') ? undefined : deps.tools.getRunGuardSnapshot?.()
+    const snapshot = (name.startsWith('scope.') || name === 'human.ask') ? undefined : deps.tools.getRunGuardSnapshot?.()
     if (snapshot) {
       guard = snapshot
       if (snapshot.level === 'recovery') recoverBatch = true
@@ -59,8 +56,7 @@ export async function runPiAgent(deps: {
         if (++calls > (deps.maxToolCalls ?? 256)) throw new AgentError('AGENT_STEP_LIMIT')
         if (recoverBatch) throw new AgentError('AGENT_PROTOCOL_ERROR')
         deps.emit({ type: 'tool.started', id, risk: descriptor.risk, call: { id: callId, name, arguments: args } })
-        if (name === 'tool.search') deps.status('tools.searching')
-        if (name === 'tool.activate') deps.status('tools.activating')
+        if (name === 'human.ask') deps.status('human.waiting')
         let result: unknown
         try { result = await abortable(registry.call(name, args, combined), combined) }
         catch (error) {
@@ -76,6 +72,7 @@ export async function runPiAgent(deps: {
           finally { deps.emit({ type: 'tool.failed', id, name, error: code, durationMs: Date.now() - began, uncertain, guard: snapshot }) }
           return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(snapshot ? { reason: snapshot.reason, executed: snapshot.executed, effectAlreadyConfirmed: snapshot.effectAlreadyConfirmed } : {}) }) }, ...guidance(snapshot)], details: {}, isError: true }
         }
+        if (name === 'human.ask') deps.status('idle')
         const snapshot = observeGuard(name)
         if (snapshot?.status === 'BLOCKED') failed(new ToolError('TOOL_GUARD_TERMINATED'))
         try { deps.protect(name, args, result, false) }

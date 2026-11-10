@@ -1,3 +1,4 @@
+import { createHumanRequests } from '../src/platform/mcp/human-requests'
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -54,11 +55,13 @@ process.once('SIGTERM', () => { void close() });
 await runtime.server.connect(new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 2097152 }));
 })().catch(() => { process.exitCode = 1 });
 `)
-  const mcp = createFirstPartyRuntime(directory, directory)
+  const human = createHumanRequests()
+  cleanups.push(() => human.dispose())
+  const mcp = createFirstPartyRuntime(directory, directory, human)
   await mcp.ready
   let lastRun: Awaited<ReturnType<typeof mcp.openAgentRun>> | undefined
   t.after(async () => { for (const close of runCleanups) await close(); await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
-  return { ...f, directory, mcp, workspace,
+  return { ...f, directory, mcp, workspace, human,
     async askRun(signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []) {
       const run = await mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId, sourceMessageIds, signal })
       lastRun = run; runCleanups.push(() => run.close().catch(() => {})); return run.tools

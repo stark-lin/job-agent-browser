@@ -1,3 +1,5 @@
+import { createHumanRequests } from '../../mcp/human-requests'
+import { registerHumanIPC } from './human-ipc'
 import { consola } from 'consola'
 import { BannerService } from '../../banner/bannerService'
 import { SmartPasteService } from '../../smart-paste/service'
@@ -67,6 +69,7 @@ let externalMCP: ExternalMCPInstaller | undefined
 let knowledge: SmartNoteWorkspace | undefined
 let localModels: LocalModelManager | undefined
 let stopKnowledgeBroker: (()=>Promise<void>) | undefined
+const human = createHumanRequests()
 let shuttingDown = false
 const getInboxURL = () => preferences.get({}).mailbox.url || null
 
@@ -118,7 +121,8 @@ app.whenReady().then(async () => {
   void tools.start()
   ai = createAIService({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
   profileImporter = createProfileImporter({ ai, apply: (input, order) => backend!.applyProfileImport(input, order) })
-  firstParty = createFirstPartyRuntime(directory, __dirname)
+  firstParty = createFirstPartyRuntime(directory, __dirname, human)
+  registerHumanIPC(human, join(__dirname, '../renderer/index.html'), () => browser)
   await firstParty.ready
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
   jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
@@ -164,6 +168,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('will-quit', event => {
+  human.dispose()
   profileImporter?.dispose()
   // Windows have already passed their unsaved-settings guards at this point.
   if (shuttingDown) return

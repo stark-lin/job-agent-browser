@@ -207,7 +207,7 @@ test('Ask AI discovers profile writes, carries revisions and presents summaries 
   ]
   const model: import('../src/shared/agent').StreamingAgentModel = {
     complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
-      assert(input.tools.some(tool => tool.name === 'tool.activate'))
+      assert(input.tools.some(tool => tool.name === 'scope.profile'))
       const previous = input.messages.at(-1)
       if (previous?.role === 'tool') {
         const result = JSON.parse(previous.content)

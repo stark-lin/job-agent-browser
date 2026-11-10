@@ -6,7 +6,7 @@ import { callDigest } from '../../mcp/call-fingerprint'
 import { confirmedArchive, progressKey } from './policies'
 import { ReadProgress } from './read-progress'
 
-export interface TrustedRunContext { executionRunId: string; agentRunId?: string; sessionId: string; kind?: 'ask' | 'resume' | 'resume-controller' | 'business'; generationRunId?: string; signal: AbortSignal }
+export interface TrustedRunContext { executionRunId: string; humanToken?: string; agentRunId?: string; sessionId: string; kind?: 'ask' | 'resume' | 'resume-controller' | 'business'; generationRunId?: string; signal: AbortSignal }
 export interface GuardedResult { output?: ToolOutput; error?: ToolError; guard: RunGuardSnapshot }
 const preflightErrors = new Set(['TOOL_INVALID_INPUT', 'TOOL_FORBIDDEN', 'TOOL_NOT_FOUND', 'TOOL_BUSY', 'TOOL_CONFLICT'])
 class RunGuard {

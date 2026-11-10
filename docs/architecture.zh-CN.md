@@ -97,7 +97,7 @@ React App → Page → Preload → IPC → Main
 
 [Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)，每个活跃 Run 只有一个 [Pi Agent](../src/platform/agent/pi/runtime.ts)。同一 Session 按 FIFO 完成能力解析、Core 加载、上下文准备、串行推理/工具及终态持久化，不同 Session 竞争全局唯一执行占用，繁忙时在推理前拒绝。后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止取消当前链路，保留部分内容与已提交写入；中断 Run 不续跑。仅恢复宿主记录落盘时保持该 Session 队列屏障，不重放工具。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿及分页。存储与 MCP 权限由所属文档管理。 每次准入 Send 具有独立可信的 MCP Run 身份；[MCP 架构](mcp-architecture.zh-CN.md#ask-run-保护)拥有防护及终止策略，[模型观察器](../src/platform/agent/pi/request-observer.ts)将主循环和摘要请求合计限制为 64 次。 每个 Pi 决策及其工具批次由 [Cycle 状态机](agent-runtime.zh-CN.md)控制，执行状态取自最新 Cycle。
 
-**已实现请求校验：**[稳定 Provider 名称](../src/platform/ai/agent-protocol.ts)保留语义化名称片段、短哈希及 Description 中的逻辑名称前缀。[Pi 适配器](../src/platform/agent/pi/model-adapter.ts)在发送前核对运行时 loadout、Pi 声明和已组装的 Provider 名称/完整输入 Schema 指纹；不一致时以 AGENT_PROTOCOL_ERROR 停止。[MCP 架构](mcp-architecture.zh-CN.md)管理激活循环限制，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除的逐请求诊断。[披露集成测试](../tests/ask-disclosure.test.ts)通过真实 HTTP 与第一方 MCP 验证链路，不使用自动激活辅助层；真实模型的工具选择质量仍未验证。
+**已实现请求校验：**[稳定 Provider 名称](../src/platform/ai/agent-protocol.ts)保留语义化名称片段、短哈希及 Description 中的逻辑名称前缀。[Pi 适配器](../src/platform/agent/pi/model-adapter.ts)在发送前核对运行时 loadout、Pi 声明和已组装的 Provider 名称/完整输入 Schema 指纹；不一致时以 AGENT_PROTOCOL_ERROR 停止。[MCP 架构](mcp-architecture.zh-CN.md)管理 Scope 展开与 Human Ask，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除的逐请求诊断。[披露集成测试](../tests/ask-disclosure.test.ts)通过真实 HTTP 与第一方 MCP 验证链路，不使用自动展开辅助层；真实模型的工具选择质量仍未验证。
 
 [流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装及校验成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、准入隔离、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
 
@@ -178,3 +178,5 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 [Bootstrap](../src/platform/electron/main/bootstrap.ts)在加载 Main 前分派打包后的子进程角色；应用入口为 application-main.js。PDF worker 先宣布就绪再接收输入，使用由父进程清理的临时 userData。[包内验收](../src/platform/electron/verify-resume-package.ts)还通过完整 MCP 简历流程生成 HTML/PDF，并使用包内 PDF worker 提取文本。
 
 [npm 适配器](../packages/npm/bin/jab.cjs) 启动相同的 Electron bootstrap，提供版本/doctor/stdio MCP 命令。npm 默认使用 JAB 应用数据目录，也可显式传入绝对路径覆盖。DMG/npm 凭据需在干净 Mac 上验证兼容性；解密失败会保留密文并报错。模型与应用安装的生命周期独立；自动应用更新尚未实现。
+
+[全局 Human Ask](../src/app/components/HumanAskDialog.tsx)挂载在路由旁，组合共享 Dialog/Radio/TextArea/Button。[Main](../src/platform/electron/main/human-ipc.ts)负责可信 IPC 和请求/窗口清理；[BrowserManager](../src/platform/browser/browserManager.ts)临时抑制原生视图可见性，保留原可见状态及导航。闭包式请求服务由内外部认证通道共用。[协议及限制](mcp-architecture.zh-CN.md#human-ask)

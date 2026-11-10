@@ -22,12 +22,13 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
   const knowledge = new SmartNoteWorkspace(directory, {preferences:()=>preferences.get({}).knowledge ?? defaultKnowledgePreferences}, false)
   const internalResume = memoryAuthorization?.kind === 'resume'
   const tooling = createJobAgentTooling(backend, (id, signal) => output.build(id, signal), knowledge.spaces.knowledge,
-    memoryAuthorization && memoryAuthorization.kind !== 'business' ? knowledge.spaces.memory : undefined, internalResume)
+    knowledge.spaces.memory, internalResume)
   const allow = internalResume ? [...resumeAgentTools, ...resumeAgentLifecycle] : memoryAuthorization?.kind === 'ask' ? askToolAllowlist : jobAgentAllowlist
   const external = memoryAuthorization ? undefined : createExternalRun(directory)
   const mcp = createMCPServer(tooling.registry, { allow, maxRisk: askReadOnly && memoryAuthorization ? 'COMPUTE' : 'WRITE' }, memoryAuthorization ? AbortSignal.any([lifecycle.signal, memoryAuthorization.signal]) : lifecycle.signal, caller,
     async (name, args, metadata) => {
       if (!['memory.write', 'memory.mkdir'].includes(name)) return true
+      if (!memoryAuthorization) return true // External Session + Run were authenticated by the gateway.
       const token = metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).jabMemoryGrant : undefined
       return Boolean(memoryAuthorization && await memoryAuthorization.authorize?.(token, name, args))
     }, memoryAuthorization ? {
@@ -43,7 +44,8 @@ export function createServerRuntime(directory: string, bundleDirectory: string, 
         return grant
       },
       onClosed: listener => memoryAuthorization.onRunClosed(listener)
-    } : undefined, external, () => backend.capabilities.settle())
+    } : undefined, external, () => backend.capabilities.settle(), (run, input, signal) => memoryAuthorization
+      ? memoryAuthorization.ask(run, input, signal) : external!.ask(run.executionRunId, input, signal))
   let disposal: Promise<void> | undefined
   return { backend, tooling, ready: Promise.all([knowledge.ready, external?.attach()]).then(() => {}), server: mcp.server, dispose() {
     return disposal ??= (async () => {

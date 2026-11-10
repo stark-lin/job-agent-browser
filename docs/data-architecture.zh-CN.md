@@ -107,7 +107,7 @@
 
 提供商续传数据与普通聊天投影 IPC 分离，保存含签名/加密推理的已校验 assistant 消息，随会话删除级联清除。历史重建 assistant/tool 消息但不执行工具；切换提供商/模型后不附带续传元数据，压缩提示词也排除这些数据。旧 Item 继续可读，不补造缺失的历史详情。
 
-**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 agent_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果及重复激活结果；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
+**已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 agent_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果；新请求的 `activations_json` 保持默认空数组；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
 
 Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner，活跃 MCP 启动不能中断 Main。保留部分回答，未完成工具保持 uncertain。新输入创建新 Run，不重放旧业务写入。[上下文检查点](../src/platform/database/repositories/ask-context.ts)保存版本化摘要、单调递增的已压缩用户轮次边界及最小资源/结果引用。按 Token 构造的模型视图保留完整轮次并标注部分回答，原始会话保持完整。 [迁移 16 和 17](../src/platform/database/migrations/chat-react-cycles.ts)保存以 `(run_id, cycle_index)` 标识的 Cycle，约束单个活动 Cycle、连续编号和已结算记录不可变。模型请求 ordinal 和工具 ID 在派发前分别随其诊断和响应保存。最终 Cycle、Run 和会话内容原子结算。历史 Run 不补造记录，恢复保留最后已保存的 Cycle。
 
@@ -175,3 +175,5 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理或生成阶段写
 [工作区](../src/platform/knowledge/workspace.ts)通过可信 IPC 为当前规范化 Remote 保存同步同意。升级、首次使用 Remote 和更换 Remote 均须说明记忆及其 Git 历史会上传。未同意时只本地备份，传输门禁也覆盖冲突上传。未知远程布局不能覆盖本地文件。权限归属 [MCP 架构](mcp-architecture.zh-CN.md)。
 
 [用户模型存储](../src/platform/models/paths.ts)独立于智能笔记、两个派生索引及 `database.sqlite`：macOS 为 `~/Library/Application Support/JAB/managed-models`，Windows 为 `%LOCALAPPDATA%/JAB/Models`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/JAB/models`。`JAB_MODEL_STORE` 接受绝对路径覆盖。已验证 revision、重试 staging、心跳锁/租约及 `.installed.json` 属于文件系统资源；激活重新检查大小/SHA256。原子 `seed-preferences.json` 记录初始化 revision，移除后禁用自动 Seed 导入。npm 更新/卸载保留这些文件；权重不可用时保留 chunk/FTS/向量，但检索降级为词法搜索。[偏好加载](../src/platform/storage/knowledge-preferences.ts)仅在读取磁盘时移除旧 providerId/modelId，保留 semanticEnabled，默认 true。
+
+**数据权威：**Profile/Facts 是结构化个人证据。用户确认的导入可建立不可变 Baseline；历史自动回填的 Baseline 保留快照语义，不改标为新的人为确认。Resume 副本从不可变 Job/Profile 输入快照派生，改写/发布不更新 Profile、Baseline 或 Knowledge。Knowledge 是用户编写的参考资料；Memory 是共同维护的长期偏好/上下文，不是个人证据。语义约束由 Prompt/行为样本承担，不增加真实性自动校验器。历史 searching/activating 状态及激活诊断继续读取/导出，无需迁移；新 Run 仅产生 Scope/Human 事件。人工请求仅驻留内存。[权限策略](mcp-architecture.zh-CN.md)

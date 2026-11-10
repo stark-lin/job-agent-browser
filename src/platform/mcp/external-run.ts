@@ -1,3 +1,4 @@
+import type { HumanAskResult } from '../../shared/human'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ToolError, toolFail, toolErrorCodes } from '../../shared/tools/errors'
@@ -79,7 +80,7 @@ export function createExternalRun(directory: string) {
     })()
   }
   return {
-    async attach() { try { await connect() } catch (error) { if (!(error instanceof ToolError) || error.code !== 'TOOL_UNAVAILABLE') throw error } },
+    async attach() { try { await connect() } catch (error) { if (!(error instanceof ToolError) || !['TOOL_UNAVAILABLE', 'TOOL_BUSY'].includes(error.code)) throw error } },
     onClosed(listener: typeof drain) { drain = listener },
     async begin() {
       await connect()
@@ -95,6 +96,11 @@ export function createExternalRun(directory: string) {
     authorize(id: unknown) {
       if (closed || !current || current.executionRunId !== id || controller?.signal.aborted) toolFail('TOOL_FORBIDDEN')
       return current
+    },
+    async ask(id: string, input: unknown, signal: AbortSignal) {
+      if (!current || current.executionRunId !== id || closed || controller?.signal.aborted) toolFail('TOOL_FORBIDDEN')
+      const reply = await post('/human-ask', { session: secret, runId: id, input }, AbortSignal.any([signal, current.signal]))
+      return await reply.json() as HumanAskResult
     },
     end,
     async close() {

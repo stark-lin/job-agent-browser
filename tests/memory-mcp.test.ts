@@ -1,3 +1,4 @@
+import { scopeTools } from '../src/platform/mcp-server/scope-tools'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
@@ -23,19 +24,19 @@ test('authenticated Ask AI sessions expose all five Memory tools; writes require
   assert.deepEqual((await ask.list()).filter(x => x.name.startsWith('memory.')).map(x => x.name).sort(), names.sort())
   for (const agent of ['resume', 'application', 'job-capture'] as const) {
     const tools = await f.mcp.session(agent, signal)
-    assert(!(await tools.list()).some(x => x.name.startsWith('memory.')))
+    assert.equal((await tools.list()).some(x => x.name === 'memory.write'), agent !== 'resume')
     await tools.close()
   }
   const spoofed = external(f); await spoofed.connect()
-  assert(!(await spoofed.listTools()).some(x => x.name.startsWith('memory.')))
+  assert((await spoofed.listTools()).some(x => x.name === 'memory.write'))
   const hidden = await spoofed.callTool('memory.write', { path: 'private.md', content: 'forbidden', expectedRevision: null }, signal) as { isError: boolean; content: { text: string }[] }
   assert(hidden.isError); assert.equal(hidden.content[0].text, 'TOOL_FORBIDDEN')
   const [one, two] = await Promise.all([f.mcp.session('ask-ai', signal, 'same-session'), f.mcp.session('ask-ai', signal, 'same-session')])
   assert.equal(one, two)
 })
 test('Memory MCP fixes the physical space, rejects unsafe paths, stale/missing revisions and unprovided operations', async t => {
-  const f = await firstPartyFixture(t), reader = await f.askRun(signal)
-  await reader.call('knowledge.write', { path: 'same.md', content: 'Knowledge SECRET_K', expectedRevision: null }, signal)
+  const f = await firstPartyFixture(t)
+  await f.workspace.spaces.knowledge.call('write', { path: 'same.md', content: 'Knowledge SECRET_K', expectedRevision: null })
   await f.endAskRun()
   const ask = await f.askRun(signal, 'writer', [randomUUID()])
   const memory = await ask.call('memory.write', { path: 'same.md', content: '# Memory\nSECRET_M pineapple', expectedRevision: null }, signal) as { revision: string }
@@ -95,9 +96,9 @@ test('server-side Ask grants bind exact inputs and cannot be replayed or borrowe
   const replay = await writer.callTool('memory.write', payload, signal, { jabMemoryGrant: valid, jabRunGrant: run.grant('memory.write', payload) }) as { isError: boolean }; assert(replay.isError)
   const ask = external(f, await authority.issue('ask-session'))
   await ask.connect()
+  const borrowed = authority.grant('writer-session', 'memory.write', { ...payload, path: 'other.md' }, ['user-source'])
   await run.close()
   const otherRun = authority.registerRun('ask-session', randomUUID(), 'other-chat')
-  const borrowed = authority.grant('writer-session', 'memory.write', { ...payload, path: 'other.md' }, ['user-source'])
   for (const [name, args, grant] of [['memory.write', { ...payload, path: 'other.md' }, borrowed], ['knowledge.delete', { path: 'README.md', expectedRevision: 'a'.repeat(64), recursive: false }, undefined]] as const) {
     const reply = await ask.callTool(name, args, signal, { jabMemoryGrant: grant, jabRunGrant: otherRun.grant(name, args) }) as { isError: boolean }; assert(reply.isError)
   }
@@ -119,16 +120,19 @@ test('reused Ask transport has distinct immutable per-turn grants; cancellation 
   await assert.rejects(second.call('memory.read', { path: 'missing.md' }, signal), { code: 'TOOL_NOT_FOUND' })
 })
 
-test('trusted Ask policy denies every resume/build tool even with valid Run grants and a spoofed Resume label', async t => {
+test('trusted Ask policy hides Profile writes and denies them and Resume writes despite spoofed labels and grants', async t => {
   const f = await firstPartyFixture(t), resume = await f.mcp.session('resume', signal)
-  assert((await resume.list()).every(tool => tool.name.startsWith('resume.') || tool.name === 'artifact.build'))
+  assert((await resume.list()).every(tool => tool.name.startsWith('resume.') || tool.name.startsWith('scope.') || tool.name === 'human.ask' || tool.name === 'artifact.build'))
   const foreign = await resume.call('resume.start', { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id }, signal) as { runId: string }
   const authority = createMemoryAuthority(f.directory); f.cleanup(() => authority.close())
   const ask = external(f, await authority.issue('restricted-ask'), 'internal.resume')
   await ask.connect()
-  assert.deepEqual((await ask.listTools()).map(t => t.name).sort(), [...askToolAllowlist].sort())
+  assert.deepEqual((await ask.listTools()).filter(tool => tool.name.startsWith('profile.')).map(tool => tool.name).sort(),
+    ['profile.get', 'profile.list', 'profile.list_facts', 'profile.list_items'])
+  assert.deepEqual((await ask.listTools()).map(t => t.name).sort(), [...askToolAllowlist, ...scopeTools((await ask.listTools()).filter(tool => askToolAllowlist.includes(tool.name as typeof askToolAllowlist[number]))).map(tool => tool.name), 'human.ask'].sort())
   const run = authority.registerRun('restricted-ask', randomUUID(), 'chat')
-  const forbidden = [...jobAgentAllowlist.filter(name => name.startsWith('resume.')), 'artifact.build']
+  const forbidden = [...jobAgentAllowlist.filter(name => name.startsWith('resume.')), 'artifact.build',
+    'profile.create', 'profile.update', 'profile.add_item', 'profile.update_item', 'profile.add_fact', 'profile.update_fact']
   for (const name of forbidden) {
     const args = { runId: foreign.runId }
     const result = await ask.callTool(name, args, signal, { jabRunGrant: run.grant(name, args) }) as { isError: boolean; content: { text: string }[] }

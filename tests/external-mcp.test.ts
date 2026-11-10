@@ -203,20 +203,44 @@ test('real generated stdio configuration discovers the public tools without busi
   const before = f.backend.jobs.listJobs({})
   const status = service.inspect({}).clients[0]
   service.install({ target: status.target, revision: status.revision, replace: false })
-  assert.deepEqual(await service.test(1, { target: 'codex' }), { toolCount: jobAgentAllowlist.length + 2 })
+  assert.deepEqual(await service.test(1, { target: 'codex' }), { toolCount: jobAgentAllowlist.length + 3 })
   assert(closed)
   assert.equal(f.outputs(), 0)
   assert.deepEqual(f.backend.jobs.listJobs({}), before)
   await assert.rejects(client!.listTools(), { code: 'TOOL_UNAVAILABLE' })
   const current = service.inspect({}).clients[0]
   const reconnect = await service.reconnect(1, { target: 'codex', revision: current.revision })
-  assert.equal(reconnect.toolCount, jobAgentAllowlist.length + 2)
+  assert.equal(reconnect.toolCount, jobAgentAllowlist.length + 3)
   assert.equal(reconnect.error, undefined)
   assert.equal(f.outputs(), 0)
   assert.deepEqual(f.backend.jobs.listJobs({}), before)
   assert(reconnect.backupPath)
   assert.equal(service.remove({ target: 'codex', revision: reconnect.status.revision }).status.state, 'missing')
   await assert.rejects(service.test(1, { target: 'other' }), { code: 'INVALID_INPUT' })
+})
+
+test('connection testing discovers tools while another external Session owns an active Run', async t => {
+  const f = await firstPartyFixture(t)
+  writeFileSync(join(f.directory, 'resume-output-worker.js'), '// not invoked by discovery')
+  const owner = createMCPClient({ id: 'owner', enabled: true, transport: 'stdio', command: process.execPath,
+    args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} },
+    { processEnv: { ELECTRON_RUN_AS_NODE: '1', JOB_BROWSER_USER_DATA: f.directory } })
+  f.cleanup(() => owner.close())
+  await owner.connect()
+  const started = await owner.callTool('run.begin', {}, new AbortController().signal) as { structuredContent: { runId: string } }
+  const runId = started.structuredContent.runId
+  const service = createExternalMCPInstaller({ home: join(f.directory, 'agent home'), directory: f.directory,
+    bundleDirectory: f.directory, executable: process.execPath, writeClipboard() {} })
+  f.cleanup(() => service.dispose())
+  const status = service.inspect({}).clients[0]
+  service.install({ target: status.target, revision: status.revision, replace: false })
+  const before = f.backend.jobs.listJobs({})
+  assert.deepEqual(await service.test(1, { target: 'codex' }), { toolCount: jobAgentAllowlist.length + 3 })
+  const read = await owner.callTool('profile.list', { executionRunId: runId }, new AbortController().signal) as { isError?: boolean }
+  assert(!read.isError, 'Discovery must preserve the owning Run')
+  assert.deepEqual(f.backend.jobs.listJobs({}), before)
+  assert.equal(f.outputs(), 0)
+  await owner.callTool('run.end', { runId }, new AbortController().signal)
 })
 
 test('failed discovery is sanitized and the client closes; owner disposal aborts pending tests', async t => {

@@ -11,7 +11,7 @@ export interface AgentRun<S extends string | null = string | null> extends ChatC
   runtimeStatus?: RuntimeStatus
 }
 export type ChatRun = AgentRun<string>
-export type ToolSummaryKey = 'memoryRead' | 'memoryWrite' | 'knowledgeRead' | 'knowledgeWrite' | 'profileItems' | 'createProfile' | 'updateProfile' | 'addProfileItem' | 'updateProfileItem' | 'addProfileFact' | 'updateProfileFact' | 'jobs' | 'job' | 'updateJob' | 'archiveJob' | 'profiles' | 'profile' | 'facts'
+export type ToolSummaryKey = 'scope' | 'humanAsk' | 'memoryRead' | 'memoryWrite' | 'knowledgeRead' | 'knowledgeWrite' | 'profileItems' | 'createProfile' | 'updateProfile' | 'addProfileItem' | 'updateProfileItem' | 'addProfileFact' | 'updateProfileFact' | 'jobs' | 'job' | 'updateJob' | 'archiveJob' | 'profiles' | 'profile' | 'facts'
   | 'application' | 'events' | 'setStatus' | 'addNote' | 'schedule' | 'reschedule' | 'artifact' | 'tool'
   | 'importJob' | 'startResume' | 'resumeContext' | 'resumeFacts' | 'resumeBullets' | 'optimizeResume' | 'scoreResume' | 'checkResume' | 'selectResume' | 'draftResume' | 'polishResume' | 'publishResume' | 'failResume' | 'cancelResume' | 'buildArtifact' | 'searchTools' | 'activateTools'
 export interface ToolDisplay { key: ToolSummaryKey; count?: number; status?: string; startsAt?: string }
@@ -26,7 +26,7 @@ export interface AgentItem<S extends string | null = string | null> {
 export type ChatItem = AgentItem<string>
 export interface AgentSnapshot<S extends string | null = string | null> { run: AgentRun<S>; items: AgentItem<S>[] }
 export type ChatSnapshot = AgentSnapshot<string>
-export type RuntimeStatus = 'pending' | 'context.compacting' | 'tools.searching' | 'tools.activating' | 'idle'
+export type RuntimeStatus = 'pending' | 'context.compacting' | 'human.waiting' | 'tools.searching' | 'tools.activating' | 'idle'
 export type AgentRunEvent<S extends string | null = string> = { sessionId: S; runId: string; eventSequence: number } & (
   { type: 'run.started'; run: AgentRun<S> }
   | { type: 'runtime.status'; status: RuntimeStatus; run: AgentRun<S> }

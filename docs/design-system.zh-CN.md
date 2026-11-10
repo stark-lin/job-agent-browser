@@ -134,7 +134,7 @@ Enter 发送、Shift+Enter 换行，输入法组合期间不发送。运行中�
 
 [会话操作](../src/pages/ai/SessionSidebar.tsx)顺序为重命名 → 复制调试 JSON → 删除。复制复用中央 Dialog/Button/CopyButton/StatusMessage，展示完整敏感数据警告，初始聚焦取消，并提供复制 JSON；不加复选框或展示 Token。打开、取消及 Escape 不复制。每次确认固定目标 Session（包括运行中的 Session），阻止重复提交；成功后保留弹窗，原 CopyButton 切换为“已复制到剪贴板”并保持禁用，关闭弹窗后才可重新确认复制；会话列表下方不显示成功提示。失败保留错误/重试弹窗。Overlays 画廊包含警告示例；完整数据留在 Main。
 
-沿用 StatusMessage 展示 Pending、同步上下文压缩及工具搜索/激活。Memory 读写使用普通工具时间线行，不显示后台 Memory 状态或重试操作。仅有 Run 运行时 Session 才繁忙。设置中的上下文和输出上限供 Ask 使用。不提供 Ask Memory 模式开关或 Memory 控制台。
+现有 StatusMessage 显示 Pending、上下文压缩与人工等待，历史搜索/激活记录继续展示。[全局 Human Ask 弹窗](../src/app/components/HumanAskDialog.tsx)组合 Dialog（内部共用 ActionRow）、Radio、TextArea、FormField、Button：可选单选、始终有自由文本、可清除选择、显式取消、无回答时禁用提交。所有工作区页面可用；Main 临时隐藏原生 Browser/Inbox 视图，不重置导航。Memory 使用普通工具行；Session 仅在 Run 运行时忙碌。模型上下文/输出控件继续可用，不增加 Memory 模式开关或控制台。
 
 [工具详情](../src/app/components/AgentTimelineItem.tsx)组合现有 DetailsList 和 Collapsible，显示 Chat Run ID/最终状态、Guard 调用/派发/拦截计数、已确认操作及本地化停止原因。可选告警/恢复和下一步行说明策略切换，不改变工具成功状态。执行前拒绝标为“未执行”，成功及不确定结果保留各自状态。Feedback 图库包含这些区别，Token 和几何保持不变。
 

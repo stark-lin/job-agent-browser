@@ -20,7 +20,7 @@ test('Ask AI streams read/write tools over real first-party MCP, stores full too
     batch({ id: 'note', name: 'application.add_note', arguments: { requestId: randomUUID(), jobId: f.job.id, text: 'PRIVATE_NOTE_BODY' } }),
     batch({ id: 'status', name: 'application.set_status', arguments: { jobId: f.job.id, status: 'APPLIED' } }), answer('Done')]
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
-    assert(input.tools.some(tool => tool.name === 'tool.activate'))
+    assert(input.tools.some(tool => tool.name === 'scope.profile'))
     yield* batches.shift()!
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
@@ -28,7 +28,7 @@ test('Ask AI streams read/write tools over real first-party MCP, stores full too
   assert.deepEqual(tasks.start(1, input, () => {}), ids)
   const snapshot = await wait(tasks, ids.runId)
   assert.equal(snapshot.run.state, 'completed'); assert(snapshot.run.writeStarted)
-  assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 4)
+  assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('scope.')).length, 4)
   assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_BODY'), true)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).applicationStatus, 'APPLIED')
   assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).items.filter(e => e.type === 'NOTE').length, 1)
@@ -87,14 +87,13 @@ test('uncertain write responses stop execution without offering a replay and ret
   assert(events.some(event => event.type === 'run.failed'))
 })
 
-test('Ask AI imports ordinary job data and directs resume generation to its dedicated interface', async t => {
+test('Ask AI imports ordinary job data without exposing unavailable write interfaces', async t => {
   const f = await firstPartyFixture(t); let step = 0
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
     const system = input.messages.find(m => m.role === 'system')?.content ?? ''
-    assert(system.includes('dedicated Tailor Resume interface'))
-    assert(!system.includes('complete resume workflow'))
+    assert.doesNotMatch(system, /profile\.(?:create|update|add_item|update_item|add_fact|update_fact)|resume\.|artifact\.build|Tailor Resume/)
     if (step++ === 0) yield* batch({ id: 'import', name: 'job.import', arguments: { requestId: randomUUID(), details: { title: 'PRIVATE_IMPORTED_JOB', companyNameRaw: 'Fixture' } } })
-    else yield* answer('Saved the job. Use the Tailor Resume interface to generate your resume.')
+    else yield* answer('Saved the job. I can read your profile and existing documents.')
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
   const ids = tasks.start(1, start('Save this job and create a tailored resume'), () => {}), snapshot = await wait(tasks, ids.runId)
@@ -103,10 +102,10 @@ test('Ask AI imports ordinary job data and directs resume generation to its dedi
   assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.outputs(), 0)
 })
 
-for (const name of ['resume.start', 'resume.cancel', 'resume.fail', 'artifact.build']) test(`Ask AI refuses activation of ${name} without a business call`, async t => {
+for (const name of ['resume.start', 'resume.rewrite_bullet', 'resume.attach_agent', 'resume.validate', 'resume.publish', 'resume.cancel', 'resume.fail', 'artifact.build']) test(`Ask AI refuses activation of ${name} without a business call`, async t => {
   const f = await firstPartyFixture(t)
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream() {
-    yield* batch({ id: 'forbidden', name: 'tool.activate', arguments: { names: [name] } })
+    yield* batch({ id: 'forbidden', name, arguments: {} })
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
   const ids = tasks.start(1, start('Create or control a resume'), () => {}), snapshot = await wait(tasks, ids.runId)
@@ -140,22 +139,20 @@ test('uncertain job import marks the new write and never replays it', async t =>
   assert(JSON.stringify(snapshot).includes('PRIVATE_UNCERTAIN_IMPORT'))
 })
 
-test('Ask AI reads and writes shared Markdown through real MCP and records complete knowledge details',async t=>{
-  const f=await firstPartyFixture(t);let step=0,revision=''
-  const model:StreamingAgentModel={complete:async()=>({content:'',toolCalls:[]}),async *stream(input){
-    const previous=input.messages.at(-1)
-    if(previous?.role==='tool'){
-      const result=JSON.parse(previous.content);assert.equal(result.error??null,null)
-      if(result.revision)revision=result.revision
-      if(step===3)assert(result.items.some((item:{path:string})=>item.path==='interview/notes.md'))
-    }
-    const calls:[string,Record<string,unknown>][]=[['knowledge.mkdir',{path:'interview'}],['knowledge.write',{path:'interview/notes.md',content:'PRIVATE_KNOWLEDGE_BODY pricing',expectedRevision:null}],['knowledge.search',{query:'pricing'}],['knowledge.read',{path:'interview/notes.md'}],['knowledge.write',{path:'interview/notes.md',content:'PRIVATE_KNOWLEDGE_BODY final pricing',expectedRevision:revision}],['knowledge.retrieve',{query:'pricing',maxContext:500}],['knowledge.write',{path:'scratch.md',content:'scratch',expectedRevision:null}]]
-    if(step===calls.length){yield* answer('Saved your note.');return}
-    const [name,args]=calls[step++];yield* batch({id:`knowledge-${step}`,name,arguments:args})
-  }}
-  const tasks=createAskAgentTasks({chats:f.backend.chats,mcp:f.mcp,model:()=>model});t.after(()=>tasks.dispose())
-  const ids=tasks.start(1,start('Save my interview preparation'),()=>{}),snapshot=await wait(tasks,ids.runId)
-  assert.equal(snapshot.run.state,'completed',snapshot.run.error??'');assert(snapshot.run.writeStarted)
-  const {readFileSync}=await import('node:fs');const {join}=await import('node:path');assert.equal(readFileSync(join(f.directory,'smart-note','knowledge','interview','notes.md'),'utf8'),'PRIVATE_KNOWLEDGE_BODY final pricing')
-  const text=JSON.stringify(snapshot);assert(text.includes('PRIVATE_KNOWLEDGE_BODY'));assert(snapshot.items.filter(item=>item.content.type==='tool_call'&&!item.content.toolName.startsWith('tool.')).every(item=>item.content.type==='tool_call'&&['knowledgeRead','knowledgeWrite'].includes(item.content.display.key)))
+test('Ask AI reads user-maintained Knowledge through MCP without write permission', async t => {
+  const f = await firstPartyFixture(t)
+  await f.workspace.spaces.knowledge.files.mkdir('interview')
+  await f.workspace.spaces.knowledge.files.write('interview/notes.md', 'PRIVATE_KNOWLEDGE_BODY pricing', null)
+  let step = 0
+  const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
+    assert(input.tools.every(tool => !/^knowledge.(write|mkdir|move|delete)$/.test(tool.name)))
+    const calls = [['knowledge.search', { query: 'pricing' }], ['knowledge.read', { path: 'interview/notes.md' }], ['knowledge.retrieve', { query: 'pricing', maxContext: 500 }]] as const
+    if (step === calls.length) { yield* answer('Here are your notes.'); return }
+    const [name, args] = calls[step++]; yield* batch({ id: `knowledge-${step}`, name, arguments: args })
+  } }
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
+  const ids = tasks.start(1, start('Read my interview preparation'), () => {}), snapshot = await wait(tasks, ids.runId)
+  assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? ''); assert.equal(snapshot.run.writeStarted, false)
+  assert(JSON.stringify(snapshot).includes('PRIVATE_KNOWLEDGE_BODY'))
+  assert.equal((await f.workspace.spaces.knowledge.files.read('interview/notes.md')).content, 'PRIVATE_KNOWLEDGE_BODY pricing')
 })

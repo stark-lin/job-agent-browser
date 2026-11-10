@@ -154,7 +154,7 @@ test('failure preparing the next Pi turn leaves the previous Cycle settled witho
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => capability, model: () => ({
     ...answer, async *stream() {
       requests++
-      const call = { id: 'discover', name: 'tool.search', arguments: { query: 'job' } }
+      const call = { id: 'discover', name: 'scope.job', arguments: {} }
       yield { type: 'tool_call.ready', call }
       yield { type: 'completed', response: { content: '', toolCalls: [call] } }
     }

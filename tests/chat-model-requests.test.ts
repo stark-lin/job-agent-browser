@@ -24,8 +24,8 @@ test('Main stores deletable diagnostics with pagination, terminal failure and in
   const snapshot = repo.snapshot(ids.runId), recorder = createAgentRecorder(repo, snapshot, () => {}, () => {})
   recorder.receive({ type: 'model.request.prepared', request: diagnostic(1) })
   recorder.receive({ type: 'model.request.prepared', request: diagnostic(2) })
-  recorder.receive({ type: 'model.request.activation', activation: { names: ['job.list'], repeats: 1, reason: 'already-active' } })
-  recorder.receive({ type: 'model.request.activation', activation: { names: ['job.list'], repeats: 2, reason: 'activation-loop' } })
+  // Legacy records remain readable; new model requests keep the empty default.
+  f.database.connection.prepare('UPDATE agent_model_requests SET activations_json=? WHERE run_id=? AND ordinal=1').run(JSON.stringify([{ names: ['job.list'], repeats: 1, reason: 'already-active' }, { names: ['job.list'], repeats: 2, reason: 'activation-loop' }]), ids.runId)
   const first = value(await f.api.chats.listModelRequests({ runId: ids.runId, limit: 1 }))
   assert.equal(first.total, 2); assert.equal(first.items[0].ordinal, 1)
   assert.deepEqual(first.items[0].activations.map(entry => entry.repeats), [1, 2])

@@ -162,10 +162,10 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
       if (input.messages.some(message => message.role === 'tool')) { final = () => finish(response, 'Answer'); return }
       response.write(delta({ reasoning_content: 'Internal reasoning' }))
       response.write(delta({ content: 'Temporary' }))
-      const activate = input.tools.find(tool => tool.function.description.startsWith('[tool.activate] '))
+      const activate = input.tools.find(tool => tool.function.description.startsWith('[scope.profile] '))
       assert(activate)
       tools = () => response.end(delta({ tool_calls: [{ index: 0, id: 'tool-preamble', type: 'function', function: {
-        name: activate.function.name, arguments: JSON.stringify({ names: ['profile.list'] })
+        name: activate.function.name, arguments: '{}'
       } }] }, 'tool_calls') + 'data: [DONE]\n\n')
     }
     const current = active(await read()).targetId

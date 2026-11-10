@@ -11,9 +11,9 @@ export async function verifyAskPackage(backend: ReturnType<typeof createBackend>
   const model: StreamingAgentModel = {
     complete: async () => { throw new Error('Unexpected automatic model task') },
     async *stream(input) {
-      if (step === 0 && JSON.stringify(input.tools.map(t => t.name)) !== JSON.stringify(['tool.search', 'tool.activate'])) throw new Error('PACKAGE_ASK_INITIAL_TOOLS')
+      if (step === 0 && !input.tools.some(t => t.name === 'scope.job') || step === 0 && input.tools.some(t => !t.name.startsWith('scope.') && t.name !== 'human.ask')) throw new Error('PACKAGE_ASK_INITIAL_TOOLS')
       if (step < 2) {
-        const call = step++ === 0 ? { id: 'package-activation', name: 'tool.activate', arguments: { names: ['job.list'] } }
+        const call = step++ === 0 ? { id: 'package-activation', name: 'scope.job', arguments: {} }
           : { id: 'package-jobs', name: 'job.list', arguments: {} }
         yield { type: 'tool_call.ready', call }; yield { type: 'completed', response: { content: '', toolCalls: [call] } }
       } else {

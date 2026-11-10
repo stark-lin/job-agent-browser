@@ -1,3 +1,4 @@
+import { scopedFixture } from './scoped-fixture'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { compatibleAgentModel } from '../src/platform/ai/agent-model'
@@ -44,14 +45,14 @@ function fixtureModel(batches: AgentModelEvent[][]): StreamingAgentModel { retur
 const final = (text: string): AgentModelEvent[] => [{ type: 'content.delta', text }, { type: 'completed', response: { content: text, toolCalls: [] } }]
 test('Pi preserves interleaving, complete call batches, recoverable errors, fatal runtime boundaries and the 64-request limit', async () => {
   const call = { id: 'a', name: 'job.list', arguments: {} }, events: AgentRuntimeEvent[] = [], observations: unknown[] = []
-  const activation = { id: 'activate', name: 'tool.activate', arguments: { names: ['job.list'] } }
+  const activation = { id: 'activate', name: 'scope.job', arguments: {} }
   const activate: AgentModelEvent[] = [{ type: 'tool_call.ready', call: activation }, { type: 'completed', response: { content: '', toolCalls: [activation] } }]
   const tools: AgentTools = { list: async () => [descriptor], call: async () => { throw new ToolError('TOOL_FORBIDDEN') } }
   const first: AgentModelEvent[] = [{ type: 'reasoning.delta', text: 'Summary' }, { type: 'content.delta', text: 'Reading' }, { type: 'reasoning.delta', text: 'More' }, { type: 'tool_call.ready', call }, { type: 'completed', response: { content: 'Reading', toolCalls: [call] } }]
   const run = (model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void) => {
     const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
     const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save(value) { return value } })
-    return runPiAgent({ model, tools, system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
+    return runPiAgent({ model, tools: scopedFixture(tools), system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
   }
   const model = fixtureModel([activate, first, final('Recovered')]), original = model.stream
   model.stream = input => { observations.push(input.messages); return original(input) }
@@ -69,7 +70,7 @@ test('Pi executes a batch one tool at a time and waits for all results before mo
   let release!: () => void, entered!: () => void
   const block = new Promise<void>(resolve => { release = resolve }), first = new Promise<void>(resolve => { entered = resolve })
   const calls = [{ id: 'a', name: 'memory.write', arguments: { path: 'a.md' } }, { id: 'b', name: 'memory.write', arguments: { path: 'b.md' } }]
-  const activate = { id: 'activate', name: 'tool.activate', arguments: { names: ['memory.write'] } }
+  const activate = { id: 'activate', name: 'scope.memory', arguments: {} }
   let requests = 0, active = 0, max = 0
   const order: string[] = []
   const model: StreamingAgentModel = { complete: async () => { throw new Error('Unexpected model task') }, async *stream(input) {
@@ -89,7 +90,7 @@ test('Pi executes a batch one tool at a time and waits for all results before mo
   } }
   const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: value => value })
-  const pending = runPiAgent({ model, tools, system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
+  const pending = runPiAgent({ model, tools: scopedFixture(tools), system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
   await first; assert.equal(requests, 2); assert.deepEqual(order, ['a.md']); assert.equal(active, 1)
   release(); await pending; assert.equal(max, 1); assert.equal(requests, 3)
 })

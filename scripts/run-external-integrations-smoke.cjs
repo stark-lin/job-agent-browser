@@ -47,6 +47,7 @@ app.once('browser-window-created', (_event, window) => {
       for (const channel of ['external-mcp:call', 'external-skills:call']) for (const method of ['reconnect', 'remove']) {
         assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke(${JSON.stringify(channel)},${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
       }
+      for (const method of ['list', 'answer', 'cancel']) assert.deepEqual(await outsider.webContents.executeJavaScript(`require('electron').ipcRenderer.invoke('human:call',${JSON.stringify(method)},{})`), { ok: false, error: 'FORBIDDEN' })
       outsider.destroy()
       console.log('External integration runtime smoke passed, including untrusted-frame rejection and bilingual light/dark layouts at 320/640/1200px.')
       app.once('will-quit', () => { clearTimeout(timeout); app.exit(0) })

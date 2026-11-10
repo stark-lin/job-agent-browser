@@ -2,6 +2,7 @@ import type { en } from './en'
 type Translation<T> = { [K in keyof T]: T[K] extends string ? string : Translation<T[K]> }
 
 export const zhCN = {
+  human: { title: '需要你的回答', text: '补充回答', clear: '清除选择', cancel: '取消', submit: '提交', error: '回答未能发送，请重试。' },
   onboarding: {
     setup: '引导步骤', appearance: '语言和背景', choice: 'AI 接入', model: '模型', agent: 'Agent', profile: '个人资料', ready: '完成',
     language: '语言', background: '背景', system: '跟随系统', light: '浅色', dark: '深色', next: '继续', back: '返回', skip: '跳过', later: '暂不连接', finish: '进入 JAB',
@@ -96,7 +97,7 @@ export const zhCN = {
   "rebuilt": "检索索引已重建"
 },
   ask: {
-  runtime: { pending: '等待上一轮完成…', compacting: '正在压缩上下文…', searching: '正在搜索工具…', activating: '正在激活工具…' },
+  runtime: { humanWaiting: '等待你的回答…', pending: '等待上一轮完成…', compacting: '正在压缩上下文…', searching: '正在搜索工具…', activating: '正在激活工具…' },
   "sessions": "会话",
   "openSessions": "打开会话列表",
   "close": "关闭",
@@ -157,6 +158,7 @@ export const zhCN = {
   "toolRunning": "正在执行：{{action}}",
   "toolFailed": "未能完成：{{action}}",
   "tools": {
+    scope: '查看工具目录', humanAsk: '询问用户',
     searchTools: '搜索工具', activateTools: '激活工具',
     "jobs": "读取已保存职位",
     "job": "读取职位",

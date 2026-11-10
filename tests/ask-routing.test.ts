@@ -23,8 +23,8 @@ for (const scenario of ['projects', 'fit', 'ambiguous', 'incomplete'] as const) 
     assert(system.includes('ask which profile to use rather than choosing arbitrarily'))
     assert(system.includes('Job-fit analysis compares the saved Job against Profile items and Facts only'))
     assert(!request.tools.some(t => /^\[(resume\.|artifact\.build)/.test(t.function.description)))
-    if (round === 1) return [{ name: 'tool.search', arguments: { query: scenario === 'fit' ? 'profile job' : 'profile' } }]
-    if (round === 2) return [{ name: 'tool.activate', arguments: { names } }]
+    if (round === 1) return [{ name: 'scope.profile', arguments: {} }]
+    if (round === 2) return scenario === 'fit' ? [{ name: 'scope.job', arguments: {} }] : [{ name: 'scope.profile', arguments: {} }]
     if (round <= steps.length + 2) return [steps[round - 3]]
     const results = request.messages.filter(m => m.role === 'tool').map(m => m.content).join('\n')
     if (scenario !== 'ambiguous') assert(results.includes(f.fact.content))
@@ -40,7 +40,7 @@ for (const scenario of ['projects', 'fit', 'ambiguous', 'incomplete'] as const) 
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
   assert.equal(snapshot.run.writeStarted, false)
   assert(snapshot.items.some(i => i.content.type === 'assistant_message' && i.content.text === replies[scenario]))
-  const business = snapshot.items.flatMap(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.') ? [i.content.toolName] : [])
+  const business = snapshot.items.flatMap(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('scope.') ? [i.content.toolName] : [])
   assert.deepEqual(business, names)
   assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.outputs(), 0)
 })

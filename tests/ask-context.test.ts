@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ContextBudget } from '../src/platform/agent/context/budget'
 import { ContextManager } from '../src/platform/agent/context/manager'
-import { ToolDiscovery } from '../src/platform/agent/tools/discovery'
+import { ScopedToolset } from '../src/platform/agent/tools/scoped-toolset'
+import { scopedFixture } from './scoped-fixture'
 import { loadCoreMemory } from '../src/platform/agent/context/core-memory'
 import { ToolError } from '../src/shared/tools/errors'
 import { resolveAskCapabilities } from '../src/platform/ai/ask-capabilities'
@@ -33,22 +34,17 @@ test('incremental compaction persists a monotonic boundary only after successful
   const failing = new ContextManager({ budget, model: { complete: async () => { throw new Error('fixture') } }, checkpoint: { summary: 'old', compactedThroughSequence: 0, revision: 0 }, turns, memory: '', protectedState: [], compacting() {}, save() { throw new Error('must not save') } })
   await assert.rejects(failing.prepare(live, [], new AbortController().signal), /fixture/)
 })
-test('disclosure starts with two tools and refuses forbidden capabilities without changing MCP permissions', async () => {
-  const forbidden = ['knowledge.delete', 'resume.start', 'resume.get_context', 'resume.cancel', 'resume.fail', 'artifact.build', 'job.future']
+test('Scope expansion cannot authorize forbidden tools', async () => {
+  const forbidden = ['knowledge.write', 'knowledge.mkdir', 'knowledge.move', 'knowledge.delete', 'resume.start', 'artifact.build', 'job.future']
   const descriptors: AgentToolDescriptor[] = ['job.list', 'profile.get', 'memory.write', ...forbidden].map(name => ({ name, description: name, inputSchema: { type: 'object' } }))
-  const calls: string[] = [], discovery = new ToolDiscovery({ list: async () => descriptors, call: async name => { calls.push(name); return {} } }, new ContextBudget(capability(), 'unknown'))
+  const calls: string[] = [], registry = new ScopedToolset(scopedFixture({ list: async () => descriptors, call: async name => { calls.push(name); return {} } }), new ContextBudget(capability(), 'unknown'))
   const signal = new AbortController().signal
-  await discovery.refresh(); assert.deepEqual(discovery.loadout().map(t => t.name), ['tool.search', 'tool.activate'])
-  const result = await discovery.call('tool.search', { query: 'memory' }, signal) as { name: string }[]; assert.deepEqual(result.map(t => t.name), ['memory.write'])
-  for (const name of forbidden) {
-    const search = await discovery.call('tool.search', { query: name }, signal) as { name: string }[]
-    assert(!search.some(t => t.name === name))
-    await assert.rejects(discovery.call('tool.activate', { names: [name] }, signal), /AGENT_PROTOCOL_ERROR/)
-    await assert.rejects(discovery.call(name, {}, signal), /AGENT_PROTOCOL_ERROR/)
-  }
-  await assert.rejects(discovery.call('job.list', {}, signal))
-  await discovery.call('tool.activate', { names: ['job.list'] }, signal); discovery.loadout(); await discovery.call('job.list', {}, signal)
-  assert.deepEqual(calls, ['job.list'])
+  await registry.refresh()
+  assert.deepEqual(registry.loadout().map(t => t.name), ['scope.job', 'scope.profile', 'scope.memory', 'human.ask'])
+  await assert.rejects(registry.call('job.list', {}, signal), /AGENT_PROTOCOL_ERROR/)
+  await registry.call('scope.job', {}, signal); registry.loadout()
+  for (const name of forbidden) await assert.rejects(registry.call(name, {}, signal), /AGENT_PROTOCOL_ERROR/)
+  await registry.call('job.list', {}, signal); assert.deepEqual(calls, ['job.list'])
   assert.equal(providerTools(descriptors.slice(0, 2), true).names.get('profile.get'), providerTools(descriptors.slice(1, 2), true).names.get('profile.get'))
 })
 test('Core uses a local bounded Unicode view, never recalls or writes, and only ignores missing files', async () => {

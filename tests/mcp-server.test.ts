@@ -15,14 +15,14 @@ test('protocol adapter lists only the allowlist, preserves schemas, sanitizes er
     building = true
     await new Promise<void>(resolve => signal.addEventListener('abort', () => { cancelled = true; resolve() }, { once: true }))
     return {}
-  })
+  }, f.workspace.spaces.knowledge, f.workspace.spaces.memory)
   const runtime = createMCPServer(tooling.registry, { allow: jobAgentAllowlist, maxRisk: 'WRITE' }, controller.signal, undefined, undefined, undefined, createExternalRun(f.directory))
   const [a, b] = InMemoryTransport.createLinkedPair(), client = new Client({ name: 'test', version: '1' })
   t.after(async () => { controller.abort(); await client.close(); await runtime.dispose(); tooling.dispose() })
   await runtime.server.connect(b); await client.connect(a)
   const listed = (await client.listTools()).tools
-  assert.deepEqual(listed.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'run.begin', 'run.end'].sort())
-  for (const tool of listed.filter(tool => !tool.name.startsWith('run.'))) {
+  assert.deepEqual(listed.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'human.ask', 'run.begin', 'run.end'].sort())
+  for (const tool of listed.filter(tool => !tool.name.startsWith('run.') && tool.name !== 'human.ask')) {
     const { executionRunId: _execution, ...properties } = tool.inputSchema.properties!
     assert.deepEqual({ ...tool.inputSchema, properties, required: tool.inputSchema.required!.filter(key => key !== 'executionRunId') }, { ...tooling.registry.get(tool.name)!.inputSchema, required: (tooling.registry.get(tool.name)!.inputSchema as { required?: string[] }).required ?? [] })
   }

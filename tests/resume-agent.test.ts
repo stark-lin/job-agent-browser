@@ -49,11 +49,11 @@ test('fixture executes all stages, records execution, publishes immutable eviden
   const trace = f.tasks.getTrace(1, { runId })!
   assert.equal(trace.run.sessionId, null)
   assert.equal(trace.run.state, 'completed')
-  assert.equal(trace.cycles.length, 4)
-  assert.equal(trace.requests.length, 4)
+  assert.equal(trace.cycles.length, 5)
+  assert.equal(trace.requests.length, 5)
   assert(trace.items.some(item => item.content.type === 'tool_call' && item.content.toolName === 'resume.rewrite_bullet'))
   assert.equal(result.artifact?.outputFiles.length, 2)
-  assert.equal(f.server.requests(), 4)
+  assert.equal(f.server.requests(), 5)
   assert(f.events.every((event, index) => event.sequence === index + 1 && event.runId === runId))
   const before = f.server.requests()
   await f.tasks.retryOutput(1, { artifactId: result.artifact!.id }, event => f.events.push(event)); await done(f.tasks, runId)
@@ -70,7 +70,7 @@ test('desktop model batches independent rewrites without revision bookkeeping or
   const writes = trace.items.filter(item => item.content.type === 'tool_call' && item.content.toolName === 'resume.rewrite_bullet')
   assert.equal(writes.length, 2)
   assert(writes.every(item => item.state === 'completed'))
-  assert.equal(f.server.requests(), 3)
+  assert.equal(f.server.requests(), 4)
 })
 
 test('generation preserves grouped skills, copied introduction and standalone skill categories', async t => {
