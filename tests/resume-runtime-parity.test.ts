@@ -1,8 +1,10 @@
 import { scopeTools } from '../src/platform/mcp-server/scope-tools'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { value } from './helpers'
 import { firstPartyFixture } from './first-party-fixture'
@@ -12,6 +14,37 @@ import { jobAgentAllowlist } from '../src/platform/tools'
 import { resumeAgentTools, resumeAgentLifecycle } from '../src/shared/agent/resume-policy'
 import { createAgentRecorder } from '../src/platform/electron/agent-recorder'
 import type { Artifact } from '../src/domain/resume/resume.types'
+
+test('a failed real MCP test drains external clients and exits without leaked fixture resources', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'mcp-failure-test-')), entry = join(directory, 'failure.test.cjs'), marker = join(directory, 'fixture-path')
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  writeFileSync(entry, `
+const test = require('node:test');
+const { writeFileSync } = require('node:fs');
+const { join } = require('node:path');
+const { firstPartyFixture } = require(${JSON.stringify(resolve(__dirname, 'first-party-fixture.js'))});
+const { createMCPClient } = require(${JSON.stringify(resolve(__dirname, '../src/platform/mcp/client.js'))});
+test('intentional failure', async t => {
+  const f = await firstPartyFixture(t);
+  writeFileSync(${JSON.stringify(marker)}, f.directory);
+  for (const id of ['owner', 'second']) {
+    const client = createMCPClient({ id, enabled: true, transport: 'stdio', command: process.execPath,
+      args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} },
+      { processEnv: { JOB_BROWSER_USER_DATA: f.directory, ELECTRON_RUN_AS_NODE: '1' } });
+    f.cleanup(() => client.close());
+    await client.connect();
+    if (id === 'owner') await client.callTool('run.begin', {}, new AbortController().signal);
+  }
+  throw new Error('EXPECTED_MCP_ASSERTION_FAILURE');
+});
+`)
+  const result = spawnSync(process.execPath, ['--test', '--test-isolation=none', '--test-reporter=tap', entry],
+    { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 20000, killSignal: 'SIGKILL' })
+  assert.equal(result.error, undefined, result.error?.message)
+  assert.equal(result.status, 1, result.stdout + result.stderr)
+  assert.match(result.stdout, /EXPECTED_MCP_ASSERTION_FAILURE/)
+  assert.equal(existsSync(readFileSync(marker, 'utf8')), false)
+})
 
 // Both sides use separate real stdio Servers sharing the same database.
 test('internal and external MCP sessions use distinct capabilities and produce equivalent state, provenance and HTML', async t => {
@@ -24,7 +57,12 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   f.cleanup(() => client.close())
   await client.connect()
   const secondExternal = createMCPClient({ id: 'second-external', enabled: true, transport: 'stdio', command: process.execPath, args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} }, { processEnv: { JOB_BROWSER_USER_DATA: f.directory, ELECTRON_RUN_AS_NODE: '1' } })
-  await assert.rejects(secondExternal.connect()); await secondExternal.close()
+  f.cleanup(() => secondExternal.close())
+  await secondExternal.connect()
+  assert((await secondExternal.listTools()).some(tool => tool.name === 'run.begin'))
+  const second = new MCPAgentTools(secondExternal, await secondExternal.listTools(), signal)
+  await assert.rejects(second.call('run.begin', {}, signal), { code: 'TOOL_BUSY' })
+  await secondExternal.close()
   const external = new MCPAgentTools(client, await client.listTools(), signal)
   assert.deepEqual((await external.list()).map(tool => tool.name).sort(), [...jobAgentAllowlist, 'human.ask', 'run.begin', 'run.end'].sort())
   assert.deepEqual((await internal.list()).map(tool => tool.name).sort(), [...resumeAgentLifecycle, 'scope.resume', 'scope.artifact', 'human.ask'].sort())

@@ -3,7 +3,7 @@ const { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync } = require('node:fs'
 const { join, resolve } = require('node:path')
 const { tmpdir } = require('node:os')
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: 'inherit', timeout: 240000, ...options })
+  const result = spawnSync(command, args, { stdio: 'inherit', timeout: 60000, ...options, killSignal: 'SIGKILL' })
   if (result.error || result.status !== 0) throw new Error('Installer verification command failed: ' + command)
 }
 function main() {

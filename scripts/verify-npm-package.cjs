@@ -37,14 +37,14 @@ function verify(directory = join(root, 'dist/npm')) {
   walk(directory)
   for (const name of ['out/main/index.js', 'out/main/job-agent-mcp.js', 'out/main/resume-output-worker.js', 'out/main/embedding-process.js', 'out/main/pdf-worker.mjs', 'out/main/fonts/NotoSansSC.ttf', 'out/main/skills', 'out/preload/index.js', 'out/preload/browser-gestures.js', 'out/renderer/index.html', 'resources/embedding-model.json', 'resources/model-notice.txt']) assert(existsSync(join(directory, name)), 'Missing resource: ' + name)
   const destination = join(root, 'dist/npm-artifacts'); mkdirSync(destination, { recursive: true })
-  const pack = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', destination], { cwd: directory, encoding: 'utf8', env: { ...process.env, npm_config_cache: join(root, '.cache/npm-pack') } })
+  const pack = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', destination], { cwd: directory, encoding: 'utf8', timeout: 60000, killSignal: 'SIGKILL', env: { ...process.env, npm_config_cache: join(root, '.cache/npm-pack') } })
   assert.equal(pack.status, 0, pack.stderr)
   const result = JSON.parse(pack.stdout)[0], tarball = join(destination, result.filename)
   const packed = new Set(result.files.map(f => f.path))
   assert(packed.has('npm-shrinkwrap.json'))
   for (const name of ['README.md', 'README.zh-CN.md', 'LICENSE']) {
     assert(packed.has(name), 'Missing packed document: ' + name)
-    const unpack = spawnSync('tar', ['-xOf', tarball, 'package/' + name], { encoding: 'utf8', maxBuffer: 1048576 })
+    const unpack = spawnSync('tar', ['-xOf', tarball, 'package/' + name], { encoding: 'utf8', maxBuffer: 1048576, timeout: 30000, killSignal: 'SIGKILL' })
     assert.equal(unpack.status, 0, unpack.stderr)
     assert.equal(unpack.stdout, readFileSync(join(directory, name), 'utf8'), 'Packed document differs: ' + name)
   }

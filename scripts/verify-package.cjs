@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { join, resolve } = require('node:path')
 const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, lstatSync } = require('node:fs')
 const { tmpdir } = require('node:os')
-const { spawnSync } = require('node:child_process')
+const { runTestProcess } = require('./test-process.cjs')
 const { prepare } = require('./prepare-embedding-model.cjs')
 const manifest = require('../resources/embedding-model.json')
 async function main() {
@@ -30,7 +30,7 @@ async function main() {
   const env = { ...process.env, JOB_BROWSER_USER_DATA: directory, JAB_MODEL_STORE: join(directory, 'managed-models') }
   delete env.ELECTRON_RUN_AS_NODE; delete env.ELECTRON_RENDERER_URL
   try {
-    const result = spawnSync(executable, ['--verify-package', ...(minimal ? ['--verify-minimal'] : [])], { env, stdio: 'inherit', cwd: tmpdir(), timeout: 180000 })
+    const result = runTestProcess(executable, ['--verify-package', ...(minimal ? ['--verify-minimal'] : [])], { env, stdio: 'inherit', cwd: tmpdir(), timeout: 60000 })
     assert.equal(result.error, undefined)
     assert.equal(result.status, 0, 'Packaged runtime failed')
     const report = JSON.parse(readFileSync(join(directory, 'package-verification.json'), 'utf8'))

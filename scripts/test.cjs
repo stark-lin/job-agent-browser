@@ -1,4 +1,4 @@
-const { spawnSync } = require('node:child_process')
+const { runTestProcess, runTestFiles } = require('./test-process.cjs')
 const { readdirSync, rmSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 
@@ -7,7 +7,7 @@ const root = resolve(__dirname, '..')
 const electron = require('electron')
 const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
 function run(args) {
-  const result = spawnSync(electron, args, { cwd: root, env, stdio: 'inherit' })
+  const result = runTestProcess(electron, args, { cwd: root, env })
   if (result.error || result.status !== 0) process.exit(result.status ?? 1)
 }
 rmSync(join(root, '.cache/tests'), { recursive: true, force: true })
@@ -24,4 +24,4 @@ const tests = readdirSync(join(root, '.cache/tests/tests')).filter((name) => nam
   (!serverOnly || /^(mcp-run-(?:guard|progress)|memory-mcp|business-tools|profile-writes|profile-baseline|run-admission|application-agent|capture-agent|resume-tools|resume-runtime-parity|runtime-leases|mcp-server)\.test\.js$/.test(name)) &&
   (!mcpOnly || /^(tools|mcp|capabilities)\.test\.js$/.test(name))).map((name) => join(root, '.cache/tests/tests', name))
 if (tests.length === 0) throw new Error('No tests discovered')
-run(['--test', '--test-timeout=60000', '--test-concurrency=1', ...tests])
+process.exitCode = runTestFiles(tests, { executable: electron, cwd: root, env })

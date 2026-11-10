@@ -35,7 +35,7 @@ globalThis.fetch = async (url, options) => {
   }
   return new Response(Readable.toWeb(createReadStream(join(seed, path))))
 }
-const deadline = setTimeout(() => { console.error('Model runtime timed out'); app.exit(1) }, 170000)
+const deadline = setTimeout(() => { console.error('Model runtime timed out'); app.exit(1) }, 55000)
 let selected = false
 app.on('browser-window-created', (_event, window) => {
   if (selected) return

@@ -7,7 +7,7 @@ const storage = process.env.JOB_BROWSER_SMOKE_DATA
 assert(storage, 'The smoke runner must provide disposable storage')
 app.setPath('userData', storage)
 require('./external-mcp-test-home.cjs')(storage)
-const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 165_000)
+const timeout = setTimeout(() => { console.error('Electron smoke timed out'); app.exit(1) }, 55000)
 // Electron's default uncaught-exception dialog blocks unattended macOS runners.
 process.on('uncaughtException', error => {
   console.error('Uncaught Electron smoke error:', error)

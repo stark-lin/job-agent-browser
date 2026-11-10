@@ -34,7 +34,7 @@
     "model:prepare": "node scripts/prepare-embedding-model.cjs",
     "model:verify": "node scripts/prepare-embedding-model.cjs --verify",
     "test:embedding": "node scripts/embedding-smoke.cjs",
-    "test:release": "node --test tests/release-pipeline.test.cjs tests/npm-distribution.test.cjs",
+    "test:release": "node scripts/test-process.cjs tests/release-pipeline.test.cjs tests/npm-distribution.test.cjs tests/test-process.test.cjs",
     "release:check": "npm run model:verify && npm run check && npm run test:release && npm run test:embedding",
     "package:dir": "npm run model:prepare && npm run build && node scripts/package.cjs --dir",
     "package": "npm run model:prepare && npm run build && node scripts/package.cjs",

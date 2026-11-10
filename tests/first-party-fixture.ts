@@ -15,10 +15,21 @@ import '../src/platform/mcp-server/runtime'
 export async function firstPartyFixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), 'first-party-'))
   const cleanups: (() => void | Promise<void>)[] = [], runCleanups: (() => Promise<void>)[] = []
+  const clientCleanups: (() => void | Promise<void>)[] = []
+  let mcp: ReturnType<typeof createFirstPartyRuntime> | undefined
+  t.after(async () => {
+    const errors: unknown[] = []
+    // External clients must drain before Main shuts down its admission broker.
+    for (const cleanup of [...runCleanups, ...clientCleanups.reverse(), () => mcp?.dispose(), ...cleanups.reverse(),
+      () => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })]) {
+      try { await cleanup() } catch (error) { errors.push(error) }
+    }
+    if (errors.length) throw new AggregateError(errors, 'First-party fixture cleanup failed')
+  })
   const f = await seed({ after: (cleanup: () => void) => { cleanups.push(cleanup) } }, join(directory, 'database.sqlite'))
   const workspace = new SmartNoteWorkspace(directory, { preferences: () => defaultKnowledgePreferences })
-  await workspace.ready
   cleanups.push(() => workspace.close())
+  await workspace.ready
   const authorityPath = resolve(__dirname, '../src/platform/mcp/memory-authority.js')
   const runtimePath = resolve(__dirname, '../src/platform/mcp-server/runtime.js')
   const compilerPath = resolve(__dirname, '../src/platform/resume-output/compiler.js')
@@ -57,15 +68,15 @@ await runtime.server.connect(new StdioServerTransport(process.stdin, process.std
 `)
   const human = createHumanRequests()
   cleanups.push(() => human.dispose())
-  const mcp = createFirstPartyRuntime(directory, directory, human)
+  mcp = createFirstPartyRuntime(directory, directory, human)
   await mcp.ready
+  const runtime = mcp
   let lastRun: Awaited<ReturnType<typeof mcp.openAgentRun>> | undefined
-  t.after(async () => { for (const close of runCleanups) await close(); await mcp.dispose(); for (const cleanup of cleanups.reverse()) await cleanup(); rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
-  return { ...f, directory, mcp, workspace, human,
+  return { ...f, directory, mcp: runtime, workspace, human,
     async askRun(signal: AbortSignal, sessionId = 'default', sourceMessageIds: string[] = []) {
-      const run = await mcp.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId, sourceMessageIds, signal })
+      const run = await runtime.openAgentRun({ agent: 'ask', agentRunId: randomUUID(), sessionId, sourceMessageIds, signal })
       lastRun = run; runCleanups.push(() => run.close().catch(() => {})); return run.tools
-    }, endAskRun: async () => { await lastRun?.close(); lastRun = undefined }, cleanup: (fn: () => void | Promise<void>) => cleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
+    }, endAskRun: async () => { await lastRun?.close(); lastRun = undefined }, cleanup: (fn: () => void | Promise<void>) => clientCleanups.push(fn), outputDirectory: join(directory, 'artifacts'),
     flag(name: string, on = true) { if (on) writeFileSync(join(directory, name), '1'); else rmSync(join(directory, name), { force: true }) },
     has: (name: string) => existsSync(join(directory, name)),
     outputs: () => existsSync(join(directory, 'output-count')) ? Number(readFileSync(join(directory, 'output-count'), 'utf8')) : 0 }

@@ -1,3 +1,10 @@
+// Keep a parent deadline outside the event loop that owns MCP connections and teardown.
+if (!process.argv.includes('--runtime')) {
+  const { runTestProcess } = require('./test-process.cjs')
+  const result = runTestProcess(process.execPath, [__filename, '--runtime'])
+  process.exit(result.status ?? 1)
+}
+
 const assert = require('node:assert/strict')
 const { mkdtempSync, rmSync, readFileSync, existsSync } = require('node:fs')
 const { join, resolve } = require('node:path')
@@ -39,7 +46,7 @@ async function main() {
   const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: resolve(__dirname, '..'), env: { ...nativeMCPEnvironment(), JOB_BROWSER_USER_DATA: directory }, stderr: 'pipe', maxBufferSize: 2097152 })
   let diagnostics = ''
   transport.stderr?.on('data', chunk => { if (diagnostics.length < 4000) diagnostics += chunk })
-  const call = async (name, args) => { const result = await client.callTool({ name, arguments: name.startsWith('run.') ? args : { ...args, executionRunId } }, { timeout: 100000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
+  const call = async (name, args) => { const result = await client.callTool({ name, arguments: name.startsWith('run.') ? args : { ...args, executionRunId } }, { timeout: 30000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
   try {
     await client.connect(transport)
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'human.ask', 'run.begin', 'run.end'].sort())
@@ -131,7 +138,7 @@ async function main() {
       assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING')
     } finally { await crashed.close() }
     const env = { ...process.env }; delete env.JOB_BROWSER_USER_DATA
-    const missing = spawnSync(process.execPath, [entry], { env, encoding: 'utf8', timeout: 10000 })
+    const missing = spawnSync(process.execPath, [entry], { env, encoding: 'utf8', timeout: 10000, killSignal: 'SIGKILL' })
     assert.equal(missing.status, 1); assert.equal(missing.stdout, ''); assert(missing.stderr.includes('MCP_DATA_REQUIRED'))
     console.log('Outbound MCP smoke passed: built Node stdio entry, shared SQLite across processes, immutable snapshot, full external workflow, real Electron HTML/PDF worker, PDF text/page validation, cancellation/rebuild, EOF/crash recovery and zero application model calls.')
   } finally { await client.close().catch(() => {}); await mainAdmission.close(); backend.close(); await workspace.close(); rmSync(directory, { recursive: true, force: true }) }

@@ -1,4 +1,4 @@
-const { spawnSync } = require('node:child_process')
+const { runTestProcess } = require('./test-process.cjs')
 const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 const { tmpdir } = require('node:os')
@@ -12,7 +12,7 @@ const env = { ...process.env, JOB_BROWSER_SMOKE_DATA: directory, JAB_MODEL_STORE
   JAB_MODEL_SMOKE_CAPTURE: resolve(__dirname, '../.cache/model-smoke/settings.png') }
 delete env.ELECTRON_RUN_AS_NODE; delete env.ELECTRON_RENDERER_URL; delete env.JOB_BROWSER_USER_DATA
 try {
-  const result = spawnSync(require('electron'), [join(__dirname, 'model-runtime-smoke.cjs')], { env, stdio: 'inherit', timeout: 180000 })
+  const result = runTestProcess(require('electron'), [join(__dirname, 'model-runtime-smoke.cjs')], { env, stdio: 'inherit', timeout: 60000 })
   if (result.error) console.error(result.error.message)
   process.exitCode = result.status ?? 1
 } finally { rmSync(directory, { recursive: true, force: true }) }

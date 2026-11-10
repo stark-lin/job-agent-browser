@@ -1,4 +1,4 @@
-const { spawnSync } = require('node:child_process')
+const { runTestProcess } = require('./test-process.cjs')
 const { resolve } = require('node:path')
 const { dependencies } = require('../package.json')
 
@@ -10,7 +10,7 @@ async function main() {
     rollupOptions: { external: id => id.startsWith('node:') || Object.keys(dependencies).some(name => id === name || id.startsWith(name + '/')),
       output: { format: 'cjs', entryFileNames: 'runtime.cjs' } }
   } })
-  const result = spawnSync(require('electron'), [resolve(__dirname, '../.cache/mcp-smoke/runtime.cjs')], {
+  const result = runTestProcess(require('electron'), [resolve(__dirname, '../.cache/mcp-smoke/runtime.cjs')], {
     cwd: resolve(__dirname, '..'), env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit', timeout: 30000
   })
   if (result.error) console.error(result.error.message)

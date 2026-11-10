@@ -3,14 +3,22 @@ const { mkdtempSync, realpathSync, mkdirSync, readFileSync, writeFileSync, rmSyn
 const { resolve, join } = require('node:path')
 const { tmpdir } = require('node:os')
 const { spawnSync } = require('node:child_process')
+const { runTestProcess } = require('./test-process.cjs')
 const { createHash } = require('node:crypto')
 const { initializeElectron } = require('./install-electron.cjs')
 const root = resolve(__dirname, '..')
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', timeout: 300000, ...options })
+  return checked(runTestProcess(command, args, { encoding: 'utf8', ...options }), command, args)
+}
+function checked(result, command, args) {
   assert.equal(result.error, undefined, result.error?.message)
   assert.equal(result.status, 0, `${command} ${args.join(' ')}\n${result.stdout || ''}\n${result.stderr || ''}`)
   return result.stdout || ''
+}
+function install(tarball, cwd, env) {
+  const command = process.platform === 'win32' ? 'npm.cmd' : 'npm', args = ['install', '--no-audit', '--no-fund', tarball]
+  // Network/dependency setup has a separate budget from runtime assertions.
+  checked(spawnSync(command, args, { cwd, env, stdio: 'inherit', timeout: 300000, killSignal: 'SIGKILL' }), command, args)
 }
 function prepareModelFixture(directory) {
   const fixture = join(directory, 'model-ui-smoke.cjs')
@@ -32,12 +40,12 @@ async function main() {
     const sourceLock = require('../package-lock.json')
     const allowScripts = Object.fromEntries(['onnxruntime-node', 'protobufjs'].map(name => [name + '@' + sourceLock.packages['node_modules/' + name].version, true]))
     writeFileSync(join(scratch, 'package.json'), JSON.stringify({ name: 'jab-clean-install', private: true, allowScripts }))
-    run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-audit', '--no-fund', tarball], { cwd: scratch, env, stdio: 'inherit' })
+    install(tarball, scratch, env)
     const installed = join(scratch, 'node_modules/@stark-lin/jab'), cli = join(installed, 'bin/jab.cjs')
     const pkg = JSON.parse(readFileSync(join(installed, 'package.json')))
     assert.equal(pkg.version, report.version); assert.equal(pkg.jab.gitSha, report.sha)
     assert.equal(run(process.execPath, [cli, '--version'], { cwd: tmpdir(), env }).trim(), report.version)
-    const missing = spawnSync(process.execPath, [cli, 'mcp'], { cwd: scratch, encoding: 'utf8', env: { ...env, JOB_BROWSER_USER_DATA: '' } })
+    const missing = spawnSync(process.execPath, [cli, 'mcp'], { cwd: scratch, encoding: 'utf8', timeout: 30000, killSignal: 'SIGKILL', env: { ...env, JOB_BROWSER_USER_DATA: '' } })
     assert.equal(missing.status, 1); assert.equal(missing.stdout, '')
     delete env.ELECTRON_SKIP_BINARY_DOWNLOAD
     const protocol = join(scratch, 'mcp-smoke.cjs')
@@ -52,7 +60,7 @@ const main=spawn(process.execPath,[${JSON.stringify(cli)},'--data-dir',process.a
 try{const deadline=Date.now()+30000;while(!existsSync(join(process.argv[2],'run-runtime','control.json'))){if(Date.now()>deadline)throw Error('Main admission unavailable');await new Promise(r=>setTimeout(r,25));}
 await client.connect(transport);const tools=await client.listTools();assert(tools.tools.some(t=>t.name==='knowledge.retrieve'));assert(tools.tools.some(t=>t.name==='memory.write'));assert(tools.tools.some(t=>t.name==='human.ask'));assert(!tools.tools.some(t=>t.name==='knowledge.write'));
 const begun=await client.callTool({name:'run.begin',arguments:{}});assert(!begun.isError);const executionRunId=begun.structuredContent.runId;
-const call=async(name,input)=>{const r=await client.callTool({name,arguments:{...input,executionRunId}},{timeout:180000});assert(!r.isError,JSON.stringify(r));return r.structuredContent};
+const call=async(name,input)=>{const r=await client.callTool({name,arguments:{...input,executionRunId}},{timeout:30000});assert(!r.isError,JSON.stringify(r));return r.structuredContent};
 const result=await call('knowledge.retrieve',{query:'SQLite'});assert(result);
 const job=await call('job.import',{requestId:randomUUID(),details:{title:'TypeScript Engineer',companyNameRaw:'npm fixture',description:'Build reliable TypeScript services.'}});
 const profile=await call('profile.create',{requestId:randomUUID(),details:{name:'npm PDF fixture'}});
@@ -69,7 +77,7 @@ console.log('Pure Node jab mcp verified Main-initialized storage, read-only Know
     const data = join(scratch, 'user-data')
     mkdirSync(data)
     writeFileSync(join(data, 'database.sqlite'), '')
-    const recovery = spawnSync(process.execPath, [cli, 'mcp', '--data-dir', data], { cwd: tmpdir(), env, encoding: 'utf8', timeout: 15000 })
+    const recovery = spawnSync(process.execPath, [cli, 'mcp', '--data-dir', data], { cwd: tmpdir(), env, encoding: 'utf8', timeout: 15000, killSignal: 'SIGKILL' })
     assert.equal(recovery.status, 1); assert.equal(recovery.stdout, ''); assert(recovery.stderr.includes('KNOWLEDGE_RECOVERY_REQUIRED_START_JAB'))
     // The tarball is genuinely installed outside the repository. Initialize Electron through
     // its official runtime module; no dependency or binary is copied from the checkout.
@@ -128,7 +136,7 @@ require(${JSON.stringify(join(installed, 'out/main/index.js'))});
     run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['uninstall', '--no-audit', '--no-fund', '@stark-lin/jab'], { cwd: scratch, env, stdio: 'inherit' })
     assert.deepEqual(readFileSync(join(data, 'database.sqlite')), persisted)
     if (installedModelRecord) assert(existsSync(installedModelRecord), 'Uninstall must preserve installed model files')
-    run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-audit', '--no-fund', tarball], { cwd: scratch, env, stdio: 'inherit' })
+    install(tarball, scratch, env)
     assert.equal(run(process.execPath, [cli, '--version'], { cwd: tmpdir(), env }).trim(), report.version)
     if (installedModelRecord) {
       await initializeElectron(installed, env)

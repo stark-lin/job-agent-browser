@@ -1,4 +1,4 @@
-const { spawnSync } = require('node:child_process')
+const { runTestProcess } = require('./test-process.cjs')
 const { mkdtempSync, rmSync } = require('node:fs')
 const { resolve } = require('node:path')
 const { tmpdir } = require('node:os')
@@ -9,7 +9,7 @@ delete env.ELECTRON_RENDERER_URL
 delete env.JOB_BROWSER_USER_DATA
 try {
   for (const stage of ['initial', 'restart']) {
-    const result = spawnSync(require('electron'), [resolve(__dirname, 'knowledge-smoke.cjs')], {
+    const result = runTestProcess(require('electron'), [resolve(__dirname, 'knowledge-smoke.cjs')], {
       env: { ...env, KNOWLEDGE_SMOKE_STAGE: stage },
       stdio: 'inherit',
       timeout: 60000
