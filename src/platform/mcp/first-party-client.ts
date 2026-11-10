@@ -1,3 +1,5 @@
+import { allowsAgentControl } from '../../shared/agent/context-policy'
+import type { HumanRequests } from './human-requests'
 import { parseRunGuard, type RunGuardSnapshot } from '../../shared/agent/run-guard'
 import { resumeAgentLifecycle, resumeAgentTools } from '../../shared/agent/resume-policy'
 import { createRunAdmission } from './run-admission'
@@ -26,10 +28,11 @@ export class MCPAgentTools implements AgentTools {
   async list() { return structuredClone(this.descriptors) }
   close() { return this.client.close() }
   view(allow: readonly string[], binding: AgentBinding = {}) {
-    return new MCPAgentTools(this.client, this.descriptors.filter(tool => allow.includes(tool.name)), this.signal, { ...this.binding, ...binding }, this.run)
+    return new MCPAgentTools(this.client, this.descriptors.filter(tool => allow.includes(tool.name) || allowsAgentControl(tool.name, allow)), this.signal, { ...this.binding, ...binding }, this.run)
   }
   async call(name: string, args: unknown, signal: AbortSignal): Promise<unknown> {
-    if (this.run) this.run.snapshot = undefined
+    const control = name.startsWith('scope.') || name === 'human.ask'
+    if (this.run && !control) this.run.snapshot = undefined
     signal.throwIfAborted(); this.signal.throwIfAborted()
     if (!this.descriptors.some(tool => tool.name === name)) toolFail('TOOL_FORBIDDEN')
     const input = jsonCopy(args, 1048576, 'TOOL_INVALID_INPUT')
@@ -38,7 +41,7 @@ export class MCPAgentTools implements AgentTools {
     if (this.binding.jobId && (name.startsWith('application.') ? input.jobId : input.id) !== this.binding.jobId) toolFail('TOOL_FORBIDDEN')
     const result = jsonCopy(await this.client.callTool(name, input, AbortSignal.any([signal, this.signal]), this.run?.metadata(name, input)), 1048576, 'MCP_INVALID_RESPONSE')
     if (!result || typeof result !== 'object' || Array.isArray(result)) toolFail('MCP_INVALID_RESPONSE')
-    if (this.run && !this.run.unguarded) {
+    if (this.run && !this.run.unguarded && !control) {
       const metadata = result._meta
       const snapshot = parseRunGuard(metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata.jabRunGuard : undefined)
       if (snapshot && snapshot.executionRunId !== this.run.executionRunId) toolFail('MCP_INVALID_RESPONSE')
@@ -59,9 +62,9 @@ export class MCPAgentTools implements AgentTools {
 const askSessionKey = (id: string, readOnly?: boolean) => `ask-ai:${readOnly ? 'read-only:' : ''}${id}`
 
 /** One stable server session per workflow; a lost session is never used for run takeover. */
-export function createFirstPartyRuntime(directory: string, bundleDirectory: string) {
-  const admission = createRunAdmission(), broker = createAdmissionBroker(directory, admission)
-  const authority = createMemoryAuthority(directory, admission)
+export function createFirstPartyRuntime(directory: string, bundleDirectory: string, human?: HumanRequests) {
+  const admission = createRunAdmission(), broker = createAdmissionBroker(directory, admission, undefined, human)
+  const authority = createMemoryAuthority(directory, admission, human)
   const sessions = new Map<string, Promise<{ tools: MCPAgentTools; authSession: string; raw?: MCPAgentTools }>>()
   const closures = new Map<string, Promise<void>>()
   const clients = new Set<MCPClient>(), lifecycle = new AbortController()
@@ -143,7 +146,8 @@ export function createFirstPartyRuntime(directory: string, bundleDirectory: stri
       const view = tools.withRun(AbortSignal.any([input.signal, stopped.signal]), { executionRunId: registered.executionRunId, metadata(name, args) {
         input.signal.throwIfAborted()
         return { jabRunGrant: registered.grant(name, args), ...(ask && !input.readOnly && ['memory.write', 'memory.mkdir'].includes(name) && sources.length
-          ? { jabMemoryGrant: authority.grant(authSession, name, args, sources) } : {}) }
+          ? { jabMemoryGrant: authority.grant(authSession, name, args, sources) }
+          : !ask && ['memory.write', 'memory.mkdir'].includes(name) ? { jabMemoryGrant: registered.memoryGrant(name, args) } : {}) }
       } })
       return { tools: view, signal: view.signal, close }
     },

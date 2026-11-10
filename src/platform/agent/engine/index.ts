@@ -9,7 +9,7 @@ import { ContextManager } from '../context/manager'
 import { resourceRecord } from '../context/resources'
 import { observeAgentModel } from '../pi/request-observer'
 import { runPiAgent } from '../pi/runtime'
-import { discoveryTools } from '../tools/discovery'
+import { ScopedToolset } from '../tools/scoped-toolset'
 import { createFixedToolset } from '../tools/toolset'
 import { smartPasteInstructions } from '../ask'
 import { definitions, type AgentInvocation } from './definitions'
@@ -70,14 +70,13 @@ export function createAgentEngine(readRun?: (id: string) => AgentSnapshot) {
           const system = definition.system + (invocation.source === 'smart-paste' ? smartPasteInstructions : '')
           const message = invocation.agent === 'ask' ? invocation.message.trim()
             : `Tailor the resume for generation run ${invocation.generationRunId}. Use this runId for resume tools.`
-          if (definition.tools.discovery === 'dynamic') budget.assert([{ role: 'system', content: system }, { role: 'user', content: message }], discoveryTools)
           session = await execution.open(signal)
           const live = AbortSignal.any([signal, session.signal]), { tools } = session
           const memory = definition.context.memory === 'none' ? '' : await loadCoreMemory(tools, budget, live)
           const context = new ContextManager({ protectedState: [], ...(definition.context.history === 'conversation' ? execution.history?.() : undefined),
             budget, model, memory, compacting: () => execution.status('context.compacting') })
-          const toolset = definition.tools.discovery === 'fixed' ? createFixedToolset(tools, definition.tools.allow)
-            : undefined
+          const toolset = definition.tools.exposure === 'fixed' ? createFixedToolset(tools, definition.tools.allow)
+            : new ScopedToolset(tools, budget, name => definition.tools.allow.includes(name))
           execution.status('idle')
           outcome.finalText = await runPiAgent({ model, tools, toolset, allowsTool: name => definition.tools.allow.includes(name), system, message, signal: live, userSignal: signal,
             budget, context, emit, status: execution.status, onToolTurn: execution.onToolTurn, maxToolCalls: definition.limits.maxToolCalls,

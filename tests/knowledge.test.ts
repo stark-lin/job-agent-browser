@@ -256,12 +256,9 @@ test('MCP knowledge contracts share files, carry revisions and preserve content 
     { agentId: 'test.knowledge', signal: new AbortController().signal }
   )
   dispose(() => scope.dispose())
-  const output = await scope.execute('knowledge.write', {
-    path: 'PRIVATE_PATH.md',
-    content: 'PRIVATE_BODY',
-    expectedRevision: null
-  })
-  assert(output.structuredContent)
+  const output = await service.call('write', { path: 'PRIVATE_PATH.md', content: 'PRIVATE_BODY', expectedRevision: null })
+  assert(output.ok)
+  await assert.rejects(scope.execute('knowledge.write', { path: 'denied.md', content: 'no', expectedRevision: null }), { code: 'TOOL_FORBIDDEN' })
   assert.equal((await files.read('PRIVATE_PATH.md')).content, 'PRIVATE_BODY')
   const list = await scope.execute('knowledge.list', { path: '' })
   assert(JSON.stringify(list).includes('PRIVATE_PATH.md'))

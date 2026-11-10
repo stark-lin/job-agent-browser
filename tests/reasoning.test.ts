@@ -1,3 +1,4 @@
+import { scopedFixture } from './scoped-fixture'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -66,14 +67,14 @@ test('Pi retains provider state across activation/tool turns and segments reason
     yield { type: 'reasoning.delta', text: 'Body', reasoning: { source: 'reasoning_content', kind: 'text' } }
     yield { type: 'reasoning.delta', text: 'Summary', reasoning: { source: 'reasoning_summary', kind: 'summary' } }
     yield { type: 'reasoning.delta', text: '', reasoning: { source: 'reasoning_details', kind: 'encrypted', blockId: '1' } }
-    const call = turn === 0 ? { id: 'activate', name: 'tool.activate', arguments: { names: ['job.list'] } } : { id: 'jobs', name: 'job.list', arguments: {} }
+    const call = turn === 0 ? { id: 'activate', name: 'scope.job', arguments: {} } : { id: 'jobs', name: 'job.list', arguments: {} }
     if (turn < 2) yield { type: 'tool_call.ready', call }
     else yield { type: 'content.delta', text: 'Done' }
     yield { type: 'completed', response: { content: turn < 2 ? '' : 'Done', toolCalls: turn < 2 ? [call] : [], providerReasoning: { reasoning_content: `Body-${turn}`, reasoning_details: [{ type: 'reasoning.encrypted', data: `opaque-${turn}` }] } } }
   } }
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: v => v })
   await runPiAgent({ model, context, budget, signal: new AbortController().signal, system: 'Test', message: 'List jobs',
-    tools: { list: async () => [{ name: 'job.list', description: 'List', inputSchema: { type: 'object' } }], call: async () => ({ items: [], total: 0 }) }, emit: e => events.push(e), status() {}, protect() {} })
+    tools: scopedFixture({ list: async () => [{ name: 'job.list', description: 'List', inputSchema: { type: 'object' } }], call: async () => ({ items: [], total: 0 }) }), emit: e => events.push(e), status() {}, protect() {} })
   assert.equal(step, 3)
   const assistants = seen[2].filter(m => m.role === 'assistant')
   assert.deepEqual(assistants.map(m => m.providerReasoning?.reasoning_content), ['Body-0', 'Body-1'])

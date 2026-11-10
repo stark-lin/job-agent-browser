@@ -1,11 +1,11 @@
 import type { JsonSchema } from '../tools/tool.types'
 import type { ProviderReasoning, ReasoningInfo } from './reasoning'
-import type { ActivationDiagnostic, PreparedRequest, RequestContext, RequestDiagnostic } from './requests'
+import type { PreparedRequest, RequestContext, RequestDiagnostic } from './requests'
 import type { SettledCycleStatus, TerminalCycleStatus } from './react-cycle'
 import type { RunGuardSnapshot } from './run-guard'
 export type { RunGuardSnapshot, GuardReason } from './run-guard'
 export type { ProviderReasoning, ReasoningInfo } from './reasoning'
-export type { ActivationDiagnostic, PreparedRequest, PreparedTool, RequestContext, RequestDiagnostic } from './requests'
+export type { PreparedRequest, PreparedTool, RequestContext, RequestDiagnostic } from './requests'
 
 export interface AgentToolDescriptor { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema; risk?: 'READ' | 'COMPUTE' | 'WRITE' | 'EXTERNAL_ACTION' }
 /** A protocol client contract. Business results are returned as structured JSON. */
@@ -40,7 +40,6 @@ export type AgentRuntimeEvent =
   | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean; guard?: RunGuardSnapshot }
   | { type: 'model.completed'; response: AgentResponse; cycleIndex?: number }
   | { type: 'model.request.prepared'; request: RequestDiagnostic; cycleIndex?: number }
-  | { type: 'model.request.activation'; activation: ActivationDiagnostic }
 export type AgentErrorCode = 'AGENT_CANCELLED' | 'AGENT_TIMEOUT' | 'AGENT_PROTOCOL_ERROR' | 'AGENT_STEP_LIMIT'
   | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED'
   | 'ASK_CONTEXT_UNKNOWN' | 'ASK_CONTEXT_TOO_SMALL' | 'ASK_CONTEXT_OVERFLOW'

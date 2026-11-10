@@ -12,4 +12,3 @@ export interface RequestDiagnostic extends PreparedRequest, RequestContext {
   ordinal: number
   verification: 'matched' | 'mismatch'
 }
-export interface ActivationDiagnostic { names: string[]; repeats: number; reason: 'already-active' | 'activation-loop' }

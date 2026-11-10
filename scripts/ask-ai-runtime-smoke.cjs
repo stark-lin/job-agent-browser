@@ -54,7 +54,7 @@ app.on('browser-window-created', (_event, window) => {
               assert.equal(previous.reasoning_content, 'Full provider reasoning 中文')
               assert.equal(previous.reasoning_details.find(d => d.type === 'reasoning.encrypted').data, 'OPAQUE_PROVIDER_STATE')
             }
-            const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool' && !toolResult(m.content).activeOnNextRequest).length
+            const observations = body.messages.slice(lastUser).filter(m => m.role === 'tool' && !toolResult(m.content).scope).length
             assert(!body.tools.some(t => /^\[(resume\.|artifact\.build)/.test(t.function.description)), 'Ask never advertises generation tools')
             response.writeHead(200, { 'Content-Type': 'text/event-stream' })
             response.write(sse({ reasoning_content: 'Full provider reasoning 中文', reasoning: 'Full provider reasoning 中文' }))
@@ -67,11 +67,14 @@ app.on('browser-window-created', (_event, window) => {
             if (user.startsWith('hold')) { response.write(sse({ content: `Working ${user}` })); releases[user] = () => finish(response, ' completed'); return }
             if (user === 'crash checkpoint') { response.write(sse({ content: 'Checkpoint survives process termination.' })); return }
             if (user === 'failure' && failCount++ === 0) { response.end(sse({ content: 'Partial response' }) + 'data: [DONE]\n\n'); return }
+            const scopes = names => [...new Set(names.filter(name => !body.tools.some(t => t.function.description.startsWith(`[${name}] `))).map(name => name.split('.')[0]))].map((domain, index) => {
+              const scope = body.tools.find(t => t.function.description.startsWith(`[scope.${domain}] `)); assert(scope)
+              return { index, id: `scope-${domain}`, type: 'function', function: { name: scope.function.name, arguments: '{}' } }
+            })
             if (user === 'archive loop') {
               const archive = body.tools.find(t => t.function.description.startsWith('[job.set_archived] '))
-              const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
               const calls = archive ? [true, false, true, false].map((archived, i) => ({ index: i, id: `archive-loop-${i}`, type: 'function', function: { name: archive.function.name, arguments: JSON.stringify({ id: jobId, archived }) } }))
-                : [{ index: 0, id: 'activate-archive', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.set_archived'] }) } }]
+                : scopes(['job.set_archived'])
               assert(!body.messages.slice(lastUser).some(m => m.role === 'tool' && toolResult(m.content).error === 'TOOL_GUARD_TERMINATED'), 'No model request after guard termination')
               response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
@@ -79,18 +82,15 @@ app.on('browser-window-created', (_event, window) => {
               if (body.messages.some(m => m.role === 'system' && m.content.includes('Runtime RunGuard recovery:'))) { finish(response, 'Answered from confirmed information after recovery.'); return }
               const read = body.tools.find(t => t.function.description.startsWith('[job.list] '))
               const note = body.tools.find(t => t.function.description.startsWith('[application.add_note] '))
-              const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
               const calls = read && note ? [...Array.from({ length: 4 }, (_, i) => ({ index: i, id: `read-${i}`, type: 'function', function: { name: read.function.name, arguments: '{}' } })),
                 { index: 4, id: 'skip-note', type: 'function', function: { name: note.function.name, arguments: JSON.stringify({ jobId, requestId: randomUUID(), text: 'Must never execute' }) } }]
-                : [{ index: 0, id: 'activate-read', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.list', 'application.add_note'] }) } }]
+                : scopes(['job.list', 'application.add_note'])
               response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
             if (user !== 'workflow') { finish(response, 'Recovered answer'); return }
             const wanted = ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status']
             if (!wanted.every(name => body.tools.some(t => t.function.description.startsWith(`[${name}] `)))) {
-              const activate = body.tools.find(t => t.function.description.startsWith('[tool.activate] '))
-              assert(activate)
-              response.end(sse({ tool_calls: [{ index: 0, id: 'discover-workflow', type: 'function', function: { name: activate.function.name, arguments: JSON.stringify({ names: ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status'] }) } }] }, 'tool_calls') + 'data: [DONE]\n\n'); return
+              response.end(sse({ tool_calls: scopes(wanted) }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
             const tool = name => { const entry = body.tools.find(t => t.function.description.startsWith(`[${name}] `)); assert(entry); return entry.function.name }
             const calls = observations === 0 ? [
@@ -109,14 +109,14 @@ app.on('browser-window-created', (_event, window) => {
           })
         })
         await new Promise(r => server.listen(0, '127.0.0.1', r))
-        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, requiresKey: false, models: ['fixture-model'], defaultModel: 'fixture-model', capabilities: { 'fixture-model': { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
+        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, requiresKey: false, models: ['fixture-model'], defaultModel: 'fixture-model', capabilities: { 'fixture-model': { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
         assert((await data('settings', 'savePreferences', { ai, language: 'en', theme: 'light' })).ok)
         await evaluate("window.browser.navigate('app://ai')")
         await waitFor(() => evaluate('!!document.querySelector(".ai-composer textarea")'), 'composer')
         if (stage === 'restart') {
           assert((await data('chats', 'listSessions', {})).value.total >= 4)
           const old = (await api('getRun', { runId: metadata.workflowRun })).value
-          assert.equal(old.run.state, 'completed'); assert.equal(old.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 5)
+          assert.equal(old.run.state, 'completed'); assert.equal(old.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('scope.')).length, 5)
           await select('workflow'); await waitFor(() => evaluate('document.body.innerText.includes("Your application is updated")'), 'persistent timeline')
           await click('New chat'); await send('crash checkpoint')
           await waitFor(async () => (await api('listActive', {})).value.some(s => s.items.some(i => i.content.text?.includes('Checkpoint'))), 'crash partial output')
@@ -137,7 +137,7 @@ app.on('browser-window-created', (_event, window) => {
         metadata.workflowRun = (await data('chats', 'listRuns', { sessionId: workflow.id })).value.items[0].id
         await chatDebugSmoke({ window, evaluate, data, click, frame, waitFor, directory, session: workflow })
         const snapshot = (await api('getRun', { runId: metadata.workflowRun })).value
-        assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.')).length, 5)
+        assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('scope.')).length, 5)
         assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_RESULT'), true)
         assert.equal(JSON.stringify(snapshot).includes('OPAQUE_PROVIDER_STATE'), false)
         assert.equal(JSON.stringify(snapshot).includes('PRIVATE_SIGNATURE'), false)

@@ -1,8 +1,9 @@
+import { knowledgeAgentTools, memoryAgentTools } from './context-policy'
 import { toolErrorCodes } from '../tools/errors'
 
 export const resumeAgentTools = [
   'resume.get_context', 'resume.list_facts', 'resume.list_bullets', 'resume.rewrite_bullet',
-  'memory.read', 'memory.recall', 'knowledge.list', 'knowledge.read', 'knowledge.search', 'knowledge.retrieve'
+  ...memoryAgentTools, ...knowledgeAgentTools
 ] as const
 
 export const resumeAgentLifecycle = ['resume.start', 'resume.attach_agent', 'resume.validate', 'resume.publish', 'resume.fail', 'resume.cancel', 'artifact.build'] as const

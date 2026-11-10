@@ -25,8 +25,9 @@ export async function resumeFixture(batchSize = 1) {
       }
       const call = (name: string, args: object, index: number) => ({ index, id: randomUUID(), type: 'function', function: {
         name: tools.find((tool: { function: { description: string } }) => tool.function.description.startsWith(`[${name}]`)).function.name,
-        arguments: JSON.stringify({ runId, ...args }) } })
-      if (!observations.length) return finish({ tool_calls: ['resume.get_context', 'resume.list_facts', 'resume.list_bullets'].map((name, i) => call(name, {}, i)) }, 'tool_calls')
+        arguments: JSON.stringify(name.startsWith('scope.') ? args : { runId, ...args }) } })
+      if (!tools.some((tool: { function: { description: string } }) => tool.function.description.startsWith('[resume.get_context]'))) return finish({ tool_calls: [call('scope.resume', {}, 0)] }, 'tool_calls')
+      if (!observations.some((item: { scope?: string }) => !item.scope)) return finish({ tool_calls: ['resume.get_context', 'resume.list_facts', 'resume.list_bullets'].map((name, i) => call(name, {}, i)) }, 'tool_calls')
       const page = observations.find((item: { items?: { bulletId?: string }[] }) => Array.isArray(item.items) && item.items.some((bullet: { bulletId?: string }) => bullet.bulletId))
       const rewrites = observations.filter((item: { changed?: boolean }) => item.changed !== undefined)
       const bullets = page?.items.slice(rewrites.length, Math.min(2, rewrites.length + batchSize)) ?? []

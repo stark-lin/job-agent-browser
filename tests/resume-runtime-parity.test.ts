@@ -1,3 +1,4 @@
+import { scopeTools } from '../src/platform/mcp-server/scope-tools'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -25,20 +26,20 @@ test('internal and external MCP sessions use distinct capabilities and produce e
   const secondExternal = createMCPClient({ id: 'second-external', enabled: true, transport: 'stdio', command: process.execPath, args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} }, { processEnv: { JOB_BROWSER_USER_DATA: f.directory, ELECTRON_RUN_AS_NODE: '1' } })
   await assert.rejects(secondExternal.connect()); await secondExternal.close()
   const external = new MCPAgentTools(client, await client.listTools(), signal)
-  assert.deepEqual((await external.list()).map(tool => tool.name).sort(), [...jobAgentAllowlist, 'run.begin', 'run.end'].sort())
-  assert.deepEqual((await internal.list()).map(tool => tool.name).sort(), [...resumeAgentLifecycle].sort())
+  assert.deepEqual((await external.list()).map(tool => tool.name).sort(), [...jobAgentAllowlist, 'human.ask', 'run.begin', 'run.end'].sort())
+  assert.deepEqual((await internal.list()).map(tool => tool.name).sort(), [...resumeAgentLifecycle, 'scope.resume', 'scope.artifact', 'human.ask'].sort())
   const start = { jobId: f.job.id, profileId: f.profile.id }, requestId = randomUUID()
   const { runId } = await internal.call('resume.start', { ...start, requestId }, signal) as { runId: string }
   await assert.rejects(internal.call('resume.publish', { runId }, signal), { code: 'TOOL_CONFLICT' })
   const { agentRunId } = await internal.call('resume.attach_agent', { runId, requestId, ownerRuntimeId: f.backend.lease.id }, signal) as { agentRunId: string }
   const agent = await f.mcp.openAgentRun({ agent: 'resume', agentRunId, sessionId: 'default', generationRunId: runId, signal })
-  assert.deepEqual((await agent.tools.list()).map(tool => tool.name).sort(), [...resumeAgentTools].sort())
+  assert.deepEqual((await agent.tools.list()).map(tool => tool.name).sort(), [...resumeAgentTools, ...scopeTools((await agent.tools.list()).filter(tool => resumeAgentTools.includes(tool.name as typeof resumeAgentTools[number]))).map(tool => tool.name), 'human.ask'].sort())
   await assert.rejects(external.call('run.begin', {}, signal), { code: 'TOOL_BUSY' })
   const other: { runId: string } = { runId: randomUUID() }
   assert(!(await external.list()).some(tool => tool.name === 'resume.attach_agent'))
   await assert.rejects(agent.tools.call('resume.get_context', { runId: other.runId }, signal), { code: 'TOOL_FORBIDDEN' })
   await assert.rejects(agent.tools.call('resume.publish', { runId }, signal), { code: 'TOOL_FORBIDDEN' })
-  await assert.rejects(agent.tools.call('memory.write', { path: 'CORE.md', content: 'Forbidden', expectedRevision: null }, signal), { code: 'TOOL_FORBIDDEN' })
+  await agent.tools.call('memory.write', { path: 'preferences.md', content: 'Prefer concise language.', expectedRevision: null }, signal)
   await assert.rejects(agent.tools.call('knowledge.write', {}, signal), { code: 'TOOL_FORBIDDEN' })
   await assert.rejects(agent.tools.call('memory.read', { path: 'CORE.md' }, signal), { code: 'TOOL_NOT_FOUND' })
   const rewrite = async (tools: MCPAgentTools, id: string) => {

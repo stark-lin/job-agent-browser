@@ -8,5 +8,5 @@ export const askContextDefaults = {
 } as const
 export interface ContextCheckpoint { summary: string; compactedThroughSequence: number; revision: number }
 export interface ContextTurn { sequence: number; messages: AgentMessage[] }
-export type AskRuntimeStatus = 'pending' | 'context.compacting' | 'tools.searching' | 'tools.activating' | 'idle'
+export type AskRuntimeStatus = 'pending' | 'context.compacting' | 'human.waiting' | 'idle'
 export interface AskRuntimeOptions { capabilities: ModelCapabilities; modelId: string }

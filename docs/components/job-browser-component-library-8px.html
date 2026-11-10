@@ -653,6 +653,16 @@
           </div>
         </div>
         <div class="demo">
+          <div class="demo-label">Human Ask · global Dialog / Radio / TextArea / ActionRow</div>
+          <div class="dialog-demo"><div class="dialog"><div class="dialog-body">
+            <h3>Your input is needed</h3><p>Which direction should this resume emphasize?</p>
+            <label><input type="radio" name="human-direction"> Backend</label>
+            <label><input type="radio" name="human-direction"> Full stack</label>
+            <div class="field"><label for="human-context">Additional answer</label><textarea id="human-context" placeholder="Optional context"></textarea></div>
+          </div><div class="dialog-foot"><button class="btn btn-ghost">Cancel</button><button class="btn btn-primary" disabled>Submit</button></div></div></div>
+          <p class="rule-note">Optional single choice, always free text. Submit needs a choice or nonblank text; Cancel returns cancellation. Native Browser/Inbox surfaces hide temporarily and restore without navigation.</p>
+        </div>
+        <div class="demo">
           <div class="demo-label">Copy Debug JSON · Rename → Copy Debug JSON → Delete</div>
           <p class="rule-note">Each copy needs confirmation. Cancel starts focused; Cancel and Escape copy nothing. Submission disables repeat actions; failure keeps the dialog open for retry, while success keeps it open and changes the same disabled CopyButton to Copied to clipboard, with polite live feedback and no success message under the chat list. Running Sessions are supported.</p>
           <div class="dialog-demo">

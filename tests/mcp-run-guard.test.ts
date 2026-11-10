@@ -121,7 +121,7 @@ for (const mode of ['archive', 'read'] as const) test(`Pi ${mode} circuit break 
   const input = { requestId: randomUUID(), message: 'Run guard regression', choice: { providerId: 'fixture', modelId: 'test' } }, ids = tasks.start(1, input, () => {})
   assert.deepEqual(tasks.start(1, input, () => {}), ids)
   for (let i = 0; i < 500 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; i++) await new Promise(r => setTimeout(r, 10))
-  const snapshot = f.backend.chats.snapshot(ids.runId), tools = snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('tool.'))
+  const snapshot = f.backend.chats.snapshot(ids.runId), tools = snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('scope.'))
   assert.equal(snapshot.run.error, 'TOOL_GUARD_TERMINATED'); assert.equal(requests, mode === 'read' ? 2 : 1); assert.equal(tools.length, mode === 'read' ? 5 : 4)
   assert(tools.every(i => i.state !== 'uncertain'))
   const last = tools.at(-1)!
@@ -142,13 +142,13 @@ for (const recovery of ['warning-answer', 'answer', 'source', 'discovery'] as co
     if (requests === 1) {
       const calls: AgentToolCall[] = [...reads, ...(recovery === 'warning-answer' ? [] : [
         { id: 'skip-write', name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Never execute this note' } },
-        { id: 'skip-search', name: 'tool.search', arguments: { query: 'notes' } }
+        { id: 'skip-search', name: 'scope.application', arguments: {} }
       ])]
       yield* batch(calls); return
     }
     assert(input.messages.some(m => m.role === 'tool' && m.content.includes('RunGuard guidance:')))
     if (requests === 2 && recovery === 'source') { yield* batch([{ id: 'fresh-source', name: 'profile.list', arguments: {} }]); return }
-    if (requests === 2 && recovery === 'discovery') { yield* batch([{ id: 'discover-source', name: 'tool.search', arguments: { query: 'profile' } }]); return }
+    if (requests === 2 && recovery === 'discovery') { yield* batch([{ id: 'discover-source', name: 'scope.profile', arguments: {} }]); return }
     if (requests === 3 && recovery === 'discovery') { yield* batch([{ id: 'fresh-source', name: 'profile.list', arguments: {} }]); return }
     yield { type: 'content.delta', text: 'Confirmed information is sufficient.' }
     yield { type: 'completed', response: { content: 'Confirmed information is sufficient.', toolCalls: [] } }
@@ -227,7 +227,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
     input.onRequestPrepared?.({ providerId: 'fixture', modelId: 'test', preparedAt: 'now', tools: toolSnapshot(input.tools) })
     const system = input.messages.find(message => message.role === 'system')?.content ?? ''
     switch (++requests) {
-      case 1: yield* batch([{ id: 'discover-1', name: 'tool.activate', arguments: { names: ['profile.list', 'job.list', 'application.add_note'] } }]); return
+      case 1: yield* batch(['profile', 'job', 'application'].map(domain => ({ id: `discover-${domain}`, name: `scope.${domain}`, arguments: {} }))); return
       case 2: yield* batch([read('first'), read('repeat-1'), read('repeat-2'), ...(ending === 'same-batch' ? [read('fresh', 'job.list')] : [])]); return
       case 3:
         if (ending === 'same-batch') {
@@ -236,7 +236,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
           yield { type: 'completed', response: { content: 'Fresh evidence in this batch.', toolCalls: [] } }; return
         }
         assert.match(system, /Runtime RunGuard warning:/)
-        yield* batch([{ id: 'reactivate', name: 'tool.activate', arguments: { names: ['profile.list'] } }]); return
+        yield* batch([{ id: 'reactivate', name: 'scope.profile', arguments: {} }]); return
       case 4:
         assert.match(system, /Runtime RunGuard warning:/)
         yield* batch([read('repeat-3'), skip]); return

@@ -42,7 +42,7 @@ async function main() {
   const call = async (name, args) => { const result = await client.callTool({ name, arguments: name.startsWith('run.') ? args : { ...args, executionRunId } }, { timeout: 100000 }); assert(!result.isError, JSON.stringify(result)); return result.structuredContent }
   try {
     await client.connect(transport)
-    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'run.begin', 'run.end'].sort())
+    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [...jobAgentAllowlist, 'human.ask', 'run.begin', 'run.end'].sort())
     executionRunId = (await call('run.begin', {})).runId
     assert.equal(backend.resumes.getRun({ id: baseline.id }).run.state, 'REWRITING', 'MCP startup must preserve another process task')
     assert.equal((await call('job.list', {})).items[0].id, job.id)

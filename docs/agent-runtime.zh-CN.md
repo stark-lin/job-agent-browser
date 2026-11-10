@@ -6,9 +6,9 @@
 
 ## 一、Prompt、Run 与 Cycle
 
-[Agent Engine](../src/platform/agent/engine/index.ts)用唯一的 Pi 运行时执行受信任的 [ask 和 resume 定义](../src/platform/agent/engine/definitions.ts)。聊天和智能粘贴使用 Ask 定义。桌面 Resume 使用固定工具、隔离上下文和只读共享 Memory、Knowledge。其 Agent Run 关联独立的 GenerationRun。其[定义](../src/platform/agent/engine/definitions.ts)跳过本次生成任务中已经改写的要点，相同重试使用请求回执。[Resume 业务状态](data-architecture.zh-CN.md#三生成成品与删除)
+[Agent Engine](../src/platform/agent/engine/index.ts)用唯一的 Pi 运行时执行受信任的 [ask 和 resume 定义](../src/platform/agent/engine/definitions.ts)。聊天和智能粘贴使用 Ask 定义。桌面 Resume 使用 Scope 工具、隔离上下文、可读写 Memory 和只读 Knowledge。其 Agent Run 关联独立的 GenerationRun。其[定义](../src/platform/agent/engine/definitions.ts)跳过本次生成任务中已经改写的要点，相同重试使用请求回执。[Resume 业务状态](data-architecture.zh-CN.md#三生成成品与删除)
 
-Session 包含用户 Prompt。每个新 Prompt 创建一个 Run，负责该 Prompt 的顶层任务，可包含多项明确要求的操作。相同请求 ID 和载荷返回原 Run。历史消息、工具结果和上下文摘要帮助理解引用。每个新 Run 都有独立的执行状态、工具激活和 RunGuard 状态，旧 Run 及其待执行调用不会继续运行。相关入口见 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)和 [Pi 接入](../src/platform/agent/pi/runtime.ts)。
+Session 包含用户 Prompt。每个新 Prompt 创建一个 Run，负责该 Prompt 的顶层任务，可包含多项明确要求的操作。相同请求 ID 和载荷返回原 Run。历史消息、工具结果和上下文摘要帮助理解引用。每个新 Run 都有独立的执行状态、Scope 展开和 RunGuard 状态，旧 Run 及其待执行调用不会继续运行。相关入口见 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)和 [Pi 接入](../src/platform/agent/pi/runtime.ts)。
 
 Run 包含按序排列的 ReAct Cycle，编号从 1 开始。每个 Cycle 覆盖一次 Pi 决策、串行工具批次，以及决定后续动作的观察结果。一次决策可以返回多个工具调用，也可以给出最终回答。Cycle 内的上下文压缩可调用模型。这些辅助请求有独立诊断，不产生 Cycle。
 
@@ -67,7 +67,7 @@ stateDiagram-v2
 
 Pi 的 `turn_start` 在准备模型请求前创建 Cycle。`finishTurn` 根据已校验响应及工具完成或跳过的结果作出决策，遇到终止决策即停止 Pi。`turn_end` 在下一轮开始前提交继续类结果。派发模型请求和工具前均检查执行许可。准备失败时产生的合成 `turn_end` 不会创建 Cycle。见 [Pi 运行时](../src/platform/agent/pi/runtime.ts)。
 
-RunGuard 负责进展检测和硬阻断。运行时使用最后一个可信 Guard 快照。搜索或激活工具会保留尚未解除的警告或恢复状态。同批次取得新业务证据时可以清除该状态。触发恢复时停止派发当前批次的剩余调用，保留已收到的观察结果，并在下一轮压缩完成后注入指导。下一轮可以使用其他已授权数据源，或依据已确认信息回答。普通工具错误作为观察结果。已知致命原因优先于通用取消。见 [MCP 策略](mcp-architecture.zh-CN.md#agent-run-保护)。
+RunGuard 负责进展检测和硬阻断。运行时使用最后一个可信 Guard 快照。Scope 或 Human Ask 会保留尚未解除的警告或恢复状态。同批次取得新业务证据时可以清除该状态。触发恢复时停止派发当前批次的剩余调用，保留已收到的观察结果，并在下一轮压缩完成后注入指导。下一轮可以使用其他已授权数据源，或依据已确认信息回答。普通工具错误作为观察结果。已知致命原因优先于通用取消。见 [MCP 策略](mcp-architecture.zh-CN.md#agent-run-保护)。
 
 [智能粘贴](architecture.zh-CN.md#智能粘贴与全局通知) 观察既有助手增量和 Pi 提供的仅宿主可见的工具轮结果。宿主可撤回该轮的临时字段文本，会话记录与 Cycle 转换沿用现有规则。
 
@@ -96,3 +96,17 @@ Resume Agent Run 完成后，Controller 通过 MCP 校验并发布已持久化�
 Resume 失败报告通过 `resume.fail` 保留受支持的模型、工具、MCP 和存储错误码；未知原因使用 `GENERATION_FAILED`。`VALIDATION_FAILED` 仅用于已确认的文档校验失败，不代表模型主张的语义判断。这些错误码不改变 Run/Cycle 转换。[Resume 定义](../src/platform/agent/engine/definitions.ts)、[MCP 工具](../src/platform/tools/resume.ts)和[外部 Skill](../skills/tailor-resume/SKILL.zh-CN.md)只允许改写列表返回的要点 ID，条目要点中的成组技能保留为一条；个人简介和独立 Skills 沿用复制的原文。
 
 终态由现有 Recorder 原子持久化；Consola 仅在执行边界输出终端诊断，不参与状态转换或最终提交。诊断失败不会改变 Run/Cycle 结果；详见[数据架构](data-architecture.zh-CN.md#四事务与终端诊断)。
+
+[ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts)每个 Run 重新开始，目录调用在下一请求加入授权领域 Schema。Human Ask 暂停当前工具和 Cycle，记录 `runtimeStatus: human.waiting`，不创建或结算 Cycle。其余新状态为 `pending`、`context.compacting`、`idle`；历史 searching/activating 值仍可读取。Run 取消在排空/收尾前使等待问题失效。[人工输入协议](mcp-architecture.zh-CN.md#human-ask)
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> idle: admitted
+    idle --> context_compacting: context budget
+    context_compacting --> idle: checkpoint saved
+    idle --> human_waiting: human.ask
+    human_waiting --> idle: answer / dialog cancel
+    human_waiting --> [*]: Run ends / window loss / disconnect
+    idle --> [*]: Run finalization
+```

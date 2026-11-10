@@ -6,9 +6,9 @@ Purpose. Define the shared execution contract for Ask AI, Smart Paste, and deskt
 
 ## 1. Prompt, Run and Cycle
 
-The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume uses fixed tools and an isolated context with read-only shared Memory and Knowledge. Its Agent Run links to a separate GenerationRun. Its [definition](../src/platform/agent/engine/definitions.ts) skips bullets already rewritten in that generation task and uses request receipts for identical retries. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
+The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume uses scoped tools and an isolated context with read/write Memory and read-only Knowledge. Its Agent Run links to a separate GenerationRun. Its [definition](../src/platform/agent/engine/definitions.ts) skips bullets already rewritten in that generation task and uses request receipts for identical retries. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
 
-A Session holds user Prompts. Each new Prompt creates one Run for its top-level task, which can include several requested operations. The same request ID and payload return the existing Run. Prior messages, tool results and context summaries help resolve references. Every new Run starts with fresh execution state, tool activation and RunGuard state. It does not resume earlier Runs or dispatch their pending calls.
+A Session holds user Prompts. Each new Prompt creates one Run for its top-level task, which can include several requested operations. The same request ID and payload return the existing Run. Prior messages, tool results and context summaries help resolve references. Every new Run starts with fresh execution state, Scope expansion and RunGuard state. It does not resume earlier Runs or dispatch their pending calls.
 
 A Run holds an ordered sequence of ReAct Cycles, indexed from 1. Each Cycle covers one Pi decision, its sequential tool batch, and the observations that determine the next action. A decision can return several tool calls or a final answer. Context compression may invoke the model during a Cycle. Those auxiliary requests have separate diagnostics and never create Cycles. [Main coordination](../src/platform/electron/ask-agent-tasks.ts) and [Pi integration](../src/platform/agent/pi/runtime.ts)
 
@@ -67,7 +67,7 @@ stateDiagram-v2
 
 Pi `turn_start` opens the Cycle before model preparation. `finishTurn` resolves the validated response and completed or skipped tool outcomes and stops Pi on a terminal decision. `turn_end` commits a continuing outcome before the next turn can start. The runtime checks permission before model and tool dispatch. A synthetic `turn_end` after preparation failure cannot create a Cycle. [Pi runtime](../src/platform/agent/pi/runtime.ts)
 
-RunGuard owns progress detection and hard blocks. Runtime uses the latest trusted Guard snapshot. Discovery or activation preserves an outstanding warning or recovery. A fresh business result can clear it within the same batch. Recovery stops dispatch of the remaining batch, retains the observations already received, and injects guidance into the next request after compaction. The next decision may use another authorized source or answer from confirmed evidence. Normal tool errors become observations. A known fatal cause takes precedence over generic cancellation. [MCP policy](mcp-architecture.md#agent-run-protection)
+RunGuard owns progress detection and hard blocks. Runtime uses the latest trusted Guard snapshot. Scope discovery or Human Ask preserves an outstanding warning or recovery. A fresh business result can clear it within the same batch. Recovery stops dispatch of the remaining batch, retains the observations already received, and injects guidance into the next request after compaction. The next decision may use another authorized source or answer from confirmed evidence. Normal tool errors become observations. A known fatal cause takes precedence over generic cancellation. [MCP policy](mcp-architecture.md#agent-run-protection)
 
 [Smart Paste](architecture.md#smart-paste-and-global-banner) observes the existing assistant deltas and a host-only tool-turn result from Pi. The host can retract that turn's temporary field text without altering the recorded conversation or Cycle transitions.
 
@@ -96,3 +96,17 @@ A completed Resume Agent Run lets the Controller validate and publish the stored
 Resume failure reporting retains supported model, tool, MCP and storage codes through `resume.fail`; unknown causes use `GENERATION_FAILED`. `VALIDATION_FAILED` is reserved for an identified document validation failure, not a semantic assessment of model claims. These codes do not change Run/Cycle transitions. The [Resume definition](../src/platform/agent/engine/definitions.ts), [MCP tools](../src/platform/tools/resume.ts) and [external skill](../skills/tailor-resume/SKILL.md) restrict rewrites to listed bullet IDs and preserve grouped skills within one item bullet; introduction and standalone Skills remain copied text.
 
 The existing recorder persists terminal state atomically. Consola emits terminal diagnostics at execution boundaries without participating in state transitions or finalization. Diagnostic failure cannot change Run/Cycle outcomes; see [data architecture](data-architecture.md#4-transactions-and-terminal-diagnostics).
+
+[ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts) starts fresh per Run; directory calls add authorized domain schemas on the next request. Human Ask pauses the current tool and Cycle with `runtimeStatus: human.waiting`; it does not create or settle a Cycle. The other new statuses are `pending`, `context.compacting` and `idle`; historical searching/activating values remain readable. Run cancellation invalidates pending questions before drain/finalization. [Human protocol](mcp-architecture.md#human-ask)
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> idle: admitted
+    idle --> context_compacting: context budget
+    context_compacting --> idle: checkpoint saved
+    idle --> human_waiting: human.ask
+    human_waiting --> idle: answer / dialog cancel
+    human_waiting --> [*]: Run ends / window loss / disconnect
+    idle --> [*]: Run finalization
+```

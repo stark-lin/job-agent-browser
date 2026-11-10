@@ -22,6 +22,7 @@ export class BrowserManager {
   private activeTabId = ''
   private revision = 0
   private visible = false
+  private humanDialogVisible = false
   private unsaved = false
   private confirming = false
   private rendererLoading = false
@@ -136,6 +137,11 @@ export class BrowserManager {
     }
   }
 
+  setHumanDialogVisible(visible: boolean): void {
+    this.humanDialogVisible = visible
+    this.updateVisibility()
+  }
+
   setVisible(visible: boolean, presentation: Presentation): void {
     const tab = this.requireTab(this.activeTabId)
     if (presentation.tabId !== tab.id || presentation.targetId !== this.targetId(tab)) return
@@ -146,7 +152,7 @@ export class BrowserManager {
 
   setSidebarTooltip(tooltip: SidebarTooltip | null): Promise<void> {
     const item = this.tabs.get(this.activeTabId)?.history.current
-    return this.showSidebarTooltip(!this.rendererLoading && this.visible && item?.kind === 'web' ? tooltip : null)
+    return this.showSidebarTooltip(!this.humanDialogVisible && !this.rendererLoading && this.visible && item?.kind === 'web' ? tooltip : null)
   }
 
   async createTab(): Promise<void> {
@@ -311,7 +317,7 @@ export class BrowserManager {
   }
 
   private activeBrowserTarget(tab: Tab, segment: WebSegment): string | null {
-    return !this.window.isDestroyed() && !this.rendererLoading && this.visible && this.activeTabId === tab.id && this.tabs.has(tab.id) &&
+    return !this.window.isDestroyed() && !this.humanDialogVisible && !this.rendererLoading && this.visible && this.activeTabId === tab.id && this.tabs.has(tab.id) &&
       tab.history.current.kind === 'web' && tab.history.current.segment === segment && segment.surface === 'browser' ? this.targetId(tab) : null
   }
 
@@ -342,9 +348,9 @@ export class BrowserManager {
   }
 
   private updateVisibility(): void {
-    if (this.rendererLoading || !this.visible) void this.showSidebarTooltip(null)
+    if (this.humanDialogVisible || this.rendererLoading || !this.visible) void this.showSidebarTooltip(null)
     for (const tab of this.tabs.values()) for (const item of tab.history.items) {
-      if (item.kind === 'web') item.segment.setVisible(!this.rendererLoading && this.visible && tab.id === this.activeTabId && item === tab.history.current)
+      if (item.kind === 'web') item.segment.setVisible(!this.humanDialogVisible && !this.rendererLoading && this.visible && tab.id === this.activeTabId && item === tab.history.current)
     }
     if (!this.window.isDestroyed()) this.layout()
   }

@@ -1,5 +1,6 @@
 /** Application-owned copy. Keep complete sentences so translations can reorder words. */
 export const en = {
+  human: { title: 'Your input is needed', text: 'Additional answer', clear: 'Clear selection', cancel: 'Cancel', submit: 'Submit', error: 'Could not send your answer. Please retry.' },
   onboarding: {
     setup: 'Setup steps', appearance: 'Language & background', choice: 'AI connection', model: 'Model', agent: 'Agent', profile: 'Profile', ready: 'Done',
     language: 'Language', background: 'Background', system: 'System', light: 'Light', dark: 'Dark', next: 'Continue', back: 'Back', skip: 'Skip', later: 'Not now', finish: 'Open JAB',
@@ -94,7 +95,7 @@ export const en = {
   "rebuilt": "Search index rebuilt"
 },
   ask: {
-  runtime: { pending: 'Waiting for the previous turn…', compacting: 'Compacting context…', searching: 'Searching tools…', activating: 'Activating tools…' },
+  runtime: { humanWaiting: 'Waiting for your answer…', pending: 'Waiting for the previous turn…', compacting: 'Compacting context…', searching: 'Searching tools…', activating: 'Activating tools…' },
   "sessions": "Chats",
   "openSessions": "Open chats",
   "close": "Close",
@@ -155,6 +156,7 @@ export const en = {
   "toolRunning": "Running: {{action}}",
   "toolFailed": "Could not complete: {{action}}",
   "tools": {
+    scope: 'Inspect tools', humanAsk: 'Ask user',
     searchTools: 'Search tools', activateTools: 'Activate tools',
     "jobs": "Read saved jobs",
     "job": "Read job",

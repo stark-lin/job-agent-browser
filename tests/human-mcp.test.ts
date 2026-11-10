@@ -1,0 +1,83 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
+import { firstPartyFixture } from './first-party-fixture'
+import { createMCPClient } from '../src/platform/mcp/client'
+import { createExternalRun } from '../src/platform/mcp/external-run'
+import { createAdmissionBroker } from '../src/platform/mcp/run-admission-broker'
+import { createRunAdmission } from '../src/platform/mcp/run-admission'
+import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
+import { scriptedModel, capabilities } from './disclosure-fixture'
+import { until } from './tool-fixtures'
+const signal = () => new AbortController().signal
+
+for (const ending of ['answer', 'cancel', 'run-end', 'abort'] as const) test(`internal Human Ask ${ending} uses real MCP and never changes the business guard`, async t => {
+  const f = await firstPartyFixture(t), tools = await f.askRun(signal(), 'human', [randomUUID()])
+  await tools.call('job.list', {}, signal()); const before = tools.getRunGuardSnapshot()
+  const controller = new AbortController(), pending = tools.call('human.ask', { question: 'Direction?', options: ['Backend', 'Full stack'] }, controller.signal)
+  const checked = ending === 'run-end' || ending === 'abort' ? assert.rejects(pending) : pending
+  await until(() => f.human.list().length === 1)
+  assert.equal(f.database.connection.isTransaction, false)
+  assert.deepEqual(tools.getRunGuardSnapshot(), before)
+  await tools.call('scope.profile', {}, signal()) // No business lock is held across the human wait.
+  assert.deepEqual(tools.getRunGuardSnapshot(), before)
+  const id = f.human.list()[0].id
+  if (ending === 'answer') f.human.answer(id, { selectedOption: 'Backend', text: 'Prefer APIs' })
+  if (ending === 'cancel') f.human.cancel(id)
+  if (ending === 'run-end') await f.endAskRun()
+  if (ending === 'abort') controller.abort()
+  const result = await checked
+  if (ending === 'answer') assert.deepEqual(result, { status: 'submitted', selectedOption: 'Backend', text: 'Prefer APIs' })
+  if (ending === 'cancel') assert.deepEqual(result, { status: 'cancelled' })
+  await until(() => f.human.list().length === 0)
+  assert.throws(() => f.human.answer(id, { selectedOption: null, text: 'stale' }), { code: 'TOOL_NOT_FOUND' })
+})
+
+test('external Human Ask and Memory require the owning Session and execution Run; disconnect invalidates waits', async t => {
+  const f = await firstPartyFixture(t)
+  const client = createMCPClient({ id: 'external', enabled: true, transport: 'stdio', command: process.execPath, args: [join(f.directory, 'job-agent-mcp.js')], tools: [] }, { closed() {}, changed() {} }, { processEnv: { JOB_BROWSER_USER_DATA: f.directory, ELECTRON_RUN_AS_NODE: '1' } })
+  f.cleanup(() => client.close()); await client.connect()
+  const names = (await client.listTools()).map(tool => tool.name)
+  assert(names.includes('human.ask')); assert(!names.some(name => name.startsWith('scope.')))
+  assert(!names.some(name => /^knowledge.(write|mkdir|move|delete)$/.test(name)))
+  const denied = await client.callTool('human.ask', { executionRunId: randomUUID(), question: 'Unauthorized?' }, signal()) as { isError?: boolean }
+  assert(denied.isError); assert.equal(f.human.list().length, 0)
+  const begin = await client.callTool('run.begin', {}, signal()) as { structuredContent: { runId: string } }, executionRunId = begin.structuredContent.runId
+  const saved = await client.callTool('memory.write', { executionRunId, path: 'external.md', content: 'Prefer concise wording.', expectedRevision: null }, signal()) as { isError?: boolean }
+  assert(!saved.isError)
+  const waiting = client.callTool('human.ask', { executionRunId, question: 'Choose?', options: [] }, signal())
+  await until(() => f.human.list().length === 1)
+  f.human.answer(f.human.list()[0].id, { selectedOption: null, text: 'My choice' })
+  assert.deepEqual((await waiting as { structuredContent: unknown }).structuredContent, { status: 'submitted', selectedOption: null, text: 'My choice' })
+  const abandoned = client.callTool('human.ask', { executionRunId, question: 'Wait?' }, signal()), checked = assert.rejects(abandoned)
+  await until(() => f.human.list().length === 1); await client.close(); await checked
+  await until(() => f.human.list().length === 0)
+  assert.equal((await f.workspace.spaces.memory.call('read', { path: 'external.md' })).ok, true)
+})
+
+test('external Human Ask never extends the Run deadline or releases admission during the wait', async t => {
+  const f = await firstPartyFixture(t), admission = createRunAdmission(), broker = createAdmissionBroker(f.directory, admission, 150, f.human)
+  await broker.ready; f.cleanup(() => broker.close())
+  const external = createExternalRun(f.directory); f.cleanup(() => external.close())
+  const { runId } = await external.begin()
+  const pending = external.ask(runId, { question: 'Waiting?' }, signal()), checked = assert.rejects(pending)
+  await until(() => f.human.list().length === 1)
+  assert.throws(() => admission.acquire('other'), { code: 'TOOL_BUSY' })
+  assert.equal(f.database.connection.isTransaction, false)
+  await checked; await until(() => f.human.list().length === 0)
+  await external.close()
+})
+
+test('Human waiting status is persisted while the model pauses and clears on submission', async t => {
+  const f = await firstPartyFixture(t)
+  const model = scriptedModel((_request, round) => round === 1 ? [{ name: 'human.ask', arguments: { question: 'Direction?' } }] : 'Thanks')
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model.model, capabilities: async () => capabilities })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, { requestId: randomUUID(), message: 'Ask me', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
+  await until(() => f.human.list().length === 1)
+  assert.equal(tasks.getRun(1, { runId: ids.runId }).run.runtimeStatus, 'human.waiting'); assert.equal(model.requests.length, 1)
+  f.human.answer(f.human.list()[0].id, { selectedOption: null, text: 'Backend' })
+  await until(() => tasks.getRun(1, { runId: ids.runId }).run.state !== 'running')
+  assert.equal(tasks.getRun(1, { runId: ids.runId }).run.state, 'completed')
+})

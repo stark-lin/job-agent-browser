@@ -1,3 +1,5 @@
+import { createHumanBridge } from './human-bridge'
+import { HUMAN_CALL, HUMAN_CHANGED } from '../human-contract'
 import { createKnowledgeBridge } from './knowledge-bridge'
 import { KNOWLEDGE_CALL, KNOWLEDGE_CHANGED, KNOWLEDGE_FLUSH, KNOWLEDGE_FLUSHED } from '../knowledge-contract'
 import { createAskAgentBridge } from './ask-agent-bridge'
@@ -134,3 +136,9 @@ contextBridge.exposeInMainWorld('askAgent', createAskAgentBridge((method, input)
 const knowledgeFlushHandlers = new Set<()=>Promise<boolean>>()
 ipcRenderer.on(KNOWLEDGE_FLUSH, (_event:Electron.IpcRendererEvent,id:string)=>{void Promise.all([...knowledgeFlushHandlers].map(flush=>flush())).then(results=>ipcRenderer.send(KNOWLEDGE_FLUSHED,id,results.every(Boolean))).catch(()=>ipcRenderer.send(KNOWLEDGE_FLUSHED,id,false))})
 contextBridge.exposeInMainWorld('knowledge', createKnowledgeBridge((method,input)=>ipcRenderer.invoke(KNOWLEDGE_CALL,method,input),callback=>{const listener=()=>callback();ipcRenderer.on(KNOWLEDGE_CHANGED,listener);return()=>ipcRenderer.removeListener(KNOWLEDGE_CHANGED,listener)},callback=>{knowledgeFlushHandlers.add(callback);return()=>knowledgeFlushHandlers.delete(callback)}))
+
+contextBridge.exposeInMainWorld('human', createHumanBridge((method, input) => ipcRenderer.invoke(HUMAN_CALL, method, input), callback => {
+  const listener = () => callback()
+  ipcRenderer.on(HUMAN_CHANGED, listener)
+  return () => ipcRenderer.removeListener(HUMAN_CHANGED, listener)
+}))

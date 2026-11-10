@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { ChatModelRequest } from '../../../domain/chat/chat.types'
-import type { ActivationDiagnostic, RequestDiagnostic } from '../../../shared/agent'
+import type { RequestDiagnostic } from '../../../shared/agent'
 import { fail } from '../../../domain/common/errors'
 
 /** Main-owned private Agent request diagnostics. */
@@ -12,16 +12,6 @@ export function chatModelRequestsRepository(db: DatabaseSync, transaction: <T>(o
         if (cycleIndex !== undefined && request.purpose !== 'agent-turn') fail('INVALID_STATE')
         db.prepare('INSERT INTO agent_model_requests(run_id,ordinal,metadata_json) VALUES(?,?,?)').run(runId, request.ordinal, JSON.stringify(request))
         if (cycleIndex !== undefined) linkRequest(runId, cycleIndex, request.ordinal)
-      })
-    },
-    saveActivationDiagnostic(runId: string, activation: ActivationDiagnostic) {
-      transaction(() => {
-        assertRunning(runId)
-        const row = db.prepare("SELECT ordinal,activations_json FROM agent_model_requests WHERE run_id=? AND json_extract(metadata_json,'$.purpose')='agent-turn' ORDER BY ordinal DESC LIMIT 1").get(runId)
-        if (!row) fail('INVALID_STATE')
-        const activations = JSON.parse(String(row.activations_json)) as ActivationDiagnostic[]
-        activations.push(activation)
-        db.prepare('UPDATE agent_model_requests SET activations_json=? WHERE run_id=? AND ordinal=?').run(JSON.stringify(activations), runId, row.ordinal)
       })
     },
     listModelRequests(runId: string, limit: number, offset: number) {

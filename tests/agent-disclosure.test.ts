@@ -3,14 +3,13 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import { providerMessages, providerTools, parseAgentResponse, stableName } from '../src/platform/ai/agent-protocol'
 import { fingerprint, toolSnapshot } from '../src/platform/ai/agent-request'
-import { ToolDiscovery } from '../src/platform/agent/tools/discovery'
 import { ContextBudget } from '../src/platform/agent/context/budget'
 import { observeAgentModel } from '../src/platform/agent/pi/request-observer'
 import { ContextManager } from '../src/platform/agent/context/manager'
 import { runPiAgent } from '../src/platform/agent/pi/runtime'
 import type { AgentRuntimeEvent, AgentTools, StreamingAgentModel } from '../src/shared/agent'
 import { DataError } from '../src/domain/common/errors'
-import { activation, capabilities, descriptor, runDisclosure, scriptedModel, signal } from './disclosure-fixture'
+import { expansion, capabilities, descriptor, runDisclosure, scriptedModel, signal } from './disclosure-fixture'
 
 test('semantic provider names are bounded, punctuation-safe, stable across loadouts, and restore historical calls', () => {
   const tools = ['job.list', 'job_list', 'job-list', '中文.😀', 'a'.repeat(90) + '.first', 'a'.repeat(90) + '.last'].map(descriptor)
@@ -37,65 +36,6 @@ test('provider alias collisions and duplicate logical names are rejected', t => 
   t.mock.method(crypto, 'createHash', () => ({ update() { return this }, digest() { return '0'.repeat(64) } }) as unknown as ReturnType<typeof crypto.createHash>)
   assert.throws(() => providerTools([descriptor('job.list'), descriptor('job_list')], true), /AGENT_PROTOCOL_ERROR/)
 })
-test('only verified requests count duplicates; normalization, search, business progress and mixed activation behave correctly', async () => {
-  const tools = { list: async () => ['job.list', 'profile.get'].map(descriptor), call: async () => ({ total: 1 }) }
-  const registry = new ToolDiscovery(tools, new ContextBudget(capabilities, 'fixture'))
-  await registry.refresh(); registry.loadout()
-  const activate = (names: string[]) => registry.call('tool.activate', { names }, signal())
-  assert.equal((await activate(['job.list']) as { changed: boolean }).changed, true)
-  assert.equal((await activate(['job.list']) as { changed: boolean }).changed, false)
-  registry.loadout()
-  // An executable loadout alone does not prove that a provider request advertised it.
-  await activate(['job.list']); await activate(['job.list'])
-  registry.confirmRequest(['job.list'])
-  const duplicate = await activate(['job.list', 'job.list']) as { alreadyActive: string[]; changed: boolean; nextAction: string }
-  assert.deepEqual(duplicate.alreadyActive, ['job.list']); assert.equal(duplicate.changed, false); assert.match(duplicate.nextAction, /directly/)
-  await registry.call('tool.search', { query: 'job' }, signal())
-  await assert.rejects(activate(['job.list']), /AGENT_STEP_LIMIT/)
-  await registry.call('job.list', {}, signal())
-  await activate(['job.list'])
-  assert.equal((await activate(['profile.get', 'job.list']) as { changed: boolean }).changed, true)
-  registry.loadout(); registry.confirmRequest(['job.list', 'profile.get'])
-  await activate(['profile.get', 'job.list', 'job.list'])
-  await assert.rejects(activate(['job.list', 'profile.get']), /AGENT_STEP_LIMIT/)
-})
-test('catalog changes and eviction permit fresh activation without false loops', async () => {
-  let catalog = ['job.list', 'job.get', 'job.import', 'job.update', 'job.set_archived', 'profile.list', 'profile.get', 'profile.list_items', 'profile.list_facts', 'artifact.get'].map(descriptor)
-  const registry = new ToolDiscovery({ list: async () => catalog, call: async () => ({}) }, new ContextBudget(capabilities, 'fixture'))
-  await registry.refresh(); registry.loadout()
-  const activate = (names: string[]) => registry.call('tool.activate', { names }, signal())
-  await activate(catalog.slice(0, 8).map(t => t.name)); registry.loadout(); registry.confirmRequest(catalog.map(t => t.name))
-  await activate(['job.get'])
-  await activate(['profile.list_facts']); registry.loadout()
-  assert(!registry.snapshot().tools.some(t => t.name === 'job.get'))
-  assert.equal((await activate(['job.get']) as { changed: boolean }).changed, true)
-  registry.loadout(); registry.confirmRequest(['job.get']); await activate(['job.get'])
-  catalog = catalog.filter(t => t.name !== 'job.get'); await registry.refresh()
-  await assert.rejects(activate(['job.get']), /AGENT_PROTOCOL_ERROR/)
-  catalog = [...catalog, descriptor('job.get')]; await registry.refresh()
-  assert.equal((await activate(['job.get']) as { changed: boolean }).changed, true)
-  registry.loadout(); registry.confirmRequest(['job.get']); await activate(['job.get'])
-  catalog = catalog.map(t => t.name === 'job.get' ? { ...t, inputSchema: { type: 'object', required: ['new'] } } : t)
-  await activate(['job.get']); registry.loadout(); registry.confirmRequest(['job.get']); await activate(['job.get'])
-})
-for (const recover of [true, false]) test(`runtime ${recover ? 'recovers after one duplicate' : 'stops a repeated activation before later tools or inference'}`, async () => {
-  const events: AgentRuntimeEvent[] = [], calls: string[] = []
-  const fixture = scriptedModel((_body, round) => round === 1 || round === 2 ? [activation()]
-    : round === 3 ? recover ? [{ name: 'job.list', arguments: {} }] : [activation(), { name: 'job.list', arguments: {} }]
-    : 'Done')
-  const run = runDisclosure(fixture.model, { list: async () => [descriptor()], call: async name => { calls.push(name); return { total: 1 } } }, e => events.push(e))
-  if (recover) { await run; assert.deepEqual(calls, ['job.list']); assert.equal(fixture.requests.length, 4) }
-  else { await assert.rejects(run, /AGENT_STEP_LIMIT/); assert.deepEqual(calls, []); assert.equal(fixture.requests.length, 3) }
-  const repeats = events.filter(e => e.type === 'model.request.activation').map(e => e.activation.repeats)
-  assert.deepEqual(repeats, recover ? [1] : [1, 2])
-  assert.equal(events.filter(e => e.type === 'model.request.prepared').length, fixture.requests.length)
-})
-test('multiple pending activations in one batch are not mistaken for advertised tools', async () => {
-  const events: AgentRuntimeEvent[] = []
-  const fixture = scriptedModel((_body, round) => round === 1 ? [activation(), activation(), activation()] : round === 2 ? [{ name: 'job.list', arguments: {} }] : 'Done')
-  await runDisclosure(fixture.model, { list: async () => [descriptor()], call: async () => ({}) }, e => events.push(e))
-  assert(!events.some(e => e.type === 'model.request.activation'))
-})
 for (const corrupt of ['missing-schema', 'changed-schema', 'wrong-alias', 'pi-state'] as const) test(`request ${corrupt} is diagnosed and blocked before transport`, async () => {
   const fixture = scriptedModel(() => 'Must not dispatch'), events: AgentRuntimeEvent[] = []
   const tools = [descriptor()], snapshot = toolSnapshot(tools)
@@ -119,9 +59,9 @@ test('diagnostic persistence failure blocks streaming and summary transport', as
   assert.equal(fixture.requests.length, 0)
 })
 test('runtime compares Pi schemas with its own loadout before sending the next request', async () => {
-  const fixture = scriptedModel((_body, round) => round === 1 ? [activation()] : 'Must not dispatch'), events: AgentRuntimeEvent[] = []
+  const fixture = scriptedModel((_body, round) => round === 1 ? [expansion()] : 'Must not dispatch'), events: AgentRuntimeEvent[] = []
   const model: StreamingAgentModel = { complete: input => fixture.model.complete(input), stream: input => fixture.model.stream({ ...input, tools: input.tools.filter(t => t.name !== 'job.list') }) }
-  const tools: AgentTools = { list: async () => [descriptor()], call: async () => { assert.fail('No business calls') } }
+  const tools: AgentTools = { list: async () => [descriptor()], call: async () => ({}) }
   await assert.rejects(runDisclosure(model, tools, e => events.push(e)), /AGENT_PROTOCOL_ERROR/)
   assert.equal(fixture.requests.length, 1)
   const requests = events.filter(e => e.type === 'model.request.prepared')
@@ -151,27 +91,6 @@ test('request observation preserves the default index mapping for callers withou
   const request = events.find(event => event.type === 'model.request.prepared')
   assert(request?.type === 'model.request.prepared'); assert.equal(request.request.verification, 'matched')
   assert.equal(request.request.tools[0].providerName, 'tool_0')
-})
-
-test('identical normalized searches warn once, then stop without executing a later batch tool', async () => {
-  let calls = 0
-  const model = scriptedModel((_request, ordinal) => {
-    if (ordinal === 1) return [activation()]
-    return [{ name: 'tool.search', arguments: { query: ordinal % 2 ? 'JOB   list' : 'list job' } },
-      ...(ordinal === 4 ? [{ name: 'job.list', arguments: {} }] : [])]
-  })
-  await assert.rejects(runDisclosure(model.model, { list: async () => [descriptor()], call: async () => { calls++; return {} } }), /AGENT_STEP_LIMIT/)
-  assert.equal(model.requests.length, 4); assert.equal(calls, 0)
-})
-
-test('effective activation and confirmed business progress reset repeated search detection', async () => {
-  const registry = new ToolDiscovery({ list: async () => [descriptor()], call: async () => ({ total: 1 }) }, new ContextBudget(capabilities, 'fixture'))
-  await registry.refresh(); registry.loadout()
-  await registry.call('tool.search', { query: 'job' }, signal()); await registry.call('tool.search', { query: 'job' }, signal())
-  await registry.call('tool.activate', { names: ['job.list'] }, signal()); registry.loadout()
-  await registry.call('tool.search', { query: 'job' }, signal()); await registry.call('tool.search', { query: 'job' }, signal())
-  await registry.call('job.list', {}, signal())
-  assert(Array.isArray(await registry.call('tool.search', { query: 'job' }, signal())))
 })
 
 test('summary and main-loop requests share a hard budget of 64 before model dispatch', async () => {

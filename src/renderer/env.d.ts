@@ -1,3 +1,4 @@
+import type { HumanAPI } from '../platform/electron/human-contract'
 import type { KnowledgeAPI } from '../platform/electron/knowledge-contract'
 import type { AskAgentAPI } from '../platform/electron/ask-agent-contract'
 import type { ExternalMCPAPI } from '../shared/external-mcp'
@@ -12,6 +13,7 @@ import type { JobImportAPI } from '../platform/electron/job-import-contract'
 
 declare global {
   interface Window {
+    human: HumanAPI
     knowledge: KnowledgeAPI
     externalSkills: ExternalSkillsAPI
     externalMCP: ExternalMCPAPI

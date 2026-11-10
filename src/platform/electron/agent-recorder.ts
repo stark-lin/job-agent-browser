@@ -35,7 +35,6 @@ export function createAgentRecorder<S extends string | null>(repo: ChatRecorder,
       if (event.type === 'cycle.started') { repo.startCycle(snapshot.run.id, event.index, event.startedAt); return }
       if (event.type === 'cycle.settled') { repo.settleCycle(snapshot.run.id, event.index, event.status, event.reason, event.finishedAt); return }
       if (event.type === 'model.request.prepared') { repo.saveModelRequest(snapshot.run.id, event.request, event.cycleIndex); return }
-      if (event.type === 'model.request.activation') { repo.saveActivationDiagnostic(snapshot.run.id, event.activation); return }
       if (event.type === 'model.completed') {
         repo.saveProviderResponse(snapshot.run.id, { ...event.response,
           toolCalls: event.response.toolCalls.map(call => ({ ...call, arguments: redactTranscript(call.arguments) })) }, snapshot.items.at(-1)?.sequence ?? 0, event.cycleIndex)

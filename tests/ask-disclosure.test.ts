@@ -4,14 +4,14 @@ import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { firstPartyFixture } from './first-party-fixture'
-import { activation, capabilities, reply, scriptedModel, type WireRequest } from './disclosure-fixture'
+import { expansion, capabilities, reply, scriptedModel, type WireRequest } from './disclosure-fixture'
 import { DataError } from '../src/domain/common/errors'
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
 import { compatibleAgentModel } from '../src/platform/ai/agent-model'
 import { stableName } from '../src/platform/ai/agent-protocol'
 import { fingerprint } from '../src/platform/ai/agent-request'
 
-test('real HTTP and first-party MCP discover, activate, execute and answer without automatic fixture activation', async t => {
+test('real HTTP and first-party MCP expand Scope, execute and answer without automatic fixture activation', async t => {
   const f = await firstPartyFixture(t), requests: WireRequest[] = []
   let authorizedSchema: Record<string, unknown> | undefined
   const server = createServer((request, response) => {
@@ -21,26 +21,22 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
       const body = JSON.parse(raw) as WireRequest, ordinal = requests.push(body)
       assert.equal(request.url, '/v1/chat/completions')
       const business = body.tools.find(tool => tool.function.name === stableName('job.list'))
-      if (ordinal <= 2) {
+      if (ordinal === 1) {
         assert.equal(business, undefined)
-        assert.equal(body.tools.length, 2)
+        assert(body.tools.every(tool => tool.function.description.startsWith('[scope.') || tool.function.description.startsWith('[human.ask]')))
       } else {
         assert(business); assert.deepEqual(business.function.parameters, authorizedSchema)
-        assert(business.function.description.startsWith('[job.list] '))
       }
-      if (ordinal === 2) assert(JSON.parse(body.messages.at(-1)!.content).some((entry: { name: string }) => entry.name === 'job.list'))
-      if (ordinal === 3) {
-        assert.deepEqual(JSON.parse(body.messages.at(-1)!.content).activeOnNextRequest, ['job.list'])
+      if (ordinal === 2) {
+        assert(JSON.parse(body.messages.at(-1)!.content).tools.some((entry: { name: string }) => entry.name === 'job.list'))
         const history = body.messages.filter(message => message.role === 'assistant').flatMap(message => message.tool_calls ?? [])
-        assert.deepEqual(history.map(call => call.function.name), [stableName('tool.search'), stableName('tool.activate')])
+        assert.deepEqual(history.map(call => call.function.name), [stableName('scope.job')])
       }
-      if (ordinal === 4) {
+      if (ordinal === 3) {
         const result = JSON.parse(body.messages.at(-1)!.content)
         assert.equal(result.total, 1); assert.equal(result.items[0].id, f.job.id)
       }
-      const calls = ordinal === 1 ? [{ name: 'tool.search', arguments: { query: 'job list' } }]
-        : ordinal === 2 ? [{ name: 'tool.activate', arguments: { names: ['job.list'] } }]
-        : ordinal === 3 ? [{ name: 'job.list', arguments: {} }] : 'Saved job found.'
+      const calls = ordinal === 1 ? [expansion()] : ordinal === 2 ? [{ name: 'job.list', arguments: {} }] : 'Saved job found.'
       response.writeHead(200, { 'content-type': 'text/event-stream' }); response.end(await reply(calls, ordinal).text())
     })
   })
@@ -55,14 +51,15 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
   const snapshot = tasks.getRun(1, { runId: ids.runId })
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
-  assert.equal(requests.length, 4)
+  assert.equal(requests.length, 3)
   assert(snapshot.items.some(item => item.content.type === 'assistant_message' && item.content.text === 'Saved job found.'))
 
   const diagnostics = f.backend.chats.listModelRequests(ids.runId, 100, 0)
-  assert.equal(diagnostics.total, 4)
+  assert.equal(diagnostics.total, 3)
   for (const [index, row] of diagnostics.items.entries()) {
     assert.equal(row.ordinal, index + 1); assert.equal(row.verification, 'matched'); assert.equal(row.purpose, 'agent-turn')
-    assert.deepEqual(row.expectedTools, row.piTools); assert.deepEqual(row.expectedTools, row.tools)
+    const sorted = (tools: typeof row.tools) => [...tools].sort((a, b) => a.name.localeCompare(b.name))
+    assert.deepEqual(sorted(row.expectedTools), sorted(row.piTools)); assert.deepEqual(sorted(row.expectedTools), sorted(row.tools))
     assert.deepEqual(row.tools.map(tool => tool.providerName), requests[index].tools.map(tool => tool.function.name))
     assert.deepEqual(row.tools.map(tool => tool.schemaHash), requests[index].tools.map(tool => fingerprint(tool.function.parameters)))
   }
@@ -70,24 +67,17 @@ test('real HTTP and first-party MCP discover, activate, execute and answer witho
   assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).id, f.job.id)
 })
-test('activation loop fails the persisted Run, retains diagnostics, and stops the remaining MCP batch', async t => {
-  const f = await firstPartyFixture(t)
-  const fixture = scriptedModel((_body, ordinal) => ordinal <= 2 ? [activation()] : [activation(), { name: 'job.list', arguments: {} }])
+test('repeated Scopes keep the Run alive without producing activation diagnostics', async t => {
+  const f = await firstPartyFixture(t), fixture = scriptedModel((_body, ordinal) => ordinal <= 3 ? [expansion()] : 'Done')
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => fixture.model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'List jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
-  const snapshot = tasks.getRun(1, { runId: ids.runId })
-  assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'AGENT_STEP_LIMIT')
-  assert.equal(fixture.requests.length, 3)
-
-  const records = f.backend.chats.listModelRequests(ids.runId, 100, 0).items
-  assert.deepEqual(records.flatMap(row => row.activations.map(value => value.repeats)), [1, 2])
-  assert.equal(records[2].activations[0].reason, 'activation-loop')
-  assert(snapshot.items.some(item => item.state === 'failed' && item.content.type === 'tool_call' && item.content.error === 'AGENT_STEP_LIMIT'))
+  assert.equal(tasks.getRun(1, { runId: ids.runId }).run.state, 'completed')
+  assert(f.backend.chats.listModelRequests(ids.runId, 100, 0).items.every(row => row.activations.length === 0))
 })
-for (const sink of ['saveModelRequest', 'saveActivationDiagnostic'] as const) test(`${sink} failure ends the Run without dispatching or executing later work`, async t => {
-  const f = await firstPartyFixture(t), fixture = scriptedModel(() => [activation()])
+for (const sink of ['saveModelRequest'] as const) test(`${sink} failure ends the Run without dispatching or executing later work`, async t => {
+  const f = await firstPartyFixture(t), fixture = scriptedModel(() => [expansion()])
   t.mock.method(f.backend.chats, sink, () => { throw new DataError('STORAGE_UNAVAILABLE') })
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => fixture.model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
@@ -95,5 +85,5 @@ for (const sink of ['saveModelRequest', 'saveActivationDiagnostic'] as const) te
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
   const snapshot = tasks.getRun(1, { runId: ids.runId })
   assert.equal(snapshot.run.state, 'failed'); assert.equal(snapshot.run.error, 'STORAGE_UNAVAILABLE')
-  assert.equal(fixture.requests.length, sink === 'saveModelRequest' ? 0 : 2)
+  assert.equal(fixture.requests.length, 0)
 })

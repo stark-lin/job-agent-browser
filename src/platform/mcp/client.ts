@@ -63,7 +63,7 @@ export function createMCPClient(config: MCPServerConfig, hooks: ClientHooks, opt
       if (active >= 4) toolFail('TOOL_BUSY')
       active++
       try {
-        return await client.callTool({ name, arguments: input as Record<string, unknown>, ...(metadata ? { _meta: metadata } : {}) }, { signal: signalFor(signal), timeout: 120000, maxTotalTimeout: 120000 })
+        return await client.callTool({ name, arguments: input as Record<string, unknown>, ...(metadata ? { _meta: metadata } : {}) }, { signal: signalFor(signal), ...(name === 'human.ask' ? { timeout: 2147483647, maxTotalTimeout: 2147483647 } : { timeout: 120000, maxTotalTimeout: 120000 }) })
       } catch (error) { if (signal.aborted) toolFail('TOOL_CANCELLED'); throw mcpError(error) }
       finally { active-- }
     },
