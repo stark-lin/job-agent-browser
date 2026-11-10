@@ -11,7 +11,7 @@ import { observeAgentModel } from '../pi/request-observer'
 import { runPiAgent } from '../pi/runtime'
 import { ScopedToolset } from '../tools/scoped-toolset'
 import { createFixedToolset } from '../tools/toolset'
-import { smartPasteInstructions } from '../ask'
+import { chatInstructions, smartPasteInstructions } from '../ask'
 import { definitions, type AgentInvocation } from './definitions'
 
 export interface AgentCompletion {
@@ -67,7 +67,7 @@ export function createAgentEngine(readRun?: (id: string) => AgentSnapshot) {
           const budget = new ContextBudget(await execution.capabilities(input.model, signal), input.model.modelId)
           signal.throwIfAborted()
           const model = observeAgentModel(execution.model(input.model), emit, definition.limits.maxModelRequests)
-          const system = definition.system + (invocation.source === 'smart-paste' ? smartPasteInstructions : '')
+          const system = definition.system + (invocation.source === 'chat' ? chatInstructions : invocation.source === 'smart-paste' ? smartPasteInstructions : '')
           const message = invocation.agent === 'ask' ? invocation.message.trim()
             : `Tailor the resume for generation run ${invocation.generationRunId}. Use this runId for resume tools.`
           session = await execution.open(signal)

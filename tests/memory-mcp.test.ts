@@ -120,16 +120,19 @@ test('reused Ask transport has distinct immutable per-turn grants; cancellation 
   await assert.rejects(second.call('memory.read', { path: 'missing.md' }, signal), { code: 'TOOL_NOT_FOUND' })
 })
 
-test('trusted Ask policy denies every resume/build tool even with valid Run grants and a spoofed Resume label', async t => {
+test('trusted Ask policy hides Profile writes and denies them and Resume writes despite spoofed labels and grants', async t => {
   const f = await firstPartyFixture(t), resume = await f.mcp.session('resume', signal)
   assert((await resume.list()).every(tool => tool.name.startsWith('resume.') || tool.name.startsWith('scope.') || tool.name === 'human.ask' || tool.name === 'artifact.build'))
   const foreign = await resume.call('resume.start', { requestId: randomUUID(), jobId: f.job.id, profileId: f.profile.id }, signal) as { runId: string }
   const authority = createMemoryAuthority(f.directory); f.cleanup(() => authority.close())
   const ask = external(f, await authority.issue('restricted-ask'), 'internal.resume')
   await ask.connect()
+  assert.deepEqual((await ask.listTools()).filter(tool => tool.name.startsWith('profile.')).map(tool => tool.name).sort(),
+    ['profile.get', 'profile.list', 'profile.list_facts', 'profile.list_items'])
   assert.deepEqual((await ask.listTools()).map(t => t.name).sort(), [...askToolAllowlist, ...scopeTools((await ask.listTools()).filter(tool => askToolAllowlist.includes(tool.name as typeof askToolAllowlist[number]))).map(tool => tool.name), 'human.ask'].sort())
   const run = authority.registerRun('restricted-ask', randomUUID(), 'chat')
-  const forbidden = [...jobAgentAllowlist.filter(name => name.startsWith('resume.')), 'artifact.build']
+  const forbidden = [...jobAgentAllowlist.filter(name => name.startsWith('resume.')), 'artifact.build',
+    'profile.create', 'profile.update', 'profile.add_item', 'profile.update_item', 'profile.add_fact', 'profile.update_fact']
   for (const name of forbidden) {
     const args = { runId: foreign.runId }
     const result = await ask.callTool(name, args, signal, { jabRunGrant: run.grant(name, args) }) as { isError: boolean; content: { text: string }[] }

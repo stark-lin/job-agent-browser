@@ -87,14 +87,13 @@ test('uncertain write responses stop execution without offering a replay and ret
   assert(events.some(event => event.type === 'run.failed'))
 })
 
-test('Ask AI imports ordinary job data and directs resume generation to its dedicated interface', async t => {
+test('Ask AI imports ordinary job data without exposing unavailable write interfaces', async t => {
   const f = await firstPartyFixture(t); let step = 0
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream(input) {
     const system = input.messages.find(m => m.role === 'system')?.content ?? ''
-    assert(system.includes('dedicated Tailor Resume interface'))
-    assert(!system.includes('complete resume workflow'))
+    assert.doesNotMatch(system, /profile\.(?:create|update|add_item|update_item|add_fact|update_fact)|resume\.|artifact\.build|Tailor Resume/)
     if (step++ === 0) yield* batch({ id: 'import', name: 'job.import', arguments: { requestId: randomUUID(), details: { title: 'PRIVATE_IMPORTED_JOB', companyNameRaw: 'Fixture' } } })
-    else yield* answer('Saved the job. Use the Tailor Resume interface to generate your resume.')
+    else yield* answer('Saved the job. I can read your profile and existing documents.')
   } }
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model }); t.after(() => tasks.dispose())
   const ids = tasks.start(1, start('Save this job and create a tailored resume'), () => {}), snapshot = await wait(tasks, ids.runId)
@@ -103,7 +102,7 @@ test('Ask AI imports ordinary job data and directs resume generation to its dedi
   assert.equal(f.backend.resumes.listRuns({}).total, 0); assert.equal(f.outputs(), 0)
 })
 
-for (const name of ['resume.start', 'resume.cancel', 'resume.fail', 'artifact.build']) test(`Ask AI refuses activation of ${name} without a business call`, async t => {
+for (const name of ['resume.start', 'resume.rewrite_bullet', 'resume.attach_agent', 'resume.validate', 'resume.publish', 'resume.cancel', 'resume.fail', 'artifact.build']) test(`Ask AI refuses activation of ${name} without a business call`, async t => {
   const f = await firstPartyFixture(t)
   const model: StreamingAgentModel = { complete: async () => ({ content: '', toolCalls: [] }), async *stream() {
     yield* batch({ id: 'forbidden', name, arguments: {} })

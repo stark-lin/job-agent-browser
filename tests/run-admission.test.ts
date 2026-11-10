@@ -46,6 +46,8 @@ test('external gateway requires server UUID, binds owner/session, preserves sche
   }
   denied(await call(a.client, 'profile.list'), 'TOOL_FORBIDDEN')
   const { runId } = data(await call(a.client, 'run.begin'))
+  await b.external.attach() // Discovery must not fail while another Session owns Main.
+  assert.equal((await b.client.listTools()).tools.length, list.length)
   assert.match(String(runId), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   denied(await call(a.client, 'run.begin'), 'TOOL_BUSY')
   denied(await call(b.client, 'run.begin'), 'TOOL_BUSY')

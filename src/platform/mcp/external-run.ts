@@ -80,7 +80,7 @@ export function createExternalRun(directory: string) {
     })()
   }
   return {
-    async attach() { try { await connect() } catch (error) { if (!(error instanceof ToolError) || error.code !== 'TOOL_UNAVAILABLE') throw error } },
+    async attach() { try { await connect() } catch (error) { if (!(error instanceof ToolError) || !['TOOL_UNAVAILABLE', 'TOOL_BUSY'].includes(error.code)) throw error } },
     onClosed(listener: typeof drain) { drain = listener },
     async begin() {
       await connect()

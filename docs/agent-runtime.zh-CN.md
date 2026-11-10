@@ -8,6 +8,10 @@
 
 [Agent Engine](../src/platform/agent/engine/index.ts)用唯一的 Pi 运行时执行受信任的 [ask 和 resume 定义](../src/platform/agent/engine/definitions.ts)。聊天和智能粘贴使用 Ask 定义。桌面 Resume 使用 Scope 工具、隔离上下文、可读写 Memory 和只读 Knowledge。其 Agent Run 关联独立的 GenerationRun。其[定义](../src/platform/agent/engine/definitions.ts)跳过本次生成任务中已经改写的要点，相同重试使用请求回执。[Resume 业务状态](data-architecture.zh-CN.md#三生成成品与删除)
 
+仅聊天入口的[系统指令](../src/platform/agent/ask.ts)要求在用户意图、所需信息或下一步操作存在疑问时，必须调用 `human.ask` 并等待回答，禁止猜测或仅在最终回复中提问。用户取消问题后，不得继续依赖该答案的操作。这是模型指令，不是运行时疑问检测；智能粘贴和 Resume 保持现有指令。
+
+Ask AI 仅获得 Profile 和已有成品的只读操作。其[提示词](../src/platform/agent/ask.ts)、工具列表、Scope 目录及模型 Schema 均不列出 Profile 和 Resume 写入接口。工具发现与执行遵守 [Ask 能力策略](mcp-architecture.zh-CN.md#二注册与流程契约)。
+
 Session 包含用户 Prompt。每个新 Prompt 创建一个 Run，负责该 Prompt 的顶层任务，可包含多项明确要求的操作。相同请求 ID 和载荷返回原 Run。历史消息、工具结果和上下文摘要帮助理解引用。每个新 Run 都有独立的执行状态、Scope 展开和 RunGuard 状态，旧 Run 及其待执行调用不会继续运行。相关入口见 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)和 [Pi 接入](../src/platform/agent/pi/runtime.ts)。
 
 Run 包含按序排列的 ReAct Cycle，编号从 1 开始。每个 Cycle 覆盖一次 Pi 决策、串行工具批次，以及决定后续动作的观察结果。一次决策可以返回多个工具调用，也可以给出最终回答。Cycle 内的上下文压缩可调用模型。这些辅助请求有独立诊断，不产生 Cycle。

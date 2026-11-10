@@ -67,6 +67,32 @@ test('real HTTP and first-party MCP expand Scope, execute and answer without aut
   assert.equal(f.database.connection.prepare('SELECT COUNT(*) n FROM agent_model_requests WHERE run_id=?').get(ids.runId)?.n, 0)
   assert.equal(f.backend.jobs.getJob({ id: f.job.id }).id, f.job.id)
 })
+test('Ask Profile discovery and model requests expose only read interfaces', async t => {
+  const f = await firstPartyFixture(t)
+  const expected = ['profile.get', 'profile.list', 'profile.list_facts', 'profile.list_items']
+  const hidden = /profile\.(?:create|update|add_item|update_item|add_fact|update_fact)\b|resume\.[a-z_]+|artifact\.build|Tailor Resume/
+  const fixture = scriptedModel((request, ordinal) => {
+    assert.doesNotMatch(JSON.stringify(request), hidden)
+    if (ordinal === 1) return [{ name: 'scope.profile', arguments: {} }]
+    assert.deepEqual(request.tools.filter(tool => tool.function.description.startsWith('[profile.'))
+      .map(tool => /^\[([^\]]+)\]/.exec(tool.function.description)![1]).sort(), expected)
+    if (ordinal === 2) {
+      const directory = JSON.parse(request.messages.at(-1)!.content) as { tools: { name: string }[] }
+      assert.deepEqual(directory.tools.map(tool => tool.name).sort(), expected)
+      return [{ name: 'profile.list', arguments: {} }]
+    }
+    return 'I can read saved profiles.'
+  })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => fixture.model, capabilities: async () => capabilities })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, { requestId: randomUUID(), message: 'What profile tools can you use?', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
+  for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
+  const snapshot = tasks.getRun(1, { runId: ids.runId })
+  assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
+  assert.equal(snapshot.run.writeStarted, false)
+  assert.equal(fixture.requests.length, 3)
+})
+
 test('repeated Scopes keep the Run alive without producing activation diagnostics', async t => {
   const f = await firstPartyFixture(t), fixture = scriptedModel((_body, ordinal) => ordinal <= 3 ? [expansion()] : 'Done')
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => fixture.model, capabilities: async () => capabilities })

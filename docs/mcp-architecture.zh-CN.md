@@ -27,7 +27,7 @@ UI    → typed IPC → Domain
 
 [Scope 测试](../tests/scoped-toolset.test.ts)覆盖 Run 隔离、领域展开、权限、重复调用和硬预算。[Provider 测试](../tests/agent-disclosure.test.ts)与[真实 HTTP/MCP 集成](../tests/ask-disclosure.test.ts)保留名称/Schema Hash 校验。Scope 和 Human Ask 验证活动 Run，但绕过业务 RunGuard，不计业务进展、不清除警告/恢复。外部 MCP 保持扁平列表，公开授权业务工具及 `run.begin`、`run.end`、`human.ask`，不公开 Scope。
 
-[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。普通 Job/Profile/Application 管理、Knowledge 只读操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume 和外部 MCP 使用各自的策略。
+[显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除 Profile 写入、全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。Ask 提示词不列出这些写入接口，Scope 目录和模型 Schema 仅暴露授权操作。普通 Job/Application 管理、Profile 与 Knowledge 只读操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume、Profile 导入和外部 MCP 使用各自的策略。
 
 智能粘贴复用 Ask Run 和 RunGuard，并建立独立的认证连接。[服务端](../src/platform/mcp-server/runtime.ts) 在现有 Ask 允许列表内将发现和执行的风险上限设为 COMPUTE。智能粘贴 Run 收尾时关闭该连接。之后在同一会话中发出的普通 Ask 请求使用常规 Ask 连接。[客户端](../src/platform/mcp/first-party-client.ts) · [集成测试](../tests/smart-paste.test.ts)
 
@@ -48,7 +48,7 @@ UI    → typed IPC → Domain
 
 外部宿主调用 `run.begin({}) → {runId}`，每次业务调用均须提供此 UUID 作为 `executionRunId`。[Gateway](../src/platform/mcp-server/server.ts)检查归属和生命周期，剥离协议字段，再按原有严格业务 Schema 校验并调用现有 Guard/Registry/Domain 实现。内部 Schema 不变。`run.end({runId})` 在 BLOCKED 时可用且幂等；已关闭 ID 无法复用。控制操作不进入业务 Registry。不存在 `run.success`、提交、回滚、刷新或暂存协议。业务调用成功即持久化，失败不撤销之前的写入。
 
-[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线，离线仍可发现工具。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)将控制通道握手限制为 5 秒，建立后流连接跨工具调用和 Run 持续开放；普通控制请求仍保留 5 秒超时。在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts)
+[准入 Broker](../src/platform/mcp/run-admission-broker.ts)使用独立的本机私有凭据和绑定连接的 Session Secret，不授予 Memory 权限。外部最多一个 MCP Session 连接 Main；End 释放 Run，但 Session 归属直到断连才释放。Begin 要求 Main 在线；离线或其他外部 Session 占用 Main 时，仍可发现工具和测试连接。启动时连接控制通道若繁忙则延后，Begin 会重试连接，占用期间仍返回 `TOOL_BUSY`。其他 Session 不能凭 UUID 接管。[外部生命周期](../src/platform/mcp/external-run.ts)将控制通道握手限制为 5 秒，建立后流连接跨工具调用和 Run 持续开放；普通控制请求仍保留 5 秒超时。在取消、断连或执行满 15 分钟时中止，等待已开始的工具安全收尾后释放占用。控制通道断开时保留占用，直到收到收尾确认或确认子进程退出。不增加 Run 状态表或业务补偿。[准入测试](../tests/run-admission.test.ts) · [连接测试](../tests/external-mcp.test.ts)
 
 ### Human Ask
 
