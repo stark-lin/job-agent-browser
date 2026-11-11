@@ -35,7 +35,7 @@ function smartPaste(input: unknown): SmartPasteSettings {
   }) }
 }
 
-function merge(input: unknown, current: Preferences, legacy = false): Preferences {
+function merge(input: unknown, current: Preferences): Preferences {
   const value = object(input, ['language', 'theme', 'mailbox', 'ai', 'knowledge', 'smartPaste', 'onboardingCompleted'])
   if ('onboardingCompleted' in value && typeof value.onboardingCompleted !== 'boolean') return fail('INVALID_INPUT')
   if ('language' in value && value.language !== 'en' && value.language !== 'zh-CN') return fail('INVALID_INPUT')
@@ -43,7 +43,7 @@ function merge(input: unknown, current: Preferences, legacy = false): Preference
   return { ...current, ...('onboardingCompleted' in value ? { onboardingCompleted: value.onboardingCompleted as boolean } : {}), ...('smartPaste' in value ? { smartPaste: smartPaste(value.smartPaste) } : {}), ...('knowledge' in value ? { knowledge: knowledgePreferences(value.knowledge) } : {}), language: 'language' in value ? value.language as Preferences['language'] : current.language,
     theme: 'theme' in value ? value.theme as Preferences['theme'] : current.theme,
     mailbox: 'mailbox' in value ? mailbox(value.mailbox) : current.mailbox,
-    ai: 'ai' in value ? aiPreferences(value.ai, legacy) : structuredClone(current.ai) }
+    ai: 'ai' in value ? aiPreferences(value.ai) : structuredClone(current.ai) }
 }
 
 export function createPreferences(path: string, onSaved: (value: Preferences) => void = () => {}) {
@@ -53,7 +53,7 @@ export function createPreferences(path: string, onSaved: (value: Preferences) =>
       if (stored === undefined) return structuredClone(defaultPreferences)
       const value = object(stored, ['version', 'theme', 'language', 'mailbox', 'ai', 'knowledge', 'smartPaste', 'onboardingCompleted'])
       if (value.version !== 1 || !('theme' in value) || !('language' in value) || !('mailbox' in value)) return fail('STORAGE_UNAVAILABLE')
-      return merge({ ...('onboardingCompleted' in value ? { onboardingCompleted: value.onboardingCompleted } : {}), theme: value.theme, language: value.language, mailbox: value.mailbox, ...('ai' in value ? { ai: value.ai } : {}), ...('knowledge' in value ? { knowledge: knowledgePreferences(value.knowledge, true) } : {}), ...('smartPaste' in value ? { smartPaste: value.smartPaste } : {}) }, defaultPreferences, true)
+      return merge({ ...('onboardingCompleted' in value ? { onboardingCompleted: value.onboardingCompleted } : {}), theme: value.theme, language: value.language, mailbox: value.mailbox, ...('ai' in value ? { ai: value.ai } : {}), ...('knowledge' in value ? { knowledge: knowledgePreferences(value.knowledge, true) } : {}), ...('smartPaste' in value ? { smartPaste: value.smartPaste } : {}) }, defaultPreferences)
     } catch { return fail('STORAGE_UNAVAILABLE') }
   }
   return {

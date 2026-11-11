@@ -33,8 +33,8 @@ test('raw export preserves the versioned fields, all states and Pending, long JS
     db.prepare('UPDATE agent_items SET content_json=? WHERE id=?').run(raw, item.id)
     db.prepare('INSERT INTO chat_memory_progress VALUES(?,?,?,?)').run(item.id, ids.sessionId, item.sequence, '{ "history": true }')
     // Reverse insertion order exercises explicit ordinal ordering.
-    db.prepare('INSERT INTO agent_model_requests(run_id,ordinal,metadata_json,activations_json) VALUES(?,?,?,?)').run(current.runId, 125 - i, '{ "ordinal": 0 }', '[  ]')
-    db.prepare('INSERT INTO agent_model_responses(run_id,ordinal,through_sequence,response_json) VALUES(?,?,?,?)').run(current.runId, 125 - i, item.sequence, '{ "capsule": "private" }')
+    db.prepare('INSERT INTO agent_model_requests VALUES(?,?,?,?)').run(current.runId, 125 - i, '{ "ordinal": 0 }', '[  ]')
+    db.prepare('INSERT INTO agent_model_responses VALUES(?,?,?,?)').run(current.runId, 125 - i, item.sequence, '{ "capsule": "private" }')
   }
   f.backend.chats.startCycle(current.runId, 1, 'start-1')
   f.backend.chats.settleCycle(current.runId, 1, 'WARNING', 'NO_PROGRESS_LOOP', 'end-1')
@@ -69,17 +69,14 @@ test('raw export preserves the versioned fields, all states and Pending, long JS
   const active = bundle.runs.find(run => run.run.id === current.runId)!
   assert.equal(active.cycleStatus, 'RUNNING')
   assert.deepEqual(active.cycles, [
-    { index: 1, phase: 'execute', status: 'WARNING', reason: 'NO_PROGRESS_LOOP', modelRequestOrdinal: null, toolCallIds: [], startedAt: 'start-1', finishedAt: 'end-1' },
-    { index: 2, phase: 'execute', status: 'RUNNING', reason: null, modelRequestOrdinal: null, toolCallIds: ['call'], startedAt: 'start-2', finishedAt: null }
+    { index: 1, status: 'WARNING', reason: 'NO_PROGRESS_LOOP', modelRequestOrdinal: null, toolCallIds: [], startedAt: 'start-1', finishedAt: 'end-1' },
+    { index: 2, status: 'RUNNING', reason: null, modelRequestOrdinal: null, toolCallIds: ['call'], startedAt: 'start-2', finishedAt: null }
   ])
   assert(bundle.runs.filter(run => run !== active).every(run => run.cycleStatus === null && run.cycles.length === 0))
   const envelope = { format: 'jab-debug', exportedAt: new Date().toISOString(), app: { version: '1', commit: null, platform: 'test' } }
   const ajv = new Ajv()
   const validators = { 1: ajv.compile(schemaV1), 2: ajv.compile(schemaV2) }
-  const v1 = { ...envelope, schemaVersion: 1 as const, ...bundle, runs: bundle.runs.map(({ cycles, cycleStatus, preparation, ...run }) => ({
-    ...run, items: run.items.map(({ phase, ...item }) => item), modelRequests: run.modelRequests.map(({ phase, ...request }) => request),
-    providerResponses: run.providerResponses.map(({ phase, cycle_index, ...response }) => response)
-  })) }
+  const v1 = { ...envelope, schemaVersion: 1 as const, ...bundle, runs: bundle.runs.map(({ cycles, cycleStatus, ...run }) => run) }
   const v2 = { ...envelope, schemaVersion: 2 as const, ...bundle }
   for (const version of [v1, v2]) {
     const validate = validators[version.schemaVersion]

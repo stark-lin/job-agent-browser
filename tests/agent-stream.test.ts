@@ -1,5 +1,3 @@
-import { createRunExecution } from '../src/platform/agent/engine/execution-context'
-import { observeAgentModel } from '../src/platform/agent/pi/request-observer'
 import { scopedFixture } from './scoped-fixture'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -10,7 +8,7 @@ import { ContextBudget } from '../src/platform/agent/context/budget'
 import { ContextManager } from '../src/platform/agent/context/manager'
 import type { AgentModelEvent, StreamingAgentModel, AgentTools } from '../src/shared/agent'
 import { ToolError } from '../src/shared/tools/errors'
-const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', models: ['test'] }, model: 'test', key: null }
+const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
 const signal = () => new AbortController().signal
 const descriptor = { name: 'job.list', description: 'List', inputSchema: { type: 'object' as const } }
 const frame = (delta: unknown, finish_reason: string | null = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\r\n\r\n`
@@ -52,9 +50,8 @@ test('Pi preserves interleaving, complete call batches, recoverable errors, fata
   const tools: AgentTools = { list: async () => [descriptor], call: async () => { throw new ToolError('TOOL_FORBIDDEN') } }
   const first: AgentModelEvent[] = [{ type: 'reasoning.delta', text: 'Summary' }, { type: 'content.delta', text: 'Reading' }, { type: 'reasoning.delta', text: 'More' }, { type: 'tool_call.ready', call }, { type: 'completed', response: { content: 'Reading', toolCalls: [call] } }]
   const run = (model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void) => {
-    model = observeAgentModel(model, emit)
-    const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
-    const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: { records: [] }, compacting() {}, save(value) { return value } })
+    const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+    const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save(value) { return value } })
     return runPiAgent({ model, tools: scopedFixture(tools), system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
   }
   const model = fixtureModel([activate, first, final('Recovered')]), original = model.stream
@@ -91,35 +88,9 @@ test('Pi executes a batch one tool at a time and waits for all results before mo
     if (path === 'a.md') { entered(); await block }
     active--; return { revision: path }
   } }
-  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
-  const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: { records: [] }, compacting() {}, save: value => value })
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: value => value })
   const pending = runPiAgent({ model, tools: scopedFixture(tools), system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
   await first; assert.equal(requests, 2); assert.deepEqual(order, ['a.md']); assert.equal(active, 1)
   release(); await pending; assert.equal(max, 1); assert.equal(requests, 3)
-})
-
-
-test('a provider that rejects Tool Calling fails immediately with the provider error', async () => {
-  let requests = 0
-  const model = compatibleAgentModel(config, { transport: async (_url, init) => {
-    requests++
-    assert.equal(JSON.parse(String(init?.body)).tools.length, 1)
-    return Response.json({ error: { message: 'This model does not support tools' } }, { status: 400 })
-  } })
-  await assert.rejects(collect(model.stream({ messages: [], tools: [descriptor], signal: signal() })), { code: 'AI_PROVIDER_FAILED' })
-  assert.equal(requests, 1)
-})
-
-for (const limit of ['model', 'tools'] as const) test(`the ${limit} budget spans Prepare and Execute`, async () => {
-  const call = { id: 'scope', name: 'scope.job', arguments: {} }
-  const scope: AgentModelEvent[] = [{ type: 'tool_call.ready', call }, { type: 'completed', response: { content: '', toolCalls: [call] } }]
-  const model = fixtureModel(limit === 'model' ? [final('Prepared')] : [scope, final('Prepared'), scope, final('Executed')])
-  const tools = scopedFixture({ list: async () => [descriptor], call: async () => ({}) })
-  const live = signal(), budget = new ContextBudget({ contextWindow: 32768, maxOutputTokens: 8192, source: 'runtime' }, 'fixture')
-  const run = createRunExecution({ model, budget, signal: live, userSignal: live,
-    maxModelRequests: limit === 'model' ? 1 : 64, maxToolCalls: limit === 'tools' ? 1 : 256,
-    protectedState: [], status() {}, emit() {} })
-  const common = { system: 'Test', message: 'List jobs', tools, allow: ['job.list'], status: 'idle' as const }
-  assert.equal(await run.stage({ ...common, phase: 'prepare' }), 'Prepared')
-  await assert.rejects(run.stage({ ...common, phase: 'execute' }), { code: 'AGENT_STEP_LIMIT' })
 })

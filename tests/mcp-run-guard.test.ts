@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { firstPartyFixture } from './first-party-fixture'
-import { createFixtureAskTasks, fixtureCapabilities, withPreparation } from './ask-fixture'
+import { createFixtureAskTasks, fixtureCapabilities } from './ask-fixture'
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
 import { chatDebugExportRepository } from '../src/platform/database/repositories/chat-debug-export'
 import { toolSnapshot } from '../src/platform/ai/agent-request'
@@ -223,7 +223,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
   let requests = 0
   const read = (id: string, name = 'profile.list') => ({ id, name, arguments: {} })
   const skip = { id: 'skip-write', name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Never execute' } }
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', capabilities: async () => fixtureCapabilities, model: () => withPreparation({ complete: async () => assert.fail('no summary'), async *stream(input) {
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => fixtureCapabilities, model: () => ({ complete: async () => assert.fail('no summary'), async *stream(input) {
     input.onRequestPrepared?.({ providerId: 'fixture', modelId: 'test', preparedAt: 'now', tools: toolSnapshot(input.tools) })
     const system = input.messages.find(message => message.role === 'system')?.content ?? ''
     switch (++requests) {
@@ -260,7 +260,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
   const { cycles, cycleStatus } = chatDebugExportRepository(f.database.connection).getDebugBundle(ids.sessionId).runs.find(entry => entry.run.id === ids.runId)!
   assert.equal(snapshot.run.state, ending === 'blocked' ? 'failed' : 'completed', snapshot.run.error ?? '')
   assert.equal(cycleStatus, ending === 'blocked' ? 'FAILED' : 'SUCCESS')
-  const businessCycles = cycles.filter(c => c.phase === 'execute' && !c.toolCallIds.some(id => id.startsWith('discover-')))
+  const businessCycles = cycles.filter(c => !c.toolCallIds.some(id => id.startsWith('discover-')))
   if (ending === 'same-batch') {
     assert.deepEqual(businessCycles.map(c => c.status), ['CONTINUE', 'SUCCESS'])
     assert(snapshot.items.some(item => item.content.type === 'tool_call' && item.content.guard?.level === 'warning'))

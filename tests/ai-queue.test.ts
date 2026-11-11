@@ -4,7 +4,7 @@ import { createAIService } from '../src/platform/ai'
 import type { AIEvent, AISettings } from '../src/shared/ai'
 
 const choice = { providerId: 'local', modelId: 'model' }
-const settings: AISettings = { default: choice, providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1', models: ['model'] }] }
+const settings: AISettings = { default: choice, providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1', requiresKey: false, models: ['model'], defaultModel: 'model' }] }
 const input = { choice, messages: [{ role: 'user', content: 'Extract data' }] }
 const tick = () => new Promise<void>(resolve => setImmediate(resolve))
 function fixture() {

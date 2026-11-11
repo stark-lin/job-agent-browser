@@ -1,5 +1,5 @@
 import { fail } from '../../domain/common/errors'
-import type { AISettings, AIProvider, ModelOverride } from '../../shared/ai'
+import { defaultAITimeouts, type AISettings, type AIProvider, type AITimeouts, type ModelCapabilities } from '../../shared/ai'
 import { object } from './validation'
 
 export function providerId(input: unknown): string {
@@ -18,44 +18,40 @@ export function modelId(input: unknown): string {
   if (typeof input !== 'string' || !input.trim() || input.length > 200 || /[\s\x00-\x1f]/.test(input)) return fail('INVALID_INPUT')
   return input
 }
-export function apiKey(input: unknown): string {
-  if (typeof input !== 'string' || input.length > 4096 || /\s/.test(input.trim())) return fail('INVALID_INPUT')
-  return input.trim()
-}
-
-function tokenLimit(input: unknown): number | undefined {
-  if (input === undefined) return undefined
-  if (typeof input !== 'number' || !Number.isSafeInteger(input) || input < 1 || input > 100_000_000) return fail('INVALID_INPUT')
-  return input
-}
-
-export function aiProvider(input: unknown, legacy = false): AIProvider {
-  const p = object(input, ['id', 'name', 'baseURL', 'models', 'overrides', ...(legacy ? ['requiresKey', 'defaultModel', 'parallelModels', 'capabilities'] : [])])
-  if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || !Array.isArray(p.models) || p.models.length > 100) return fail('INVALID_INPUT')
-  const models = p.models.map(modelId)
-  if (new Set(models).size !== models.length) return fail('INVALID_INPUT')
-  const overrides: Record<string, ModelOverride> = Object.create(null)
-  const configured = p.overrides ?? p.capabilities
-  if (configured !== undefined) {
-    for (const [id, raw] of Object.entries(object(configured, models))) {
-      const old = p.overrides === undefined
-      const c = object(raw, old ? ['contextWindow', 'maxOutputTokens', 'source', 'verified'] : ['contextWindow', 'maxOutputTokens'])
-      if (old && c.source !== 'manual') continue
-      const contextWindow = tokenLimit(c.contextWindow), maxOutputTokens = tokenLimit(c.maxOutputTokens)
-      if (contextWindow && maxOutputTokens && maxOutputTokens > contextWindow) return fail('INVALID_INPUT')
-      if (contextWindow || maxOutputTokens) overrides[id] = { ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}) }
+export function aiPreferences(input: unknown): AISettings {
+  const value = object(input, ['providers', 'default', 'timeouts'])
+  const timeouts = { ...defaultAITimeouts }
+  if ('timeouts' in value) {
+    const fields = Object.keys(defaultAITimeouts) as (keyof AITimeouts)[]
+    const configured = object(value.timeouts, fields)
+    for (const field of fields) {
+      const seconds = configured[field]
+      if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds < 1 || seconds > 3600) return fail('INVALID_INPUT')
+      timeouts[field] = seconds
     }
   }
-  return { id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), models, ...(Object.keys(overrides).length ? { overrides } : {}) }
-}
-
-export function aiPreferences(input: unknown, legacy = false): AISettings {
-  const value = object(input, ['providers', 'default', ...(legacy ? ['timeouts'] : [])])
   if (!Array.isArray(value.providers) || value.providers.length > 20) return fail('INVALID_INPUT')
-  const providers = value.providers.map(entry => aiProvider(entry, legacy))
+  const providers = value.providers.map((entry): AIProvider => {
+    const p = object(entry, ['id', 'name', 'baseURL', 'requiresKey', 'models', 'defaultModel', 'parallelModels', 'capabilities'])
+    if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || typeof p.requiresKey !== 'boolean' || !Array.isArray(p.models) || p.models.length > 100) return fail('INVALID_INPUT')
+    const models = p.models.map(modelId)
+    if (new Set(models).size !== models.length || typeof p.defaultModel !== 'string' || (p.defaultModel !== '' && !models.includes(p.defaultModel))) return fail('INVALID_INPUT')
+    const capabilities: Record<string, ModelCapabilities> = Object.create(null)
+    if (p.capabilities !== undefined) {
+      const configured = object(p.capabilities, models)
+      for (const [id, raw] of Object.entries(configured)) {
+        const c = object(raw, ['contextWindow', 'maxOutputTokens', 'source', 'verified'])
+        if (!Number.isSafeInteger(c.contextWindow) || Number(c.contextWindow) < 1 || Number(c.contextWindow) > 100000000
+          || !Number.isSafeInteger(c.maxOutputTokens) || Number(c.maxOutputTokens) < 1 || Number(c.maxOutputTokens) > Number(c.contextWindow)
+          || !['catalog', 'provider', 'runtime', 'manual'].includes(String(c.source)) || typeof c.verified !== 'boolean') return fail('INVALID_INPUT')
+        capabilities[id] = { contextWindow: Number(c.contextWindow), maxOutputTokens: Number(c.maxOutputTokens), source: c.source as ModelCapabilities['source'], verified: c.verified }
+      }
+    }
+    return { ...(Object.keys(capabilities).length ? { capabilities } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
+  })
   if (new Set(providers.map(p => p.id)).size !== providers.length) return fail('INVALID_INPUT')
-  if (value.default === null) return { providers, default: null }
+  if (value.default === null) return { providers, default: null, timeouts }
   const choice = object(value.default, ['providerId', 'modelId']), id = providerId(choice.providerId), model = modelId(choice.modelId)
   if (!providers.some(p => p.id === id && p.models.includes(model))) return fail('INVALID_INPUT')
-  return { providers, default: { providerId: id, modelId: model } }
+  return { providers, default: { providerId: id, modelId: model }, timeouts }
 }

@@ -1,15 +1,14 @@
 import { fail } from '../../domain/common/errors'
-import { abortable } from '../../shared/agent'
-import { AI_TIMEOUT, type AISettings } from '../../shared/ai'
-import { apiKey, baseURL, providerId } from '../storage/ai-preferences'
+import { defaultAITimeouts, type AISettings } from '../../shared/ai'
+import { providerId } from '../storage/ai-preferences'
 import { object } from '../storage/validation'
 import type { Fetch } from './compatible'
-import { checkResponse, openAIURL, requestTimeout } from './transport'
+import { checkResponse, openAIURL, providerConfig, requestTimeout } from './transport'
 
-export async function fetchModelMetadata(url: string | URL, key: string | null, signal: AbortSignal, transport: Fetch): Promise<unknown> {
-  const response = await checkResponse(await transport(url, {
+async function fetchModels(config: ReturnType<typeof providerConfig>, signal: AbortSignal, transport: Fetch): Promise<string[]> {
+  const response = await checkResponse(await transport(openAIURL(config.provider.baseURL, 'models'), {
     method: 'GET', redirect: 'error', signal,
-    headers: { Accept: 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) }
+    headers: { Accept: 'application/json', ...(config.key ? { Authorization: `Bearer ${config.key}` } : {}) }
   }))
   if (!response.body || !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     await response.body?.cancel(); return fail('AI_PROTOCOL_ERROR')
@@ -19,20 +18,15 @@ export async function fetchModelMetadata(url: string | URL, key: string | null, 
   try {
     for (;;) {
       signal.throwIfAborted()
-      const part = await abortable(reader.read(), signal)
+      const part = await reader.read()
       if (part.done) break
       length += part.value.length
       if (length > 1000000) fail('AI_PROTOCOL_ERROR')
       chunks.push(part.value)
     }
     try { payload = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))) } catch { return fail('AI_PROTOCOL_ERROR') }
-  } finally { void reader.cancel().catch(() => {}); reader.releaseLock() }
-  return payload
-}
-
-async function discoverModels(endpoint: string, key: string | null, signal: AbortSignal, transport: Fetch): Promise<string[]> {
-  const payload = await fetchModelMetadata(openAIURL(endpoint, 'models'), key, signal, transport)
-  if (!payload || typeof payload !== 'object' || !('data' in payload) || !Array.isArray(payload.data) || !payload.data.length || payload.data.length > 10000) return fail('AI_PROTOCOL_ERROR')
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
+  if (!payload || typeof payload !== 'object' || !('data' in payload) || !Array.isArray(payload.data) || payload.data.length > 10000) return fail('AI_PROTOCOL_ERROR')
   const models = payload.data.map((entry: unknown) => {
     if (!entry || typeof entry !== 'object' || !('id' in entry) || typeof entry.id !== 'string' || !entry.id.trim() || entry.id.length > 200 || /[\s\x00-\x1f]/.test(entry.id)) return fail('AI_PROTOCOL_ERROR')
     return entry.id
@@ -46,14 +40,11 @@ export function createModelDiscovery(deps: { settings(): AISettings; key(id: str
   let disposed = false
   return {
     list(owner: number, input: unknown): Promise<string[]> {
-      const args = object(input, ['baseURL', 'apiKey', 'providerId'])
-      const endpoint = baseURL(args.baseURL), id = args.providerId === undefined ? undefined : providerId(args.providerId)
-      const entered = args.apiKey === undefined ? '' : apiKey(args.apiKey)
+      const id = providerId(object(input, ['providerId']).providerId)
       if (disposed || requests.size >= 16 || [...requests.values()].some(request => request.owner === owner)) fail('AI_PROVIDER_FAILED')
-      const saved = !entered && id ? deps.settings().providers.find(provider => provider.id === id) : undefined
-      const key = entered || (saved && new URL(saved.baseURL).origin === new URL(endpoint).origin ? deps.key(saved.id) : null)
-      const controller = new AbortController(), timeout = requestTimeout(controller.signal, deps.timeoutMs ?? AI_TIMEOUT.models)
-      const done = abortable(discoverModels(endpoint, key, timeout.signal, deps.transport ?? fetch), timeout.signal).then(models => {
+      const settings = deps.settings(), config = providerConfig(settings, deps.key, id)
+      const controller = new AbortController(), timeout = requestTimeout(controller.signal, deps.timeoutMs ?? (settings.timeouts ?? defaultAITimeouts).modelsSeconds * 1000)
+      const done = fetchModels(config, timeout.signal, deps.transport ?? fetch).then(models => {
         timeout.signal.throwIfAborted(); return models
       }).catch(error => {
         if (controller.signal.aborted) fail('AI_CANCELLED')

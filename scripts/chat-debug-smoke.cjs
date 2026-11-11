@@ -53,7 +53,7 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
     const rows = (table, suffix = '') => plain(db.prepare(`SELECT * FROM ${table} WHERE session_id=? ${suffix}`).all(session.id))
     for (const entry of bundle.runs) {
       const cycles = db.prepare('SELECT * FROM agent_react_cycles WHERE run_id=? ORDER BY cycle_index').all(entry.run.id)
-      assert.deepEqual(entry.cycles, cycles.map(c => ({ index: c.cycle_index, phase: c.phase, status: c.status, reason: c.reason,
+      assert.deepEqual(entry.cycles, cycles.map(c => ({ index: c.cycle_index, status: c.status, reason: c.reason,
         modelRequestOrdinal: c.model_request_ordinal, toolCallIds: JSON.parse(c.tool_call_ids_json), startedAt: c.started_at, finishedAt: c.finished_at })))
       assert.equal(entry.cycleStatus, cycles.at(-1)?.status ?? null)
     }

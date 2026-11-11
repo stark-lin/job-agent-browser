@@ -1,6 +1,6 @@
 import { fail } from '../../domain/common/errors'
 import { object } from './validation'
-import { apiKey, providerId } from './ai-preferences'
+import { providerId } from './ai-preferences'
 import { readJSON, writeJSON } from './files'
 
 export interface KeyProtection {
@@ -33,25 +33,16 @@ export function createSecrets(path: string, protection: KeyProtection) {
     return { ...value, provider: providerId(value.provider) }
   }
   function status(id: string) { return { configured: Object.hasOwn(load(), id), available: protection.available() } }
-  function replaceKey(input: unknown) {
-    const value = provider(input, ['provider', 'apiKey'])
-    const key = apiKey(value.apiKey)
-    if (!key) return fail('INVALID_INPUT')
-    if (!protection.available()) return fail('ENCRYPTION_UNAVAILABLE')
-    const providers = load()
-    const encrypted = protection.encrypt(key).toString('base64')
-    writeJSON(path, { version: 2, providers: { ...providers, [value.provider]: encrypted } })
-    return () => writeJSON(path, { version: 2, providers })
-  }
   return {
     hasProviderKey(input: unknown) { return status(provider(input).provider) },
     saveProviderKey(input: unknown) {
-      replaceKey(input)
-      return { configured: true, available: true }
-    },
-    saveConnectionKey<T>(input: unknown, finish: () => T): T {
-      const restore = replaceKey(input)
-      try { return finish() } catch (error) { restore(); throw error }
+      const value = provider(input, ['provider', 'apiKey'])
+      if (typeof value.apiKey !== 'string' || !value.apiKey.trim() || value.apiKey.length > 4096 || /\s/.test(value.apiKey.trim())) return fail('INVALID_INPUT')
+      if (!protection.available()) return fail('ENCRYPTION_UNAVAILABLE')
+      const providers = load()
+      providers[value.provider] = protection.encrypt(value.apiKey.trim()).toString('base64')
+      writeJSON(path, { version: 2, providers })
+      return status(value.provider)
     },
     deleteProviderKey(input: unknown) {
       const id = provider(input).provider, providers = load()

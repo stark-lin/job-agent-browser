@@ -18,7 +18,7 @@ export function AskAIPage() {
   const sidebar = <SessionSidebar sessions={chat.state.sessions} total={chat.state.total} activeId={chat.id} running={running} select={id => { chat.ask.select(id); setDrawer(false) }} more={() => void chat.ask.refreshSessions(true)} rename={(id, title) => chat.ask.rename(id, title)} copyDebugJson={sessionId => data.chats.copyDebugJson({ sessionId })} remove={id => chat.ask.remove(id)} />
   const error = chat.state.error, knownError = error && Object.hasOwn(t($ => $.ask.errors, { returnObjects: true }), error)
   const runtime = chat.active ?? [...chat.runs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0], status = runtime?.runtimeStatus
-  const runtimeKeys = { pending: 'pending', preparing: 'preparing', executing: 'executing', 'context.compacting': 'compacting', 'human.waiting': 'humanWaiting' } as const
+  const runtimeKeys = { pending: 'pending', 'context.compacting': 'compacting', 'human.waiting': 'humanWaiting', 'tools.searching': 'searching', 'tools.activating': 'activating' } as const
   return <main className="ai-page">
     {narrow ? <Drawer open={drawer} title={t($ => $.ask.sessions)} closeLabel={t($ => $.ask.close)} onClose={() => setDrawer(false)}>{sidebar}</Drawer> : <aside className="ai-session-sidebar">{sidebar}</aside>}
     <section className={`ai-conversation${!chat.id ? ' ai-conversation--empty' : ''}`} aria-label={t($ => $.ask.conversation)}>

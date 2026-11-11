@@ -1,5 +1,0 @@
-.ai-connection-results { display: flex; flex-direction: column; gap: var(--space-1); }
-.ai-connection-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.ai-connection-results > div:first-child { color: var(--muted); font-size: var(--font-xs); line-height: var(--line-xs); }
-.ai-connection-results > :not(:first-child) { padding-block: 0; min-height: var(--control-lg); }
-.ai-connection-row > :first-child { min-width: 0; overflow-wrap: anywhere; }

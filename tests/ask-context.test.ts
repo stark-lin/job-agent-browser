@@ -11,10 +11,11 @@ import { providerTools } from '../src/platform/ai/agent-protocol'
 import { resourceRecord, updateResourceRecords } from '../src/platform/agent/context/resources'
 import type { AgentModel, AgentMessage, AgentToolDescriptor } from '../src/shared/agent'
 import type { ContextCheckpoint } from '../src/shared/ask'
-const capability = (contextWindow = 65536) => ({ contextWindow, maxOutputTokens: 8192, source: 'manual' as const })
+const capability = (contextWindow = 65536) => ({ contextWindow, maxOutputTokens: 8192, source: 'manual' as const, verified: true })
 const live: AgentMessage[] = [{ role: 'system', content: 'Application instructions' }, { role: 'user', content: 'Current task' }]
 test('model capability gates and budgets use actual limits, including windows above 128K', () => {
-  assert.equal(new ContextBudget(capability(32768), 'unknown').input, 20480)
+  assert.throws(() => new ContextBudget({ ...capability(), verified: false }, 'unknown'), { code: 'ASK_CONTEXT_UNKNOWN' })
+  assert.throws(() => new ContextBudget(capability(32768), 'unknown'), { code: 'ASK_CONTEXT_TOO_SMALL' })
   assert.equal(new ContextBudget(capability(), 'unknown').input, 53248)
   assert(new ContextBudget(capability(262144), 'unknown').input > 131072)
   assert.throws(() => new ContextBudget(capability(), 'unknown').assert([{ role: 'user', content: 'x'.repeat(65536) }], []), { code: 'ASK_CONTEXT_OVERFLOW' })
@@ -24,13 +25,13 @@ test('incremental compaction persists a monotonic boundary only after successful
   let checkpoint: ContextCheckpoint = { summary: '', compactedThroughSequence: 0, revision: 0 }, saves = 0
   const turns = Array.from({ length: 10 }, (_, n) => ({ sequence: n + 1, messages: [{ role: 'user' as const, content: `Turn ${n}: ` + 'x'.repeat(5500) }] }))
   const model: AgentModel = { complete: async () => ({ content: 'Confirmed: preserve goal. Pending: unfinished write remains uncertain.', toolCalls: [] }) }
-  const context = new ContextManager({ budget, model, checkpoint, turns, memory: '', protectedState: { records: [] }, compacting() {}, save(value, revision) {
+  const context = new ContextManager({ budget, model, checkpoint, turns, memory: '', protectedState: [], compacting() {}, save(value, revision) {
     assert.equal(revision, checkpoint.revision); assert(value.compactedThroughSequence > checkpoint.compactedThroughSequence)
     checkpoint = { ...value, revision: revision + 1 }; saves++; return checkpoint
   } })
   const result = await context.prepare(live, [], new AbortController().signal)
   assert(saves > 0); assert(budget.estimate(result, []) <= budget.input); assert.equal(turns.length, 10)
-  const failing = new ContextManager({ budget, model: { complete: async () => { throw new Error('fixture') } }, checkpoint: { summary: 'old', compactedThroughSequence: 0, revision: 0 }, turns, memory: '', protectedState: { records: [] }, compacting() {}, save() { throw new Error('must not save') } })
+  const failing = new ContextManager({ budget, model: { complete: async () => { throw new Error('fixture') } }, checkpoint: { summary: 'old', compactedThroughSequence: 0, revision: 0 }, turns, memory: '', protectedState: [], compacting() {}, save() { throw new Error('must not save') } })
   await assert.rejects(failing.prepare(live, [], new AbortController().signal), /fixture/)
 })
 test('Scope expansion cannot authorize forbidden tools', async () => {
@@ -61,29 +62,11 @@ test('Core uses a local bounded Unicode view, never recalls or writes, and only 
   await assert.rejects(loadCoreMemory({ ...tools, call: async () => { throw new ToolError('TOOL_UNAVAILABLE') } }, budget, signal), { code: 'TOOL_UNAVAILABLE' })
 })
 test('LM Studio deployment context overrides a larger manual or theoretical model window', async () => {
-  const choice = { providerId: 'local', modelId: 'model' }, settings = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234', models: ['model'], overrides: { model: { contextWindow: 262144, maxOutputTokens: 8192 } } }], default: choice }
+  const choice = { providerId: 'local', modelId: 'model' }, settings = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234', requiresKey: false, models: ['model'], defaultModel: 'model', capabilities: { model: capability(262144) } }], default: choice }
   const transport: typeof fetch = async () => new Response(JSON.stringify({ models: [{ key: 'model', max_context_length: 262144, loaded_instances: [{ id: 'model', config: { context_length: 32768 } }] }] }), { headers: { 'Content-Type': 'application/json' } })
   const actual = await resolveAskCapabilities(settings, choice, null, new AbortController().signal, transport)
   assert.equal(actual.contextWindow, 32768); assert.equal(actual.source, 'runtime')
-  assert.equal(new ContextBudget(actual, 'model').input, 20480)
-})
-
-test('provider metadata and endpoint-matched catalog entries outrank manual and fallback limits', async () => {
-  const choice = { providerId: 'custom', modelId: 'gpt-4.1' }, signal = new AbortController().signal
-  const provider = { id: 'custom', name: 'Custom', baseURL: 'https://custom.example/v1', models: [choice.modelId] }
-  const settings = { providers: [provider], default: choice }
-  const missing: typeof fetch = async () => new Response(null, { status: 404 })
-  assert.deepEqual(await resolveAskCapabilities(settings, choice, null, signal, missing), {
-    contextWindow: 65536, maxOutputTokens: 8192, source: 'fallback'
-  })
-  const manual = { providers: [{ ...provider, overrides: { 'gpt-4.1': { contextWindow: 16384 } } }], default: choice }
-  assert.equal((await resolveAskCapabilities(manual, choice, null, signal, missing)).source, 'manual')
-  const advertised: typeof fetch = async () => Response.json({ data: [{ id: choice.modelId, context_length: 32768, max_output_tokens: 4096 }] })
-  assert.deepEqual(await resolveAskCapabilities(manual, choice, null, signal, advertised), {
-    contextWindow: 32768, maxOutputTokens: 4096, source: 'provider'
-  })
-  const catalog = { providers: [{ ...provider, baseURL: 'https://api.openai.com' }], default: choice }
-  assert.equal((await resolveAskCapabilities(catalog, choice, null, signal, missing)).source, 'catalog')
+  assert.throws(() => new ContextBudget(actual, 'model'), { code: 'ASK_CONTEXT_TOO_SMALL' })
 })
 
 test('resource checkpoints replace completed state while retaining uncertain writes and exact recovery paths', () => {
@@ -109,7 +92,7 @@ for (const outcome of ['success', 'failure', 'cancel'] as const) test(`compactio
   } }
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 },
     turns: Array.from({ length: 8 }, (_, i) => ({ sequence: i + 1, messages: [{ role: 'user' as const, content: 'x'.repeat(6000) }] })),
-    memory: '', protectedState: { records: [] }, compacting() {}, save(value) { assert(!compacting); saves++; return { ...value, revision: value.revision + 1 } } })
+    memory: '', protectedState: [], compacting() {}, save(value) { assert(!compacting); saves++; return { ...value, revision: value.revision + 1 } } })
   const pending = context.prepare(live, [], controller.signal).then(() => { assert(!compacting); assert(saves > 0); inferences++ })
   const checked = outcome === 'success' ? pending : assert.rejects(pending)
   await began; assert.equal(inferences, 0); assert.equal(saves, 0)

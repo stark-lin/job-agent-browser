@@ -20,7 +20,7 @@ test('one-shot completion has no tools and rejects unexpected calls', async () =
 })
 
 test('adapter rejects illegal JSON arguments, protocol variants, truncation and empty output; timeouts are bounded', async () => {
-  const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', models: ['test'] }, model: 'test', key: null }
+  const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
   const input = { messages: [], tools: [descriptor('profile.get'), descriptor('profile_get')], signal: signal() }
   for (const payload of [null, { choices: [] }, { choices: [{ finish_reason: 'length', message: { role: 'assistant', content: 'partial' } }] },
     { choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '' } }] },

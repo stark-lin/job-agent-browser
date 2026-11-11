@@ -48,15 +48,12 @@ function legacy(t: import('node:test').TestContext) {
   backend.generation.beginValidation(run.id)
   backend.generation.preparePublication(run.id)
   backend.generation.publishArtifact({ runId: run.id })
-  const sessionId = randomUUID(), runId = randomUUID()
-  db.prepare('INSERT INTO chat_sessions VALUES(?,?,?,?,?,?)').run(sessionId, 'Legacy session', 'fixture', 'test', 'start', 'start')
-  db.prepare(`INSERT INTO agent_runs(id,session_id,provider_id,model_id,state,request_id,request_hash,owner_runtime_id,created_at,admission)
-    VALUES(?,?,?,?,'running',?,?,?,?,'admitted')`).run(runId, sessionId, 'fixture', 'test', randomUUID(), 'hash', backend.lease.id, 'start')
-  db.prepare("INSERT INTO agent_items VALUES(?,?,?,1,'completed',?,'start','start')").run(randomUUID(), sessionId, runId, '{"type":"user_message","text":"Keep transcript"}')
-  db.prepare("INSERT INTO agent_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,1,'RUNNING','start')").run(runId)
-  db.prepare('INSERT INTO agent_model_requests(run_id,ordinal,metadata_json) VALUES(?,1,?)').run(runId, '{"ordinal":1,"purpose":"agent-turn"}')
-  db.prepare('INSERT INTO agent_model_responses VALUES(?,1,1,?)').run(runId, '{"content":"Keep provider reply","toolCalls":[]}')
-  db.prepare("UPDATE agent_react_cycles SET status='CONTINUE',model_request_ordinal=1,finished_at='end' WHERE run_id=?").run(runId)
+  const prompt = backend.chats.start({ requestId: randomUUID(), message: 'Keep transcript', choice: { providerId: 'fixture', modelId: 'test' } })
+  backend.chats.startCycle(prompt.runId, 1, 'start')
+  backend.chats.saveModelRequest(prompt.runId, { ordinal: 1, providerId: 'fixture', modelId: 'test', preparedAt: 'start', purpose: 'agent-turn', loadoutVersion: 1, expectedTools: [], piTools: [], tools: [], verification: 'matched' }, 1)
+  backend.chats.saveProviderResponse(prompt.runId, { content: 'Keep provider reply', toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } }, 1, 1)
+  backend.chats.append(prompt.runId, { type: 'assistant_message', text: 'Keep answer' }, 'completed')
+  backend.chats.settleCycle(prompt.runId, 1, 'CONTINUE', null, 'end')
   // Seed the frozen START-only audit/owner rows which V22 intentionally discards.
   db.function('capability_audit_allowed', () => 1)
   const invocationId = randomUUID()
@@ -86,11 +83,6 @@ test('V21 upgrade discards audit history while preserving business state, receip
   assert.throws(() => db.prepare('UPDATE facts SET profile_id=? WHERE id=?').run(randomUUID(), f.fact.id))
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
   migrate(db)
-  for (const table of ['agent_items', 'agent_react_cycles', 'agent_model_requests', 'agent_model_responses']) {
-    assert(rows(db, table).length > 0)
-    assert(rows(db, table).every(row => row.phase === 'execute'), table)
-  }
-  assert.deepEqual(rows(db, 'agent_run_preparations'), [])
 })
 
 test('failed V22 rolls back dropped tables, triggers, audit history and journal together', t => {

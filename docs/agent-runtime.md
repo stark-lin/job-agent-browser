@@ -6,15 +6,9 @@ Purpose. Define the shared execution contract for Ask AI, Smart Paste, and deskt
 
 ## 1. Prompt, Run and Cycle
 
-The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume runs one Execute stage with scoped tools and an isolated context with read/write Memory and read-only Knowledge. Its Agent Run links to a separate GenerationRun. Its [definition](../src/platform/agent/engine/definitions.ts) skips bullets already rewritten in that generation task and uses request receipts for identical retries. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
+The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume uses scoped tools and an isolated context with read/write Memory and read-only Knowledge. Its Agent Run links to a separate GenerationRun. Its [definition](../src/platform/agent/engine/definitions.ts) skips bullets already rewritten in that generation task and uses request receipts for identical retries. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
 
-[Ask Workflow](../src/platform/agent/engine/ask-workflow.ts) starts with read-only Prepare. Prepare consults relevant sources, resolves essential ambiguities and returns a self-contained handoff. Execute receives the original request and handoff as user-level content. It uses its own [system prompt](../src/platform/agent/prompts/execute.ts), Context Manager and Scope expansion to perform authorized work. Both stages share the Run ID, MCP authorization session, RunGuard, protected state, model capabilities, Cycle numbering and limits of 64 model requests including summaries and 256 tool calls.
-
-The [parser](../src/platform/agent/prepare.ts) accepts one JSON object with surrounding whitespace or a single enclosing Markdown fence, with an optional `json` label. It trims the required nonempty `prompt` or `reason` and drops extra top-level fields. `ready` starts Execute. `blocked` completes the Run with a visible reason. Malformed output or missing required fields fail with `AGENT_PROTOCOL_ERROR`.
-
-Both Ask stages use `human.ask` for blocking user decisions. [Prepare instructions](../src/platform/agent/prompts/prepare.ts) focus on essential business questions and confirmed answers. Skipping an optional question lets Prepare continue. An unavailable essential answer can lead to `blocked`. Execute can ask about new decisions and uses the handoff for answers already confirmed.
-
-[Main](../src/platform/electron/ask-agent-tasks.ts) snapshots Preferences language when a Chat or Smart Paste Run starts, including queued Runs. The stage prompts use English or Simplified Chinese from that snapshot. An explicit language request takes precedence for user-facing replies and questions. Protocol keys and tool schemas stay fixed.
+Chat-only [system instructions](../src/platform/agent/ask.ts) require `human.ask` and waiting for an answer whenever intent, required information, or the next action is uncertain; guessing or asking only in the final response is prohibited. Cancelling a question prevents actions that depend on its answer. This is a model instruction, not runtime detection of uncertainty; Smart Paste and Resume retain their existing instructions.
 
 Ask AI receives read-only Profile and existing artifact operations. Its [prompt](../src/platform/agent/ask.ts), tool lists, Scope directories and model schemas omit Profile and Resume write interfaces. Discovery and execution enforce the [Ask capability policy](mcp-architecture.md#2-registration-and-workflow-contracts).
 
@@ -30,11 +24,11 @@ A Run holds an ordered sequence of ReAct Cycles, indexed from 1. Each Cycle cove
 | `CONTINUE` | The tool round settled normally | Start the next Cycle |
 | `WARNING` | RunGuard warning remains active | Start the next Cycle with trusted warning guidance |
 | `RECOVERING` | RunGuard recovery remains active | Start the next Cycle with trusted recovery guidance |
-| `SUCCESS` | The stage has committed a valid final result | Advance to Execute after ready Prepare, otherwise stop |
+| `SUCCESS` | A valid final answer and host finalization have committed | Stop |
 | `FAILED` | A fatal runtime error, hard block, or uncertain write stopped execution | Stop |
 | `CANCELLED` | The user stopped execution without a known fatal cause | Stop |
 
-A Cycle starts in `RUNNING` and settles once. `CONTINUE` records a normal round and permits another decision. `SUCCESS` settles the current stage. The next Cycle may start only after a ready Prepare handoff. [State machine](../src/platform/agent/react-cycle/machine.ts)
+A Cycle starts in `RUNNING` and settles once. `CONTINUE` records a normal round and permits another decision. `SUCCESS` is the terminal outcome of a completed Run. [State machine](../src/platform/agent/react-cycle/machine.ts)
 
 ```mermaid
 stateDiagram-v2
@@ -51,15 +45,17 @@ The latest Cycle is a projection independent of the Run lifecycle. A pending Run
 
 ```mermaid
 stateDiagram-v2
-    state "Prepare Cycles" as Prepare
-    state "Execute Cycles" as Execute
-    [*] --> Prepare: Ask or Smart Paste admitted
-    [*] --> Execute: Resume admitted
-    Prepare --> Prepare: CONTINUE / WARNING / RECOVERING
-    Prepare --> Execute: SUCCESS and ready
-    Prepare --> [*]: SUCCESS and blocked / FAILED / CANCELLED
-    Execute --> Execute: CONTINUE / WARNING / RECOVERING
-    Execute --> [*]: SUCCESS / FAILED / CANCELLED
+    state "No Cycle" as Empty
+    state "Latest Cycle RUNNING" as Active
+    state "Latest Cycle CONTINUE / WARNING / RECOVERING" as Next
+    state "Latest Cycle SUCCESS / FAILED / CANCELLED" as Stop
+    [*] --> Empty
+    Empty --> Active: first decision starts
+    Active --> Next: Cycle settles and permits continuation
+    Next --> Active: next decision starts
+    Active --> Stop: terminal settlement
+    Empty --> [*]: Run ends before a Cycle
+    Stop --> [*]
 ```
 
 ```mermaid
@@ -77,7 +73,7 @@ Pi `turn_start` opens the Cycle before model preparation. `finishTurn` resolves 
 
 RunGuard owns progress detection and hard blocks. Runtime uses the latest trusted Guard snapshot. Scope discovery or Human Ask preserves an outstanding warning or recovery. A fresh business result can clear it within the same batch. Recovery stops dispatch of the remaining batch, retains the observations already received, and injects guidance into the next request after compaction. The next decision may use another authorized source or answer from confirmed evidence. Normal tool errors become observations. A known fatal cause takes precedence over generic cancellation. [MCP policy](mcp-architecture.md#agent-run-protection)
 
-[Smart Paste](architecture.md#smart-paste-and-global-banner) observes Execute assistant deltas and a host-only Execute tool-turn signal from Pi. The host can retract that turn's temporary field text without altering the recorded conversation or Cycle transitions.
+[Smart Paste](architecture.md#smart-paste-and-global-banner) observes the existing assistant deltas and a host-only tool-turn result from Pi. The host can retract that turn's temporary field text without altering the recorded conversation or Cycle transitions.
 
 
 The volatile Guard execution has its own lifecycle below. Main allocates its UUID automatically for internal work or on external Begin. At most one execution is active globally; a competing internal execution fails with `TOOL_BUSY` before model/tool execution. Same-Session queued Prompts keep their existing FIFO. Guard closure waits for started tools and frees admission; business writes remain persisted on failure, cancellation, timeout or disconnect. Resume Controller retains the same occupancy across Agent finalization and business publication/output. [Protocol and authorization](mcp-architecture.md#execution-identity-and-external-protocol)
@@ -93,11 +89,11 @@ stateDiagram-v2
 
 ## 4. Finalization and trace
 
-Main commits the Prepare handoff with its successful Cycle before starting Execute. At Run end Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Business writes persist immediately and are outside the Run finalization transaction. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/agent-recorder.ts)
+Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/agent-recorder.ts)
 
 The host lifecycle manages admission, resources, recovery and UI projection. Initialization failure or cancellation before the first turn leaves zero Cycles. A failure or cancellation between Cycles preserves the last settled Cycle. After a process interruption, the host may report `interrupted` while the last Cycle still shows `RUNNING`, the last recorded state before the crash. No work is resumed.
 
-Copy Debug JSON v2 includes the prepared result, phases, ordered Cycles and latest status alongside host lifecycle, model requests, Provider responses and actual tool records. Cycle tool IDs include calls skipped before dispatch. Storage and versioning details live in the [data architecture](data-architecture.md#copy-debug-json).
+Copy Debug JSON v2 includes the ordered Cycles and latest status alongside host lifecycle, model requests, Provider responses and actual tool records. Cycle tool IDs include calls skipped before dispatch. Storage and versioning details live in the [data architecture](data-architecture.md#copy-debug-json).
 
 A completed Resume Agent Run lets the Controller validate and publish the stored document through MCP. Agent final text is a summary for the Trace. A successful Agent Run can be followed by a failed business validation. File output has its own lifecycle. [Resume Controller](../src/platform/electron/resume-tasks.ts)
 
@@ -105,25 +101,16 @@ Resume failure reporting retains supported model, tool, MCP and storage codes th
 
 The existing recorder persists terminal state atomically. Consola emits terminal diagnostics at execution boundaries without participating in state transitions or finalization. Diagnostic failure cannot change Run/Cycle outcomes; see [data architecture](data-architecture.md#4-transactions-and-terminal-diagnostics).
 
-[ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts) expands independently in each stage. Human Ask pauses the current tool and Cycle with human.waiting. An answer or skip returns to the same stage, as does completed context compaction. Run cancellation invalidates pending questions. [Human protocol](mcp-architecture.md#human-ask)
+[ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts) starts fresh per Run; directory calls add authorized domain schemas on the next request. Human Ask pauses the current tool and Cycle with `runtimeStatus: human.waiting`; it does not create or settle a Cycle. The other new statuses are `pending`, `context.compacting` and `idle`; historical searching/activating values remain readable. Run cancellation invalidates pending questions before drain/finalization. [Human protocol](mcp-architecture.md#human-ask)
 
 ```mermaid
 stateDiagram-v2
     [*] --> pending
-    pending --> preparing: Ask admitted
-    pending --> idle: Resume admitted
-    preparing --> executing: handoff ready
-    preparing --> idle: blocked or Run ends
-    executing --> idle: Run ends
-    preparing --> human_waiting: human.ask
-    executing --> human_waiting: human.ask
-    human_waiting --> preparing: Prepare question resolved
-    human_waiting --> executing: Execute question resolved
-    preparing --> context_compacting: context budget
-    executing --> context_compacting: context budget
-    context_compacting --> preparing: Prepare compaction complete
-    context_compacting --> executing: Execute compaction complete
-    human_waiting --> idle: Run ends
-    context_compacting --> idle: Run ends
-    idle --> [*]
+    pending --> idle: admitted
+    idle --> context_compacting: context budget
+    context_compacting --> idle: checkpoint saved
+    idle --> human_waiting: human.ask
+    human_waiting --> idle: answer / dialog cancel
+    human_waiting --> [*]: Run ends / window loss / disconnect
+    idle --> [*]: Run finalization
 ```

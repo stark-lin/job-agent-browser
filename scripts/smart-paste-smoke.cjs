@@ -28,10 +28,9 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
   const menuPopup = Menu.prototype.popup
   const id = randomUUID(), previousSize = window.getContentSize()
   const model = 'smart-paste-fixture', calls = []
-  let origin, crossOrigin, menu, popup, respond, serverError, prepare
+  let origin, crossOrigin, menu, popup, respond, serverError
   const server = createServer((request, response) => {
     if (request.method === 'GET') {
-      if (request.url.endsWith('/models')) { response.writeHead(404).end(); return }
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
       response.write('<!doctype html><title>Form fixture</title>')
       const complete = () => response.end(`${fields}
@@ -49,13 +48,8 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     request.on('end', () => {
       try {
         const input = JSON.parse(body)
-        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-        if (input.messages[0].content.startsWith('Prepare a self-contained handoff')) {
-          if (prepare) { prepare(input, response); return }
-          finish(response, '{"status":"ready","prompt":"Prepared fixture."}')
-          return
-        }
         calls.push(input)
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
         respond(input, response)
       } catch (error) { serverError = error; response.destroy() }
     })
@@ -143,7 +137,8 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     await applyDraft('Saved from UI')
     await evaluate(`document.querySelector(${JSON.stringify(settingsSelector)}).requestSubmit()`)
     await waitFor(() => evaluate(`document.querySelector(${JSON.stringify(settingsSelector)}).textContent.includes('Changes saved.')`), 'Smart Paste Settings saved')
-    const ai = { providers: [{ id: model, name: 'Smart Paste fixture', baseURL: origin, models: [model], overrides: { [model]: { contextWindow: 65536, maxOutputTokens: 8192 } } }],
+    const ai = { providers: [{ id: model, name: 'Smart Paste fixture', baseURL: origin, requiresKey: false, models: [model],
+      defaultModel: model, capabilities: { [model]: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }],
     default: { providerId: model, modelId: model } }
     assert((await data('settings', 'savePreferences', { ai, theme: 'light', mailbox: { provider: 'custom', url: 'https://smart-paste.fixture.invalid/inbox' } })).ok)
     assert((await setConfig('Original title', 'First prompt.')).ok)
@@ -162,11 +157,7 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     assert((await setConfig('Updated title', 'Use the updated prompt.')).ok)
     assert.equal((await context(page)).label, 'Updated title')
 
-    let tools, final, prepareFinished
-    prepare = (_input, response) => {
-      response.write(delta({ content: '{"status":"ready",' }))
-      prepareFinished = () => finish(response, '"prompt":"Prepared fixture."}')
-    }
+    let tools, final
     respond = (input, response) => {
       if (input.messages.some(message => message.role === 'tool')) { final = () => finish(response, 'Answer'); return }
       response.write(delta({ reasoning_content: 'Internal reasoning' }))
@@ -179,12 +170,6 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     }
     const current = active(await read()).targetId
     await choose(page, '#field', cross, '#cross')
-    await waitFor(() => Boolean(prepareFinished), 'Prepare begins before Execute')
-    await waitFor(async () => (await evaluate('window.askAgent.listActive({})')).value.some(run =>
-      run.items.some(item => item.phase === 'prepare' && item.content.text?.includes('"status":"ready"'))), 'Prepare output recorded')
-    assert.equal(await value(cross), 'left OLD right')
-    prepare = undefined
-    prepareFinished()
     await waitFor(async () => await value(cross) === 'left Temporary right', 'original SSE reaches a cross-origin iframe')
       .catch(async error => { error.message += ` (field: ${await value(cross)})`; throw error })
     await waitBanner('Filling Updated title')
@@ -196,7 +181,7 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     assert.equal(await value(mainFrame), 'left OLD right')
     assert.equal(await value(same), 'left OLD right')
     const user = calls[0].messages.find(message => message.role === 'user').content
-    assert(user.startsWith('Original Request:\nUse the updated prompt.\n\n<smart-paste-context>\n'))
+    assert(user.startsWith('Use the updated prompt.\n\n<smart-paste-context>\n'))
     assert(!user.includes('Updated title') && !user.includes('token=') && user.includes('Example clipboard') && user.includes('frame-cross'))
     tools()
     await waitFor(async () => await value(cross) === 'left OLD right' && Boolean(final), 'tool-round preamble rolled back')

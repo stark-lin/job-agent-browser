@@ -15,7 +15,7 @@ interface PartialCall { id: string; type: string; function: { name: string; argu
 export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: {
   transport?: Fetch; timeoutMs?: number
 }, input: AgentModelInput): AsyncIterable<AgentModelEvent> {
-  const timeout = requestTimeout(input.signal, deps.timeoutMs)
+  const timeout = requestTimeout(input.signal, deps.timeoutMs ?? config.timeoutMs)
   let failure: unknown, result: AgentResponse | undefined, finished: string | null = null, content = '', output = 0, done = false
   const calls = new Map<number, PartialCall>()
   const reasoning = new ReasoningAccumulator()
@@ -45,7 +45,6 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
       const text = typeof delta.content === 'string' ? delta.content : ''
       output += Buffer.byteLength(text)
       if (output + reasoning.bytes > 1000000) protocol()
-      if (text || reasoningDeltas.length || choice.finish_reason === 'stop' || choice.finish_reason === 'tool_calls') timeout.reset()
       for (const part of reasoningDeltas) yield { type: 'reasoning.delta', ...part }
       if (text) { content += text; yield { type: 'content.delta', text } }
       if (delta.tool_calls !== undefined) {
@@ -56,17 +55,14 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
           const call = calls.get(index) ?? { id: '', type: '', function: { name: '', arguments: '' } }
           if (part.id !== undefined) { if (typeof part.id !== 'string') protocol(); call.id += part.id }
           if (part.type !== undefined) { if (part.type !== 'function' || call.type && call.type !== part.type) protocol(); call.type = part.type }
-          let progress = Boolean(part.id)
           if (part.function !== undefined) {
             const fn = object(part.function)
             for (const key of ['name', 'arguments'] as const) if (fn[key] !== undefined) {
               if (typeof fn[key] !== 'string') protocol()
               call.function[key] += fn[key]
-              progress ||= Boolean(fn[key])
             }
           }
           if (call.id.length > 200 || call.function.name.length > 200 || Buffer.byteLength(call.function.arguments) > 1048576) protocol()
-          if (progress) timeout.reset()
           calls.set(index, call)
         }
       }

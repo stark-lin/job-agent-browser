@@ -7,7 +7,6 @@ erDiagram
     AGENT_RUN ||--o{ AGENT_MODEL_RESPONSE : continues
     AGENT_RUN ||--o{ AGENT_MODEL_REQUEST : diagnoses
     AGENT_RUN ||--o{ AGENT_REACT_CYCLE : executes
-    AGENT_RUN ||--o| AGENT_RUN_PREPARATION : prepares
     CHAT_SESSION ||--o| CHAT_CONTEXT_CHECKPOINT : projects
     CHAT_SESSION ||--o{ CHAT_MEMORY_PROGRESS : retains_legacy
     AGENT_ITEM ||--o| CHAT_MEMORY_PROGRESS : retains_legacy
@@ -60,7 +59,6 @@ erDiagram
         string runtime_status
     }
     AGENT_ITEM {
-        string phase
         string id PK
         string session_id FK
         string run_id FK
@@ -69,21 +67,18 @@ erDiagram
         json content_json
     }
     AGENT_MODEL_RESPONSE {
-        string phase
         string run_id PK,FK
         int ordinal PK
         int through_sequence
         json response_json
     }
     AGENT_MODEL_REQUEST {
-        string phase
         string run_id PK,FK
         int ordinal PK
         json metadata_json
         json activations_json
     }
     AGENT_REACT_CYCLE {
-        string phase
         string run_id PK,FK
         int cycle_index PK
         string status
@@ -92,13 +87,6 @@ erDiagram
         json tool_call_ids_json
         datetime started_at
         datetime finished_at
-    }
-    AGENT_RUN_PREPARATION {
-        string run_id PK,FK
-        string status
-        string prompt
-        string reason
-        string finished_at
     }
     CHAT_CONTEXT_CHECKPOINT {
         string session_id PK,FK

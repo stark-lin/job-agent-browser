@@ -1,17 +1,19 @@
 import { fail } from '../../domain/common/errors'
-import { AI_TIMEOUT, type AIChoice, type AISettings } from '../../shared/ai'
+import { defaultAITimeouts, type AIChoice, type AISettings } from '../../shared/ai'
 import type { ChatRequest, Fetch } from './compatible'
 
 export function providerConfig(settings: AISettings, key: (id: string) => string | null, providerId: string) {
   const provider = settings.providers.find(provider => provider.id === providerId)
   if (!provider) fail('AI_NOT_CONFIGURED')
-  return { provider: structuredClone(provider), key: key(provider.id) }
+  const secret = provider.requiresKey ? key(provider.id) : null
+  if (provider.requiresKey && !secret) fail('AI_NOT_CONFIGURED')
+  return { provider: structuredClone(provider), key: secret }
 }
 export function requestConfig(settings: AISettings, key: (id: string) => string | null, choice: AIChoice | null) {
   if (!choice) fail('AI_NOT_CONFIGURED')
   const config = providerConfig(settings, key, choice.providerId)
   if (!config.provider.models.includes(choice.modelId)) fail('AI_NOT_CONFIGURED')
-  return { ...config, model: choice.modelId }
+  return { ...config, model: choice.modelId, timeoutMs: (settings.timeouts ?? defaultAITimeouts).requestSeconds * 1000 }
 }
 /** Bare server endpoints use /v1; explicit API roots retain their path prefix. */
 export function openAIURL(endpoint: string, resource: 'chat/completions' | 'models' | 'embeddings'): string {
@@ -39,14 +41,8 @@ export function outputTokenParameters(request: Omit<ChatRequest, 'messages'>, li
   if (!limit) return {}
   return new URL(request.provider.baseURL).hostname === 'api.openai.com' ? { max_completion_tokens: limit } : { max_tokens: limit }
 }
-export function requestTimeout(parent: AbortSignal, ms: number = AI_TIMEOUT.inference) {
+export function requestTimeout(parent: AbortSignal, ms = defaultAITimeouts.requestSeconds * 1000) {
   const controller = new AbortController()
-  const expire = () => controller.abort()
-  let timer = setTimeout(expire, ms)
-  return {
-    signal: AbortSignal.any([parent, controller.signal]),
-    timedOut: () => controller.signal.aborted,
-    reset() { clearTimeout(timer); timer = setTimeout(expire, ms) },
-    dispose() { clearTimeout(timer) }
-  }
+  const timer = setTimeout(() => controller.abort(), ms)
+  return { signal: AbortSignal.any([parent, controller.signal]), timedOut: () => controller.signal.aborted, dispose: () => clearTimeout(timer) }
 }

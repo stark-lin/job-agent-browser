@@ -1,6 +1,5 @@
 import { AgentError, type AgentRuntimeEvent, type StreamingAgentModel } from '../../shared/agent'
 import type { ModelCapabilities } from '../../shared/ai'
-import type { Language } from '../../shared/settings'
 import type { ChatSnapshot, AgentRunEvent } from '../../domain/chat/chat.types'
 import { chatStart } from '../../domain/chat/chat.validation'
 import * as v from '../../domain/common/validation'
@@ -17,7 +16,7 @@ export function askError(error: unknown): string {
   return 'AI_PROVIDER_FAILED'
 }
 interface Task { owner: number; controller: AbortController; snapshot: ChatSnapshot; done?: Promise<void>; settled?: boolean; failure?: unknown }
-export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstPartyRuntime; engine?: AgentEngine; language(): Language;
+export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstPartyRuntime; engine?: AgentEngine;
   capabilities(choice: { providerId: string; modelId: string }, signal: AbortSignal): Promise<ModelCapabilities>;
   model(choice: { providerId: string; modelId: string }): StreamingAgentModel }) {
   const tasks = new Map<string, Task>(), tails = new Map<string, Promise<void>>()
@@ -38,7 +37,6 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
       if (previous) { owned(owner, { runId: previous.runId }); return previous }
       if ([...tasks.values()].filter(t => !t.settled).length >= 16
         || [...tasks.values()].filter(t => t.owner === owner && !t.settled).length >= 4) fail('INVALID_STATE')
-      const language = deps.language()
       const result = deps.chats.start(normalized, true, smartPaste ? 'smart-paste' : undefined)
       const snapshot = deps.chats.snapshot(result.runId), controller = new AbortController()
       const task: Task = { owner, controller, snapshot }; tasks.set(result.runId, task)
@@ -50,7 +48,7 @@ export function createAskAgentTasks(deps: { chats: ChatRecorder; mcp: FirstParty
       const prior = tails.get(result.sessionId) ?? Promise.resolve()
       const user = snapshot.items[0], sessionId = result.sessionId
       const handle = engine.start({
-        invocation: { agent: 'ask', source: smartPaste ? 'smart-paste' : 'chat', message: args.message, sessionId, language },
+        invocation: { agent: 'ask', source: smartPaste ? 'smart-paste' : 'chat', message: args.message, sessionId },
         requestId: args.requestId, model: args.choice, signal: controller.signal, onEvent: receive
       }, {
         runId: result.runId, prior, model: deps.model, capabilities: deps.capabilities,

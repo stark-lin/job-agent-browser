@@ -57,8 +57,8 @@ for (const file of sourceFiles) {
         `${relative}: import central components through src/shared/ui/index.ts`)
     }
     if (relative.startsWith('src/domain/')) {
-      const sharedContract = typeOnly && ['src/shared/tools/index', 'src/shared/tools/index.ts', 'src/shared/agent/phase'].includes(destination)
-      assert(module.startsWith('.') && (destination.startsWith('src/domain/') || sharedContract), `${relative}: Domain must depend only on domain contracts/utilities or approved type-only Shared contracts`)
+      const toolContract = typeOnly && ['src/shared/tools/index', 'src/shared/tools/index.ts'].includes(destination)
+      assert(module.startsWith('.') && (destination.startsWith('src/domain/') || toolContract), `${relative}: Domain must depend only on domain contracts/utilities or type-only Shared Tool contracts`)
     }
     if (module.startsWith('@modelcontextprotocol/')) assert(/^src\/platform\/mcp(?:-server)?\//.test(relative), `${relative}: MCP SDK belongs only to Platform MCP adapters`)
     if (/^src\/(app|renderer|pages)\//.test(relative) && destination.startsWith('src/shared/tools/') && !typeOnly) {

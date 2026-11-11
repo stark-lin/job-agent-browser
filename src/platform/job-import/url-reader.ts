@@ -2,20 +2,23 @@ import * as v from '../../domain/common/validation'
 import type { JobPageReader } from '../../domain/job/job.extractor'
 import { snapshotFromHTML } from './html'
 import { JobImportFailure } from './errors'
-import { AI_TIMEOUT } from '../../shared/ai'
-import { abortable } from '../../shared/agent'
-import { requestTimeout } from '../ai/transport'
+import { defaultAITimeouts } from '../../shared/ai'
 
 /** Fetch only the supplied public document. No Cookie jar, page scripts or site adapters. */
-export function createURLReader(transport: typeof fetch = fetch, timeoutMs: number = AI_TIMEOUT.page): JobPageReader {
+export function createURLReader(transport: typeof fetch = fetch, timeoutMs: number | (() => number) = defaultAITimeouts.pageSeconds * 1000): JobPageReader {
   return { async read(input, signal) {
-    const requestedUrl = v.url(input), timeout = requestTimeout(signal, timeoutMs)
+    const requestedUrl = v.url(input), duration = typeof timeoutMs === 'function' ? timeoutMs() : timeoutMs
+    const controller = new AbortController()
+    let timedOut = false
+    const abort = () => controller.abort()
+    signal.addEventListener('abort', abort, { once: true })
+    const timer = setTimeout(() => { timedOut = true; controller.abort() }, duration)
     try {
       signal.throwIfAborted()
       let url = requestedUrl
       for (let redirects = 0; redirects <= 5; redirects++) {
-        const response = await abortable(transport(url, { redirect: 'manual', signal: timeout.signal, credentials: 'omit',
-          headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'JobAgentBrowser/0.1' } }), timeout.signal)
+        const response = await transport(url, { redirect: 'manual', signal: controller.signal, credentials: 'omit',
+          headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'JobAgentBrowser/0.1' } })
         if ([301, 302, 303, 307, 308].includes(response.status)) {
           await response.body?.cancel()
           const location = response.headers.get('location')
@@ -34,14 +37,13 @@ export function createURLReader(transport: typeof fetch = fetch, timeoutMs: numb
         let bytes = 0
         try {
           for (;;) {
-            const chunk = await abortable(reader.read(), timeout.signal)
+            const chunk = await reader.read()
             if (chunk.done) break
             bytes += chunk.value.length
             if (bytes > 2 * 1024 * 1024) throw new JobImportFailure('JOB_CONTENT_TOO_LARGE')
             chunks.push(chunk.value)
           }
-        } finally { void reader.cancel().catch(() => {}); reader.releaseLock() }
-        timeout.signal.throwIfAborted()
+        } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
         const data = Buffer.concat(chunks)
         const charset = /charset\s*=\s*["']?([\w-]+)/i.exec(response.headers.get('content-type') ?? '')?.[1] ?? 'utf-8'
         let html: string
@@ -51,9 +53,9 @@ export function createURLReader(transport: typeof fetch = fetch, timeoutMs: numb
       throw new JobImportFailure('JOB_FETCH_FAILED')
     } catch (error) {
       if (signal.aborted) throw new JobImportFailure('AI_CANCELLED')
-      if (timeout.timedOut()) throw new JobImportFailure('JOB_FETCH_TIMEOUT')
+      if (timedOut) throw new JobImportFailure('JOB_FETCH_TIMEOUT')
       if (error instanceof JobImportFailure) throw error
       throw new JobImportFailure('JOB_FETCH_FAILED')
-    } finally { timeout.dispose() }
+    } finally { clearTimeout(timer); signal.removeEventListener('abort', abort) }
   } }
 }

@@ -8,7 +8,7 @@ import type { WebSelection } from '../src/shared/browser-selection'
 const choice = { providerId: 'fixture', modelId: 'model' }, time = '2026-10-24T00:00:00.000Z'
 const session: ChatSession = { id: 'session', title: 'Chat', ...choice, createdAt: time, updatedAt: time }
 const snapshot = (seq = 0, text = ''): ChatSnapshot => ({ run: { id: 'run', sessionId: 'session', ...choice, state: 'running', error: null, eventSequence: seq, writeStarted: false, createdAt: time, finishedAt: null }, items: [
-  { id: 'item', sessionId: 'session', runId: 'run', sequence: 1, phase: 'execute', content: { type: 'assistant_message', text }, state: 'streaming', createdAt: time, updatedAt: time }
+  { id: 'item', sessionId: 'session', runId: 'run', sequence: 1, content: { type: 'assistant_message', text }, state: 'streaming', createdAt: time, updatedAt: time }
 ] })
 const delta = (eventSequence: number, text: string): AgentRunEvent => ({ type: 'item.delta', runId: 'run', sessionId: 'session', itemId: 'item', eventSequence, delta: text })
 const tick = () => new Promise(resolve => setImmediate(resolve))

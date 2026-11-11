@@ -27,10 +27,10 @@ async function server(t: TestContext, handler: (response: ServerResponse, body: 
   assert(address && typeof address !== 'string')
   return `http://127.0.0.1:${address.port}/gateway/v1`
 }
-function fixture(t: TestContext, baseURL: string, timeoutMs = 2000, key: string | null = 'PRIVATE_API_KEY') {
+function fixture(t: TestContext, baseURL: string, timeoutMs = 2000) {
   const database = openDatabase(':memory:'), backend = composeBackend(database)
-  const settings: AISettings = { providers: [{ id: 'custom', name: 'PRIVATE_PROVIDER', baseURL, models: ['custom/model'] }], default: input.choice }
-  const service = createAIService({ settings: () => settings, key: () => key, timeoutMs })
+  const settings: AISettings = { providers: [{ id: 'custom', name: 'PRIVATE_PROVIDER', baseURL, requiresKey: true, models: ['custom/model'], defaultModel: 'custom/model' }], default: input.choice }
+  const service = createAIService({ settings: () => settings, key: () => 'PRIVATE_API_KEY', timeoutMs })
   t.after(async () => { await service.dispose(); backend.close() })
   return { database, backend, settings, service }
 }
@@ -124,11 +124,13 @@ test('request configuration is frozen, no-key providers send no authorization, a
     assert.equal(JSON.parse(body).model, 'custom/model')
     response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.end(success)
   })
-  const f = fixture(t, url, 2000, null)
+  const f = fixture(t, url)
+  f.settings.providers[0].requiresKey = false
   assert.throws(() => f.service.start(1, { ...input, actorId: 'FORGED' }, () => {}), { code: 'INVALID_INPUT' })
   assert.throws(() => f.service.start(1, { ...input, messages: [{ role: 'system', content: 'FORGED' }] }, () => {}), { code: 'INVALID_INPUT' })
   const result = run(f.service)
   f.settings.providers[0].baseURL = 'http://127.0.0.1:1'
+  f.settings.providers[0].requiresKey = true
   f.settings.providers[0].models = []
   assert.equal((await result).at(-1)?.type, 'completed')
 })
@@ -170,7 +172,7 @@ test('SSE decoder handles byte-level UTF-8 boundaries, multiline data and ignore
     controller.close()
   } })
   let starts = 0, text = ''
-  await streamChat({ provider: { id: 'local', name: 'Local', baseURL: 'http://localhost/v1', models: ['test'] }, model: 'test', key: null, messages: input.messages },
+  await streamChat({ provider: { id: 'local', name: 'Local', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null, messages: input.messages },
     new AbortController().signal, () => { starts++ }, delta => { text += delta }, async () => new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }))
   assert.equal(starts, 1)
   assert.equal(text, '你好')

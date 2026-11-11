@@ -4,8 +4,14 @@ import type { AskRuntimeStatus } from '../../../shared/ask'
 import { ToolError } from '../../../shared/tools/errors'
 import type { ModelCapabilities } from '../../../shared/ai'
 import { ContextBudget } from '../context/budget'
-import { createRunExecution, type RunHistory } from './execution-context'
-import { runAskWorkflow } from './ask-workflow'
+import { loadCoreMemory } from '../context/core-memory'
+import { ContextManager } from '../context/manager'
+import { resourceRecord } from '../context/resources'
+import { observeAgentModel } from '../pi/request-observer'
+import { runPiAgent } from '../pi/runtime'
+import { ScopedToolset } from '../tools/scoped-toolset'
+import { createFixedToolset } from '../tools/toolset'
+import { chatInstructions, smartPasteInstructions } from '../ask'
 import { definitions, type AgentInvocation } from './definitions'
 
 export interface AgentCompletion {
@@ -26,7 +32,7 @@ interface Execution {
   capabilities(choice: Choice, signal: AbortSignal): Promise<ModelCapabilities>
   model(choice: Choice): StreamingAgentModel
   open(signal: AbortSignal): Promise<{ tools: AgentTools; signal: AbortSignal; close(): Promise<void> }>
-  history?(): RunHistory
+  history?(): Pick<ConstructorParameters<typeof ContextManager>[0], 'checkpoint' | 'turns' | 'save' | 'protectedState'>
   protect?(record: string): void
   started(): void
   status(value: AskRuntimeStatus): void
@@ -60,18 +66,24 @@ export function createAgentEngine(readRun?: (id: string) => AgentSnapshot) {
           signal.throwIfAborted()
           const budget = new ContextBudget(await execution.capabilities(input.model, signal), input.model.modelId)
           signal.throwIfAborted()
-          const model = execution.model(input.model)
+          const model = observeAgentModel(execution.model(input.model), emit, definition.limits.maxModelRequests)
+          const system = definition.system + (invocation.source === 'chat' ? chatInstructions : invocation.source === 'smart-paste' ? smartPasteInstructions : '')
+          const message = invocation.agent === 'ask' ? invocation.message.trim()
+            : `Tailor the resume for generation run ${invocation.generationRunId}. Use this runId for resume tools.`
           session = await execution.open(signal)
           const live = AbortSignal.any([signal, session.signal]), { tools } = session
-          const history = invocation.agent === 'ask' ? execution.history?.() : undefined
-          const run = createRunExecution({ model, budget, signal: live, userSignal: signal, emit,
-            ...definition.limits, protectedState: history?.protectedState ?? [], status: execution.status,
-            protect: execution.protect, onToolTurn: execution.onToolTurn })
-          outcome.finalText = invocation.agent === 'ask'
-            ? await runAskWorkflow({ run, invocation, tools, allow: definitions.ask.tools.allow, signal: live, history, emit, status: execution.status })
-            : await run.stage({ phase: 'execute', tools, system: definitions.resume.system, status: 'idle', allow: definitions.resume.tools.allow,
-              memory: await run.loadCore(tools),
-              message: `Tailor the resume for generation run ${invocation.generationRunId}. Use this runId for resume tools.` })
+          const memory = definition.context.memory === 'none' ? '' : await loadCoreMemory(tools, budget, live)
+          const context = new ContextManager({ protectedState: [], ...(definition.context.history === 'conversation' ? execution.history?.() : undefined),
+            budget, model, memory, compacting: () => execution.status('context.compacting') })
+          const toolset = definition.tools.exposure === 'fixed' ? createFixedToolset(tools, definition.tools.allow)
+            : new ScopedToolset(tools, budget, name => definition.tools.allow.includes(name))
+          execution.status('idle')
+          outcome.finalText = await runPiAgent({ model, tools, toolset, allowsTool: name => definition.tools.allow.includes(name), system, message, signal: live, userSignal: signal,
+            budget, context, emit, status: execution.status, onToolTurn: execution.onToolTurn, maxToolCalls: definition.limits.maxToolCalls,
+            protect(name, args, result, uncertain) {
+              const record = resourceRecord(name, args, result, uncertain)
+              if (record) { execution.protect?.(record); context.protect(record) }
+            } })
           live.throwIfAborted()
           await session.close()
           signal.throwIfAborted()

@@ -1,6 +1,6 @@
 /** Keep recovery identifiers and outcomes, never business bodies, tool arguments or credentials. */
 export function resourceRecord(name: string, args: unknown, result: unknown, uncertain: boolean): string | null {
-  if (name === 'human.ask' || name.startsWith('tool.')) return null
+  if (name.startsWith('tool.')) return null
   const refs: Record<string, unknown> = {}
   const allowed = new Set(['id', 'jobId', 'profileId', 'runId', 'artifactId', 'itemId', 'profileItemId', 'factId', 'bulletId', 'requestId', 'revision', 'expectedRevision', 'status', 'factIds', 'itemIds', 'path', 'source', 'target'])
   for (const [label, value] of [['input', args], ['result', result]] as const) {

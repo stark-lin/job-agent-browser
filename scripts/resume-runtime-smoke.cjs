@@ -24,7 +24,7 @@ app.once('browser-window-created', (_event, window) => {
       await evaluate('window.browser.navigate("app://resume")')
       await click('Tailor Resume')
       await wait(() => evaluate('document.body.innerText.includes("Choose a model") || document.body.innerText.includes("Configure") || document.querySelector("[role=alert]")'), 'missing settings error')
-      await data('settings', 'savePreferences', { ai: { providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'] }], default: { providerId: 'fixture', modelId: 'fixture' } } })
+      await data('settings', 'savePreferences', { ai: { providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }], default: { providerId: 'fixture', modelId: 'fixture' } } })
       const traceCard = label => `[...document.querySelectorAll('.resume-content > details')].find(card => card.querySelector('.ui-section-title')?.textContent === ${JSON.stringify(label)})`
       const trace = traceCard('Agent trace')
       let stream

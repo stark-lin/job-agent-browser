@@ -112,4 +112,4 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 
 ## Smart Note knowledge
 
-Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Connect an OpenAI-compatible service in setup or Settings. Ask AI uses the effective model window when available and assumes 65,536 tokens otherwise. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).
+Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Ask AI needs a verified effective model window of at least 65,536 tokens; configure unknown deployment limits in Settings. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).

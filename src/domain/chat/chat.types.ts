@@ -1,4 +1,3 @@
-import type { AgentPhase, AskRuntimeStatus } from '../../shared/agent/phase'
 import type { RunGuardSnapshot } from '../../shared/tools/index'
 /** Host-owned conversation records; these never grant business capability access. */
 export interface ChatChoice { providerId: string; modelId: string }
@@ -10,7 +9,6 @@ export interface AgentRun<S extends string | null = string | null> extends ChatC
   writeStarted: boolean; createdAt: string; finishedAt: string | null
   admission?: 'pending' | 'admitted'
   runtimeStatus?: RuntimeStatus
-  blockedReason?: string
 }
 export type ChatRun = AgentRun<string>
 export type ToolSummaryKey = 'scope' | 'humanAsk' | 'memoryRead' | 'memoryWrite' | 'knowledgeRead' | 'knowledgeWrite' | 'profileItems' | 'createProfile' | 'updateProfile' | 'addProfileItem' | 'updateProfileItem' | 'addProfileFact' | 'updateProfileFact' | 'jobs' | 'job' | 'updateJob' | 'archiveJob' | 'profiles' | 'profile' | 'facts'
@@ -22,13 +20,13 @@ export type ChatContent = { type: 'user_message'; text: string; source?: 'smart-
   | { type: 'assistant_message' | 'reasoning'; text: string; reasoning?: ChatReasoning }
   | { type: 'tool_call'; toolName: string; display: ToolDisplay; durationMs?: number; error?: string; callId?: string; arguments?: unknown; result?: unknown; guard?: RunGuardSnapshot }
 export interface AgentItem<S extends string | null = string | null> {
-  id: string; sessionId: S; runId: string; sequence: number; phase: AgentPhase; state: ChatItemState; content: ChatContent
+  id: string; sessionId: S; runId: string; sequence: number; state: ChatItemState; content: ChatContent
   createdAt: string; updatedAt: string
 }
 export type ChatItem = AgentItem<string>
 export interface AgentSnapshot<S extends string | null = string | null> { run: AgentRun<S>; items: AgentItem<S>[] }
 export type ChatSnapshot = AgentSnapshot<string>
-export type RuntimeStatus = AskRuntimeStatus
+export type RuntimeStatus = 'pending' | 'context.compacting' | 'human.waiting' | 'tools.searching' | 'tools.activating' | 'idle'
 export type AgentRunEvent<S extends string | null = string> = { sessionId: S; runId: string; eventSequence: number } & (
   { type: 'run.started'; run: AgentRun<S> }
   | { type: 'runtime.status'; status: RuntimeStatus; run: AgentRun<S> }
@@ -41,7 +39,7 @@ export interface ChatPreparedTool { name: string; providerName: string; schemaHa
 export interface ChatActivationDiagnostic { names: string[]; repeats: number; reason: 'already-active' | 'activation-loop' }
 /** Conversation projection, structurally matching the runtime's pure diagnostic contract. */
 export interface ChatModelRequest {
-  runId: string; ordinal: number; phase: AgentPhase; providerId: string; modelId: string; preparedAt: string
+  runId: string; ordinal: number; providerId: string; modelId: string; preparedAt: string
   purpose: 'agent-turn' | 'context-summary'; loadoutVersion: number
   expectedTools: ChatPreparedTool[]; piTools: ChatPreparedTool[]; tools: ChatPreparedTool[]
   verification: 'matched' | 'mismatch'; activations: ChatActivationDiagnostic[]

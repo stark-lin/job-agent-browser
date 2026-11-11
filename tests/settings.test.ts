@@ -8,7 +8,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { createPreferences } from '../src/platform/storage/preferences'
 import { createSecrets, type KeyProtection } from '../src/platform/storage/secrets'
 import { defaultPreferences } from '../src/shared/settings'
-import { saveAIConnection } from '../src/platform/storage/ai-connection'
+import { defaultAITimeouts } from '../src/shared/ai'
 import { composeBackend } from '../src/platform/database/backend'
 import { openDatabase } from '../src/platform/database/sqlite'
 
@@ -102,7 +102,7 @@ test('an unwritable preference directory preserves the previous file and emits n
 test('keys are encrypted, replaceable and removable; API returns only status and never returns key material', t => {
   const directory = temporary(t), path = join(directory, 'secrets.enc'), protector = protection()
   const secrets = createSecrets(path, protector), settings = createPreferences(join(directory, 'settings.json'))
-  const backend = composeBackend(openDatabase(':memory:'), { secrets, settings: { ...settings, saveAIConnection: input => saveAIConnection(settings, secrets, input) } })
+  const backend = composeBackend(openDatabase(':memory:'), { secrets, settings })
   t.after(backend.close)
   assert.deepEqual(secrets.hasProviderKey({ provider: 'openai' }), { configured: false, available: true })
   assert.equal(existsSync(path), false)
@@ -159,7 +159,7 @@ test('old settings gain AI defaults; custom provider configuration persists and 
   const service = createPreferences(path)
   assert.deepEqual(service.get({}).ai, defaultPreferences.ai)
   assert.equal(readFileSync(path, 'utf8'), JSON.stringify(legacy))
-  const ai = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234/gateway/v1/', models: ['custom/model'] }], default: { providerId: 'local', modelId: 'custom/model' } }
+  const ai = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234/gateway/v1/', requiresKey: false, models: ['custom/model'], defaultModel: 'custom/model' }], default: { providerId: 'local', modelId: 'custom/model' } }
   service.savePreferences({ ai })
   const restored = createPreferences(path).get({})
   assert.equal(restored.ai.providers[0].baseURL, 'http://127.0.0.1:1234/gateway/v1')
@@ -178,46 +178,42 @@ test('old settings gain AI defaults; custom provider configuration persists and 
 test('bare local and hosted OpenAI endpoints survive settings reload without requiring models', t => {
   const path = join(temporary(t), 'settings.json')
   for (const endpoint of ['http://127.0.0.1:1234', 'http://localhost:1234', 'http://[::1]:1234', 'https://api.openai.com']) {
-    const ai = { providers: [{ id: 'local', name: 'Local', baseURL: endpoint + '/', models: [] }], default: null }
+    const ai = { providers: [{ id: 'local', name: 'Local', baseURL: endpoint + '/', requiresKey: false, models: [], defaultModel: '' }], default: null }
     createPreferences(path).savePreferences({ ai })
     assert.equal(createPreferences(path).get({}).ai.providers[0].baseURL, endpoint)
   }
 })
 
-test('legacy AI preferences preserve provider IDs, global choice and manual overrides', t => {
+test('timeout settings retain legacy defaults in memory, persist explicit limits, and reject invalid writes atomically', t => {
   const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
-  const provider = { id: 'first', name: 'First', baseURL: 'https://first.example', models: ['manual', 'detected'] }
-  const choice = { providerId: 'first', modelId: 'manual' }
-  const limits = { contextWindow: 32768, maxOutputTokens: 4096 }
-  const legacy = { ...defaultPreferences, ai: {
-    providers: [{ ...provider, requiresKey: true, defaultModel: 'detected', parallelModels: ['manual'],
-      capabilities: { manual: { ...limits, source: 'manual', verified: true }, detected: { ...limits, source: 'runtime', verified: true } } }],
-    default: choice, timeouts: { requestSeconds: 10, pageSeconds: 20, modelsSeconds: 30 }
-  } }
+  const legacy = { ...defaultPreferences, ai: { providers: defaultPreferences.ai.providers, default: null } }
   writeFileSync(path, JSON.stringify(legacy))
-  const expected = { providers: [{ ...provider, overrides: { manual: limits } }], default: choice }
-  assert.deepEqual(JSON.parse(JSON.stringify(service.get({}).ai)), expected)
+  assert.deepEqual(service.get({}).ai.timeouts, defaultAITimeouts)
   assert.equal(readFileSync(path, 'utf8'), JSON.stringify(legacy))
-  service.savePreferences({ language: 'zh-CN' })
-  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).ai, expected)
-  assert.throws(() => service.savePreferences({ ai: legacy.ai }), { code: 'INVALID_INPUT' })
+  const timeouts = { requestSeconds: 3600, pageSeconds: 1, modelsSeconds: 60 }
+  const ai = { ...legacy.ai, timeouts }
+  service.savePreferences({ ai })
+  assert.deepEqual(createPreferences(path).get({}).ai.timeouts, timeouts)
+  assert.deepEqual(service.savePreferences({ language: 'zh-CN', theme: 'dark' }).ai.timeouts, timeouts)
+  const before = readFileSync(path, 'utf8')
+  for (const invalid of [null, {}, { ...timeouts, other: 10 }, ...[0, -1, 3601, 1.5, '120', null, NaN, Infinity].flatMap(seconds =>
+    Object.keys(timeouts).map(field => ({ ...timeouts, [field]: seconds })))]) {
+    assert.throws(() => service.savePreferences({ ai: { ...ai, timeouts: invalid } }), { code: 'INVALID_INPUT' })
+    assert.equal(readFileSync(path, 'utf8'), before)
+  }
 })
 
-test('one connection save sets the global default, stores keys separately and preserves blank keys', t => {
-  const directory = temporary(t), path = join(directory, 'settings.json')
-  const preferences = createPreferences(path), protector = protection(), secretPath = join(directory, 'secrets.enc')
-  const secrets = createSecrets(secretPath, protector)
-  const provider = { id: 'new-provider', name: 'New provider', baseURL: 'https://new.example', models: ['one', 'two'] }
-  const invalid = createSecrets(secretPath, { ...protector, available: () => false })
-  assert.throws(() => saveAIConnection(preferences, invalid, { provider, modelId: 'two', apiKey: 'PRIVATE_KEY' }), { code: 'ENCRYPTION_UNAVAILABLE' })
-  assert.equal(existsSync(path), false)
-  const result = saveAIConnection(preferences, secrets, { provider, modelId: 'two', apiKey: 'PRIVATE_KEY' })
-  assert.deepEqual(result.ai.default, { providerId: provider.id, modelId: 'two' })
-  assert.equal(secrets.readProviderKey(provider.id), 'PRIVATE_KEY')
-  assert(!readFileSync(path, 'utf8').includes('PRIVATE_KEY'))
-  saveAIConnection(preferences, secrets, { provider, modelId: 'one', apiKey: ' ' })
-  assert.equal(secrets.readProviderKey(provider.id), 'PRIVATE_KEY')
-  assert.throws(() => saveAIConnection(preferences, secrets, { provider: { ...provider, baseURL: 'https://another.example' }, modelId: 'one' }), { code: 'INVALID_INPUT' })
+test('legacy parallel import settings are ignored on read and dropped on the next save', t => {
+  const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
+  const provider = { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
+  service.savePreferences({ ai: { providers: [provider], default: { providerId: 'first', modelId: 'model' } } })
+  const stored = JSON.parse(readFileSync(path, 'utf8'))
+  stored.ai.providers[0].parallelModels = ['model']
+  writeFileSync(path, JSON.stringify(stored))
+  assert.deepEqual(service.get({}).ai.providers[0], provider)
+  assert(readFileSync(path, 'utf8').includes('parallelModels'))
+  service.savePreferences({ language: 'zh-CN' })
+  assert(!readFileSync(path, 'utf8').includes('parallelModels'))
 })
 
 test('Smart Paste defaults follow legacy preferences, while explicit deletion and rejected edits survive reload', t => {

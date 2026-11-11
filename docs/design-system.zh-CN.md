@@ -172,7 +172,7 @@ npm run quality
 | [Browser smoke](../scripts/browser-smoke.cjs) | Ask AI 启动、侧栏切换及渲染浏览器栏与原生边界衔接 | 不属于完整展示库、无障碍或视觉回归测试 |
 | [Inbox smoke](../scripts/inbox-smoke.cjs) | 全内容区原生边界、无应用浏览器栏、缩放、重定向、历史和加载恢复 | 使用本地测试页，不证明邮箱网站自身行为 |
 | [侧栏 smoke](../scripts/sidebar-smoke.cjs) | 全部目标、当前状态、键盘激活、固定图标栏宽度、提示位置及关闭行为、原生视图不遮挡导航 | 不证明全部辅助技术行为 |
-| [AI smoke](../scripts/ai-smoke.cjs) | 共用连接字段和中央控件的模型选择、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
+| [AI smoke](../scripts/ai-smoke.cjs) | Provider endpoint/超时表单、复用中央控件的模型检测/选择、真实 SSE/IPC、取消及 320/640/1200px 溢出检查 | 本地服务不证明第三方服务商行为 |
 | [Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs) | 流式活动、并发会话、定向停止、草稿/滚动恢复、双语主题的 320/640/1200px 布局及强制结束进程后的恢复 | 本地样本，不证明真实 Provider 或屏幕阅读器兼容性 |
 | [个人资料 smoke](../scripts/profile-smoke.cjs) | 手动条目/事实、构建后的 PDF Worker/SSE、一次确认/快照、忽略、重载/分页、320/640/1200px 双语浅/暗布局及离开保护 | 使用生成 PDF/本地 AI 样本，不认证第三方 Provider、任意 PDF 排版或读屏器 |
 | [Settings smoke](../scripts/settings-smoke.cjs) | 默认折叠、键盘操作、嵌套面板、草稿保留、真实表单、标签、40px 控件、16px 面板、320/640/1200px 布局、语言、校验和密钥生命周期 | 不证明读屏行为或服务商访问能力 |

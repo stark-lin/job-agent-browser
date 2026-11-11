@@ -1,4 +1,3 @@
-const { createServer } = require('node:http')
 const assert = require('node:assert/strict')
 const { app, dialog, safeStorage, session } = require('electron')
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs')
@@ -156,20 +155,8 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await call('navigate', 'app://settings'); await formsReady(); await openForms()
   const status = (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value
   if (status.available) {
-    const provider = createServer((request, response) => {
-      assert.equal(request.url, '/v1/models')
-      assert.equal(request.headers.authorization, 'Bearer smoke-key-disposable')
-      response.setHeader('Content-Type', 'application/json')
-      response.end('{"data":[{"id":"settings-fixture"}]}')
-    })
-    await new Promise(resolve => provider.listen(0, '127.0.0.1', resolve))
-    try {
-      await field('[data-ai-config] input[type=url]', `http://127.0.0.1:${provider.address().port}`)
-      await field('[data-ai-config] input[type=password]', 'smoke-key-disposable')
-      await evaluate('document.querySelector("[data-ai-connect]").click()')
-      await waitFor(() => evaluate('document.querySelector(".ai-connection-results input[type=radio]")?.checked'), 'select only model')
-      await evaluate('document.querySelector("[data-ai-connect]").click()')
-    } finally { provider.closeAllConnections(); provider.close() }
+    await field('.settings-page input[type=password]', 'smoke-key-disposable')
+    await submit(2)
     await waitFor(async () => (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'encrypted key save')
     await waitFor(() => evaluate('document.querySelector("input[type=password]").value === ""'), 'key cleared from UI')
     const file = readFileSync(resolve(process.env.JOB_BROWSER_SMOKE_DATA, 'secrets.enc'), 'utf8')

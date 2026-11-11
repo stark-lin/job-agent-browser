@@ -1,5 +1,4 @@
 import { knowledgeAgentTools, memoryAgentTools } from './context-policy'
-import type { AgentToolDescriptor } from '.'
 /** Ask capabilities are opt-in. Shared with the Server; discovery never grants authority. */
 export const askToolAllowlist = [
   'job.list', 'job.get', 'job.import', 'job.update', 'job.set_archived',
@@ -11,7 +10,3 @@ export const askToolAllowlist = [
 ] as const
 const allowed = new Set<string>(askToolAllowlist)
 export const allowedAskTool = (name: string) => allowed.has(name)
-
-export function askReadTools(catalog: readonly AgentToolDescriptor[], allow: readonly string[]) {
-  return catalog.filter(tool => allow.includes(tool.name) && (tool.risk === 'READ' || tool.risk === 'COMPUTE')).map(tool => tool.name)
-}

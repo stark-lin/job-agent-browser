@@ -74,7 +74,7 @@ test('context-summary and agent-turn requests share an ordinal without reinjecti
   let summaries = 0
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 },
     turns: Array.from({ length: 10 }, (_, index) => ({ sequence: index + 1, messages: [{ role: 'user' as const, content: 'x'.repeat(5500) }] })),
-    memory: '', protectedState: { records: [] }, compacting() {}, save(value) { summaries++; return value } })
+    memory: '', protectedState: [], compacting() {}, save(value) { summaries++; return value } })
   await runPiAgent({ model, tools: { list: async () => [], call: async () => ({}) }, system: 'Test', message: 'Current task', budget, context, emit: event => events.push(event), signal: signal(), status() {}, protect() {} })
   assert(summaries > 0)
   const requests = events.filter(event => event.type === 'model.request.prepared').map(event => event.request)
