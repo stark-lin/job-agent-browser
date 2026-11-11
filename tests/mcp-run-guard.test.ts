@@ -142,7 +142,7 @@ for (const recovery of ['warning-answer', 'answer', 'source', 'discovery'] as co
     if (requests === 1) {
       const calls: AgentToolCall[] = [...reads, ...(recovery === 'warning-answer' ? [] : [
         { id: 'skip-write', name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Never execute this note' } },
-        { id: 'skip-search', name: 'scope.application', arguments: {} }
+        { id: 'skip-search', name: 'scope.job', arguments: {} }
       ])]
       yield* batch(calls); return
     }
@@ -227,7 +227,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
     input.onRequestPrepared?.({ providerId: 'fixture', modelId: 'test', preparedAt: 'now', tools: toolSnapshot(input.tools) })
     const system = input.messages.find(message => message.role === 'system')?.content ?? ''
     switch (++requests) {
-      case 1: yield* batch(['profile', 'job', 'application'].map(domain => ({ id: `discover-${domain}`, name: `scope.${domain}`, arguments: {} }))); return
+      case 1: yield* batch(['profile', 'job'].map(domain => ({ id: `discover-${domain}`, name: `scope.${domain}`, arguments: {} }))); return
       case 2: yield* batch([read('first'), read('repeat-1'), read('repeat-2'), ...(ending === 'same-batch' ? [read('fresh', 'job.list')] : [])]); return
       case 3:
         if (ending === 'same-batch') {

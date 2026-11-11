@@ -7,6 +7,7 @@ import { humanTool } from '../src/platform/mcp-server/tool-adapter'
 import { askToolAllowlist } from '../src/shared/agent/ask-policy'
 import { resumeAgentTools } from '../src/shared/agent/resume-policy'
 import { jobAgentAllowlist } from '../src/shared/agent/business-policy'
+import { allowsAgentControl } from '../src/shared/agent/context-policy'
 import { descriptor, capabilities, signal, scriptedModel, expansion, runDisclosure } from './disclosure-fixture'
 
 test('each Run expands whole authorized domains on the next loadout without eviction or activation', async () => {
@@ -35,6 +36,19 @@ test('expanded schemas exceeding the hard budget fail without silently dropping 
   const registry = new ScopedToolset({ list: async () => [...catalog, ...scopeTools(catalog)], call: async () => ({}) }, new ContextBudget(capabilities, 'test'))
   await registry.refresh(); registry.loadout(); await registry.call('scope.job', {}, signal())
   assert.throws(() => registry.loadout(), /ASK_CONTEXT_OVERFLOW/)
+})
+
+test('application-only access discovers and expands scope.job', async () => {
+  const catalog = [descriptor('application.get')]
+  const directories = scopeTools(catalog)
+  assert.deepEqual(directories.map(tool => tool.name), ['scope.job'])
+  assert(allowsAgentControl('scope.job', ['application.get']))
+  const registry = new ScopedToolset({ list: async () => [...catalog, ...directories], call: async name => scopeDirectory(name, catalog) }, new ContextBudget(capabilities, 'test'))
+  await registry.refresh()
+  assert.deepEqual(registry.loadout().map(tool => tool.name), ['scope.job'])
+  await assert.rejects(registry.call('application.get', {}, signal()), /AGENT_PROTOCOL_ERROR/)
+  await registry.call('scope.job', {}, signal())
+  assert.deepEqual(registry.loadout().map(tool => tool.name), ['application.get', 'scope.job'])
 })
 
 test('Knowledge stays read-only and Memory write permissions belong only to authorized workflows', () => {

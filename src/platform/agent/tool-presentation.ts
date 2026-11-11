@@ -3,7 +3,7 @@ import type { ToolDisplay, ToolSummaryKey } from '../../domain/chat/chat.types'
 
 const labels: Record<string, ToolSummaryKey> = {
   'human.ask': 'humanAsk',
-  'scope.job': 'scope', 'scope.profile': 'scope', 'scope.application': 'scope', 'scope.resume': 'scope', 'scope.artifact': 'scope', 'scope.knowledge': 'scope', 'scope.memory': 'scope',
+  'scope.job': 'scope', 'scope.profile': 'scope', 'scope.resume': 'scope', 'scope.artifact': 'scope', 'scope.knowledge': 'scope', 'scope.memory': 'scope',
   'tool.search': 'searchTools', 'tool.activate': 'activateTools',
   'memory.list': 'memoryRead', 'memory.read': 'memoryRead', 'memory.recall': 'memoryRead', 'memory.write': 'memoryWrite', 'memory.mkdir': 'memoryWrite',
   'knowledge.list':'knowledgeRead','knowledge.read':'knowledgeRead','knowledge.search':'knowledgeRead','knowledge.retrieve':'knowledgeRead','knowledge.write':'knowledgeWrite','knowledge.mkdir':'knowledgeWrite','knowledge.move':'knowledgeWrite','knowledge.delete':'knowledgeWrite',

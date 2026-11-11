@@ -67,14 +67,14 @@ app.on('browser-window-created', (_event, window) => {
             if (user.startsWith('hold')) { response.write(sse({ content: `Working ${user}` })); releases[user] = () => finish(response, ' completed'); return }
             if (user === 'crash checkpoint') { response.write(sse({ content: 'Checkpoint survives process termination.' })); return }
             if (user === 'failure' && failCount++ === 0) { response.end(sse({ content: 'Partial response' }) + 'data: [DONE]\n\n'); return }
-            const scopes = names => [...new Set(names.filter(name => !body.tools.some(t => t.function.description.startsWith(`[${name}] `))).map(name => name.split('.')[0]))].map((domain, index) => {
+            const scopes = domains => domains.map((domain, index) => {
               const scope = body.tools.find(t => t.function.description.startsWith(`[scope.${domain}] `)); assert(scope)
               return { index, id: `scope-${domain}`, type: 'function', function: { name: scope.function.name, arguments: '{}' } }
             })
             if (user === 'archive loop') {
               const archive = body.tools.find(t => t.function.description.startsWith('[job.set_archived] '))
               const calls = archive ? [true, false, true, false].map((archived, i) => ({ index: i, id: `archive-loop-${i}`, type: 'function', function: { name: archive.function.name, arguments: JSON.stringify({ id: jobId, archived }) } }))
-                : scopes(['job.set_archived'])
+                : scopes(['job'])
               assert(!body.messages.slice(lastUser).some(m => m.role === 'tool' && toolResult(m.content).error === 'TOOL_GUARD_TERMINATED'), 'No model request after guard termination')
               response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
@@ -84,13 +84,13 @@ app.on('browser-window-created', (_event, window) => {
               const note = body.tools.find(t => t.function.description.startsWith('[application.add_note] '))
               const calls = read && note ? [...Array.from({ length: 4 }, (_, i) => ({ index: i, id: `read-${i}`, type: 'function', function: { name: read.function.name, arguments: '{}' } })),
                 { index: 4, id: 'skip-note', type: 'function', function: { name: note.function.name, arguments: JSON.stringify({ jobId, requestId: randomUUID(), text: 'Must never execute' }) } }]
-                : scopes(['job.list', 'application.add_note'])
+                : scopes(['job'])
               response.end(sse({ tool_calls: calls }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
             if (user !== 'workflow') { finish(response, 'Recovered answer'); return }
             const wanted = ['job.list', 'profile.list', 'application.get', 'application.add_note', 'application.set_status']
             if (!wanted.every(name => body.tools.some(t => t.function.description.startsWith(`[${name}] `)))) {
-              response.end(sse({ tool_calls: scopes(wanted) }, 'tool_calls') + 'data: [DONE]\n\n'); return
+              response.end(sse({ tool_calls: scopes(['job', 'profile']) }, 'tool_calls') + 'data: [DONE]\n\n'); return
             }
             const tool = name => { const entry = body.tools.find(t => t.function.description.startsWith(`[${name}] `)); assert(entry); return entry.function.name }
             const calls = observations === 0 ? [

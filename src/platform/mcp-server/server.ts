@@ -63,8 +63,9 @@ export function createMCPServer(registry: ToolRegistry, policy: ToolScopePolicy,
         if (!directories.some(tool => tool.name === name)) toolFail('TOOL_FORBIDDEN')
         if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) toolFail('TOOL_INVALID_INPUT')
         const catalog = visible.list().filter(tool => run.kind === 'resume' ? resumeAgentTools.includes(tool.name as typeof resumeAgentTools[number]) : run.kind === 'resume-controller' ? resumeAgentLifecycle.includes(tool.name as typeof resumeAgentLifecycle[number]) : true)
-        if (!catalog.some(tool => tool.name.startsWith(`${name.slice(6)}.`))) toolFail('TOOL_FORBIDDEN')
-        return mcpResult({ content: [], structuredContent: scopeDirectory(name, catalog) })
+        const directory = scopeDirectory(name, catalog)
+        if (!directory.tools.length) toolFail('TOOL_FORBIDDEN')
+        return mcpResult({ content: [], structuredContent: directory })
       }
       if (name === 'human.ask') {
         const question = parseHumanInput(input)
