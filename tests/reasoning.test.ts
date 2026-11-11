@@ -48,7 +48,7 @@ test('complete and streaming responses preserve continuation fields without maki
   assert.deepEqual(providerMessages(messages, new Map())[0], { role: 'assistant', content: 'Answer', ...wire })
   const frame = (delta: unknown, finish_reason: string | null = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\r\n\r\n`
   const bytes = new TextEncoder().encode(frame(wire) + frame({ content: 'Answer' }, 'stop') + 'data: [DONE]\n\n')
-  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://localhost', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {
+  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://localhost', models: ['test'] }, model: 'test', key: null }, {
      transport: async () => new Response(new ReadableStream({ start(c) { for (const byte of bytes) c.enqueue(new Uint8Array([byte])); c.close() } }), { headers: { 'content-type': 'text/event-stream' } })
   })
   const events: AgentModelEvent[] = []
@@ -58,7 +58,7 @@ test('complete and streaming responses preserve continuation fields without maki
 })
 
 test('Pi retains provider state across activation/tool turns and segments reasoning by metadata', async () => {
-  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
   let step = 0
   const seen: AgentMessage[][] = [], events: AgentRuntimeEvent[] = []
   const model: StreamingAgentModel = { complete: async () => ({ content: 'Summary', toolCalls: [] }), async *stream(input) {
@@ -72,7 +72,7 @@ test('Pi retains provider state across activation/tool turns and segments reason
     else yield { type: 'content.delta', text: 'Done' }
     yield { type: 'completed', response: { content: turn < 2 ? '' : 'Done', toolCalls: turn < 2 ? [call] : [], providerReasoning: { reasoning_content: `Body-${turn}`, reasoning_details: [{ type: 'reasoning.encrypted', data: `opaque-${turn}` }] } } }
   } }
-  const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: v => v })
+  const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: { records: [] }, compacting() {}, save: v => v })
   await runPiAgent({ model, context, budget, signal: new AbortController().signal, system: 'Test', message: 'List jobs',
     tools: scopedFixture({ list: async () => [{ name: 'job.list', description: 'List', inputSchema: { type: 'object' } }], call: async () => ({ items: [], total: 0 }) }), emit: e => events.push(e), status() {}, protect() {} })
   assert.equal(step, 3)
@@ -92,7 +92,7 @@ test('transcript redaction preserves business text and removes nested credential
 })
 
 test('compaction inputs exclude Host continuation metadata', async () => {
-  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
   const model = { async complete(input: { messages: readonly AgentMessage[] }) {
     assert(!JSON.stringify(input.messages).includes('opaque'))
     assert(JSON.stringify(input.messages).includes('Business text'))
@@ -120,12 +120,12 @@ test('recorder persists full redacted details and private continuation state acr
   const run = backend.chats.start({ requestId: randomUUID(), message: 'Test', choice }), events: AgentRunEvent[] = []
   const recorder = createAgentRecorder(backend.chats, backend.chats.snapshot(run.runId), e => events.push(e), e => { throw e })
   recorder.started()
-  recorder.receive({ type: 'segment.started', id: 'r', kind: 'reasoning', reasoning: { source: 'reasoning_content', kind: 'text' } })
-  recorder.receive({ type: 'segment.delta', id: 'r', text: '完整推理' }); recorder.receive({ type: 'segment.completed', id: 'r' })
+  recorder.receive({ phase: 'execute', type: 'segment.started', id: 'r', kind: 'reasoning', reasoning: { source: 'reasoning_content', kind: 'text' } })
+  recorder.receive({ phase: 'execute', type: 'segment.delta', id: 'r', text: '完整推理' }); recorder.receive({ phase: 'execute', type: 'segment.completed', id: 'r' })
   const call = { id: 'call', name: 'job.list', arguments: { limit: 4, api_key: 'secret-input' } }
-  recorder.receive({ type: 'model.completed', response: { content: '', toolCalls: [call], providerReasoning: { reasoning_content: '完整推理', reasoning_details: [{ type: 'reasoning.encrypted', data: 'opaque-secret', signature: 'sig-secret' }] } } })
-  recorder.receive({ type: 'tool.started', id: 'tool', call })
-  recorder.receive({ type: 'tool.completed', id: 'tool', name: 'job.list', result: { items: [{ title: 'Business text', tokenCount: 24, token: 'secret-token', access_token: 'secret-output' }], total: 1 }, durationMs: 25 })
+  recorder.receive({ phase: 'execute', type: 'model.completed', response: { content: '', toolCalls: [call], providerReasoning: { reasoning_content: '完整推理', reasoning_details: [{ type: 'reasoning.encrypted', data: 'opaque-secret', signature: 'sig-secret' }] } } })
+  recorder.receive({ phase: 'execute', type: 'tool.started', id: 'tool', call })
+  recorder.receive({ phase: 'execute', type: 'tool.completed', id: 'tool', name: 'job.list', result: { items: [{ title: 'Business text', tokenCount: 24, token: 'secret-token', access_token: 'secret-output' }], total: 1 }, durationMs: 25 })
   recorder.finish('completed', null)
   assert(!JSON.stringify(events).includes('opaque-secret')); assert(!JSON.stringify(events).includes('sig-secret'))
   assert(!JSON.stringify(events).includes('secret-input')); assert(!JSON.stringify(events).includes('secret-output'))

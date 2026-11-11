@@ -24,7 +24,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
       const body = JSON.parse(raw)
       if (body.stream) {
         response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-        response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Selection received.' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`)
+        response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: body.messages[0].content.startsWith('Prepare a self-contained handoff') ? '{"status":"ready","prompt":"Selection fixture."}' : 'Selection received.' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`)
       } else {
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify({ title: 'Selection engineer', companyNameRaw: 'Selection company', description: 'TypeScript services', requirements: [] }) } }] }))
@@ -146,7 +146,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     }
     assert(!(await evaluate('document.querySelector(".job-page").textContent')).includes(`${origin}/job?id=123`))
     await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'restore Browser for sourced import')
-    const settings = { ai: { providers: [{ id: 'selection-fixture', name: 'Selection fixture', baseURL: `${origin}/v1`, requiresKey: false, models: ['fixture'], defaultModel: 'fixture', capabilities: { fixture: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'selection-fixture', modelId: 'fixture' } } }
+    const settings = { ai: { providers: [{ id: 'selection-fixture', name: 'Selection fixture', baseURL: `${origin}/v1`, models: ['fixture'], overrides: { fixture: { contextWindow: 65536, maxOutputTokens: 8192 } } }], default: { providerId: 'selection-fixture', modelId: 'fixture' } } }
     await evaluate(`window.data.settings.savePreferences(${JSON.stringify(settings)})`)
     await choose(view(), 'job-import')
     await field('[name=jobText]', `${selected}\nUser added context.`)
@@ -168,7 +168,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     await evaluate('document.querySelector(".ai-composer").requestSubmit()')
     try { await waitFor(() => evaluate('document.body.textContent.includes("Selection received.")'), 'explicit Ask response') }
     catch (error) { throw new Error(`${error.message}; model requests=${aiCalls}; UI=${await evaluate('document.querySelector(".ai-page")?.textContent')}`) }
-    assert.equal(aiCalls, 2)
+    assert.equal(aiCalls, 3)
     // Native menus follow the language without a document reload.
     await evaluate('window.data.settings.savePreferences({language:"zh-CN"})')
     source = await navigate(); opened = await context(source)

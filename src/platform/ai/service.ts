@@ -39,7 +39,7 @@ export function createAIService(deps: Dependencies) {
     }
   }
   async function execute(request: Request): Promise<void> {
-    const timeout = requestTimeout(request.controller.signal, deps.timeoutMs ?? request.snapshot?.timeoutMs)
+    const timeout = requestTimeout(request.controller.signal, deps.timeoutMs)
     try {
       if (request.cancelled) fail('AI_CANCELLED')
       if (request.initialError) fail(request.initialError)
@@ -51,7 +51,7 @@ export function createAIService(deps: Dependencies) {
       }, text => {
         timeout.signal.throwIfAborted()
         publish(request, { requestId: request.id, type: 'delta', text })
-      }, deps.transport)
+      }, deps.transport, timeout.reset)
       timeout.signal.throwIfAborted()
       publish(request, { requestId: request.id, type: 'completed' })
     } catch (reason) {

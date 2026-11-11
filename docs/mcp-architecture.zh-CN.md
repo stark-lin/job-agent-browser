@@ -23,11 +23,13 @@ UI    → typed IPC → Domain
 
 [Agent Engine](../src/platform/agent/engine/index.ts)用共享 Pi 循环执行 Ask 和 Resume，串行调用工具并校验请求。[AgentModel 适配](../src/platform/ai/agent-model.ts)映射逻辑工具名，并记录不含内容的模型结果。[职位采集](../src/platform/agent/capture.ts)和[申请管理](../src/platform/agent/application.ts)使用单次无工具模型请求，由 Controller 通过 MCP 派发已授权并绑定的写入。
 
-[Ask Agent](../src/platform/agent/ask.ts)、智能粘贴和 Resume 使用 [ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts)。模型初始工具仅含有权使用的 `scope.job/profile/application/resume/artifact/knowledge/memory` 目录和 `human.ask`。内部 MCP 同时列出原始授权描述。Scope 调用真实经过 Server，按当前权限返回名称/描述/风险，下一轮模型请求加入整个领域的原始 Schema。未展开调用以 AGENT_PROTOCOL_ERROR 拒绝。重复目录幂等，多个领域累积至 Run 结束。没有搜索、激活、LRU 或工具数软预算；硬上下文超限返回 ASK_CONTEXT_OVERFLOW，不静默移除工具。校验后的批次串行执行，每 Run 最多 64 次模型请求（含摘要）和 256 次模型工具调用。
+[Ask Agent](../src/platform/agent/ask.ts)、智能粘贴和 Resume 使用 [ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts)。模型初始工具仅含有权使用的 `scope.job/profile/application/resume/artifact/knowledge/memory` 目录和 `human.ask`。内部 MCP 同时列出原始授权描述。Scope 调用真实经过 Server，按当前权限返回名称/描述/风险，下一轮模型请求加入本阶段已授权的原始 Schema。未展开调用以 AGENT_PROTOCOL_ERROR 拒绝。重复目录幂等，多个领域累积至阶段结束。没有搜索、激活、LRU 或工具数软预算；硬上下文超限返回 ASK_CONTEXT_OVERFLOW，不静默移除工具。校验后的批次串行执行，每 Run 最多 64 次模型请求（含摘要）和 256 次模型工具调用。
 
 [Scope 测试](../tests/scoped-toolset.test.ts)覆盖 Run 隔离、领域展开、权限、重复调用和硬预算。[Provider 测试](../tests/agent-disclosure.test.ts)与[真实 HTTP/MCP 集成](../tests/ask-disclosure.test.ts)保留名称/Schema Hash 校验。Scope 和 Human Ask 验证活动 Run，但绕过业务 RunGuard，不计业务进展、不清除警告/恢复。外部 MCP 保持扁平列表，公开授权业务工具及 `run.begin`、`run.end`、`human.ask`，不公开 Scope。
 
 [显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除 Profile 写入、全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。Ask 提示词不列出这些写入接口，Scope 目录和模型 Schema 仅暴露授权操作。普通 Job/Application 管理、Profile 与 Knowledge 只读操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume、Profile 导入和外部 MCP 使用各自的策略。
+
+[Prepare](../src/platform/agent/engine/ask-workflow.ts)将认证工具视图收窄到已授权的 READ、COMPUTE、Human Ask 和可用 Scope 控件。[ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts)在目录返回模型前过滤条目。Execute 沿用原 Ask 授权与同一个 RunGuard。
 
 智能粘贴复用 Ask Run 和 RunGuard，并建立独立的认证连接。[服务端](../src/platform/mcp-server/runtime.ts) 在现有 Ask 允许列表内将发现和执行的风险上限设为 COMPUTE。智能粘贴 Run 收尾时关闭该连接。之后在同一会话中发出的普通 Ask 请求使用常规 Ask 连接。[客户端](../src/platform/mcp/first-party-client.ts) · [集成测试](../tests/smart-paste.test.ts)
 

@@ -67,7 +67,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     assert.equal((await data('listSources', { jobId: job.id })).value.total, 0)
     assert.equal((await evaluate(`window.data.applications.listEvents({jobId:${JSON.stringify(job.id)}})`)).value.total, 0)
     await button('Close', 'document.querySelector("dialog[open]")')
-    await preferences({ ai: { providers: [{ id: 'job-fixture', name: 'Job fixture', baseURL: `${origin}/v1`, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }], default: { providerId: 'job-fixture', modelId: 'fixture' } } })
+    await preferences({ ai: { providers: [{ id: 'job-fixture', name: 'Job fixture', baseURL: `${origin}/v1`, models: ['fixture'] }], default: { providerId: 'job-fixture', modelId: 'fixture' } } })
     await call('navigate', 'app://find')
     await waitFor(() => evaluate('document.body.innerText.includes("Job fixture")'), 'job model disclosure')
     await field('title', 'Keep manual title'); await field('notes', 'Keep manual notes'); await field('jobUrl', `${origin}/restricted`)

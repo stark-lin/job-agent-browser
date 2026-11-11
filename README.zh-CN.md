@@ -112,4 +112,4 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 
 ## 智能笔记知识库
 
-Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及 Ask AI Agent 自主管理记忆。Ask AI 需要经过核验且至少为 65,536 Tokens 的实际模型窗口；未知部署限制需在 Settings 配置。见[运行时](docs/architecture.zh-CN.md)、[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。
+Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及 Ask AI Agent 自主管理记忆。可在初始化或设置中连接 OpenAI 兼容服务。Ask AI 优先使用有效模型窗口，未知时按 65,536 Tokens 计算。见[运行时](docs/architecture.zh-CN.md)、[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。

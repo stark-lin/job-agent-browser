@@ -29,7 +29,7 @@ test('V22 upgrade preserves all rows/checksums, initializes titles and preserves
         assert.equal(snapshot.facts[0].id, factId); assert.equal(snapshot.facts[0].profileItemId, itemId); assert.equal(snapshot.facts[0].sortOrder, 9)
       } else { assert.deepEqual(snapshot.items, []); assert.deepEqual(snapshot.facts, []) }
     }
-    assert.equal(db.prepare('SELECT max(version) n FROM schema_migrations').get()?.n, 24)
+    assert.equal(db.prepare('SELECT max(version) n FROM schema_migrations').get()?.n, 25)
   } finally { db.close() }
 })
 

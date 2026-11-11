@@ -41,7 +41,7 @@ import { registerApplicationIPC } from './application-ipc'
 import { registerResumeIPC } from './resume-ipc'
 import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
-import { defaultAITimeouts } from '../../../shared/ai'
+import { saveAIConnection } from '../../storage/ai-connection'
 import { registerJobImportIPC } from './job-import-ipc'
 import { createMainWindow } from './window'
 import { registerBrowserIPC } from './browser-ipc'
@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
     available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value)
   })
-  backend = createBackend(join(directory, 'database.sqlite'), { settings: preferences, secrets }, 'internal', { chatDebugOutput: createChatDebugOutput(clipboard, { version: app.getVersion(), commit: buildCommit, platform: process.platform }) })
+  backend = createBackend(join(directory, 'database.sqlite'), { settings: { ...preferences, saveAIConnection: input => saveAIConnection(preferences, secrets, input) }, secrets }, 'internal', { chatDebugOutput: createChatDebugOutput(clipboard, { version: app.getVersion(), commit: buildCommit, platform: process.platform }) })
   const knowledgePreferences = () => preferences.get({}).knowledge ?? defaultKnowledgePreferences
   const githubKey = 'knowledge-github-backup'
   let embeddings: ReturnType<typeof createKnowledgeEmbeddings> | undefined
@@ -125,7 +125,7 @@ app.whenReady().then(async () => {
   registerHumanIPC(human, join(__dirname, '../renderer/index.html'), () => browser)
   await firstParty.ready
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
-  jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
+  jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader() })
   const engine = createAgentEngine(backend.chats.agentSnapshot)
   resumes = createResumeTasks({ backend, mcp: firstParty, engine, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })

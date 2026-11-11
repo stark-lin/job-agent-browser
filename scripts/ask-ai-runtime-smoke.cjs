@@ -49,7 +49,12 @@ app.on('browser-window-created', (_event, window) => {
           let raw = ''; request.on('data', c => { raw += c }); request.on('end', async () => {
             const body = JSON.parse(raw)
             assert.equal(body.stream, true, 'Ordinary Ask smoke must not run automatic model tasks')
-            const user = body.messages.findLast(m => m.role === 'user').content, lastUser = body.messages.findLastIndex(m => m.role === 'user')
+            const current = body.messages.findLast(m => m.role === 'user').content
+            if (body.messages[0].content.startsWith('Prepare a self-contained handoff')) {
+              response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+              finish(response, JSON.stringify({ status: 'ready', prompt: 'Fixture prepared context.' })); return
+            }
+            const user = current.slice('Original Request:\n'.length).split('\n\nPrepared Task:\n')[0], lastUser = body.messages.findLastIndex(m => m.role === 'user')
             for (const previous of body.messages.filter(m => m.role === 'assistant' && m.tool_calls?.length)) {
               assert.equal(previous.reasoning_content, 'Full provider reasoning 中文')
               assert.equal(previous.reasoning_details.find(d => d.type === 'reasoning.encrypted').data, 'OPAQUE_PROVIDER_STATE')
@@ -109,7 +114,7 @@ app.on('browser-window-created', (_event, window) => {
           })
         })
         await new Promise(r => server.listen(0, '127.0.0.1', r))
-        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, requiresKey: false, models: ['fixture-model'], defaultModel: 'fixture-model', capabilities: { 'fixture-model': { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
+        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, models: ['fixture-model'], overrides: { 'fixture-model': { contextWindow: 262144, maxOutputTokens: 8192 } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
         assert((await data('settings', 'savePreferences', { ai, language: 'en', theme: 'light' })).ok)
         await evaluate("window.browser.navigate('app://ai')")
         await waitFor(() => evaluate('!!document.querySelector(".ai-composer textarea")'), 'composer')
@@ -139,6 +144,8 @@ app.on('browser-window-created', (_event, window) => {
         const snapshot = (await api('getRun', { runId: metadata.workflowRun })).value
         assert.equal(snapshot.items.filter(i => i.content.type === 'tool_call' && !i.content.toolName.startsWith('scope.')).length, 5)
         assert.equal(JSON.stringify(snapshot).includes('PRIVATE_NOTE_RESULT'), true)
+        assert(snapshot.items.some(item => item.phase === 'prepare' && item.content.text?.includes('Fixture prepared context.')))
+        assert.equal(await evaluate('document.body.innerText.includes("Fixture prepared context.")'), false)
         assert.equal(JSON.stringify(snapshot).includes('OPAQUE_PROVIDER_STATE'), false)
         assert.equal(JSON.stringify(snapshot).includes('PRIVATE_SIGNATURE'), false)
         assert(snapshot.items.some(i => i.content.type === 'reasoning' && i.content.reasoning.kind === 'encrypted'))

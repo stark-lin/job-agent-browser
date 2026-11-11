@@ -3,7 +3,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { firstPartyFixture } from './first-party-fixture'
-import { createFixtureAskTasks as createAskAgentTasks } from './ask-fixture'
+import { createAskAgentTasks as createRealAskTasks } from '../src/platform/electron/ask-agent-tasks'
+import { chatDebugExportRepository } from '../src/platform/database/repositories/chat-debug-export'
+import { scriptedModel } from './disclosure-fixture'
+import { createFixtureAskTasks as createAskAgentTasks, fixtureCapabilities } from './ask-fixture'
 import type { AgentModelEvent, StreamingAgentModel, AgentToolCall } from '../src/shared/agent'
 import type { AgentRunEvent } from '../src/domain/chat/chat.types'
 const choice = { providerId: 'fixture', modelId: 'test' }
@@ -155,4 +158,89 @@ test('Ask AI reads user-maintained Knowledge through MCP without write permissio
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? ''); assert.equal(snapshot.run.writeStarted, false)
   assert(JSON.stringify(snapshot).includes('PRIVATE_KNOWLEDGE_BODY'))
   assert.equal((await f.workspace.spaces.knowledge.files.read('interview/notes.md')).content, 'PRIVATE_KNOWLEDGE_BODY pricing')
+})
+
+test('Prepare filters the Scope directory and shares a single Run with isolated Execute input', async t => {
+  const f = await firstPartyFixture(t), events: AgentRunEvent[] = []
+  let opened = 0, capabilities = 0, round = 0
+  const open = f.mcp.openAgentRun.bind(f.mcp)
+  f.mcp.openAgentRun = async input => { opened++; return open(input) }
+  const script = scriptedModel((request, step) => {
+    round = step
+    const messages = request.messages
+    const listed = (name: string) => request.tools.some(tool => tool.function.description.startsWith(`[${name}]`))
+    if (step === 1) {
+      assert(messages[0].content.startsWith('Prepare a self-contained handoff'))
+      return [{ name: 'scope.application', arguments: {} }]
+    }
+    if (step === 2) {
+      assert(listed('application.get')); assert(!listed('application.add_note'))
+      const directory = messages.filter(message => message.role === 'tool').at(-1)!.content
+      assert(directory.includes('application.get')); assert(!directory.includes('application.add_note'))
+      return [{ name: 'application.get', arguments: { jobId: f.job.id } }]
+    }
+    if (step === 3) return JSON.stringify({ status: 'ready', prompt: `Apply the confirmed action to job ${f.job.id}.` })
+    if (step === 4) {
+      assert(!messages.some(message => message.role === 'tool' || message.role === 'assistant'))
+      assert(messages.at(-1)!.content.includes('Original Request:\nAdd a note'))
+      assert(messages.at(-1)!.content.includes(`Apply the confirmed action to job ${f.job.id}.`))
+      return [{ name: 'scope.application', arguments: {} }]
+    }
+    if (step === 5) {
+      assert(listed('application.add_note'))
+      return [{ name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Committed before final response' } }]
+    }
+    assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).total, 1)
+    return 'Note saved.'
+  })
+  const tasks = createRealAskTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => script.model,
+    capabilities: async () => { capabilities++; return fixtureCapabilities } })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, start('Add a note'), event => events.push(event))
+  const snapshot = await wait(tasks, ids.runId)
+  assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')
+  assert.equal(round, 6); assert.equal(opened, 1); assert.equal(capabilities, 1)
+  assert(events.some(event => event.type === 'runtime.status' && event.status === 'preparing'))
+  assert(events.some(event => event.type === 'runtime.status' && event.status === 'executing'))
+  const debug = chatDebugExportRepository(f.database.connection).getDebugBundle(ids.sessionId).runs[0]
+  assert.equal(debug.preparation?.status, 'ready')
+  assert.deepEqual(debug.cycles.map(cycle => [cycle.index, cycle.phase, cycle.modelRequestOrdinal]), [
+    [1, 'prepare', 1], [2, 'prepare', 2], [3, 'prepare', 3], [4, 'execute', 4], [5, 'execute', 5], [6, 'execute', 6]
+  ])
+  assert.deepEqual(debug.providerResponses.map(response => response.cycle_index), [1, 2, 3, 4, 5, 6])
+  const history = f.backend.chats.contextTurns(ids.sessionId, Number.MAX_SAFE_INTEGER).flatMap(turn => turn.messages)
+  assert(history.some(message => message.role === 'user' && message.content === 'Add a note'))
+  assert(history.some(message => message.role === 'assistant' && message.content === 'Note saved.'))
+  assert(!JSON.stringify(history).includes('Apply the confirmed action'))
+  assert(!history.some(message => message.role === 'assistant' && message.toolCalls.some(call => call.name === 'application.get')))
+})
+
+for (const [content, state] of [
+  ['{"status":"blocked","reason":"Please choose a profile."}', 'completed'],
+  ['{"status":"ready","prompt":"", "reason":"invalid"}', 'failed']
+] as const) test(`Prepare ${state} settles without an Execute stage`, async t => {
+  const f = await firstPartyFixture(t)
+  const script = scriptedModel(() => content)
+  const tasks = createRealAskTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => script.model, capabilities: async () => fixtureCapabilities })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, start('Prepare profile task'), () => {})
+  const snapshot = await wait(tasks, ids.runId)
+  assert.equal(snapshot.run.state, state)
+  assert.equal(script.requests.length, 1)
+  const run = chatDebugExportRepository(f.database.connection).getDebugBundle(ids.sessionId).runs[0]
+  assert.deepEqual(run.cycles.map(cycle => [cycle.phase, cycle.status]), [['prepare', state === 'completed' ? 'SUCCESS' : 'FAILED']])
+  if (state === 'completed') assert.equal(f.backend.chats.getRun(ids.runId).blockedReason, 'Please choose a profile.')
+  else assert.equal(snapshot.run.error, 'AGENT_PROTOCOL_ERROR')
+})
+
+test('Prepare rejects a write before dispatch even when the model fabricates a tool call', async t => {
+  const f = await firstPartyFixture(t)
+  const script = scriptedModel((_request, step) => step === 1 ? [{ name: 'scope.application', arguments: {} }] :
+    [{ name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Forbidden' } }])
+  const tasks = createRealAskTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => script.model, capabilities: async () => fixtureCapabilities })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, start('Add a note'), () => {}), snapshot = await wait(tasks, ids.runId)
+  assert.equal(snapshot.run.error, 'AGENT_PROTOCOL_ERROR')
+  assert.equal(snapshot.run.writeStarted, false)
+  assert.equal(f.backend.applications.listEvents({ jobId: f.job.id }).total, 0)
 })

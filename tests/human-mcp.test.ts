@@ -71,7 +71,17 @@ test('external Human Ask never extends the Run deadline or releases admission du
 
 test('Human waiting status is persisted while the model pauses and clears on submission', async t => {
   const f = await firstPartyFixture(t)
-  const model = scriptedModel((_request, round) => round === 1 ? [{ name: 'human.ask', arguments: { question: 'Direction?' } }] : 'Thanks')
+  const model = scriptedModel((request, round) => {
+    if (round === 1) return [{ name: 'human.ask', arguments: { question: 'Direction?' } }]
+    if (round === 2) {
+      assert(request.messages.some(message => message.role === 'tool' && message.content.includes('Backend')))
+      return JSON.stringify({ status: 'ready', prompt: 'The user chose Backend.' })
+    }
+    assert.deepEqual(request.messages.map(message => message.role), ['system', 'user'])
+    assert(request.messages[1].content.includes('Ask me'))
+    assert(request.messages[1].content.includes('The user chose Backend.'))
+    return 'Thanks'
+  })
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model.model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'Ask me', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
@@ -80,4 +90,5 @@ test('Human waiting status is persisted while the model pauses and clears on sub
   f.human.answer(f.human.list()[0].id, { selectedOption: null, text: 'Backend' })
   await until(() => tasks.getRun(1, { runId: ids.runId }).run.state !== 'running')
   assert.equal(tasks.getRun(1, { runId: ids.runId }).run.state, 'completed')
+  assert.equal(model.requests.length, 3)
 })

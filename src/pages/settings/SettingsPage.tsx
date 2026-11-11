@@ -16,7 +16,7 @@ export function SettingsPage() {
   const onboarding = useOnboarding(), [restarting, setRestarting] = useState(false), [restartError, setRestartError] = useState(false)
   const { draft, saving, notices } = settings
   const feedback = (notice: Notice, dirty: boolean) => notice
-    ? <StatusMessage tone={notice === 'saveFailed' || notice === 'encryptionUnavailable' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
+    ? <StatusMessage tone={notice === 'saveFailed' || notice === 'invalidSmartPaste' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
     : dirty ? <StatusMessage>{t($ => $.settings.unsaved)}</StatusMessage> : null
   const submitMailbox = () => {
     if (!draft) return

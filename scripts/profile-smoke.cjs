@@ -48,7 +48,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
   writeFileSync(path, pdfFixture({ text: 'Imported candidate Built services Improved latency' }))
   dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
   try {
-    await settings({ ai: { providers: [{ id: 'profile-fixture', name: 'Local profile fixture', baseURL: `http://127.0.0.1:${server.address().port}/v1`, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }], default: { providerId: 'profile-fixture', modelId: 'fixture' } }, language: 'en', theme: 'light' })
+    await settings({ ai: { providers: [{ id: 'profile-fixture', name: 'Local profile fixture', baseURL: `http://127.0.0.1:${server.address().port}/v1`, models: ['fixture'] }], default: { providerId: 'profile-fixture', modelId: 'fixture' } }, language: 'en', theme: 'light' })
     await call('navigate', 'app://profile')
     await waitFor(() => evaluate('!!document.querySelector(".profile-page form") && document.body.innerText.includes("Local profile fixture")'), 'profile forms and provider disclosure')
     await button('Upload PDF and parse')

@@ -1,10 +1,11 @@
 import { AgentError, type AgentToolDescriptor, type AgentTools } from '../../../shared/agent'
+import { allowsAgentControl } from '../../../shared/agent/context-policy'
 import { allowedAskTool } from '../../../shared/agent/ask-policy'
 import type { AgentToolset } from './toolset'
 import type { ContextBudget } from '../context/budget'
 import { fingerprint } from '../../ai/agent-request'
 
-/** A new instance belongs to exactly one Run; expansion never changes authorization. */
+/** A new instance belongs to one execution phase; expansion never changes authorization. */
 export class ScopedToolset implements AgentToolset {
   private catalog: AgentToolDescriptor[] = []
   private expanded = new Set<string>()
@@ -13,7 +14,8 @@ export class ScopedToolset implements AgentToolset {
   constructor(private readonly tools: AgentTools, private readonly budget: ContextBudget, private readonly allows = allowedAskTool) {}
   async refresh() {
     const listed = await this.tools.list()
-    this.catalog = listed.filter(tool => this.allows(tool.name) || tool.name === 'human.ask' || tool.name.startsWith('scope.') && listed.some(business => this.allows(business.name) && business.name.startsWith(`${tool.name.slice(6)}.`)))
+    const allowed = listed.filter(tool => this.allows(tool.name)).map(tool => tool.name)
+    this.catalog = listed.filter(tool => allowed.includes(tool.name) || allowsAgentControl(tool.name, allowed))
   }
   snapshot() { return { version: this.version, tools: structuredClone(this.current) } }
   confirmRequest(_names: readonly string[]) {}
@@ -30,7 +32,8 @@ export class ScopedToolset implements AgentToolset {
       if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).length) throw new AgentError('AGENT_PROTOCOL_ERROR')
       const result = await this.tools.call(name, args, signal)
       this.expanded.add(name.slice(6))
-      return result
+      if (!result || typeof result !== 'object' || !('tools' in result) || !Array.isArray(result.tools)) return result
+      return { scope: name.slice(6), tools: result.tools.filter(tool => this.catalog.some(authorized => authorized.name === tool?.name && authorized.name.startsWith(`${name.slice(6)}.`))) }
     }
     return this.tools.call(name, args, signal)
   }

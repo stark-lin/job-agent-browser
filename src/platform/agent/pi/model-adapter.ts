@@ -27,7 +27,6 @@ export async function createPiStream(deps: {
 }): Promise<StreamFn> {
   const { createAssistantMessageEventStream, getCurrentTools, getCurrentSystemPrompt } = await import('@earendil-works/pi-ai')
   const seen = new Set<string>()
-  let requests = 0
   return (model, context, options) => {
     const stream = createAssistantMessageEventStream()
     const partial: HostAssistant = { role: 'assistant', content: [], api: model.api, model: model.id, provider: model.provider, timestamp: Date.now(), usage: emptyUsage(), stopReason: 'pending' }
@@ -36,7 +35,6 @@ export async function createPiStream(deps: {
       try {
         const signal = AbortSignal.any([request.signal, deps.signal, ...(options?.signal ? [options.signal] : [])])
         const cycleIndex = deps.cycleIndex?.()
-        if (++requests > 64) throw new AgentError('AGENT_STEP_LIMIT')
         signal.throwIfAborted()
         const tools: AgentToolDescriptor[] = getCurrentTools(context.messages).map(t => ({ name: t.name, description: t.description, inputSchema: t.parameters as Record<string, unknown> }))
         const messages = await deps.prepare(fromPi(context.messages, getCurrentSystemPrompt(context.messages)), tools, signal)

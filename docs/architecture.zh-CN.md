@@ -93,9 +93,9 @@ React App → Page → Preload → IPC → Main
 
 **已实现 AI：**[Main 服务](../src/platform/ai/service.ts)在创建请求时固定所选 Provider、模型和凭据。支持 OpenAI 兼容的 Chat Completions；知识库 embeddings 使用下文独立的内置本地运行时。[共享传输](../src/platform/ai/transport.ts)为 `http://127.0.0.1:1234` 这类普通 endpoint 自动使用 `/v1`；显式填写的 `/v1`、`/gateway/v1` 等 API 路径会保留，并移除尾部斜杠。流式对话和 Resume Agent 共用这一地址解析。[兼容适配器](../src/platform/ai/compatible.ts)消费 SSE，拒绝重定向。远程地址必须使用 HTTPS；回环 HTTP 支持本地服务。自动重试、跨 Provider 回退和结构化输出能力探测尚未实现。
 
-[旧 AI IPC](../src/platform/electron/main/ai-ipc.ts)暴露启动/取消及模型发现，事件只返回发起请求的可信 frame。[Renderer 协调](../src/app/ai/streamClient.ts)先订阅再调用，缓存早到事件，并在终态或页面释放时移除订阅。服务限制请求数量及上下文/输出大小，对话使用已保存的 AI 请求超时，并在 Renderer 导航/销毁或应用退出时取消请求。Provider SSE 保留在 Main，界面使用增量 IPC。
+[AI IPC](../src/platform/electron/main/ai-ipc.ts)仅向发起请求的可信 frame 发送增量，并在 Renderer 导航、销毁或退出时取消工作。[固定超时](../src/shared/ai.ts)为模型发现 15 秒、网页读取 20 秒、推理 300 秒。非流式请求采用总时限，流式请求收到有效模型输出后重置空闲时限。
 
-[Ask AI V2](../src/pages/ai/AskAIPage.tsx)使用 [Main 协调器](../src/platform/electron/ask-agent-tasks.ts)，每个活跃 Run 只有一个 [Pi Agent](../src/platform/agent/pi/runtime.ts)。同一 Session 按 FIFO 完成能力解析、Core 加载、上下文准备、串行推理/工具及终态持久化，不同 Session 竞争全局唯一执行占用，繁忙时在推理前拒绝。后续输入可靠保存为 Pending，每窗口最多四个 Run、全局十六个。停止取消当前链路，保留部分内容与已提交写入；中断 Run 不续跑。仅恢复宿主记录落盘时保持该 Session 队列屏障，不重放工具。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿及分页。存储与 MCP 权限由所属文档管理。 每次准入 Send 具有独立可信的 MCP Run 身份；[MCP 架构](mcp-architecture.zh-CN.md#ask-run-保护)拥有防护及终止策略，[模型观察器](../src/platform/agent/pi/request-observer.ts)将主循环和摘要请求合计限制为 64 次。 每个 Pi 决策及其工具批次由 [Cycle 状态机](agent-runtime.zh-CN.md)控制，执行状态取自最新 Cycle。
+[Ask AI](../src/pages/ai/AskAIPage.tsx)和智能粘贴在一个 Run 中串行执行 Prepare 与 Execute。[Main 协调器](../src/platform/electron/ask-agent-tasks.ts)每窗口最多排队四个 Run、全局十六个，同一 Session 按 FIFO 放行，不同 Session 竞争全局执行占用。停止后保留已提交写入与已记录的部分输出。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿和分页。阶段转换和共享预算见 [Agent 运行时](agent-runtime.zh-CN.md)。
 
 **已实现请求校验：**[稳定 Provider 名称](../src/platform/ai/agent-protocol.ts)保留语义化名称片段、短哈希及 Description 中的逻辑名称前缀。[Pi 适配器](../src/platform/agent/pi/model-adapter.ts)在发送前核对运行时 loadout、Pi 声明和已组装的 Provider 名称/完整输入 Schema 指纹；不一致时以 AGENT_PROTOCOL_ERROR 停止。[MCP 架构](mcp-architecture.zh-CN.md)管理 Scope 展开与 Human Ask，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除的逐请求诊断。[披露集成测试](../tests/ask-disclosure.test.ts)通过真实 HTTP 与第一方 MCP 验证链路，不使用自动展开辅助层；真实模型的工具选择质量仍未验证。
 
@@ -103,13 +103,11 @@ React App → Page → Preload → IPC → Main
 
 [SessionSidebar](../src/pages/ai/SessionSidebar.tsx)确认后通过 App 注入的 Data IPC 复制调试 JSON；完整持久化快照留在 Main，回读剪贴板一致后才成功，详见[数据架构](data-architecture.zh-CN.md#copy-debug-json)。
 
-[上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts)优先使用 LM Studio 已加载实例限制；未知或低于 64K 的窗口不能运行 Ask AI。Settings 支持填写部署限制。
+[上下文管理](../src/platform/agent/context/manager.ts)按模型窗口预留输出和安全空间，完整轮次达到 80% 时向 60% 压缩。Prepare 加载有界的 [Core Memory](../src/platform/agent/context/core-memory.ts)参考视图。[能力解析](../src/platform/ai/ask-capabilities.ts)依次使用运行时限制（包括 LM Studio 已加载窗口）、Provider 元数据、匹配端点的模型目录及手动覆盖。未知时使用 65,536 Tokens 上下文窗口和 8,192 Tokens 最大输出。较小窗口按可用空间预算，模型错误在实际推理时返回。
 
-[Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
+[Ask 策略](../src/platform/agent/ask.ts)由 Execute 负责最终工具调用及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
 
-**已实现模型发现：**[Main 检测服务](../src/platform/ai/models.ts)按用户操作向已保存 Provider 的 `models` 资源发起 `GET`，使用已保存密钥；无需密钥的服务不发送身份验证。不要求已有模型/默认值。服务拒绝重定向，限制 JSON 为 1 MB/10,000 条，校验、去重并排序 ID，使用已保存的模型检测超时，每个窗口最多一个请求、全局最多 16 个。窗口释放/导航或应用退出会中止检测。
-
-[设置选择器](../src/pages/settings/ModelDiscovery.tsx)将选中 ID 加入草稿（最多 100 个），保存后生效。空列表/错误不影响手填；切换 Provider 或控件卸载后忽略迟到结果。检测不调用生成、不写设置，也不证明模型支持对话/工具。[回归测试](../tests/ai-models.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)使用本地样本；另已在本机 LM Studio 验证模型发现及短流式对话，其他真实服务的兼容性仍未验证。
+**已实现 AI Connection V2。**[初始化和设置](../src/app/ai/AIConnectionEditor.tsx)共用 Provider、Endpoint 和可选 API Key 表单。继续时使用草稿调用 [GET /models](../src/platform/ai/models.ts) 并校验非空模型 ID 列表。发现阶段不保存配置或执行推理。单模型自动选中，多模型由用户选择要保存的模型和全局默认项。保存更新[偏好和凭据](data-architecture.zh-CN.md)。[连接 Smoke](../scripts/onboarding-runtime-smoke.cjs)使用本地样本验证两个入口。
 
 **已实现个人资料：**[页面状态](../src/pages/profile/useProfile.ts)完整加载条目/事实分页，将事实归入所属经历、项目或教育条目，未关联事实单独展示。编辑和导入草稿使用原生离开保护及刷新保护。路由目标变化会重新挂载页面状态，确认放弃后丢弃导入会话。存储与显式保存语义归属[数据架构](data-architecture.zh-CN.md)。 履历选择会确认放弃未保存修改并清理旧编辑/导入状态；界面不显示草稿状态；导入沿用人工审查确认并保留首次快照，手动新建或复制可点击确认履历。确认和恢复通过可信 IPC 校验审查时的 Revision。[基准规则](data-architecture.zh-CN.md#工作履历与人工确认基准)
 

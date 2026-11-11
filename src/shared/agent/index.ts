@@ -1,3 +1,5 @@
+import type { AgentPhase } from './phase'
+export type { AgentPhase } from './phase'
 import type { JsonSchema } from '../tools/tool.types'
 import type { ProviderReasoning, ReasoningInfo } from './reasoning'
 import type { PreparedRequest, RequestContext, RequestDiagnostic } from './requests'
@@ -10,6 +12,7 @@ export type { PreparedRequest, PreparedTool, RequestContext, RequestDiagnostic }
 export interface AgentToolDescriptor { name: string; description: string; inputSchema: JsonSchema; outputSchema?: JsonSchema; risk?: 'READ' | 'COMPUTE' | 'WRITE' | 'EXTERNAL_ACTION' }
 /** A protocol client contract. Business results are returned as structured JSON. */
 export interface AgentTools {
+  view?(allow: readonly string[]): AgentTools
   list(): Promise<readonly AgentToolDescriptor[]>
   call(name: string, args: unknown, signal: AbortSignal): Promise<unknown>
   getRunGuardSnapshot?(): RunGuardSnapshot | undefined
@@ -29,7 +32,9 @@ export type AgentModelEvent = { type: 'content.delta'; text: string }
   | { type: 'tool_call.ready'; call: AgentToolCall }
   | { type: 'completed'; response: AgentResponse }
 export interface StreamingAgentModel extends AgentModel { stream(input: AgentModelInput): AsyncIterable<AgentModelEvent> }
-export type AgentRuntimeEvent =
+export type PreparationResult = { status: 'ready'; prompt: string } | { status: 'blocked'; reason: string }
+export type AgentRuntimeEvent = { phase: AgentPhase } & (
+  | { type: 'preparation.completed'; result: PreparationResult; cycleIndex: number; finishedAt: string }
   | { type: 'cycle.started'; index: number; startedAt: string }
   | { type: 'cycle.settled'; index: number; status: Exclude<SettledCycleStatus, TerminalCycleStatus>; reason: string | null; finishedAt: string }
   | { type: 'segment.started'; id: string; kind: 'reasoning' | 'assistant_message'; reasoning?: ReasoningInfo }
@@ -40,9 +45,10 @@ export type AgentRuntimeEvent =
   | { type: 'tool.failed'; id: string; name: string; error: string; durationMs: number; uncertain: boolean; guard?: RunGuardSnapshot }
   | { type: 'model.completed'; response: AgentResponse; cycleIndex?: number }
   | { type: 'model.request.prepared'; request: RequestDiagnostic; cycleIndex?: number }
+)
 export type AgentErrorCode = 'AGENT_CANCELLED' | 'AGENT_TIMEOUT' | 'AGENT_PROTOCOL_ERROR' | 'AGENT_STEP_LIMIT'
   | 'AI_NOT_CONFIGURED' | 'AI_AUTH_FAILED' | 'AI_RATE_LIMITED' | 'AI_PROVIDER_FAILED' | 'AI_CONNECT_FAILED'
-  | 'ASK_CONTEXT_UNKNOWN' | 'ASK_CONTEXT_TOO_SMALL' | 'ASK_CONTEXT_OVERFLOW'
+  | 'ASK_CONTEXT_OVERFLOW'
 export class AgentError extends Error {
   constructor(readonly code: AgentErrorCode) { super(code) }
 }

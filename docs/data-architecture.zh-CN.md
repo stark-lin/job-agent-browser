@@ -105,7 +105,7 @@
 
 只有 [Main 记录器](../src/platform/electron/agent-recorder.ts)追加模型/工具 Item。保存提供商返回的可读推理及来源/类型、加密块标记、工具调用 ID、完整参数/结果、固定错误码和耗时。[会话脱敏](../src/platform/electron/transcript-redaction.ts)在持久化/事件发送前清除凭据字段，普通业务正文完整保留。系统提示词、加密数据、签名和原始异常不进入 Item。先保存 Item 骨架再发事件，文字每秒 checkpoint 并在结束时保存，不逐 token 写 SQLite。崩溃可能丢失最后一次 checkpoint 后的文字。工具条目还保存经白名单解析的 Guard 计数、原因、执行标记、已确认归档效果，以及可选告警/恢复级别与固定 nextAction，不含凭证或证据指纹；诊断随聊天级联删除，不恢复 Guard 执行态。[详情视图](../src/app/components/AgentTimelineItem.tsx)展示这些字段。复用现有 JSON 存储，无需迁移，历史快照可缺少新增字段。派发前跳过的调用不创建工具 Item 或不确定写入。
 
-提供商续传数据与普通聊天投影 IPC 分离，保存含签名/加密推理的已校验 assistant 消息，随会话删除级联清除。历史重建 assistant/tool 消息但不执行工具；切换提供商/模型后不附带续传元数据，压缩提示词也排除这些数据。旧 Item 继续可读，不补造缺失的历史详情。
+[历史重建](../src/platform/database/repositories/ask-context.ts)保留真实用户消息、Execute 响应和工具结果。Prepare 内容保留在 Trace 中。经校验的助手消息和不透明推理数据供诊断及同模型续传，切换模型时忽略 Provider 专属续传数据。
 
 **已实现请求诊断：**[迁移 14](../src/platform/database/migrations/chat-model-requests.ts)增加以 Run/ordinal 为主键的 agent_model_requests，随对话删除级联清除。[请求观察器](../src/platform/agent/pi/request-observer.ts)通过 Main 保存准备时间、Provider/模型、agent-turn/context-summary 用途、loadout 版本、预期/Pi/Provider 名称映射、规范化 SHA-256 输入 Schema 指纹、校验结果；新请求的 `activations_json` 保持默认空数组；落盘失败阻止发送。准备完成不代表已发送或成功。[chats.listModelRequests](../src/platform/electron/data-contract.ts)分页读取这些记录；记录不进入模型历史、会话 Item，不含正文、完整 Schema、参数、结果及推理。现有 chats.deleteSession 在所有 Run 结束后清除诊断，保留业务数据。[测试](../tests/chat-model-requests.test.ts)覆盖迁移、持久化、分页及删除；请求 Schema 诊断 UI 仍为规划。
 
@@ -117,9 +117,9 @@ Run 通过 runtime_instances 记录 owner；恢复只中断失效/过期 owner�
 
 **已实现：**`data.chats.copyDebugJson({ sessionId })` 经现有白名单 [Data Bridge](../src/platform/electron/preload/data-bridge.ts)、可信 `DATA_CALL` Handler 及 backend dispatcher 返回 `Result<null, ErrorCode>`。独立 [Domain 用例](../src/domain/chat/chat-debug.service.ts)先校验参数再读取；缺少可选宿主输出时返回 `NOT_IMPLEMENTED`，不读取数据。
 
-[Repository](../src/platform/database/repositories/chat-debug-export.ts)在一个显式快照事务中读取当前 Session 的全部八张聊天表，不分页、不截断。Run 按 `created_at,id`、Item 按 `sequence`、请求/响应按 `ordinal`、Memory Progress 按 `sequence,message_id` 升序排列。保留原始列名、ID、数值标记、null 和 `*_json` 字符串；缺少检查点输出 `null`，空集合输出 `[]`。运行中/Pending 及终态 Run 均只包含持久化记录：不刷新流缓存、不恢复任务、不调用 MCP、不写业务数据、不重建内容，也不二次脱敏。
+[Repository](../src/platform/database/repositories/chat-debug-export.ts)在一个显式快照事务中读取当前 Session 的持久化聊天记录，不分页、不截断。Run 按 `created_at,id`、Item 按 `sequence`、请求/响应按 `ordinal`、Memory Progress 按 `sequence,message_id` 升序排列。保留原始列名、ID、数值标记、null 和 `*_json` 字符串；缺少检查点输出 `null`，空集合输出 `[]`。运行中/Pending 及终态 Run 均只包含持久化记录：不刷新流缓存、不恢复任务、不调用 MCP、不写业务数据、不重建内容，也不二次脱敏。
 
-[v2 Schema](../src/domain/chat/chat-debug.v2.schema.json)在每个 Run 条目加入按 `cycle_index` 升序排列的 `cycles` 和最新状态 `cycleStatus`。零 Cycle 输出 `[]` 和 `null`。[v1 Schema](../src/domain/chat/chat-debug.v1.schema.json)继续描述旧导出，读取端通过 `schemaVersion` 识别版本。[Main 输出](../src/platform/electron/main/chat-debug-output.ts)等待剪贴板写入并精确回读。导出包含 Electron 版本、平台及可空的构建时 commit。Renderer 只接收成功/null 或固定错误。导出包含私有会话与 Provider 数据，继续显示分享前隐私提醒。验证见[导出测试](../tests/chat-debug-export.test.ts)及 [Electron smoke](../scripts/chat-debug-smoke.cjs)。
+[V25 迁移](../src/platform/database/migrations/ask-phases.ts)为 Item、模型请求、模型响应和 ReAct Cycle 增加阶段列，历史记录默认归为 Execute。模型响应关联对应 Cycle。每个 Ask Run 最多保存一条交接结果，删除 Run 时级联删除。[v2 Schema](../src/domain/chat/chat-debug.v2.schema.json)将阶段和交接字段设为可选，以便读取历史导出。[v1 Schema](../src/domain/chat/chat-debug.v1.schema.json)描述更早版本。[Main 输出](../src/platform/electron/main/chat-debug-output.ts)等待剪贴板精确回读。见[导出测试](../tests/chat-debug-export.test.ts)及 [Electron Smoke](../scripts/chat-debug-smoke.cjs)。
 
 ## 五、API 契约与访问
 
@@ -154,11 +154,9 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理或生成阶段写
 
 [偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。智能粘贴配置保存 ID、标题和提示词。缺少配置时使用本地化默认项，保存的空列表保持为空。 可选布尔值 `onboardingCompleted` 缺失时表示未完成；部分保存会保留其值，重新初始化仅将其改为 false，不新增数据库结构事件。
 
-[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。endpoint 可保留路径前缀，不接受凭据、查询或片段。读取时忽略旧 `parallelModels` 字段，下次保存时清除。缺失的 AI 与超时设置使用默认值，移除 Provider 前需先删除密钥。
+[AI 偏好](../src/platform/storage/ai-preferences.ts)最多保存 20 个 Provider，每个含稳定 ID、端点、名称、最多 100 个模型 ID 和可选手动覆盖。全局默认项可为空。旧偏好在读取时规范化，下次保存清除冗余默认项、密钥要求、超时及自动检测结果，手动限制迁移到 overrides。
 
-[超时设置](../src/shared/ai.ts)保存全局 `ai.timeouts.requestSeconds`、`pageSeconds` 和 `modelsSeconds`，默认分别为 120、20 和 15 秒。每项允许 1–3600 的整数秒数；无效写入保留原文件。AI 超时覆盖对话、职位/资料解析和 Resume Agent 的每次调用；网页读取及模型检测各自独立。编辑/移除 Provider 或保存其他偏好均保留这些值。[设置测试](../tests/settings.test.ts)验证旧配置读取、持久化及无效写入的原子拒绝。
-
-[密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
+[保存连接](../src/platform/storage/ai-connection.ts)更新所选 Provider 与全局默认项。输入的密钥按 Provider ID 加密存入 [Secret Storage](../src/platform/storage/secrets.ts)。留空保留已有密钥。更换源地址需替换或删除旧凭据。加密不可用时仍可显式删除密钥，删除后可移除 Provider。旧版 OpenAI 密文可读，下次写入密钥时升级密文映射。
 
 [设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 缺少文件服务时返回 `NOT_IMPLEMENTED`；调试复制另需宿主输出。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。严格结构化输出协商、登录态网页提取/查重、其余业务 UI 和完整隐私清除尚未实现。简历 Provider 兼容性通过本地样本验证，真实 Provider 仍未验证。
 

@@ -1,44 +1,54 @@
-import { AgentError } from '../../shared/agent'
-import type { AIChoice, AISettings, ModelCapabilities } from '../../shared/ai'
+import { AgentError, abortable } from '../../shared/agent'
+import { FALLBACK_CONTEXT_WINDOW, FALLBACK_MAX_OUTPUT_TOKENS, type AIChoice, type AISettings, type ModelCapabilities } from '../../shared/ai'
+import { fetchModelMetadata } from './models'
+import { openAIURL, requestTimeout } from './transport'
 
-/** Runtime metadata overrides manual/theoretical values. Never identify a local model by name alone. */
+function limit(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= 100_000_000 ? value : undefined
+}
+
+/** Resolve effective deployment limits for one run. Metadata failure is optional, cancellation is not. */
 export async function resolveAskCapabilities(settings: AISettings, choice: AIChoice, key: string | null, signal: AbortSignal, transport: typeof fetch = fetch): Promise<ModelCapabilities> {
   const provider = settings.providers.find(p => p.id === choice.providerId)
-  if (!provider) throw new AgentError('AI_NOT_CONFIGURED')
-  const configured = provider.capabilities?.[choice.modelId]
-  const url = new URL(provider.baseURL), local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-  if (local) {
+  if (!provider?.models.includes(choice.modelId)) throw new AgentError('AI_NOT_CONFIGURED')
+  const modelId = choice.modelId, manual = provider.overrides?.[modelId]
+  const url = new URL(provider.baseURL), endpoint = openAIURL(provider.baseURL, 'models')
+  const timeout = requestTimeout(signal, 3_000)
+  const resolve = (contextWindow: number, maxOutputTokens: number | undefined, source: ModelCapabilities['source']): ModelCapabilities => ({
+    contextWindow, maxOutputTokens: Math.min(contextWindow, maxOutputTokens ?? manual?.maxOutputTokens ?? FALLBACK_MAX_OUTPUT_TOKENS), source
+  })
+  async function metadata<T>(address: URL | string): Promise<T | undefined> {
     try {
-      const endpoint = new URL('/api/v1/models', url)
-      const reply = await transport(endpoint, { redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]), headers: key ? { Authorization: `Bearer ${key}` } : {} })
-      if (reply.ok && reply.headers.get('content-type')?.includes('application/json')) {
-        const reader = reply.body?.getReader()
-        if (!reader) throw new Error()
-        const chunks: Uint8Array[] = []; let size = 0
-        try {
-          for (;;) { const part = await reader.read(); if (part.done) break; size += part.value.length; if (size > 1000000) throw new Error(); chunks.push(part.value) }
-        } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
-        const raw = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))
-        const payload = JSON.parse(raw) as { models?: { key: string; loaded_instances: { id: string; config: { context_length: number } }[] }[] }
-        const model = payload.models?.find(m => m.key === choice.modelId || m.loaded_instances?.some(i => i.id === choice.modelId))
-        if (model) {
-          const instances = model.loaded_instances.filter(i => i.id === choice.modelId || model.key === choice.modelId)
-          const windows = instances.map(i => i.config.context_length).filter(n => Number.isSafeInteger(n) && n > 0)
-          if (windows.length) return { contextWindow: Math.min(...windows), maxOutputTokens: Math.min(configured?.maxOutputTokens ?? 8192, ...windows), source: 'runtime', verified: true }
-          // A known but unloaded local model has no verified effective deployment window.
-          throw new AgentError('ASK_CONTEXT_UNKNOWN')
-        }
-      } else await reply.body?.cancel()
-    } catch (error) { if (signal.aborted || error instanceof AgentError) throw error }
-    if (configured?.verified && ['runtime', 'manual'].includes(configured.source)) return configured
-    throw new AgentError('ASK_CONTEXT_UNKNOWN')
+      timeout.signal.throwIfAborted()
+      return await abortable(fetchModelMetadata(address, key, timeout.signal, transport), timeout.signal) as T
+    } catch {
+      signal.throwIfAborted()
+      return undefined
+    }
   }
-  if (configured?.verified && ['runtime', 'provider'].includes(configured.source)) return configured
-  const { getBuiltinModels, getBuiltinProviders } = await import('@earendil-works/pi-ai/providers/all')
-  for (const id of getBuiltinProviders()) {
-    const model = getBuiltinModels(id).find(m => m.id === choice.modelId && new URL(m.baseUrl).origin === url.origin)
-    if (model) return { contextWindow: model.contextWindow, maxOutputTokens: model.maxTokens, source: 'catalog', verified: true }
-  }
-  if (configured?.verified) return configured
-  throw new AgentError('ASK_CONTEXT_UNKNOWN')
+  try {
+    let localWindow: number | undefined
+    if (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+      const reply = await metadata<{ models?: { key: string; max_context_length?: number; loaded_instances?: { id: string; config?: { context_length?: number } }[] }[] }>(new URL('/api/v1/models', url))
+      const models = Array.isArray(reply?.models) ? reply.models : []
+      localWindow = limit(models.find(model => model?.key === modelId)?.max_context_length)
+      const windows = models.flatMap(model =>
+        (Array.isArray(model?.loaded_instances) ? model.loaded_instances : [])
+          .filter(instance => instance && (instance.id === modelId || model.key === modelId))
+          .map(instance => limit(instance.config?.context_length)).filter(value => value !== undefined))
+      if (windows.length) return resolve(windows.reduce((min, value) => Math.min(min, value)), undefined, 'runtime')
+    }
+    const reply = await metadata<{ data?: { id: string; context_window?: number; context_length?: number; max_output_tokens?: number }[] }>(endpoint)
+    const entry = Array.isArray(reply?.data) ? reply.data.find(item => item?.id === modelId) : undefined
+    const providerWindow = limit(entry?.context_window) ?? limit(entry?.context_length) ?? localWindow, providerOutput = limit(entry?.max_output_tokens)
+    if (providerWindow) return resolve(providerWindow, providerOutput, 'provider')
+    const { getBuiltinModels, getBuiltinProviders } = await import('@earendil-works/pi-ai/providers/all')
+    signal.throwIfAborted()
+    for (const id of getBuiltinProviders()) {
+      const model = getBuiltinModels(id).find(m => m.id === modelId && URL.canParse(m.baseUrl) && openAIURL(m.baseUrl, 'models') === endpoint)
+      if (model) return resolve(model.contextWindow, providerOutput ?? model.maxTokens, 'catalog')
+    }
+    return resolve(manual?.contextWindow ?? FALLBACK_CONTEXT_WINDOW, providerOutput ?? manual?.maxOutputTokens,
+      manual?.contextWindow || manual?.maxOutputTokens ? 'manual' : 'fallback')
+  } finally { timeout.dispose() }
 }

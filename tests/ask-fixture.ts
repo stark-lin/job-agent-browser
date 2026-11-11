@@ -1,7 +1,8 @@
+import { toolSnapshot } from '../src/platform/ai/agent-request'
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
 import type { AgentModelEvent, StreamingAgentModel } from '../src/shared/agent'
 
-export const fixtureCapabilities = { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual' as const, verified: true }
+export const fixtureCapabilities = { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual' as const }
 /** Existing business scenarios model Scope expansion explicitly while retaining their business scripts. */
 export function discoveringModel(model: StreamingAgentModel): StreamingAgentModel {
   let pending: AgentModelEvent[] | undefined, serial = 0
@@ -24,6 +25,18 @@ export function discoveringModel(model: StreamingAgentModel): StreamingAgentMode
     yield { type: 'completed', response: { content, toolCalls: calls } }
   } }
 }
-export function createFixtureAskTasks(deps: Pick<Parameters<typeof createAskAgentTasks>[0], 'chats' | 'mcp' | 'model'>) {
-  return createAskAgentTasks({ ...deps, model: choice => discoveringModel(deps.model(choice)), capabilities: async () => fixtureCapabilities })
+export function withPreparation(model: StreamingAgentModel): StreamingAgentModel {
+  return { complete: input => model.complete(input), async *stream(input) {
+    if (!input.messages[0].content.startsWith('Prepare a self-contained handoff')) { yield* model.stream(input); return }
+    input.onRequestPrepared?.({ providerId: 'fixture', modelId: 'test', preparedAt: 'fixture', tools: toolSnapshot(input.tools) })
+    const content = JSON.stringify({ status: 'ready', prompt: 'Use the original request.' })
+    yield { type: 'content.delta', text: content }
+    yield { type: 'completed', response: { content, toolCalls: [] } }
+  } }
+}
+export function createFixtureAskTasks(deps: Pick<Parameters<typeof createAskAgentTasks>[0], 'chats' | 'mcp' | 'model'>, discover = true) {
+  return createAskAgentTasks({ ...deps, model: choice => {
+    const model = deps.model(choice)
+    return withPreparation(discover ? discoveringModel(model) : model)
+  }, capabilities: async () => fixtureCapabilities })
 }

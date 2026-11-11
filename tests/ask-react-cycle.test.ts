@@ -8,7 +8,7 @@ import { toolSnapshot } from '../src/platform/ai/agent-request'
 import { AgentError, type StreamingAgentModel } from '../src/shared/agent'
 import type { RunGuardSnapshot } from '../src/shared/agent/run-guard'
 import { firstPartyFixture } from './first-party-fixture'
-import { fixtureCapabilities } from './ask-fixture'
+import { fixtureCapabilities, withPreparation } from './ask-fixture'
 
 const choice = { providerId: 'fixture', modelId: 'test' }
 const input = (message: string, sessionId?: string) => ({ requestId: randomUUID(), message, sessionId, choice })
@@ -63,7 +63,7 @@ test('new prompts start at Cycle 1, deduplication preserves identity, and summar
     snapshot.run.state = 'completed'; snapshot.run.finishedAt = 'end'; repo.finish(snapshot)
   }
   let summaries = 0, requests = 0
-  const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, capabilities: async () => capability, model: () => ({
+  const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, capabilities: async () => capability, model: () => withPreparation({
     async complete(request) {
       request.onRequestPrepared?.({ ...prepared, tools: [] })
       summaries++
@@ -84,7 +84,7 @@ test('new prompts start at Cycle 1, deduplication preserves identity, and summar
   for (const id of [a.runId, b.runId]) {
     const run = runs.find(entry => entry.run.id === id)!
     assert.equal(run.cycleStatus, 'SUCCESS')
-    assert.deepEqual(run.cycles.map(cycle => [cycle.index, cycle.status]), [[1, 'SUCCESS']])
+    assert.deepEqual(run.cycles.map(cycle => [cycle.index, cycle.status]), [[1, 'SUCCESS'], [2, 'SUCCESS']])
     const linked = run.modelRequests.find(request => request.ordinal === run.cycles[0].modelRequestOrdinal)
     assert.equal(JSON.parse(linked!.metadata_json).purpose, 'agent-turn')
   }
@@ -116,7 +116,7 @@ test('terminal transaction rolls back Cycle and Run together, then retries persi
   const f = await firstPartyFixture(t), db = f.database.connection, repo = f.backend.chats, debug = chatDebugExportRepository(db)
   let requests = 0, attempts = 0
   const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, capabilities: async () => capability,
-    model: () => ({ ...answer, stream(request) { requests++; return answer.stream(request) } }) })
+    model: () => withPreparation({ ...answer, stream(request) { requests++; return answer.stream(request) } }) })
   t.after(() => tasks.dispose())
   const finish = repo.finish.bind(repo)
   let duringRetry: ReturnType<typeof debug.getDebugBundle> | undefined
@@ -143,10 +143,15 @@ test('failure preparing the next Pi turn leaves the previous Cycle settled witho
   const open = f.mcp.openAgentRun.bind(f.mcp)
   t.mock.method(f.mcp, 'openAgentRun', async (args: Parameters<typeof open>[0]) => {
     const run = await open(args), list = run.tools.list.bind(run.tools)
-    let refreshes = 0
-    t.mock.method(run.tools, 'list', async () => {
+    const prepare = run.tools.view.bind(run.tools)
+    t.mock.method(run.tools, 'view', (allow: readonly string[]) => {
+      const view = prepare(allow)
+      let refreshes = 0
+      t.mock.method(view, 'list', async () => {
       if (++refreshes > 1) throw new AgentError('AI_PROVIDER_FAILED')
-      return list()
+        return list()
+      })
+      return view
     })
     return run
   })

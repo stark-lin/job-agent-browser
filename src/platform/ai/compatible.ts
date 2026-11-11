@@ -1,13 +1,14 @@
+import { abortable } from '../../shared/agent'
 import { fail } from '../../domain/common/errors'
 import { postChat } from './transport'
 import type { AIMessage, AIProvider } from '../../shared/ai'
 
 export type Fetch = typeof fetch
-export interface ChatRequest { provider: AIProvider; model: string; key: string | null; messages: AIMessage[]; timeoutMs?: number }
+export interface ChatRequest { provider: AIProvider; model: string; key: string | null; messages: AIMessage[] }
 
 /** Parse SSE frames independently of network chunks, including split UTF-8 and CRLF. */
-export async function streamChat(request: ChatRequest, signal: AbortSignal, onStart: () => void, onText: (text: string) => void, transport: Fetch = fetch): Promise<void> {
-  const response = await postChat(request, { messages: request.messages }, signal, true, transport)
+export async function streamChat(request: ChatRequest, signal: AbortSignal, onStart: () => void, onText: (text: string) => void, transport: Fetch = fetch, onProgress: () => void = () => {}): Promise<void> {
+  const response = await abortable(postChat(request, { messages: request.messages }, signal, true, transport), signal)
   if (!response.body || !response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
     await response.body?.cancel()
     return fail('AI_PROTOCOL_ERROR')
@@ -37,10 +38,12 @@ export async function streamChat(request: ChatRequest, signal: AbortSignal, onSt
     if (typeof delta.content === 'string' && delta.content) {
       outputLength += delta.content.length
       if (outputLength > 1000000) return fail('AI_PROTOCOL_ERROR')
+      onProgress()
       onText(delta.content)
     }
     if ('finish_reason' in choice && choice.finish_reason !== null && choice.finish_reason !== undefined) {
       if (choice.finish_reason !== 'stop') return fail('AI_PROVIDER_FAILED')
+      onProgress()
       finished = true
     }
     return false
@@ -59,7 +62,7 @@ export async function streamChat(request: ChatRequest, signal: AbortSignal, onSt
   try {
     while (true) {
       signal.throwIfAborted()
-      const chunk = await reader.read()
+      const chunk = await abortable(reader.read(), signal)
       try { buffer += decoder.decode(chunk.value, { stream: !chunk.done }) } catch { return fail('AI_PROTOCOL_ERROR') }
       if (buffer.length > 524288) return fail('AI_PROTOCOL_ERROR')
       if (lines(chunk.done)) return
@@ -71,7 +74,7 @@ export async function streamChat(request: ChatRequest, signal: AbortSignal, onSt
       }
     }
   } finally {
-    await reader.cancel().catch(() => {})
+    void reader.cancel().catch(() => {})
     reader.releaseLock()
   }
 }

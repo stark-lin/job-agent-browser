@@ -55,7 +55,7 @@ export class SmartPasteService {
         if (!owner.isDestroyed() && !frame.detached && owner.mainFrame === frame) frame.send(ASK_AGENT_EVENT, event)
       } catch { /* Owner teardown cancels the run independently. */ }
       if (event.type === 'item.started') {
-        if (event.item.content.type === 'assistant_message') textItems.add(event.item.id)
+        if (event.item.phase === 'execute' && event.item.content.type === 'assistant_message') textItems.add(event.item.id)
         if (event.item.content.type === 'tool_call') notify('reading')
       }
       if (event.type === 'item.delta' && textItems.has(event.itemId)) {
@@ -64,7 +64,7 @@ export class SmartPasteService {
       }
       if (event.type === 'run.completed' || event.type === 'run.failed' || event.type === 'run.cancelled') {
         interrupted = event.type === 'run.cancelled'
-        void close(event.type === 'run.completed' ? 'done' : event.type === 'run.failed' ? 'failed' : 'stopped')
+        void close(event.type === 'run.completed' ? event.run.blockedReason ? 'stopped' : 'done' : event.type === 'run.failed' ? 'failed' : 'stopped')
       }
     }
     target.signal.addEventListener('abort', cancel, { once: true })

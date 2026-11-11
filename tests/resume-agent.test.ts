@@ -20,7 +20,7 @@ async function setup(t: TestContext, batchSize = 1, model?: StreamingAgentModel)
   t.after(() => server.close())
   const events: ResumeEvent[] = []
   const tasks = createResumeTasks({ backend: f.backend, mcp: f.mcp, directory: f.outputDirectory, fonts: '', key: () => null,
-    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'], defaultModel: 'fixture', requiresKey: false }] }),
+    settings: () => ({ default: { providerId: 'fixture', modelId: 'fixture' }, providers: [{ id: 'fixture', name: 'Fixture', baseURL: server.url, models: ['fixture'], requiresKey: false }] }),
     ...(model ? { model: () => model } : {}) })
   t.after(() => tasks.dispose())
   return { ...f, server, tasks, events, directory: f.outputDirectory, outputCount: f.outputs,

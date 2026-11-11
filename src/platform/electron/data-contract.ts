@@ -1,3 +1,4 @@
+import type { AIConnectionSave } from '../../shared/ai'
 import type { ChatSession, ChatRun, ChatItem, ChatModelRequest } from '../../domain/chat/chat.types'
 import type { Result } from '../../shared/ipc'
 import type { Preferences, PreferencePatch } from '../../shared/settings'
@@ -83,6 +84,7 @@ export interface DataContract {
   settings: {
     get: Endpoint<Record<string, never>, Preferences>
     savePreferences: Endpoint<PreferencePatch, Preferences>
+    saveAIConnection: Endpoint<AIConnectionSave, Preferences>
   }
   secrets: {
     hasProviderKey: Endpoint<{ provider: string }, { configured: boolean; available: boolean }>
@@ -109,5 +111,5 @@ export const methodNames = {
   profiles: ['freezeBaseline', 'duplicateProfile', 'restoreBaseline', 'getBaselineStatus', 'createProfile', 'editContact', 'deleteProfile', 'getProfile', 'listProfiles', 'addItem', 'editItem', 'moveItem', 'deleteItem', 'listItems', 'addFact', 'editFact', 'deleteFact', 'listFacts', 'applyImport'],
   applications: ['changeStatus', 'scheduleEvent', 'rescheduleEvent', 'addNote', 'deleteEvent', 'listEvents', 'listCalendar'],
   resumes: ['createRun', 'cancelRun', 'deleteRun', 'getRun', 'listRuns', 'getArtifact', 'editArtifact', 'deleteArtifact'],
-  settings: ['get', 'savePreferences'], secrets: ['hasProviderKey', 'saveProviderKey', 'deleteProviderKey']
+  settings: ['get', 'savePreferences', 'saveAIConnection'], secrets: ['hasProviderKey', 'saveProviderKey', 'deleteProviderKey']
 } as const satisfies { [G in keyof DataContract]: readonly (keyof DataContract[G])[] }

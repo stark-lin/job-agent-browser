@@ -11,7 +11,7 @@ export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps
 } = {}): StreamingAgentModel {
   const snapshot = structuredClone(config)
   return { stream: input => agentStream(snapshot, deps, input), async complete(input) {
-    const timeout = requestTimeout(input.signal, deps.timeoutMs ?? snapshot.timeoutMs)
+    const timeout = requestTimeout(input.signal, deps.timeoutMs)
     let result: AgentResponse | undefined, failure: unknown
     try {
       const mapped = providerTools(input.tools, input.stableToolNames)

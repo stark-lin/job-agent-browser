@@ -32,12 +32,21 @@ export function createAgentRecorder<S extends string | null>(repo: ChatRecorder,
         runId: snapshot.run.id, eventSequence: snapshot.run.eventSequence })
     },
     receive(event: AgentRuntimeEvent) {
-      if (event.type === 'cycle.started') { repo.startCycle(snapshot.run.id, event.index, event.startedAt); return }
+      if (event.type === 'preparation.completed') {
+        const result = event.result.status === 'ready'
+          ? { status: 'ready' as const, prompt: redactTranscript(event.result.prompt) as string }
+          : { status: 'blocked' as const, reason: redactTranscript(event.result.reason) as string }
+        repo.savePreparation(snapshot.run.id, event.cycleIndex, result, event.finishedAt)
+        if (result.status === 'blocked') snapshot.run.blockedReason = result.reason
+        return
+      }
+      if (event.type === 'cycle.started') { repo.startCycle(snapshot.run.id, event.index, event.startedAt, event.phase); return }
       if (event.type === 'cycle.settled') { repo.settleCycle(snapshot.run.id, event.index, event.status, event.reason, event.finishedAt); return }
-      if (event.type === 'model.request.prepared') { repo.saveModelRequest(snapshot.run.id, event.request, event.cycleIndex); return }
+      if (event.type === 'model.request.prepared') { repo.saveModelRequest(snapshot.run.id, event.request, event.cycleIndex, event.phase); return }
       if (event.type === 'model.completed') {
         repo.saveProviderResponse(snapshot.run.id, { ...event.response,
-          toolCalls: event.response.toolCalls.map(call => ({ ...call, arguments: redactTranscript(call.arguments) })) }, snapshot.items.at(-1)?.sequence ?? 0, event.cycleIndex)
+          ...(event.phase === 'prepare' ? { content: redactTranscript(event.response.content) as string } : {}),
+          toolCalls: event.response.toolCalls.map(call => ({ ...call, arguments: redactTranscript(call.arguments) })) }, snapshot.items.at(-1)?.sequence ?? 0, event.cycleIndex, event.phase)
         return
       }
       if (event.type === 'segment.started' || event.type === 'tool.started') {
@@ -45,7 +54,7 @@ export function createAgentRecorder<S extends string | null>(repo: ChatRecorder,
         const write = tool && isPotentialWrite(event.call.name, event.risk)
         if (write) { snapshot.run.writeStarted = true; flush() }
         const item = repo.append<S>(snapshot.run.id, tool ? { type: 'tool_call', toolName: event.call.name, callId: event.call.id,
-          arguments: redactTranscript(event.call.arguments), display: presentTool(event.call.name) } : { type: event.kind, text: '', ...(event.reasoning ? { reasoning: event.reasoning } : {}) }, tool ? 'running' : 'streaming')
+          arguments: redactTranscript(event.call.arguments), display: presentTool(event.call.name) } : { type: event.kind, text: '', ...(event.reasoning ? { reasoning: event.reasoning } : {}) }, tool ? 'running' : 'streaming', event.phase)
         if (write) potentialWrites.add(item.id)
         mapping.set(event.id, item); snapshot.items.push(item); itemEvent('item.started', item)
         return

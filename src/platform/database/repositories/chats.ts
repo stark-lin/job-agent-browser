@@ -1,3 +1,4 @@
+import type { AgentPhase, PreparationResult } from '../../../shared/agent'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
 import type { AgentItem, AgentRun, AgentSnapshot, ChatChoice, ChatItem, ChatRun, ChatSession, ChatSnapshot, ChatStart } from '../../../domain/chat/chat.types'
@@ -12,8 +13,8 @@ import type { SettledCycleStatus, TerminalCycleStatus } from '../../../shared/ag
 type Row = Record<string, SQLOutputValue>
 const session = (r: Row): ChatSession => ({ id: String(r.id), title: String(r.title), providerId: String(r.provider_id), modelId: String(r.model_id), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
 const run = (r: Row): AgentRun => ({ id: String(r.id), sessionId: r.session_id === null ? null : String(r.session_id), providerId: String(r.provider_id), modelId: String(r.model_id),
-  state: r.state as ChatRun['state'], admission: r.admission as ChatRun['admission'], runtimeStatus: r.runtime_status as ChatRun['runtimeStatus'], error: r.error === null ? null : String(r.error), eventSequence: Number(r.event_sequence), writeStarted: Boolean(r.write_started), createdAt: String(r.created_at), finishedAt: r.finished_at === null ? null : String(r.finished_at) })
-const item = (r: Row): AgentItem => ({ id: String(r.id), sessionId: r.session_id === null ? null : String(r.session_id), runId: String(r.run_id), sequence: Number(r.sequence), state: r.state as ChatItem['state'], content: JSON.parse(String(r.content_json)), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
+  state: r.state as ChatRun['state'], admission: r.admission as ChatRun['admission'], runtimeStatus: r.runtime_status as ChatRun['runtimeStatus'], error: r.error === null ? null : String(r.error), eventSequence: Number(r.event_sequence), writeStarted: Boolean(r.write_started), createdAt: String(r.created_at), finishedAt: r.finished_at === null ? null : String(r.finished_at), ...(typeof r.blocked_reason === 'string' ? { blockedReason: r.blocked_reason } : {}) })
+const item = (r: Row): AgentItem => ({ id: String(r.id), sessionId: r.session_id === null ? null : String(r.session_id), runId: String(r.run_id), sequence: Number(r.sequence), phase: r.phase as AgentPhase, state: r.state as ChatItem['state'], content: JSON.parse(String(r.content_json)), createdAt: String(r.created_at), updatedAt: String(r.updated_at) })
 const hash = (input: ChatStart) => createHash('sha256').update(JSON.stringify([input.sessionId ?? '', input.message.trim(), input.choice.providerId, input.choice.modelId])).digest('hex')
 
 /** Main-owned recorder. No Agent module imports this repository or receives its methods. */
@@ -28,7 +29,8 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
     catch (error) { if (db.isTransaction) db.exec('ROLLBACK'); throw storageError(error) }
   }
   function getSession(id: string) { const row = db.prepare('SELECT * FROM chat_sessions WHERE id=?').get(id); if (!row) fail('NOT_FOUND'); return session(row) }
-  function getAgentRun(id: string) { const row = db.prepare('SELECT * FROM agent_runs WHERE id=?').get(id); if (!row) fail('NOT_FOUND'); return run(row) }
+  const runProjection = 'SELECT r.*, p.reason AS blocked_reason FROM agent_runs r LEFT JOIN agent_run_preparations p ON p.run_id=r.id'
+  function getAgentRun(id: string) { const row = db.prepare(`${runProjection} WHERE r.id=?`).get(id); if (!row) fail('NOT_FOUND'); return run(row) }
   function getRun(id: string): ChatRun {
     const row = getAgentRun(id)
     if (row.sessionId === null) fail('NOT_FOUND')
@@ -51,11 +53,20 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
   return {
     transaction, getSession, getRun, getAgentRun, lookup, ...askContextRepository(db, transaction, cycles.recordCalls),
     ...chatModelRequestsRepository(db, transaction, assertRunning, read, cycles.linkRequest),
-    startCycle(id: string, index: number, startedAt: string) {
-      transaction(() => { assertRunning(id); cycles.start(id, index, startedAt) })
+    startCycle(id: string, index: number, startedAt: string, phase: AgentPhase = 'execute') {
+      transaction(() => { assertRunning(id); cycles.start(id, index, startedAt, phase) })
     },
     settleCycle(id: string, index: number, status: Exclude<SettledCycleStatus, TerminalCycleStatus>, reason: string | null, finishedAt: string) {
       transaction(() => { assertRunning(id); cycles.settle(id, index, status, reason, finishedAt) })
+    },
+    savePreparation(id: string, index: number, result: PreparationResult, finishedAt: string) {
+      transaction(() => {
+        assertRunning(id)
+        if (!db.prepare("SELECT 1 FROM agent_react_cycles WHERE run_id=? AND cycle_index=? AND phase='prepare' AND status='RUNNING'").get(id, index)) fail('INVALID_STATE')
+        db.prepare('INSERT INTO agent_run_preparations(run_id,status,prompt,reason,finished_at) VALUES(?,?,?,?,?)')
+          .run(id, result.status, result.status === 'ready' ? result.prompt : null, result.status === 'blocked' ? result.reason : null, finishedAt)
+        cycles.settle(id, index, 'SUCCESS', null, finishedAt)
+      })
     },
     admit(id: string) { transaction(() => { assertRunning(id); db.prepare("UPDATE agent_runs SET admission='admitted' WHERE id=?").run(id) }) },
     runtimeStatus(id: string, status: NonNullable<ChatRun['runtimeStatus']>, sequence: number) {
@@ -78,7 +89,7 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
         total: Number(db.prepare('SELECT COUNT(*) n FROM agent_items WHERE session_id=?').get(sessionId)!.n) }))
     },
     listRuns(sessionId: string, limit: number, offset: number) {
-      return read(() => ({ items: db.prepare('SELECT * FROM agent_runs WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?').all(sessionId, limit, offset).map(row => run(row) as ChatRun),
+      return read(() => ({ items: db.prepare(`${runProjection} WHERE r.session_id=? ORDER BY r.created_at DESC,r.id DESC LIMIT ? OFFSET ?`).all(sessionId, limit, offset).map(row => run(row) as ChatRun),
         total: Number(db.prepare('SELECT COUNT(*) n FROM agent_runs WHERE session_id=?').get(sessionId)!.n) }))
     },
     start(input: ChatStart, queued = false, source?: 'smart-paste') {
@@ -91,7 +102,7 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
         db.prepare('INSERT INTO agent_runs(id,session_id,provider_id,model_id,state,request_id,request_hash,owner_runtime_id,created_at,admission,source) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
           .run(runId, sessionId, input.choice.providerId, input.choice.modelId, 'running', input.requestId, hash(input), lease.id, now, queued ? 'pending' : 'admitted', source ?? 'chat')
         const sequence = Number(db.prepare('SELECT COALESCE(MAX(sequence),0)+1 n FROM agent_items WHERE session_id=?').get(sessionId)!.n)
-        db.prepare('INSERT INTO agent_items VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), sessionId, runId, sequence, 'completed', JSON.stringify({ type: 'user_message', text: input.message.trim(), ...(source ? { source } : {}) }), now, now)
+        db.prepare('INSERT INTO agent_items(id,session_id,run_id,sequence,state,content_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), sessionId, runId, sequence, 'completed', JSON.stringify({ type: 'user_message', text: input.message.trim(), ...(source ? { source } : {}) }), now, now)
         db.prepare('UPDATE chat_sessions SET provider_id=?,model_id=?,updated_at=? WHERE id=?').run(input.choice.providerId, input.choice.modelId, now, sessionId)
         return { sessionId, runId }
       })
@@ -101,15 +112,15 @@ export function chatRepository(db: DatabaseSync, lease: RuntimeLease) {
       return read(() => db.prepare('SELECT * FROM agent_react_cycles WHERE run_id=? ORDER BY cycle_index').all(id).map(row => reactCycle(row as unknown as CycleRow)))
     },
     agentSnapshot(id: string): AgentSnapshot { return read(() => ({ run: getAgentRun(id), items: items(id) })) },
-    append<S extends string | null = string>(id: string, content: AgentItem<S>['content'], state: AgentItem<S>['state']): AgentItem<S> {
+    append<S extends string | null = string>(id: string, content: AgentItem<S>['content'], state: AgentItem<S>['state'], phase: AgentPhase = 'execute'): AgentItem<S> {
       return transaction(() => {
         assertRunning(id)
         const r = getAgentRun(id), now = new Date().toISOString()
         const sequence = Number((r.sessionId === null
           ? db.prepare('SELECT COALESCE(MAX(sequence),0)+1 n FROM agent_items WHERE run_id=?').get(id)
           : db.prepare('SELECT COALESCE(MAX(sequence),0)+1 n FROM agent_items WHERE session_id=?').get(r.sessionId))!.n)
-        const value: AgentItem<S> = { id: randomUUID(), sessionId: r.sessionId as S, runId: id, sequence, content, state, createdAt: now, updatedAt: now }
-        db.prepare('INSERT INTO agent_items VALUES(?,?,?,?,?,?,?,?)').run(value.id, value.sessionId, id, sequence, state, JSON.stringify(content), now, now)
+        const value: AgentItem<S> = { id: randomUUID(), sessionId: r.sessionId as S, runId: id, sequence, phase, content, state, createdAt: now, updatedAt: now }
+        db.prepare('INSERT INTO agent_items(id,session_id,run_id,sequence,state,content_json,created_at,updated_at,phase) VALUES(?,?,?,?,?,?,?,?,?)').run(value.id, value.sessionId, id, sequence, state, JSON.stringify(content), now, now, phase)
         return value
       })
     },

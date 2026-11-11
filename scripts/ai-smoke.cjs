@@ -31,8 +31,12 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
       const body = JSON.parse(text)
       requests.push({ body, path: request.url, auth: request.headers.authorization })
       response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      if (body.messages[0].content.startsWith('Prepare a self-contained handoff')) {
+        response.end(chunk('{"status":"ready","prompt":"Prepared fixture."}', 'stop') + 'data: [DONE]\n\n')
+        return
+      }
       response.write(chunk('Fixture '))
-      if (body.messages.at(-1).content === 'cancel') return
+      if (body.messages.at(-1).content.startsWith('Original Request:\ncancel\n')) return
       const timer = setTimeout(() => response.end(chunk('reply 中文', 'stop') + 'data: [DONE]\n\n'), 150)
       response.on('close', () => clearTimeout(timer))
     })
@@ -53,39 +57,17 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   const button = text => evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent === ${JSON.stringify(text)}).click()`)
   try {
     await call('navigate', 'app://settings')
-    await waitFor(() => evaluate('!!document.querySelector("form[data-ai-config]")'), 'AI provider form')
+    await waitFor(() => evaluate('!!document.querySelector("[data-ai-config]")'), 'AI connection form')
     await openSectionCards(evaluate, '[data-ai-config]')
-    const timeouts = { requestSeconds: 300, pageSeconds: 60, modelsSeconds: 30 }
-    for (const [name, value] of Object.entries(timeouts)) await field(`form[data-ai-config] input[name=${name}]`, String(value))
-    await field('form[data-ai-config] input[name=pageSeconds]', '0')
-    assert.equal(await evaluate('document.querySelector("form[data-ai-config]").checkValidity()'), false)
-    await field('form[data-ai-config] input[name=pageSeconds]', '60')
     await button('Add provider')
-    await field('form[data-ai-config] input:not([type])', 'Fixture provider')
-    await field('form[data-ai-config] input[type=url]', root)
-    // Associated labels select the intended control regardless of form layout.
-    await evaluate(`(() => {
-      const label = [...document.querySelectorAll('label')].find(label => label.textContent === 'Authentication');
-      const control = document.getElementById(label.htmlFor);
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(control, 'false');
-      control.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`)
-    await evaluate('document.querySelector("form[data-ai-config]").requestSubmit()')
-    await waitFor(async () => (await data('settings', 'get', {})).value.ai.providers.some(provider => provider.baseURL === root), 'saved endpoint without models')
-    assert.deepEqual((await data('settings', 'get', {})).value.ai.timeouts, timeouts)
-    await waitFor(() => evaluate('[...document.querySelectorAll("button")].some(button => button.textContent === "Detect models" && !button.disabled)'), 'model detection enabled')
-    await button('Detect models')
-    await waitFor(() => evaluate('document.body.innerText.includes("Detected 2 models.")'), 'discovered models through production IPC')
-    const detected = await evaluate('(() => { const label = [...document.querySelectorAll("label")].find(label => label.textContent === "Available models"); return "[id=" + JSON.stringify(label.htmlFor) + "]" })()')
-    await field(detected, 'fixture-model', 'select')
-    assert.equal(await evaluate('document.querySelector("form[data-ai-config] textarea").value'), 'fixture-model')
-    assert.equal((await data('settings', 'get', {})).value.ai.providers.find(provider => provider.baseURL === root).models.length, 0)
-    await button('Use as global default')
-    await evaluate('document.querySelector("form[data-ai-config]").requestSubmit()')
+    await field('[data-ai-config] input[type=url]', root)
+    await evaluate('document.querySelector("[data-ai-connect]").click()')
+    await waitFor(() => evaluate('document.querySelectorAll(".ai-connection-results input[type=radio]").length === 2'), 'discovered models through production IPC')
+    assert.deepEqual((await data('settings', 'get', {})).value.ai, original)
+    await evaluate('document.querySelector(".ai-connection-results input[type=radio]").click()')
+    await evaluate('document.querySelector("[data-ai-connect]").click()')
     await waitFor(async () => (await data('settings', 'get', {})).value.ai.default?.modelId === 'fixture-model', 'saved custom provider/default')
-    assert.deepEqual((await data('settings', 'get', {})).value.ai.timeouts, timeouts)
-    await button('Test connection')
-    await waitFor(() => evaluate('document.body.innerText.includes("Connection and streaming response verified.")'), 'real connection test')
+    assert.equal(requests.length, 0, 'Discovery and save run no inference')
     const settingsSize = window.getContentSize(), settingsMinimum = window.getMinimumSize()
     window.setMinimumSize(320, 320)
     try {
@@ -94,7 +76,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
         await waitFor(() => evaluate(`innerWidth === ${width}`), `model settings viewport ${width}`)
         assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
       }
-      await evaluate('document.querySelector("form[data-ai-config]").scrollIntoView()')
+      await evaluate('document.querySelector("[data-ai-config]").scrollIntoView()')
       mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
       writeFileSync(resolve(__dirname, '../.cache/ai-settings-models.png'), (await window.capturePage()).toPNG())
     } finally { window.setContentSize(...settingsSize); window.setMinimumSize(...settingsMinimum) }
@@ -128,7 +110,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     await call('navigate', 'app://browser'); await call('navigate', 'app://ai')
     await waitFor(() => evaluate('!!document.querySelector(".ai-page textarea")'), 'return to chat')
     assert((await evaluate('document.querySelectorAll("[data-item-type]").length')) > 0)
-    console.log('AI smoke passed: configurable timeouts and validation, bare endpoints, model detection/selection, saved defaults, connection test, actual SSE through production IPC, cancellation and responsive settings/chat.')
+    console.log('AI smoke passed: draft discovery, bare endpoints, model selection, saved defaults and actual SSE through production IPC, cancellation and responsive settings/chat.')
   } finally {
     await call('navigate', 'app://browser')
     await data('settings', 'savePreferences', { ai: original })

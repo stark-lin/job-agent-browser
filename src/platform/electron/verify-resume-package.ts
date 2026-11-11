@@ -15,7 +15,7 @@ export async function verifyResumePackage(backend: ReturnType<typeof createBacke
   const choice = { providerId: 'package-fixture', modelId: 'package-model' }
   const tasks = createResumeTasks({ backend, mcp, directory: join(directory, 'artifacts'), fonts: join(bundleDirectory, 'fonts'), key: () => null,
     settings: () => ({ default: choice, providers: [{ id: choice.providerId, name: 'Package Fixture',
-      baseURL: 'https://example.invalid/v1', models: [choice.modelId], defaultModel: choice.modelId, requiresKey: false,
+      baseURL: 'https://example.invalid/v1', models: [choice.modelId],
       capabilities: { [choice.modelId]: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }] }),
     model: () => ({
       complete: async () => { throw new Error('Unexpected compaction') },

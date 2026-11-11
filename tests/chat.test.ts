@@ -135,7 +135,7 @@ test('V16 upgrades history without backfill and V17 protects and cascades the or
   assert.equal(db.prepare('SELECT COUNT(*) n FROM agent_react_cycles').get()?.n, 0)
 })
 
-test('v19 preserves v18 Smart Paste history, provider capsules, model diagnostics and cycles', t => {
+test('V25 preserves v18 Smart Paste history and marks historical Trace as Execute', t => {
   const db = new DatabaseSync(':memory:')
   migrate(db, migrations.slice(0, 18))
   const lease = createRuntimeLease(db, 'internal')
@@ -152,7 +152,12 @@ test('v19 preserves v18 Smart Paste history, provider capsules, model diagnostic
     ['chat_model_requests', 'agent_model_requests'], ['chat_provider_responses', 'agent_model_responses']]
   const before = tables.map(([table]) => db.prepare(`SELECT * FROM ${table}`).all())
   migrate(db)
-  assert.deepEqual(tables.map(([, table]) => db.prepare(`SELECT * FROM ${table}`).all()), before)
+  tables.forEach(([, table], index) => {
+    const after = db.prepare(`SELECT * FROM ${table}`).all()
+    assert(after.every(row => row.phase === 'execute'))
+    const oldColumns = Object.keys(before[index][0]).join(',')
+    assert.deepEqual(db.prepare(`SELECT ${oldColumns} FROM ${table}`).all(), before[index])
+  })
   assert.deepEqual(db.prepare('SELECT * FROM schema_migrations WHERE version<=18 ORDER BY version').all(), journal)
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
   assert.equal(db.prepare('SELECT source FROM agent_runs WHERE id=?').get(runId)?.source, 'smart-paste')

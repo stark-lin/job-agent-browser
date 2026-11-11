@@ -22,8 +22,8 @@ test('Main stores deletable diagnostics with pagination, terminal failure and in
   const f = await seed(t), repo = f.backend.chats
   const ids = repo.start({ requestId: randomUUID(), message: 'PRIVATE_REQUEST_BODY', choice })
   const snapshot = repo.snapshot(ids.runId), recorder = createAgentRecorder(repo, snapshot, () => {}, () => {})
-  recorder.receive({ type: 'model.request.prepared', request: diagnostic(1) })
-  recorder.receive({ type: 'model.request.prepared', request: diagnostic(2) })
+  recorder.receive({ phase: 'execute', type: 'model.request.prepared', request: diagnostic(1) })
+  recorder.receive({ phase: 'execute', type: 'model.request.prepared', request: diagnostic(2) })
   // Legacy records remain readable; new model requests keep the empty default.
   f.database.connection.prepare('UPDATE agent_model_requests SET activations_json=? WHERE run_id=? AND ordinal=1').run(JSON.stringify([{ names: ['job.list'], repeats: 1, reason: 'already-active' }, { names: ['job.list'], repeats: 2, reason: 'activation-loop' }]), ids.runId)
   const first = value(await f.api.chats.listModelRequests({ runId: ids.runId, limit: 1 }))
@@ -35,7 +35,7 @@ test('Main stores deletable diagnostics with pagination, terminal failure and in
   assert.deepEqual(await f.api.chats.deleteSession({ id: ids.sessionId }), { ok: false, error: 'INVALID_STATE' })
   assert.equal(repo.listItems(ids.sessionId, 100).total, 1)
   assert(!JSON.stringify(first).includes('PRIVATE_REQUEST_BODY')); assert(!JSON.stringify(first).includes('inputSchema'))
-  assert.throws(() => recorder.receive({ type: 'model.request.prepared', request: diagnostic(1) }))
+  assert.throws(() => recorder.receive({ phase: 'execute', type: 'model.request.prepared', request: diagnostic(1) }))
   recorder.finish('failed', 'AGENT_STEP_LIMIT')
   assert.throws(() => repo.saveModelRequest(ids.runId, diagnostic(3)), { code: 'CONFLICT' })
   assert.throws(() => f.database.connection.prepare('INSERT INTO agent_model_requests(run_id,ordinal,metadata_json) VALUES(?,?,?)').run(randomUUID(), 1, '{}'))

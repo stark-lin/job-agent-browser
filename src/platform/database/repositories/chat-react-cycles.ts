@@ -1,14 +1,15 @@
+import type { AgentPhase } from '../../../shared/agent'
 import type { DatabaseSync, StatementResultingChanges } from 'node:sqlite'
 import { fail } from '../../../domain/common/errors'
 import type { CycleStatus, ReActCycle, SettledCycleStatus } from '../../../shared/agent/react-cycle'
 
 export interface CycleRow {
-  run_id: string; cycle_index: number; status: CycleStatus; reason: string | null
+  run_id: string; phase: AgentPhase; cycle_index: number; status: CycleStatus; reason: string | null
   model_request_ordinal: number | null; tool_call_ids_json: string; started_at: string; finished_at: string | null
 }
 
 export function reactCycle(row: CycleRow): ReActCycle {
-  return { index: row.cycle_index, status: row.status, reason: row.reason, modelRequestOrdinal: row.model_request_ordinal,
+  return { index: row.cycle_index, phase: row.phase, status: row.status, reason: row.reason, modelRequestOrdinal: row.model_request_ordinal,
     toolCallIds: JSON.parse(row.tool_call_ids_json), startedAt: row.started_at, finishedAt: row.finished_at }
 }
 
@@ -18,8 +19,8 @@ export function chatReactCycleWrites(db: DatabaseSync) {
     if (Number(result.changes) !== 1) fail('INVALID_STATE')
   }
   return {
-    start(runId: string, index: number, startedAt: string) {
-      db.prepare("INSERT INTO agent_react_cycles(run_id,cycle_index,status,started_at) VALUES(?,?,'RUNNING',?)").run(runId, index, startedAt)
+    start(runId: string, index: number, startedAt: string, phase: AgentPhase) {
+      db.prepare("INSERT INTO agent_react_cycles(run_id,cycle_index,status,started_at,phase) VALUES(?,?,'RUNNING',?,?)").run(runId, index, startedAt, phase)
     },
     linkRequest(runId: string, index: number, ordinal: number) {
       requireCycle(db.prepare(`UPDATE agent_react_cycles SET model_request_ordinal=?

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "JAB persisted chat debug bundle v2",
-  "description": "Existing SQLite columns remain raw. ReAct cycles are projected into ordered diagnostic records.",
+  "description": "Existing SQLite columns remain raw. Phase fields and preparation are optional in historical exports.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -226,6 +226,12 @@
         },
         "sequence": {
           "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "prepare",
+            "execute"
+          ]
         }
       }
     },
@@ -250,6 +256,12 @@
         },
         "ordinal": {
           "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "prepare",
+            "execute"
+          ]
         }
       }
     },
@@ -274,6 +286,19 @@
         },
         "through_sequence": {
           "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "prepare",
+            "execute"
+          ]
+        },
+        "cycle_index": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
         }
       }
     },
@@ -377,6 +402,16 @@
               "type": "null"
             }
           ]
+        },
+        "preparation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/preparation"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -439,6 +474,12 @@
             "string",
             "null"
           ]
+        },
+        "phase": {
+          "enum": [
+            "prepare",
+            "execute"
+          ]
         }
       },
       "if": {
@@ -459,6 +500,72 @@
         "properties": {
           "finishedAt": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "preparation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "status",
+        "prompt",
+        "reason",
+        "finished_at"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "finished_at": {
+          "type": "string"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "prompt": {
+            "type": "null"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }

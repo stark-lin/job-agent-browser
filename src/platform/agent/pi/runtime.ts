@@ -1,5 +1,5 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core' with { 'resolution-mode': 'import' }
-import { AgentError, abortable, isAgentCancellation, type AgentRuntimeEvent, type AgentToolDescriptor, type AgentTools, type StreamingAgentModel } from '../../../shared/agent'
+import { AgentError, abortable, isAgentCancellation, type AgentRuntimeEvent, type AgentPhase, type AgentToolDescriptor, type AgentTools, type StreamingAgentModel } from '../../../shared/agent'
 import type { CycleStatus, SettledCycleStatus } from '../../../shared/agent/react-cycle'
 import { guardNextAction, type RunGuardSnapshot } from '../../../shared/agent/run-guard'
 import { ToolError } from '../../../shared/tools/errors'
@@ -13,16 +13,29 @@ import { isPotentialWrite } from '../tool-presentation'
 import { ScopedToolset } from '../tools/scoped-toolset'
 import { createPiStream, piReasoning } from './model-adapter'
 
+export interface RunProgress {
+  cycleIndex: number
+  itemSerial: number
+  toolCalls: number
+  guard?: RunGuardSnapshot
+}
+
+type StageEvent = AgentRuntimeEvent extends infer Event ? Event extends { phase: AgentPhase } ? Omit<Event, 'phase'> : never : never
+
 export async function runPiAgent(deps: {
   model: StreamingAgentModel; tools: AgentTools; system: string; message: string; signal: AbortSignal; userSignal?: AbortSignal
   budget: ContextBudget; context: AgentContext; toolset?: AgentToolset; allowsTool?(name: string): boolean; maxToolCalls?: number; emit(event: AgentRuntimeEvent): void
+  phase?: AgentPhase; progress?: RunProgress; activeStatus?: AskRuntimeStatus
   onToolTurn?(): void
   status(value: AskRuntimeStatus): void; protect(name: string, args: unknown, result: unknown, uncertain: boolean): void
 }) {
   const { Agent } = await import('@earendil-works/pi-agent-core')
   const userSignal = deps.userSignal ?? deps.signal
-  let failure: unknown, serial = 0, calls = 0, finalText = '', recoverBatch = false, index = 0
-  let cycle: CycleStatus | null = null, outcome: SettledCycleStatus | undefined, guard: RunGuardSnapshot | undefined
+  const progress = deps.progress ?? { cycleIndex: 0, itemSerial: 0, toolCalls: 0 }
+  const emit = (event: StageEvent) => deps.emit({ ...event, phase: deps.phase ?? 'execute' })
+  const activeStatus = deps.activeStatus ?? 'idle'
+  let failure: unknown, finalText = '', recoverBatch = false
+  let cycle: CycleStatus | null = null, outcome: SettledCycleStatus | undefined, guard = progress.guard
   let action: ReturnType<typeof nextAction> = 'CONTINUE'
   const guidance = (snapshot?: RunGuardSnapshot) => snapshot?.level ? [{ type: 'text' as const,
     text: `\nRunGuard guidance: ${JSON.stringify({ level: snapshot.level, nextAction: snapshot.nextAction })}` }] : []
@@ -35,27 +48,27 @@ export async function runPiAgent(deps: {
     if (failure) throw failure
     deps.signal.throwIfAborted()
     if (cycle !== 'RUNNING' || outcome) throw new AgentError('AGENT_PROTOCOL_ERROR')
-    return index
+    return progress.cycleIndex
   }
   const registry = deps.toolset ?? new ScopedToolset(deps.tools, deps.budget, deps.allowsTool)
   await abortable(registry.refresh(), deps.signal)
   function observeGuard(name: string) {
     const snapshot = (name.startsWith('scope.') || name === 'human.ask') ? undefined : deps.tools.getRunGuardSnapshot?.()
     if (snapshot) {
-      guard = snapshot
+      guard = progress.guard = snapshot
       if (snapshot.level === 'recovery') recoverBatch = true
     }
     return snapshot
   }
   const tool = (descriptor: AgentToolDescriptor): AgentTool => ({ name: descriptor.name, label: descriptor.name, description: descriptor.description, parameters: descriptor.inputSchema,
     async execute(callId, args, signal) {
-      const name = descriptor.name, id = `tool-${++serial}`, began = Date.now()
+      const name = descriptor.name, id = `tool-${++progress.itemSerial}`, began = Date.now()
       const combined = signal ? AbortSignal.any([signal, deps.signal]) : deps.signal
       try {
         activeCycle(); combined.throwIfAborted()
-        if (++calls > (deps.maxToolCalls ?? 256)) throw new AgentError('AGENT_STEP_LIMIT')
+        if (++progress.toolCalls > (deps.maxToolCalls ?? 256)) throw new AgentError('AGENT_STEP_LIMIT')
         if (recoverBatch) throw new AgentError('AGENT_PROTOCOL_ERROR')
-        deps.emit({ type: 'tool.started', id, risk: descriptor.risk, call: { id: callId, name, arguments: args } })
+        emit({ type: 'tool.started', id, risk: descriptor.risk, call: { id: callId, name, arguments: args } })
         if (name === 'human.ask') deps.status('human.waiting')
         let result: unknown
         try { result = await abortable(registry.call(name, args, combined), combined) }
@@ -69,14 +82,14 @@ export async function runPiAgent(deps: {
           else if (blocked) failed(new ToolError('TOOL_GUARD_TERMINATED'))
           else if (combined.aborted || error instanceof AgentError || ['TOOL_CANCELLED', 'MCP_DISCONNECTED', 'TOOL_UNAVAILABLE', 'MCP_INVALID_RESPONSE'].includes(code)) observeFailure(error)
           try { if (!rejected) deps.protect(name, args, null, uncertain) }
-          finally { deps.emit({ type: 'tool.failed', id, name, error: code, durationMs: Date.now() - began, uncertain, guard: snapshot }) }
+          finally { emit({ type: 'tool.failed', id, name, error: code, durationMs: Date.now() - began, uncertain, guard: snapshot }) }
           return { content: [{ type: 'text', text: JSON.stringify({ error: code, ...(snapshot ? { reason: snapshot.reason, executed: snapshot.executed, effectAlreadyConfirmed: snapshot.effectAlreadyConfirmed } : {}) }) }, ...guidance(snapshot)], details: {}, isError: true }
         }
-        if (name === 'human.ask') deps.status('idle')
+        if (name === 'human.ask') deps.status(activeStatus)
         const snapshot = observeGuard(name)
         if (snapshot?.status === 'BLOCKED') failed(new ToolError('TOOL_GUARD_TERMINATED'))
         try { deps.protect(name, args, result, false) }
-        finally { deps.emit({ type: 'tool.completed', id, name, result, durationMs: Date.now() - began, guard: snapshot }) }
+        finally { emit({ type: 'tool.completed', id, name, result, durationMs: Date.now() - began, guard: snapshot }) }
         return { content: [{ type: 'text', text: JSON.stringify(modelToolResult(name, result)) }, ...guidance(snapshot)], details: {} }
       } catch (error) {
         observeFailure(error)
@@ -85,7 +98,7 @@ export async function runPiAgent(deps: {
     } })
   const streamFn = await createPiStream({ model: deps.model, budget: deps.budget, signal: deps.signal, cycleIndex: activeCycle, prepare: async (m, t, s) => {
     const messages = await deps.context.prepare(m, t, s)
-    s.throwIfAborted(); activeCycle(); deps.status('idle')
+    s.throwIfAborted(); activeCycle(); deps.status(activeStatus)
     // Apply the previous settlement after compaction so it cannot remove trusted guidance.
     const level = action === 'RECOVER' ? 'recovery' : action === 'CONTINUE_WITH_WARNING' ? 'warning' : undefined
     return level ? messages.map(message => message.role === 'system'
@@ -94,7 +107,7 @@ export async function runPiAgent(deps: {
     loadout: () => registry.snapshot(), advertised: names => registry.confirmRequest(names),
     completed: response => {
       if (!response.toolCalls.length) finalText = response.content
-      deps.emit({ type: 'model.completed', response, cycleIndex: activeCycle() })
+      emit({ type: 'model.completed', response, cycleIndex: activeCycle() })
     } })
   const agent = new Agent({ streamFn, toolExecution: 'sequential', initialState: {
     systemPrompt: deps.system, tools: registry.loadout().map(tool), thinkingLevel: 'off',
@@ -130,15 +143,15 @@ export async function runPiAgent(deps: {
       if (event.type === 'turn_start') {
         deps.signal.throwIfAborted()
         if (failure) throw failure
-        action = nextAction(cycle)
+        action = cycle === null && guard?.level ? guard.level === 'recovery' ? 'RECOVER' : 'CONTINUE_WITH_WARNING' : nextAction(cycle)
         const running = startCycle(cycle)
-        deps.emit({ type: 'cycle.started', index: index + 1, startedAt: new Date().toISOString() })
-        index++; cycle = running; recoverBatch = false; outcome = undefined
+        emit({ type: 'cycle.started', index: progress.cycleIndex + 1, startedAt: new Date().toISOString() })
+        progress.cycleIndex++; cycle = running; recoverBatch = false; outcome = undefined
       } else if (event.type === 'turn_end' && cycle === 'RUNNING' && outcome) {
         if (deps.signal.aborted && !userSignal.aborted) failed(deps.signal.reason)
         const settled = settleCycle(cycle, failure ? 'FAILED' : userSignal.aborted ? 'CANCELLED' : outcome)
         if (settled === 'CONTINUE' || settled === 'WARNING' || settled === 'RECOVERING') {
-          deps.emit({ type: 'cycle.settled', index, status: settled, reason: settled === 'CONTINUE' ? null : guard?.reason ?? 'NO_PROGRESS_LOOP', finishedAt: new Date().toISOString() })
+          emit({ type: 'cycle.settled', index: progress.cycleIndex, status: settled, reason: settled === 'CONTINUE' ? null : guard?.reason ?? 'NO_PROGRESS_LOOP', finishedAt: new Date().toISOString() })
         }
         cycle = settled
       } else if (event.type === 'message_end' && event.message.role === 'assistant' && event.message.stopReason === 'toolUse') {
@@ -146,11 +159,11 @@ export async function runPiAgent(deps: {
       } else if (event.type === 'message_update' && cycle === 'RUNNING' && !outcome && !failure && !deps.signal.aborted) {
         const update = event.assistantMessageEvent
         if (update.type === 'text_start' || update.type === 'thinking_start') {
-          segment = `segment-${++serial}`; deps.emit({ type: 'segment.started', id: segment, kind: update.type === 'text_start' ? 'assistant_message' : 'reasoning',
+          segment = `segment-${++progress.itemSerial}`; emit({ type: 'segment.started', id: segment, kind: update.type === 'text_start' ? 'assistant_message' : 'reasoning',
             ...(update.type === 'thinking_start' ? { reasoning: piReasoning(update.partial.content[update.contentIndex]) } : {}) })
         }
-        if ((update.type === 'text_delta' || update.type === 'thinking_delta') && segment) deps.emit({ type: 'segment.delta', id: segment, text: update.delta })
-        if ((update.type === 'text_end' || update.type === 'thinking_end') && segment) { deps.emit({ type: 'segment.completed', id: segment }); segment = undefined }
+        if ((update.type === 'text_delta' || update.type === 'thinking_delta') && segment) emit({ type: 'segment.delta', id: segment, text: update.delta })
+        if ((update.type === 'text_end' || update.type === 'thinking_end') && segment) { emit({ type: 'segment.completed', id: segment }); segment = undefined }
       }
     } catch (error) { observeFailure(error); throw error }
   })
