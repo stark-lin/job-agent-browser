@@ -112,4 +112,4 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 
 ## Smart Note knowledge
 
-Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Ask AI budgets against the effective model window and uses 65,536 context tokens when the limit is unknown. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).
+Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Ask AI budgets against the effective model window and uses 131,072 context tokens when the limit is unknown. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).

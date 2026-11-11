@@ -5,10 +5,12 @@ import { nextAction, resolveCycle, settleCycle, startCycle } from '../src/platfo
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
 import { chatDebugExportRepository } from '../src/platform/database/repositories/chat-debug-export'
 import { toolSnapshot } from '../src/platform/ai/agent-request'
+import { resolveAskCapabilities } from '../src/platform/ai/ask-capabilities'
 import { AgentError, type StreamingAgentModel } from '../src/shared/agent'
 import type { RunGuardSnapshot } from '../src/shared/agent/run-guard'
 import { firstPartyFixture } from './first-party-fixture'
 import { fixtureCapabilities } from './ask-fixture'
+import { scriptedModel } from './disclosure-fixture'
 
 const choice = { providerId: 'fixture', modelId: 'test' }
 const input = (message: string, sessionId?: string) => ({ requestId: randomUUID(), message, sessionId, choice })
@@ -51,6 +53,35 @@ test('Cycle transitions gate starts, settlement and continuation', () => {
     assert.throws(() => startCycle(state))
     assert.throws(() => settleCycle(state, state))
   }
+})
+
+test('a max-output override equal to the context window leaves room for the first Ask request', async t => {
+  const f = await firstPartyFixture(t), debug = chatDebugExportRepository(f.database.connection)
+  const localChoice = { ...choice, modelId: 'qwen3.6-35b-a3b-mlx' }
+  const settings = { default: localChoice, providers: [{
+    id: localChoice.providerId, name: 'Local fixture', baseURL: 'http://127.0.0.1:1234/v1', models: [localChoice.modelId],
+    overrides: { [localChoice.modelId]: { contextWindow: 250_000, maxOutputTokens: 250_000 } }
+  }] }
+  const metadata: typeof fetch = async () => Response.json({ models: [{
+    key: localChoice.modelId, loaded_instances: [{ config: { context_length: 262_144 } }]
+  }] })
+  const prompt = '帮我准备一段面试自我介绍。'
+  const fixture = scriptedModel(request => {
+    assert.equal(request.messages.at(-1)?.content, prompt)
+    assert(request.tools.some(tool => tool.function.description.startsWith('[scope.profile] ')))
+    assert.equal('max_tokens' in request && request.max_tokens, 118_750)
+    return '可以先介绍相关经历。'
+  })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => fixture.model,
+    capabilities: (selected, signal) => resolveAskCapabilities(settings, selected, () => null, signal, metadata) })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, { ...input(prompt), choice: localChoice }, () => {})
+  const result = await wait(tasks, ids.runId)
+  assert.equal(result.run.state, 'completed', result.run.error ?? '')
+  const [run] = debug.getDebugBundle(ids.sessionId).runs
+  assert.deepEqual(run.cycles.map(cycle => [cycle.index, cycle.status]), [[1, 'SUCCESS']])
+  assert.equal(run.modelRequests.length, 1)
+  assert.equal(fixture.requests.length, 1)
 })
 
 test('new prompts start at Cycle 1, deduplication preserves identity, and summary ordinals are never Cycle ordinals', async t => {

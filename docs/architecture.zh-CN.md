@@ -103,7 +103,7 @@ React App → Page → Preload → IPC → Main
 
 [SessionSidebar](../src/pages/ai/SessionSidebar.tsx)确认后通过 App 注入的 Data IPC 复制调试 JSON；完整持久化快照留在 Main，回读剪贴板一致后才成功，详见[数据架构](data-architecture.zh-CN.md#copy-debug-json)。
 
-[上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts) 依次使用 LM Studio 已加载实例上限、手动覆盖、Provider 元数据和匹配 Endpoint 的目录。手动值不能扩大已知部署上限。未知时采用 65,536 上下文和 8,192 输出 Tokens 的执行默认值。[预算](../src/platform/agent/context/budget.ts) 使用有效窗口计算，小窗口可用，实际输入超出预算时直接返回错误。
+[上下文管理](../src/platform/agent/context/manager.ts)按实际窗口检查每次请求，预留输出/安全空间，在 80% 时同步增量压缩完整轮次，目标为 60%；验证后的检查点保存完成才恢复推理。Core/召回/摘要预算分别为 2,048/2,048/4,096 Tokens（召回使用近似检索单位）。[Core 加载器](../src/platform/agent/context/core-memory.ts)每轮放行后通过 MCP 读取 CORE.md，缺失视为空，仅在本地截取含标记的注入参考视图，不调用模型，也不自动召回 L2。[能力解析](../src/platform/ai/ask-capabilities.ts) 依次使用 LM Studio 已加载实例上限、手动覆盖、Provider 元数据和匹配 Endpoint 的目录。手动值不能扩大已知部署上限。未知时采用 131,072 上下文和 8,192 输出 Tokens 的执行默认值。[预算](../src/platform/agent/context/budget.ts) 按有效窗口计算，扣除安全余量后至少保留一半容量给输入。输入超出预算时直接返回错误。
 
 [Ask 策略](../src/platform/agent/ask.ts)由 Pi 独立负责推理、工具及长期 Memory 决策。项目、经历、技能读取 Profile 条目/Facts；基本资料使用 profile.get，收藏职位使用 Job，偏好使用 Memory，笔记使用 Knowledge。多个 Profile 无法确定时询问用户；同来源两次无新增信息后，Prompt 要求切换来源或回答已确认结果并说明缺失项。匹配分析读取 Job/Profile/Facts；简历请求引导至专用页面，不自动生成。[MCP 策略](mcp-architecture.zh-CN.md)强制 Ask 能力子集及有界恢复。[路由样本](../tests/ask-routing.test.ts)验证集成，真实模型路由质量仍未验证。
 

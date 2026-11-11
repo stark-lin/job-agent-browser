@@ -117,5 +117,5 @@ test('context and output limits independently use overrides, provider metadata a
   const overridden = { ...provider, overrides: { [choice.modelId]: { contextWindow: 16384 } } }
   assert.deepEqual(await resolve(overridden), { contextWindow: 16384, maxOutputTokens: 4096, source: 'manual' })
   assert.deepEqual(await resolve(provider, async () => Response.json({ data: [{ id: choice.modelId }] })),
-    { contextWindow: 65536, maxOutputTokens: 8192, source: 'fallback' })
+    { contextWindow: 131072, maxOutputTokens: 8192, source: 'fallback' })
 })

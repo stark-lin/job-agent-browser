@@ -2,7 +2,7 @@ import type { Result } from './ipc'
 import type { Preferences } from './settings'
 
 export const AI_DEFAULTS = {
-  contextWindow: 65_536,
+  contextWindow: 131_072,
   maxOutputTokens: 8_192,
   requestTimeoutMs: 300_000,
   modelsTimeoutMs: 15_000,

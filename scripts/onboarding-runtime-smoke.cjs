@@ -74,7 +74,7 @@ app.once('browser-window-created', (_event, window) => {
         await toggleAdvanced()
         assert.deepEqual(await fieldOrder(advanced), advancedFields)
         const defaults = await placeholders()
-        assert.deepEqual(defaults, ['Auto (65,536 fallback)', 'Auto (8,192 fallback)', '300 seconds', '15 seconds', '20 seconds'])
+        assert.deepEqual(defaults, ['Auto (131,072 fallback)', 'Auto (8,192 fallback)', '300 seconds', '15 seconds', '20 seconds'])
         await toggleAdvanced()
         let requests = 0, discoveries = 0, available = false
         const discoveredWith = []
