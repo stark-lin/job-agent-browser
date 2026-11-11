@@ -29,7 +29,7 @@ async function server(t: TestContext, handler: (response: ServerResponse, body: 
 }
 function fixture(t: TestContext, baseURL: string, timeoutMs = 2000) {
   const database = openDatabase(':memory:'), backend = composeBackend(database)
-  const settings: AISettings = { providers: [{ id: 'custom', name: 'PRIVATE_PROVIDER', baseURL, requiresKey: true, models: ['custom/model'], defaultModel: 'custom/model' }], default: input.choice }
+  const settings: AISettings = { providers: [{ id: 'custom', name: 'PRIVATE_PROVIDER', baseURL, authMode: 'bearer', models: ['custom/model'] }], default: input.choice }
   const service = createAIService({ settings: () => settings, key: () => 'PRIVATE_API_KEY', timeoutMs })
   t.after(async () => { await service.dispose(); backend.close() })
   return { database, backend, settings, service }
@@ -125,12 +125,12 @@ test('request configuration is frozen, no-key providers send no authorization, a
     response.writeHead(200, { 'Content-Type': 'text/event-stream' }); response.end(success)
   })
   const f = fixture(t, url)
-  f.settings.providers[0].requiresKey = false
+  f.settings.providers[0].authMode = 'none'
   assert.throws(() => f.service.start(1, { ...input, actorId: 'FORGED' }, () => {}), { code: 'INVALID_INPUT' })
   assert.throws(() => f.service.start(1, { ...input, messages: [{ role: 'system', content: 'FORGED' }] }, () => {}), { code: 'INVALID_INPUT' })
   const result = run(f.service)
   f.settings.providers[0].baseURL = 'http://127.0.0.1:1'
-  f.settings.providers[0].requiresKey = true
+  f.settings.providers[0].authMode = 'bearer'
   f.settings.providers[0].models = []
   assert.equal((await result).at(-1)?.type, 'completed')
 })
@@ -147,6 +147,7 @@ test('redirects are not followed and provider credentials never reach the redire
 test('renderer client buffers events emitted before invoke resolves and cleans terminal subscriptions', async () => {
   const requestId = randomUUID(), listeners = new Set<(event: AIEvent) => void>()
   const api: AIAPI = {
+    saveConnection: async () => ({ ok: false, error: 'INVALID_INPUT' }),
     listModels: async () => ({ ok: true, value: [] }),
     start: async () => {
       for (const listener of listeners) {
@@ -172,7 +173,7 @@ test('SSE decoder handles byte-level UTF-8 boundaries, multiline data and ignore
     controller.close()
   } })
   let starts = 0, text = ''
-  await streamChat({ provider: { id: 'local', name: 'Local', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null, messages: input.messages },
+  await streamChat({ provider: { id: 'local', name: 'Local', baseURL: 'http://localhost/v1', models: ['test'] }, model: 'test', key: null, messages: input.messages },
     new AbortController().signal, () => { starts++ }, delta => { text += delta }, async () => new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }))
   assert.equal(starts, 1)
   assert.equal(text, '你好')
@@ -190,6 +191,7 @@ test('renderer disposal cancels a request whose ID arrives late and removes its 
   let resolve!: (value: { ok: true; value: { requestId: string } }) => void
   let listener: ((event: AIEvent) => void) | null = null
   const api: AIAPI = {
+    saveConnection: async () => ({ ok: false, error: 'INVALID_INPUT' }),
     listModels: async () => ({ ok: true, value: [] }),
     start: () => new Promise(done => { resolve = done }),
     cancel: async input => { cancelled.push(input.requestId); return { ok: true, value: null } },

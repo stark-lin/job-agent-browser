@@ -154,11 +154,11 @@ API 不提供原始 SQL/表 CRUD、任意筛选、事务管理或生成阶段写
 
 [偏好配置](../src/platform/storage/preferences.ts) 校验版本 1、英文/简体中文、`light / dark / system` 主题及可选 Gmail/Outlook/自定义 HTTPS 网页邮箱，网址不得含登录凭据。现有版本 1 的浅色文件保持兼容，版本仍为 1，默认浅色。保存偏好（包括 `system`），不保存解析后的配色；其他部分保存保留该主题。原子替换成功后才应用保存的偏好。文件不存在时使用默认值且不写入。部分保存合并最新文件；损坏或未来版本的文件报错且不重置。[原子替换](../src/platform/storage/files.ts) 使用私有临时文件及重命名；写入失败保留原数据。智能粘贴配置保存 ID、标题和提示词。缺少配置时使用本地化默认项，保存的空列表保持为空。 可选布尔值 `onboardingCompleted` 缺失时表示未完成；部分保存会保留其值，重新初始化仅将其改为 false，不新增数据库结构事件。
 
-[AI 偏好](../src/platform/storage/ai-preferences.ts)校验最多 20 个命名 Provider 实例、HTTPS endpoint（仅 localhost/回环允许 HTTP）、明确的密钥需求、每实例最多 100 个模型 ID 及可空的全局 Provider/模型默认值。endpoint 可保留路径前缀，不接受凭据、查询或片段。读取时忽略旧 `parallelModels` 字段，下次保存时清除。缺失的 AI 与超时设置使用默认值，移除 Provider 前需先删除密钥。
+[AI 偏好](../src/platform/storage/ai-preferences.ts)保存最多 20 个命名连接、稳定 Provider ID、Endpoint、模型列表、可选认证模式、每模型覆盖和全局默认模型。Endpoint 支持 HTTPS 或回环 HTTP 及路径前缀，拒绝凭据、查询和片段。读取旧文件时可从旧 Provider 默认值恢复全局默认，仅保留手动上下文和输出覆盖，忽略旧密钥要求、并行模型和自动检测记录。
 
-[超时设置](../src/shared/ai.ts)保存全局 `ai.timeouts.requestSeconds`、`pageSeconds` 和 `modelsSeconds`，默认分别为 120、20 和 15 秒。每项允许 1–3600 的整数秒数；无效写入保留原文件。AI 超时覆盖对话、职位/资料解析和 Resume Agent 的每次调用；网页读取及模型检测各自独立。编辑/移除 Provider 或保存其他偏好均保留这些值。[设置测试](../tests/settings.test.ts)验证旧配置读取、持久化及无效写入的原子拒绝。
+[统一默认值](../src/shared/ai.ts)定义 300 秒 AI 请求、15 秒模型发现和 20 秒网页读取。Preferences 仅保存全局 `timeoutOverrides`（1–3600 的整数秒数）；旧默认值 120、15、20 不迁移为覆盖。恢复默认值删除覆盖。
 
-[密钥](../src/platform/storage/secrets.ts)保存以 Provider 实例 ID 为键的版本 2 密文映射，由 [Main 组装](../src/platform/electron/main/index.ts)中的 Electron `safeStorage` 加密。加密不可用（包括 Linux `basic_text`）时拒绝保存；仍可删除密钥。API 返回配置/加密状态，不返回解密后的密钥。密钥不进入普通配置、SQLite、快照。版本 1 的 OpenAI 密文保持可读，在下次密钥写入时原子升级，不解密无关密钥。只有内部 AI 服务通过注入能力读取明文，公开桥接只返回状态。保存配置/密钥不调用模型；显式连接测试向已保存的 Provider/模型发送短提示词，可能产生费用。
+[密钥](../src/platform/storage/secrets.ts)仍按 Provider ID 由 Electron `safeStorage` 加密保存，并兼容旧 OpenAI 密文。加密不可用时仍可删除密钥。发现模型仅在 Endpoint 与已保存地址一致时复用旧密钥。修改 Endpoint 时清除旧密钥，用户可同时提供新密钥。删除连接也删除密钥。配置写入失败时回滚密文变更。[设置测试](../tests/settings.test.ts)覆盖迁移、存储和回滚。
 
 [设置测试](../tests/settings.test.ts) 验证重启读取、全部主题值、版本 1 兼容、部分保存保留主题、校验、损坏、写入失败和加密密钥生命周期。[回退适配器](../src/platform/storage/index.ts) 缺少文件服务时返回 `NOT_IMPLEMENTED`；调试复制另需宿主输出。AI 对话通过[AI 测试](../tests/ai.test.ts)和[生产 smoke](../scripts/ai-smoke.cjs)中的本地服务验证；真实第三方兼容性及账号权限仍未验证。严格结构化输出协商、登录态网页提取/查重、其余业务 UI 和完整隐私清除尚未实现。简历 Provider 兼容性通过本地样本验证，真实 Provider 仍未验证。
 

@@ -59,7 +59,7 @@ npm run release:npm:check
 
 `test:mcp` 验证现有 MCP Client 运行时。`test:mcp-server` 验证 Job/Application/Resume 公共能力、运行时一致性及构建后的 Node stdio Server，使用临时存储和真实 Electron HTML/PDF 输出。两种运行时 smoke 均纳入 `check`；Server PDF 验证需要图形桌面。见 [MCP 架构](docs/mcp-architecture.zh-CN.md)。
 
-`test:onboarding` 使用本地夹具和临时数据验证初始化、模型发现/测试、资料保存与进程重启。`test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
+`test:onboarding` 使用本地夹具和临时数据验证初始化、模型发现和共享连接表单、资料保存与进程重启。`test:integrations` 构建并使用临时配置目录验证外部 Agent 的 MCP/Skills 接入、重新连接、确认后的单项/全部删除、过期版本、可信 IPC 以及双语响应式主题，需要图形桌面。
 
 `test:agent` 组合 Agent/溯源/数据库测试及真实 Electron UI 和多页 PDF 样本，使用临时 userData 与本地兼容模型服务。`test:profile` 独立验证 Profile 编辑/导入及双语布局，均不依赖付费模型。[CI](docs/ci-cd.zh-CN.md)覆盖 macOS arm64 发布目标的 PDF 渲染；真实 Provider 兼容性及 CI 之外的干净机器行为仍未验证。Resume V3 原地升级 v18，详见[升级与恢复](docs/data-architecture.zh-CN.md#三生成成品与删除)。
 
@@ -112,4 +112,4 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 
 ## 智能笔记知识库
 
-Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及 Ask AI Agent 自主管理记忆。Ask AI 需要经过核验且至少为 65,536 Tokens 的实际模型窗口；未知部署限制需在 Settings 配置。见[运行时](docs/architecture.zh-CN.md)、[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。
+Smart Note 在同一编辑器与 Git 仓库中容纳 Knowledge 和置顶 Memory 文件夹，提供隔离检索/历史/恢复、经确认的远程同步及 Ask AI Agent 自主管理记忆。Ask AI 按有效窗口分配预算，未知时使用 65,536 上下文 Tokens。见[运行时](docs/architecture.zh-CN.md)、[存储](docs/data-architecture.zh-CN.md)、[MCP 权限](docs/mcp-architecture.zh-CN.md)及 [UI 规则](docs/design-system.zh-CN.md)。

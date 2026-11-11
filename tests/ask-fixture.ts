@@ -1,7 +1,7 @@
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
 import type { AgentModelEvent, StreamingAgentModel } from '../src/shared/agent'
 
-export const fixtureCapabilities = { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual' as const, verified: true }
+export const fixtureCapabilities = { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual' as const }
 /** Existing business scenarios model Scope expansion explicitly while retaining their business scripts. */
 export function discoveringModel(model: StreamingAgentModel): StreamingAgentModel {
   let pending: AgentModelEvent[] | undefined, serial = 0

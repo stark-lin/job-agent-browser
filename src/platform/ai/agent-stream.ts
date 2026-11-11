@@ -45,21 +45,21 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
       const text = typeof delta.content === 'string' ? delta.content : ''
       output += Buffer.byteLength(text)
       if (output + reasoning.bytes > 1000000) protocol()
-      for (const part of reasoningDeltas) yield { type: 'reasoning.delta', ...part }
-      if (text) { content += text; yield { type: 'content.delta', text } }
+      let toolProgress = false
       if (delta.tool_calls !== undefined) {
         if (!Array.isArray(delta.tool_calls) || delta.tool_calls.length > 32) protocol()
         for (const raw of delta.tool_calls) {
           const part = object(raw), index = part.index
           if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= 32) protocol()
           const call = calls.get(index) ?? { id: '', type: '', function: { name: '', arguments: '' } }
-          if (part.id !== undefined) { if (typeof part.id !== 'string') protocol(); call.id += part.id }
+          if (part.id !== undefined) { if (typeof part.id !== 'string') protocol(); call.id += part.id; toolProgress ||= Boolean(part.id) }
           if (part.type !== undefined) { if (part.type !== 'function' || call.type && call.type !== part.type) protocol(); call.type = part.type }
           if (part.function !== undefined) {
             const fn = object(part.function)
             for (const key of ['name', 'arguments'] as const) if (fn[key] !== undefined) {
               if (typeof fn[key] !== 'string') protocol()
               call.function[key] += fn[key]
+              toolProgress ||= Boolean(fn[key])
             }
           }
           if (call.id.length > 200 || call.function.name.length > 200 || Buffer.byteLength(call.function.arguments) > 1048576) protocol()
@@ -70,6 +70,9 @@ export async function* agentStream(config: Omit<ChatRequest, 'messages'>, deps: 
         if (!['stop', 'tool_calls'].includes(String(choice.finish_reason))) protocol()
         finished = String(choice.finish_reason)
       }
+      if (text || reasoningDeltas.length || toolProgress || finished) timeout.refresh()
+      for (const part of reasoningDeltas) yield { type: 'reasoning.delta', ...part }
+      if (text) { content += text; yield { type: 'content.delta', text } }
     }
     if (!finished || !done) protocol()
     const ordered = [...calls].sort(([a], [b]) => a - b)

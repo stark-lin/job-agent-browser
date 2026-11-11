@@ -8,7 +8,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { createPreferences } from '../src/platform/storage/preferences'
 import { createSecrets, type KeyProtection } from '../src/platform/storage/secrets'
 import { defaultPreferences } from '../src/shared/settings'
-import { defaultAITimeouts } from '../src/shared/ai'
+import { saveAIConnection } from '../src/platform/ai/connection'
 import { composeBackend } from '../src/platform/database/backend'
 import { openDatabase } from '../src/platform/database/sqlite'
 
@@ -159,7 +159,7 @@ test('old settings gain AI defaults; custom provider configuration persists and 
   const service = createPreferences(path)
   assert.deepEqual(service.get({}).ai, defaultPreferences.ai)
   assert.equal(readFileSync(path, 'utf8'), JSON.stringify(legacy))
-  const ai = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234/gateway/v1/', requiresKey: false, models: ['custom/model'], defaultModel: 'custom/model' }], default: { providerId: 'local', modelId: 'custom/model' } }
+  const ai = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234/gateway/v1/', models: ['custom/model'] }], default: { providerId: 'local', modelId: 'custom/model' } }
   service.savePreferences({ ai })
   const restored = createPreferences(path).get({})
   assert.equal(restored.ai.providers[0].baseURL, 'http://127.0.0.1:1234/gateway/v1')
@@ -178,34 +178,37 @@ test('old settings gain AI defaults; custom provider configuration persists and 
 test('bare local and hosted OpenAI endpoints survive settings reload without requiring models', t => {
   const path = join(temporary(t), 'settings.json')
   for (const endpoint of ['http://127.0.0.1:1234', 'http://localhost:1234', 'http://[::1]:1234', 'https://api.openai.com']) {
-    const ai = { providers: [{ id: 'local', name: 'Local', baseURL: endpoint + '/', requiresKey: false, models: [], defaultModel: '' }], default: null }
+    const ai = { providers: [{ id: 'local', name: 'Local', baseURL: endpoint + '/', models: [] }], default: null }
     createPreferences(path).savePreferences({ ai })
     assert.equal(createPreferences(path).get({}).ai.providers[0].baseURL, endpoint)
   }
 })
 
-test('timeout settings retain legacy defaults in memory, persist explicit limits, and reject invalid writes atomically', t => {
+test('legacy default timeouts are dropped and custom timeouts persist as overrides', t => {
   const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
-  const legacy = { ...defaultPreferences, ai: { providers: defaultPreferences.ai.providers, default: null } }
+  const oldDefaults = { requestSeconds: 120, pageSeconds: 20, modelsSeconds: 15 }
+  const legacy = { ...defaultPreferences, ai: { ...defaultPreferences.ai, timeouts: oldDefaults } }
   writeFileSync(path, JSON.stringify(legacy))
-  assert.deepEqual(service.get({}).ai.timeouts, defaultAITimeouts)
+  assert.equal(service.get({}).ai.timeoutOverrides, undefined)
   assert.equal(readFileSync(path, 'utf8'), JSON.stringify(legacy))
   const timeouts = { requestSeconds: 3600, pageSeconds: 1, modelsSeconds: 60 }
-  const ai = { ...legacy.ai, timeouts }
+  writeFileSync(path, JSON.stringify({ ...legacy, ai: { ...legacy.ai, timeouts: { ...oldDefaults, modelsSeconds: 45 } } }))
+  assert.deepEqual(service.get({}).ai.timeoutOverrides, { modelsSeconds: 45 })
+  const ai = { ...defaultPreferences.ai, timeoutOverrides: timeouts }
   service.savePreferences({ ai })
-  assert.deepEqual(createPreferences(path).get({}).ai.timeouts, timeouts)
-  assert.deepEqual(service.savePreferences({ language: 'zh-CN', theme: 'dark' }).ai.timeouts, timeouts)
+  assert.deepEqual(createPreferences(path).get({}).ai.timeoutOverrides, timeouts)
+  assert.deepEqual(service.savePreferences({ language: 'zh-CN', theme: 'dark' }).ai.timeoutOverrides, timeouts)
   const before = readFileSync(path, 'utf8')
-  for (const invalid of [null, {}, { ...timeouts, other: 10 }, ...[0, -1, 3601, 1.5, '120', null, NaN, Infinity].flatMap(seconds =>
+  for (const invalid of [null, { ...timeouts, other: 10 }, ...[0, -1, 3601, 1.5, '120', null, NaN, Infinity].flatMap(seconds =>
     Object.keys(timeouts).map(field => ({ ...timeouts, [field]: seconds })))]) {
-    assert.throws(() => service.savePreferences({ ai: { ...ai, timeouts: invalid } }), { code: 'INVALID_INPUT' })
+    assert.throws(() => service.savePreferences({ ai: { ...ai, timeoutOverrides: invalid } }), { code: 'INVALID_INPUT' })
     assert.equal(readFileSync(path, 'utf8'), before)
   }
 })
 
 test('legacy parallel import settings are ignored on read and dropped on the next save', t => {
   const path = join(temporary(t), 'settings.json'), service = createPreferences(path)
-  const provider = { id: 'first', name: 'First', baseURL: 'https://first.example', requiresKey: false, models: ['model'], defaultModel: 'model' }
+  const provider = { id: 'first', name: 'First', baseURL: 'https://first.example', models: ['model'] }
   service.savePreferences({ ai: { providers: [provider], default: { providerId: 'first', modelId: 'model' } } })
   const stored = JSON.parse(readFileSync(path, 'utf8'))
   stored.ai.providers[0].parallelModels = ['model']
@@ -246,4 +249,52 @@ test('setup completion survives restart and unrelated saves; restarting setup pr
     assert.throws(() => service.savePreferences({ onboardingCompleted }), { code: 'INVALID_INPUT' })
     assert.equal(readFileSync(path, 'utf8'), before)
   }
+})
+
+test('legacy AI providers restore the default and preserve only manual overrides', t => {
+  const directory = temporary(t), path = join(directory, 'settings.json')
+  const legacyProvider = {
+    id: 'legacy', name: 'Legacy', baseURL: 'https://provider.example/v1', requiresKey: true,
+    models: ['manual', 'detected'], defaultModel: 'manual',
+    capabilities: {
+      manual: { contextWindow: 16384, maxOutputTokens: 2048, source: 'manual', verified: true },
+      detected: { contextWindow: 65536, maxOutputTokens: 8192, source: 'runtime', verified: true }
+    }
+  }
+  writeFileSync(path, JSON.stringify({ ...defaultPreferences, ai: { providers: [legacyProvider] } }))
+  const preferences = createPreferences(path), secrets = createSecrets(join(directory, 'secrets.enc'), protection())
+  secrets.saveProviderKey({ provider: 'legacy', apiKey: 'PRIVATE_KEY' })
+  const restored = preferences.get({}).ai
+  assert.deepEqual(restored.default, { providerId: 'legacy', modelId: 'manual' })
+  assert.deepEqual(restored.providers[0], { id: 'legacy', name: 'Legacy', baseURL: 'https://provider.example/v1',
+    models: ['manual', 'detected'], overrides: { manual: { contextWindow: 16384, maxOutputTokens: 2048 } } })
+  preferences.savePreferences({ theme: 'dark' })
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).ai, restored)
+  assert.equal(secrets.readProviderKey('legacy'), 'PRIVATE_KEY')
+})
+
+test('connection saves retain or clear credentials by endpoint and recover from a failed preference write', t => {
+  const directory = temporary(t), settingsDir = join(directory, 'settings')
+  const preferences = createPreferences(join(settingsDir, 'settings.json'))
+  const secrets = createSecrets(join(directory, 'secrets.enc'), protection())
+  const provider = { id: 'local', name: 'Fixture', baseURL: 'https://first.example/v1', models: ['model'] }
+  const draft = { provider, modelId: 'model' }
+  saveAIConnection(preferences, secrets, { ...draft, apiKey: 'ORIGINAL', timeoutOverrides: { modelsSeconds: 30 } })
+  const existing = { ...draft, previousEndpoint: provider.baseURL }
+  const retained = saveAIConnection(preferences, secrets, { ...existing, provider: { ...provider, name: 'Renamed' } })
+  assert.equal(secrets.readProviderKey(provider.id), 'ORIGINAL')
+  assert.deepEqual(retained.ai.timeoutOverrides, { modelsSeconds: 30 })
+
+  if (process.platform !== 'win32' && process.getuid?.() !== 0) {
+    chmodSync(settingsDir, 0o500)
+    try { assert.throws(() => saveAIConnection(preferences, secrets, { ...existing, apiKey: 'REPLACEMENT' })) }
+    finally { chmodSync(settingsDir, 0o700) }
+    assert.equal(secrets.readProviderKey(provider.id), 'ORIGINAL')
+    assert.deepEqual(preferences.get({}), retained)
+  }
+
+  const updated = saveAIConnection(preferences, secrets, { ...existing, provider: { ...provider, baseURL: 'https://second.example/v1' }, timeoutOverrides: {} })
+  assert.equal(secrets.readProviderKey(provider.id), null)
+  assert.equal(updated.ai.timeoutOverrides, undefined)
+  assert.equal(updated.ai.providers.find(p => p.id === provider.id)?.baseURL, 'https://second.example/v1')
 })

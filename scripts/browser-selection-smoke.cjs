@@ -146,7 +146,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     }
     assert(!(await evaluate('document.querySelector(".job-page").textContent')).includes(`${origin}/job?id=123`))
     await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'restore Browser for sourced import')
-    const settings = { ai: { providers: [{ id: 'selection-fixture', name: 'Selection fixture', baseURL: `${origin}/v1`, requiresKey: false, models: ['fixture'], defaultModel: 'fixture', capabilities: { fixture: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'selection-fixture', modelId: 'fixture' } } }
+    const settings = { ai: { providers: [{ id: 'selection-fixture', name: 'Selection fixture', baseURL: `${origin}/v1`, models: ['fixture'], overrides: { fixture: { contextWindow: 65536, maxOutputTokens: 8192 } } }], default: { providerId: 'selection-fixture', modelId: 'fixture' } } }
     await evaluate(`window.data.settings.savePreferences(${JSON.stringify(settings)})`)
     await choose(view(), 'job-import')
     await field('[name=jobText]', `${selected}\nUser added context.`)

@@ -62,24 +62,64 @@ app.once('browser-window-created', (_event, window) => {
         await button('Light'); await button('Continue'); await heading('AI connection')
         await button('Connect external agents')
         assert.equal(await evaluate('document.querySelectorAll(".ui-stage-progress li").length'), 6)
-        await button('Continue'); await heading('Model')
-        assert.equal(await evaluate('document.querySelector("[data-onboarding-next]").disabled'), true)
-        let requests = 0
+        await button('Continue'); await heading('AI Connection')
+        const connection = '[data-ai-connection]', advanced = '[data-ai-advanced]'
+        const fieldOrder = (scope, extra = '') => evaluate(`[...document.querySelectorAll(${JSON.stringify(scope + ' label' + extra)})].filter(l => l.checkVisibility()).map(l => l.textContent)`)
+        const toggleAdvanced = () => evaluate(`document.querySelector('${advanced} > summary').click()`)
+        const placeholders = () => evaluate(`[...document.querySelectorAll('${advanced} input[type=number]')].map(input => input.placeholder)`)
+        const basicFields = ['Endpoint', 'API Key', 'Model']
+        const advancedFields = ['Connection Name', 'Provider Preset', 'Authentication', 'Manual Model ID', 'Model List',
+          'Context Window', 'Max Output Tokens', 'AI Request Timeout', 'Model Discovery Timeout', 'Page Fetch Timeout']
+        assert.deepEqual(await fieldOrder(connection), basicFields)
+        await toggleAdvanced()
+        assert.deepEqual(await fieldOrder(advanced), advancedFields)
+        const defaults = await placeholders()
+        assert.deepEqual(defaults, ['Auto (65,536 fallback)', 'Auto (8,192 fallback)', '300 seconds', '15 seconds', '20 seconds'])
+        await toggleAdvanced()
+        let requests = 0, discoveries = 0, available = false
+        const discoveredWith = []
         server = createServer((request, response) => {
-          if (request.url === '/v1/models') { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify({ data: [{ id: 'fixture-a' }, { id: 'fixture-b' }] })); return }
+          if (request.url === '/v1/models') {
+            discoveries++
+            discoveredWith.push(request.headers.authorization)
+            response.setHeader('Content-Type', 'application/json')
+            response.end(JSON.stringify({ data: available ? [{ id: 'fixture-a' }, { id: 'fixture-b' }] : [] }))
+            return
+          }
           request.resume(); request.on('end', () => {
             requests++
             response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-            response.end(`data: ${JSON.stringify({ choices: [{ delta: { content: requests === 1 ? 'OK' : JSON.stringify({ contact: { name: 'Setup candidate', introduction: 'Built the onboarding fixture.' }, links: [], items: [], facts: [], unmapped: [] }) }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`)
+            response.end(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify({ contact: { name: 'Setup candidate', introduction: 'Built the onboarding fixture.' }, links: [], items: [], facts: [], unmapped: [] }) }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`)
           })
         })
         await new Promise(r => server.listen(0, '127.0.0.1', r))
-        await field('Provider', 'local'); await field('Endpoint', `http://127.0.0.1:${server.address().port}/v1`)
-        await button('Find models')
-        await wait(() => evaluate('document.querySelectorAll(".onboarding-model-option").length === 2'), 'model discovery')
-        await button('Test'); await wait(() => evaluate('document.body.innerText.includes("Connection and streaming response verified.")'), 'real model test')
-        assert.equal(requests, 1)
+        const endpoint = `http://127.0.0.1:${server.address().port}/v1`
+        const originalAI = (await data('settings', 'get')).value.ai
+        await field('Endpoint', endpoint)
+        await field('API Key', 'draft-fixture-key')
+        await button('Continue')
+        await wait(() => evaluate('document.body.innerText.includes("valid, non-empty model list")'), 'empty list rejected')
+        assert.deepEqual((await data('settings', 'get')).value.ai, originalAI)
+        assert.equal((await data('secrets', 'hasProviderKey', { provider: originalAI.providers[0].id })).value.configured, false)
+        await field('API Key', '')
+        available = true
+        await button('Continue')
+        await wait(() => evaluate('document.body.innerText.includes("Choose a model to continue.")'), 'choose one of multiple models')
+        assert.deepEqual((await data('settings', 'get')).value.ai, originalAI)
+        await field('Model', 'fixture-a')
+        await toggleAdvanced()
+        await field('Manual Model ID', 'manual-fixture'); await button('Add model')
+        await field('Context Window', '32768')
+        await field('AI Request Timeout', '42')
         await button('Continue'); await heading('Agent')
+        const configured = (await data('settings', 'get')).value.ai
+        assert.equal(discoveries, 2)
+        assert.deepEqual(discoveredWith, ['Bearer draft-fixture-key', undefined])
+        assert.equal(requests, 0, 'connection only calls /models')
+        assert.equal(configured.default.modelId, 'fixture-a')
+        assert(configured.providers[0].models.includes('manual-fixture'))
+        assert.deepEqual(configured.providers[0].overrides, { 'fixture-a': { contextWindow: 32768 } })
+        assert.deepEqual(configured.timeoutOverrides, { requestSeconds: 42 })
         await button('Install MCP'); await wait(() => evaluate('document.querySelector(".onboarding-agent-label")?.innerText.includes("Verified")'), 'real MCP handshake')
         await button('Install Skills'); await wait(() => evaluate('!document.querySelector("[data-onboarding-next]").disabled'), 'skills install complete')
         await button('Skip'); await heading('Profile')
@@ -100,13 +140,13 @@ app.once('browser-window-created', (_event, window) => {
         dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [pdfPath] })
         await button('Choose PDF')
         await wait(() => evaluate('document.body.innerText.includes("setup-fixture.pdf")'), 'selected PDF filename')
-        assert.equal(requests, 1, 'selection alone does not parse')
+        assert.equal(requests, 0, 'selection alone does not parse')
         await button('Import')
         await wait(() => evaluate('!!document.querySelector("[data-import-id]")'), 'review PDF before confirmation')
         assert.equal((await data('profiles', 'listProfiles')).value.total, 1, 'unconfirmed import has not saved another profile')
         await button('Save imported content')
         await wait(() => evaluate('document.querySelector(".onboarding-step:not([hidden])").innerText.includes("Changes saved.")'), 'PDF saved')
-        assert.equal(requests, 2)
+        assert.equal(requests, 1)
         const importedProfile = (await data('profiles', 'listProfiles')).value.items[0]
         assert.equal((await data('profiles', 'getBaselineStatus', { profileId: importedProfile.id })).value.status, 'READY')
         await button('Continue'); await heading('Done'); await button('Open JAB')
@@ -115,7 +155,30 @@ app.once('browser-window-created', (_event, window) => {
         assert.equal((await data('settings', 'get')).value.ai.default.modelId, 'fixture-a')
         await evaluate("window.browser.navigate('app://settings')")
         await wait(() => evaluate('!!document.querySelector("[data-settings-general]")'), 'settings')
-        await require('./open-section-cards.cjs')(evaluate, '[data-settings-general]')
+        await require('./open-section-cards.cjs')(evaluate, '[data-settings-general], [data-ai-connection]')
+        for (const width of [320, 640, 1200]) {
+          window.setContentSize(width, 820)
+          await wait(() => evaluate(`innerWidth === ${width}`), 'settings viewport')
+          await frame()
+          assert.deepEqual(await evaluate(`(() => {
+            const scope = document.querySelector('.settings-ai-layout')
+            const actions = scope.querySelector('.settings-stack > .ui-action-row')
+            const box = element => element.getBoundingClientRect()
+            return [box(actions).top - box(scope.querySelector('select')).bottom,
+              box(scope.querySelector('[data-ai-connection]')).top - box(actions).bottom,
+              scope.scrollWidth > scope.clientWidth]
+          })()`), [16, 24, false])
+        }
+        assert.deepEqual(await fieldOrder(connection), basicFields)
+        await toggleAdvanced()
+        assert.deepEqual(await fieldOrder(advanced), advancedFields)
+        assert.deepEqual(await placeholders(), defaults)
+        await button('Restore Defaults'); await button('Save changes')
+        await wait(async () => (await data('settings', 'get')).value.ai.timeoutOverrides === undefined, 'restore saved defaults')
+        const restored = (await data('settings', 'get')).value.ai
+        assert.equal(restored.providers[0].overrides, undefined)
+        assert.equal(restored.default.modelId, 'fixture-a')
+        assert.equal(discoveries, 2, 'advanced-only save skips discovery')
         await evaluate('document.querySelector("[data-settings-general] button[lang=zh-CN]").click()'); await frame()
         assert.equal(await evaluate('document.querySelector("[data-restart-onboarding]").disabled'), true, 'unsaved settings are preserved')
         dialog.showMessageBox = async () => ({ response: 1 })

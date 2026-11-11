@@ -59,7 +59,7 @@ The build writes Main, MCP Server, output worker, Preload, and Renderer bundles 
 
 `test:mcp` checks the existing MCP Client runtime. `test:mcp-server` checks the public Job/Application/Resume surface, runtime parity and a built Node stdio Server with real Electron HTML/PDF output and disposable storage. Both runtime smokes also run in `check`; Server PDF checks require a graphical desktop. See [MCP architecture](docs/mcp-architecture.md).
 
-`test:onboarding` verifies setup, model discovery/testing, profile saves and process restart using local fixtures and disposable data. `test:integrations` builds and verifies external Agent MCP/Skills setup, reconnection, confirmed selective/all removal, stale revisions, trusted IPC and bilingual responsive themes using disposable configuration directories. It requires a graphical desktop.
+`test:onboarding` verifies setup, model discovery and the shared connection form, profile saves and process restart using local fixtures and disposable data. `test:integrations` builds and verifies external Agent MCP/Skills setup, reconnection, confirmed selective/all removal, stale revisions, trusted IPC and bilingual responsive themes using disposable configuration directories. It requires a graphical desktop.
 
 `test:agent` combines Agent/provenance/database tests with real Electron UI and multi-page PDF fixtures, using disposable userData and a local compatible model server. `test:profile` separately checks Profile CRUD/import and bilingual layout. Neither requires a paid model. [CI](docs/ci-cd.md) exercises PDF rendering on the macOS arm64 release target; live-provider compatibility and clean-machine behavior beyond CI remain unverified. Resume V3 migrates v18 in place. See [upgrade and recovery](docs/data-architecture.md#3-generation-output-and-deletion).
 
@@ -112,4 +112,4 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 
 ## Smart Note knowledge
 
-Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Ask AI needs a verified effective model window of at least 65,536 tokens; configure unknown deployment limits in Settings. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).
+Smart Note combines Knowledge and a pinned Memory folder in one editor and Git repository, with isolated retrieval/history/restore, confirmed remote sync and Agent-managed Ask AI memory. Ask AI budgets against the effective model window and uses 65,536 context tokens when the limit is unknown. See [runtime](docs/architecture.md), [storage](docs/data-architecture.md), [MCP permissions](docs/mcp-architecture.md) and [UI rules](docs/design-system.md).

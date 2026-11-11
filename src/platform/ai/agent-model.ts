@@ -26,12 +26,12 @@ export function compatibleAgentModel(config: Omit<ChatRequest, 'messages'>, deps
         const chunks: Uint8Array[] = []; let length = 0
         try {
           for (;;) {
-            const part = await reader.read(); if (part.done) break
+            const part = await abortable(reader.read(), timeout.signal); if (part.done) break
             length += part.value.length; if (length > 1000000) protocol()
             chunks.push(part.value)
           }
           return parseAgentResponse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))), mapped.names)
-        } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
+        } finally { void reader.cancel().catch(() => {}); reader.releaseLock() }
       })()
       result = await abortable(pending, timeout.signal)
       timeout.signal.throwIfAborted()

@@ -32,6 +32,7 @@ import { trustedDataSender, registerDataIPC } from './data-ipc'
 import { createAgentModels } from '../../ai/agent-factory'
 import { resolveAskCapabilities } from '../../ai/ask-capabilities'
 import { createAIService, type AIService } from '../../ai'
+import { saveAIConnection } from '../../ai/connection'
 import { registerAIIPC } from './ai-ipc'
 import { createProfileImporter, type ProfileImporter } from '../../profile-import/service'
 import { registerProfileImportIPC } from './profile-import-ipc'
@@ -41,7 +42,7 @@ import { registerApplicationIPC } from './application-ipc'
 import { registerResumeIPC } from './resume-ipc'
 import { createJobImporter, type JobImporter } from '../../job-import/service'
 import { createURLReader } from '../../job-import/url-reader'
-import { defaultAITimeouts } from '../../../shared/ai'
+import { AI_DEFAULTS } from '../../../shared/ai'
 import { registerJobImportIPC } from './job-import-ipc'
 import { createMainWindow } from './window'
 import { registerBrowserIPC } from './browser-ipc'
@@ -125,19 +126,19 @@ app.whenReady().then(async () => {
   registerHumanIPC(human, join(__dirname, '../renderer/index.html'), () => browser)
   await firstParty.ready
   const models = createAgentModels({ settings: () => preferences.get({}).ai, key: secrets.readProviderKey })
-  jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeouts ?? defaultAITimeouts).pageSeconds * 1000) })
+  jobImporter = createJobImporter({ model: choice => models(choice), mcp: firstParty, reader: createURLReader(fetch, () => (preferences.get({}).ai.timeoutOverrides?.pageSeconds ?? AI_DEFAULTS.pageTimeoutMs / 1000) * 1000) })
   const engine = createAgentEngine(backend.chats.agentSnapshot)
   resumes = createResumeTasks({ backend, mcp: firstParty, engine, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
   askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, engine,
-    capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models(choice) })
+    capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, () => secrets.readProviderKey(choice.providerId), signal), model: choice => models(choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models() })
   registerApplicationIPC(applicationTasks, join(__dirname, '../renderer/index.html'))
   registerResumeIPC(resumes, join(__dirname, '../renderer/index.html'))
   registerDataIPC(backend, join(__dirname, '../renderer/index.html'), profileImporter)
   registerProfileImportIPC(profileImporter, join(__dirname, '../renderer/index.html'))
-  registerAIIPC(ai, join(__dirname, '../renderer/index.html'))
+  registerAIIPC(ai, join(__dirname, '../renderer/index.html'), input => saveAIConnection(preferences, secrets, input))
   registerJobImportIPC(jobImporter, join(__dirname, '../renderer/index.html'))
   app.on('web-contents-created', (_event, contents) => {
     const owner = contents.id

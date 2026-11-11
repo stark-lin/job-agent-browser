@@ -109,7 +109,7 @@ app.on('browser-window-created', (_event, window) => {
           })
         })
         await new Promise(r => server.listen(0, '127.0.0.1', r))
-        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, requiresKey: false, models: ['fixture-model'], defaultModel: 'fixture-model', capabilities: { 'fixture-model': { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual', verified: true } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
+        const ai = { providers: [{ id: 'ask-fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${server.address().port}`, models: ['fixture-model'], overrides: { 'fixture-model': { contextWindow: 262144, maxOutputTokens: 8192 } } }], default: { providerId: 'ask-fixture', modelId: 'fixture-model' } }
         assert((await data('settings', 'savePreferences', { ai, language: 'en', theme: 'light' })).ok)
         await evaluate("window.browser.navigate('app://ai')")
         await waitFor(() => evaluate('!!document.querySelector(".ai-composer textarea")'), 'composer')

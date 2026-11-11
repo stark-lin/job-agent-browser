@@ -1,5 +1,5 @@
 import { fail } from '../../domain/common/errors'
-import { defaultAITimeouts, type AISettings, type AIProvider, type AITimeouts, type ModelCapabilities } from '../../shared/ai'
+import { normalizeAIEndpoint, validModelId, type AISettings, type AIProvider, type AITimeoutOverrides, type ModelOverrides } from '../../shared/ai'
 import { object } from './validation'
 
 export function providerId(input: unknown): string {
@@ -7,51 +7,82 @@ export function providerId(input: unknown): string {
   return input
 }
 export function baseURL(input: unknown): string {
-  if (typeof input !== 'string' || input.length > 2048) return fail('INVALID_INPUT')
-  let url: URL
-  try { url = new URL(input.trim()) } catch { return fail('INVALID_INPUT') }
-  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) || url.username || url.password || url.search || url.hash) return fail('INVALID_INPUT')
-  return url.href.replace(/\/+$/, '')
+  return (typeof input === 'string' && normalizeAIEndpoint(input)) || fail('INVALID_INPUT')
 }
 export function modelId(input: unknown): string {
-  if (typeof input !== 'string' || !input.trim() || input.length > 200 || /[\s\x00-\x1f]/.test(input)) return fail('INVALID_INPUT')
+  return validModelId(input) ? input : fail('INVALID_INPUT')
+}
+export function authMode(input: unknown): AIProvider['authMode'] {
+  if (input === undefined || input === 'none' || input === 'bearer') return input
+  return fail('INVALID_INPUT')
+}
+export function apiKey(input: unknown): string {
+  if (typeof input !== 'string' || !input.trim() || input.length > 4096 || /[\s\x00-\x1f\x7f]/.test(input.trim())) return fail('INVALID_INPUT')
+  return input.trim()
+}
+function positiveInteger(input: unknown, maximum: number): number {
+  if (typeof input !== 'number' || !Number.isSafeInteger(input) || input < 1 || input > maximum) return fail('INVALID_INPUT')
   return input
 }
-export function aiPreferences(input: unknown): AISettings {
-  const value = object(input, ['providers', 'default', 'timeouts'])
-  const timeouts = { ...defaultAITimeouts }
-  if ('timeouts' in value) {
-    const fields = Object.keys(defaultAITimeouts) as (keyof AITimeouts)[]
-    const configured = object(value.timeouts, fields)
-    for (const field of fields) {
-      const seconds = configured[field]
-      if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds < 1 || seconds > 3600) return fail('INVALID_INPUT')
-      timeouts[field] = seconds
-    }
+export function timeoutSeconds(input: unknown): number {
+  return positiveInteger(input, 3600)
+}
+
+const legacyTimeouts = { requestSeconds: 120, pageSeconds: 20, modelsSeconds: 15 } as const
+
+export function timeoutOverrides(input: unknown, legacy = false): AITimeoutOverrides | undefined {
+  if (input === undefined) return
+  const fields = Object.keys(legacyTimeouts) as (keyof AITimeoutOverrides)[]
+  const values = object(input, fields), overrides: AITimeoutOverrides = {}
+  for (const field of fields) {
+    if (values[field] === undefined) continue
+    const seconds = timeoutSeconds(values[field])
+    if (!legacy || seconds !== legacyTimeouts[field]) overrides[field] = seconds
   }
+  return Object.keys(overrides).length ? overrides : undefined
+}
+
+function modelOverrides(raw: unknown, legacy: boolean): ModelOverrides {
+  const fields = ['contextWindow', 'maxOutputTokens']
+  const entry = object(raw, legacy ? [...fields, 'source', 'verified'] : fields)
+  if (legacy && entry.source !== 'manual') return {}
+  const contextWindow = entry.contextWindow === undefined ? undefined : positiveInteger(entry.contextWindow, 100_000_000)
+  const maxOutputTokens = entry.maxOutputTokens === undefined ? undefined : positiveInteger(entry.maxOutputTokens, contextWindow ?? 100_000_000)
+  return { ...(contextWindow !== undefined ? { contextWindow } : {}), ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}) }
+}
+
+export function aiProvider(input: unknown, legacy = false): AIProvider {
+  const fields = ['id', 'name', 'baseURL', 'models', 'authMode', 'overrides']
+  const p = object(input, legacy ? [...fields, 'requiresKey', 'defaultModel', 'parallelModels', 'capabilities'] : fields)
+  if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || !Array.isArray(p.models) || p.models.length > 10_000) return fail('INVALID_INPUT')
+  const models = p.models.map(modelId)
+  if (new Set(models).size !== models.length) return fail('INVALID_INPUT')
+  const configured = 'overrides' in p ? p.overrides : legacy ? p.capabilities : undefined
+  const overrides = configured === undefined ? [] : Object.entries(object(configured, models))
+    .map(([id, value]) => [id, modelOverrides(value, p.overrides === undefined)] as const)
+    .filter(([, value]) => Object.keys(value).length > 0)
+  const mode = authMode(p.authMode)
+  return { id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), models,
+    ...(mode ? { authMode: mode } : {}), ...(overrides.length ? { overrides: Object.fromEntries(overrides) } : {}) }
+}
+
+export function aiPreferences(input: unknown, legacy = false): AISettings {
+  const value = object(input, legacy ? ['providers', 'default', 'timeoutOverrides', 'timeouts'] : ['providers', 'default', 'timeoutOverrides'])
   if (!Array.isArray(value.providers) || value.providers.length > 20) return fail('INVALID_INPUT')
-  const providers = value.providers.map((entry): AIProvider => {
-    const p = object(entry, ['id', 'name', 'baseURL', 'requiresKey', 'models', 'defaultModel', 'parallelModels', 'capabilities'])
-    if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 100 || typeof p.requiresKey !== 'boolean' || !Array.isArray(p.models) || p.models.length > 100) return fail('INVALID_INPUT')
-    const models = p.models.map(modelId)
-    if (new Set(models).size !== models.length || typeof p.defaultModel !== 'string' || (p.defaultModel !== '' && !models.includes(p.defaultModel))) return fail('INVALID_INPUT')
-    const capabilities: Record<string, ModelCapabilities> = Object.create(null)
-    if (p.capabilities !== undefined) {
-      const configured = object(p.capabilities, models)
-      for (const [id, raw] of Object.entries(configured)) {
-        const c = object(raw, ['contextWindow', 'maxOutputTokens', 'source', 'verified'])
-        if (!Number.isSafeInteger(c.contextWindow) || Number(c.contextWindow) < 1 || Number(c.contextWindow) > 100000000
-          || !Number.isSafeInteger(c.maxOutputTokens) || Number(c.maxOutputTokens) < 1 || Number(c.maxOutputTokens) > Number(c.contextWindow)
-          || !['catalog', 'provider', 'runtime', 'manual'].includes(String(c.source)) || typeof c.verified !== 'boolean') return fail('INVALID_INPUT')
-        capabilities[id] = { contextWindow: Number(c.contextWindow), maxOutputTokens: Number(c.maxOutputTokens), source: c.source as ModelCapabilities['source'], verified: c.verified }
-      }
-    }
-    return { ...(Object.keys(capabilities).length ? { capabilities } : {}), id: providerId(p.id), name: p.name.trim(), baseURL: baseURL(p.baseURL), requiresKey: p.requiresKey, models, defaultModel: p.defaultModel }
-  })
+  const providers = value.providers.map(entry => aiProvider(entry, legacy))
   if (new Set(providers.map(p => p.id)).size !== providers.length) return fail('INVALID_INPUT')
-  if (value.default === null) return { providers, default: null, timeouts }
-  const choice = object(value.default, ['providerId', 'modelId']), id = providerId(choice.providerId), model = modelId(choice.modelId)
-  if (!providers.some(p => p.id === id && p.models.includes(model))) return fail('INVALID_INPUT')
-  return { providers, default: { providerId: id, modelId: model }, timeouts }
+  const timeouts = timeoutOverrides('timeoutOverrides' in value ? value.timeoutOverrides : legacy ? value.timeouts : undefined, !('timeoutOverrides' in value))
+  const settings: AISettings = { providers, default: null, ...(timeouts ? { timeoutOverrides: timeouts } : {}) }
+  if (value.default == null && legacy) {
+    for (const [index, entry] of value.providers.entries()) {
+      if (!entry.defaultModel || !providers[index].models.includes(entry.defaultModel)) continue
+      settings.default = { providerId: providers[index].id, modelId: entry.defaultModel }
+      break
+    }
+  } else if (value.default !== null) {
+    const choice = object(value.default, ['providerId', 'modelId']), id = providerId(choice.providerId), model = modelId(choice.modelId)
+    if (!providers.some(p => p.id === id && p.models.includes(model))) return fail('INVALID_INPUT')
+    settings.default = { providerId: id, modelId: model }
+  }
+  return settings
 }

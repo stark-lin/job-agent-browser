@@ -42,7 +42,7 @@ test('real HTTP and first-party MCP expand Scope, execute and answer without aut
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => { server.closeAllConnections(); server.close() })
-  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {  })
+  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, models: ['test'] }, model: 'test', key: null }, {  })
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'Find my saved jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})

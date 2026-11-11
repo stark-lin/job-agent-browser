@@ -8,7 +8,7 @@ import { runPiAgent } from '../src/platform/agent/pi/runtime'
 import { observeAgentModel } from '../src/platform/agent/pi/request-observer'
 
 export const descriptor = (name = 'job.list'): AgentToolDescriptor => ({ name, description: `Describe ${name}`, inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1 } }, additionalProperties: false } })
-export const capabilities = { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' as const, verified: true }
+export const capabilities = { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' as const }
 export const signal = () => new AbortController().signal
 export interface WireTool { type: string; function: { name: string; description: string; parameters: Record<string, unknown> } }
 export interface WireRequest { model: string; stream: boolean; tools: WireTool[]; messages: { role: string; content: string; tool_calls?: { function: { name: string } }[] }[] }
@@ -20,7 +20,7 @@ export function reply(calls: Omit<AgentToolCall, 'id'>[] | string, ordinal: numb
 }
 export function scriptedModel(script: (request: WireRequest, ordinal: number) => Omit<AgentToolCall, 'id'>[] | string) {
   const requests: WireRequest[] = []
-  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://127.0.0.1/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {
+  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://127.0.0.1/v1', models: ['test'] }, model: 'test', key: null }, {
      transport: async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as WireRequest
       requests.push(body)

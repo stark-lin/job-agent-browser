@@ -16,7 +16,7 @@ export function SettingsPage() {
   const onboarding = useOnboarding(), [restarting, setRestarting] = useState(false), [restartError, setRestartError] = useState(false)
   const { draft, saving, notices } = settings
   const feedback = (notice: Notice, dirty: boolean) => notice
-    ? <StatusMessage tone={notice === 'saveFailed' || notice === 'encryptionUnavailable' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
+    ? <StatusMessage tone={notice !== 'saved' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
     : dirty ? <StatusMessage>{t($ => $.settings.unsaved)}</StatusMessage> : null
   const submitMailbox = () => {
     if (!draft) return
@@ -47,7 +47,7 @@ export function SettingsPage() {
           }}>{t($ => $.onboarding.restart)}</Button></ActionRow>
           {restartError && <StatusMessage tone="error">{t($ => $.settings.saveFailed)}</StatusMessage>}
         </SectionCard>
-        <AISettingsSection settings={settings} />
+        <AISettingsSection aiSettings={draft.ai} onSaved={settings.acceptAI} onDirty={settings.setAIDirty} disabled={Boolean(saving)} />
         <SmartPasteSettings settings={settings} />
         <SectionCard defaultCollapsed data-settings-mailbox title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
           <form data-settings-mailbox-form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>

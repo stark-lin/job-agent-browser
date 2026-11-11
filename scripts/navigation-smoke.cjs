@@ -34,7 +34,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     if (page === 'ai') await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI conversation surface')
     else await waitFor(() => evaluate(`document.querySelector('main')?.getAttribute('aria-label') === ${JSON.stringify(title)}`), 'feature landmark')
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume', 'knowledge'].includes(page))
-    if (page === 'settings') await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms')
+    if (page === 'settings') await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-connection]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms')
     assert.equal(await evaluate('[...document.querySelectorAll("button")].some(button => ["Go home", "Home"].includes(button.getAttribute("aria-label") || button.textContent.trim()))'), false)
     if (page === 'inbox') assert.deepEqual(await evaluate('[...document.querySelectorAll(".ui-action-row button")].map(button => button.textContent)'), ['Open Settings'])
     if (page === 'profile') await capture('internal-page.png')

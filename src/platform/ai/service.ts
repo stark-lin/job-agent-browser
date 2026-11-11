@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { DataError, fail } from '../../domain/common/errors'
+import { abortable } from '../../shared/agent'
 import type { AIError, AIEvent, AISettings } from '../../shared/ai'
 import { requestConfig, requestTimeout } from './transport'
 import { chatInput } from './validation'
@@ -45,17 +46,17 @@ export function createAIService(deps: Dependencies) {
       if (request.initialError) fail(request.initialError)
       if (!request.snapshot) fail('AI_NOT_CONFIGURED')
       request.onRunning?.()
-      await streamChat(request.snapshot, timeout.signal, () => {
+      await abortable(streamChat(request.snapshot, timeout.signal, () => {
         timeout.signal.throwIfAborted()
         publish(request, { requestId: request.id, type: 'started' })
       }, text => {
         timeout.signal.throwIfAborted()
         publish(request, { requestId: request.id, type: 'delta', text })
-      }, deps.transport)
+      }, deps.transport, timeout.refresh), timeout.signal)
       timeout.signal.throwIfAborted()
       publish(request, { requestId: request.id, type: 'completed' })
     } catch (reason) {
-      const error: AIError = request.cancelled ? 'AI_CANCELLED' : timeout.timedOut() ? 'AI_TIMEOUT' : aiError(reason)
+      const error: AIError = request.controller.signal.aborted ? 'AI_CANCELLED' : timeout.timedOut() ? 'AI_TIMEOUT' : aiError(reason)
       publish(request, error === 'AI_CANCELLED' ? { requestId: request.id, type: 'cancelled' } : { requestId: request.id, type: 'failed', error })
     } finally {
       timeout.dispose()
