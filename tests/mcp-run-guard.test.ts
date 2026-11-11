@@ -223,7 +223,7 @@ for (const ending of ['blocked', 'fresh-evidence', 'same-batch'] as const) test(
   let requests = 0
   const read = (id: string, name = 'profile.list') => ({ id, name, arguments: {} })
   const skip = { id: 'skip-write', name: 'application.add_note', arguments: { jobId: f.job.id, requestId: randomUUID(), text: 'Never execute' } }
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => fixtureCapabilities, model: () => withPreparation({ complete: async () => assert.fail('no summary'), async *stream(input) {
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', capabilities: async () => fixtureCapabilities, model: () => withPreparation({ complete: async () => assert.fail('no summary'), async *stream(input) {
     input.onRequestPrepared?.({ providerId: 'fixture', modelId: 'test', preparedAt: 'now', tools: toolSnapshot(input.tools) })
     const system = input.messages.find(message => message.role === 'system')?.content ?? ''
     switch (++requests) {

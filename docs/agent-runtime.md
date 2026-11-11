@@ -8,9 +8,13 @@ Purpose. Define the shared execution contract for Ask AI, Smart Paste, and deskt
 
 The [Agent Engine](../src/platform/agent/engine/index.ts) runs the trusted [ask and resume definitions](../src/platform/agent/engine/definitions.ts) through one Pi runtime. Chat and Smart Paste use the Ask definition. Desktop Resume runs one Execute stage with scoped tools and an isolated context with read/write Memory and read-only Knowledge. Its Agent Run links to a separate GenerationRun. Its [definition](../src/platform/agent/engine/definitions.ts) skips bullets already rewritten in that generation task and uses request receipts for identical retries. [Resume business states](data-architecture.md#3-generation-output-and-deletion)
 
-[Ask Workflow](../src/platform/agent/engine/ask-workflow.ts) starts with read-only Prepare, which can inspect business data, Knowledge, Memory and prior conversation, and wait for user answers through human.ask. Prepare returns a strictly validated ready or blocked result. Ready passes the original request and a self-contained handoff to Execute. Execute has its own context and Scope expansion and owns final business actions and durable Memory decisions. Blocked ends normally with a visible reason. A protocol error fails the Run. Both stages share model capabilities, one MCP authorization session, RunGuard, protected execution state, numbering and limits. Each Run permits up to 64 model requests including summaries and 256 tool calls.
+[Ask Workflow](../src/platform/agent/engine/ask-workflow.ts) starts with read-only Prepare. Prepare consults relevant sources, resolves essential ambiguities and returns a self-contained handoff. Execute receives the original request and handoff as user-level content. It uses its own [system prompt](../src/platform/agent/prompts/execute.ts), Context Manager and Scope expansion to perform authorized work. Both stages share the Run ID, MCP authorization session, RunGuard, protected state, model capabilities, Cycle numbering and limits of 64 model requests including summaries and 256 tool calls.
 
-Chat-only [system instructions](../src/platform/agent/ask.ts) require `human.ask` and waiting for an answer whenever intent, required information, or the next action is uncertain; guessing or asking only in the final response is prohibited. Cancelling a question prevents actions that depend on its answer. This is a model instruction, not runtime detection of uncertainty; Smart Paste and Resume retain their existing instructions.
+The [parser](../src/platform/agent/prepare.ts) accepts one JSON object with surrounding whitespace or a single enclosing Markdown fence, with an optional `json` label. It trims the required nonempty `prompt` or `reason` and drops extra top-level fields. `ready` starts Execute. `blocked` completes the Run with a visible reason. Malformed output or missing required fields fail with `AGENT_PROTOCOL_ERROR`.
+
+Both Ask stages use `human.ask` for blocking user decisions. [Prepare instructions](../src/platform/agent/prompts/prepare.ts) focus on essential business questions and confirmed answers. Skipping an optional question lets Prepare continue. An unavailable essential answer can lead to `blocked`. Execute can ask about new decisions and uses the handoff for answers already confirmed.
+
+[Main](../src/platform/electron/ask-agent-tasks.ts) snapshots Preferences language when a Chat or Smart Paste Run starts, including queued Runs. The stage prompts use English or Simplified Chinese from that snapshot. An explicit language request takes precedence for user-facing replies and questions. Protocol keys and tool schemas stay fixed.
 
 Ask AI receives read-only Profile and existing artifact operations. Its [prompt](../src/platform/agent/ask.ts), tool lists, Scope directories and model schemas omit Profile and Resume write interfaces. Discovery and execution enforce the [Ask capability policy](mcp-architecture.md#2-registration-and-workflow-contracts).
 
@@ -53,7 +57,7 @@ stateDiagram-v2
     [*] --> Execute: Resume admitted
     Prepare --> Prepare: CONTINUE / WARNING / RECOVERING
     Prepare --> Execute: SUCCESS and ready
-    Prepare --> [*]: blocked / FAILED / CANCELLED
+    Prepare --> [*]: SUCCESS and blocked / FAILED / CANCELLED
     Execute --> Execute: CONTINUE / WARNING / RECOVERING
     Execute --> [*]: SUCCESS / FAILED / CANCELLED
 ```
@@ -89,7 +93,7 @@ stateDiagram-v2
 
 ## 4. Finalization and trace
 
-Main commits the Prepare handoff with its successful Cycle before starting Execute. At Run end Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/agent-recorder.ts)
+Main commits the Prepare handoff with its successful Cycle before starting Execute. At Run end Main finalizes the last open Cycle and the host Run lifecycle in one transaction with the final transcript. It publishes terminal events after commit. If terminal persistence fails, Main holds that Session's queue while it retries recording the failure. Business writes persist immediately and are outside the Run finalization transaction. Confirmed writes remain committed. Uncertain writes stop execution and are never replayed automatically. [Main recorder](../src/platform/electron/agent-recorder.ts)
 
 The host lifecycle manages admission, resources, recovery and UI projection. Initialization failure or cancellation before the first turn leaves zero Cycles. A failure or cancellation between Cycles preserves the last settled Cycle. After a process interruption, the host may report `interrupted` while the last Cycle still shows `RUNNING`, the last recorded state before the crash. No work is resumed.
 

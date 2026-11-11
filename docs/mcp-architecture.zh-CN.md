@@ -29,9 +29,9 @@ UI    → typed IPC → Domain
 
 [显式 Ask 白名单](../src/shared/agent/ask-policy.ts)由工具发现与 [Server Runtime](../src/platform/mcp-server/runtime.ts)共享，仅已兑换的 Main 启动授权可选择该策略，Caller 标签不决定权限。tools/list 与 tools/call 均排除 Profile 写入、全部 resume.*、artifact.build 和 Delete 工具，新增工具默认拒绝。Ask 提示词不列出这些写入接口，Scope 目录和模型 Schema 仅暴露授权操作。普通 Job/Application 管理、Profile 与 Knowledge 只读操作、五个 Memory 工具及 artifact.get 保持可用；桌面 Resume、Profile 导入和外部 MCP 使用各自的策略。
 
-[Prepare](../src/platform/agent/engine/ask-workflow.ts)将认证工具视图收窄到已授权的 READ、COMPUTE、Human Ask 和可用 Scope 控件。[ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts)在目录返回模型前过滤条目。Execute 沿用原 Ask 授权与同一个 RunGuard。
+[Prepare 与 Execute](../src/platform/agent/engine/ask-workflow.ts)在同一个 MCP 授权会话和 RunGuard 上使用独立的[客户端视图](../src/platform/mcp/first-party-client.ts)。Prepare 只选择 Ask 白名单中明确标为 READ 或 COMPUTE 的工具，聊天 Execute 使用既有 Ask 白名单。两阶段视图均包含 Human Ask 和可用的 Scope 控件。客户端拒绝调用视图外的工具，并过滤 Scope 目录结果，由 [ScopedToolset](../src/platform/agent/tools/scoped-toolset.ts) 向本阶段暴露工具。
 
-智能粘贴复用 Ask Run 和 RunGuard，并建立独立的认证连接。[服务端](../src/platform/mcp-server/runtime.ts) 在现有 Ask 允许列表内将发现和执行的风险上限设为 COMPUTE。智能粘贴 Run 收尾时关闭该连接。之后在同一会话中发出的普通 Ask 请求使用常规 Ask 连接。[客户端](../src/platform/mcp/first-party-client.ts) · [集成测试](../tests/smart-paste.test.ts)
+智能粘贴的 Ask Run 使用专用认证连接，两个阶段均使用只读和计算客户端视图。[服务端](../src/platform/mcp-server/runtime.ts)将 Ask 白名单内工具发现和执行的风险上限设为 COMPUTE。Run 收尾时关闭该连接，后续普通 Ask 请求使用常规 Ask 连接。[集成测试](../tests/smart-paste.test.ts)
 
 ### Agent Run 保护
 

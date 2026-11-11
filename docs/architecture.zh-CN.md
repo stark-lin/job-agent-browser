@@ -95,11 +95,11 @@ React App → Page → Preload → IPC → Main
 
 [AI IPC](../src/platform/electron/main/ai-ipc.ts)仅向发起请求的可信 frame 发送增量，并在 Renderer 导航、销毁或退出时取消工作。[固定超时](../src/shared/ai.ts)为模型发现 15 秒、网页读取 20 秒、推理 300 秒。非流式请求采用总时限，流式请求收到有效模型输出后重置空闲时限。
 
-[Ask AI](../src/pages/ai/AskAIPage.tsx)和智能粘贴在一个 Run 中串行执行 Prepare 与 Execute。[Main 协调器](../src/platform/electron/ask-agent-tasks.ts)每窗口最多排队四个 Run、全局十六个，同一 Session 按 FIFO 放行，不同 Session 竞争全局执行占用。停止后保留已提交写入与已记录的部分输出。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿和分页。阶段转换和共享预算见 [Agent 运行时](agent-runtime.zh-CN.md)。
+[Ask AI](../src/pages/ai/AskAIPage.tsx)和智能粘贴在一个 Run 中串行执行 Prepare 与 Execute。[Main 协调器](../src/platform/electron/ask-agent-tasks.ts)每窗口最多排队四个 Run、全局十六个，同一 Session 按 FIFO 放行，不同 Session 竞争全局执行占用。停止后保留已提交写入与已记录的部分输出。[App 投影](../src/app/ai/askStore.ts)按单调事件序号重同步，保留草稿和分页。阶段提示词、语言选择、阶段转换和共享预算见 [Agent 运行时](agent-runtime.zh-CN.md)。
 
 **已实现请求校验：**[稳定 Provider 名称](../src/platform/ai/agent-protocol.ts)保留语义化名称片段、短哈希及 Description 中的逻辑名称前缀。[Pi 适配器](../src/platform/agent/pi/model-adapter.ts)在发送前核对运行时 loadout、Pi 声明和已组装的 Provider 名称/完整输入 Schema 指纹；不一致时以 AGENT_PROTOCOL_ERROR 停止。[MCP 架构](mcp-architecture.zh-CN.md)管理 Scope 展开与 Human Ask，[数据架构](data-architecture.zh-CN.md#ask-ai-会话存储)管理可删除的逐请求诊断。[披露集成测试](../tests/ask-disclosure.test.ts)通过真实 HTTP 与第一方 MCP 验证链路，不使用自动展开辅助层；真实模型的工具选择质量仍未验证。
 
-[流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装及校验成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证真实 IPC/MCP、准入隔离、双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
+[流式适配](../src/platform/ai/agent-stream.ts)及[推理规范化](../src/platform/ai/reasoning.ts)展示返回的 `reasoning_content`、`reasoning`、`reasoning_summary` 和 `reasoning_details` 可读块，保留来源/类型并消除镜像字段重复。加密块显示不可读标记，未返回推理时显示处理中。上述格式经过本地样本验证，不代表兼容任意提供商私有格式。Pi 在工具请求间保留 Host 专属续传状态；持久化归属[数据架构](data-architecture.zh-CN.md)。工具调用整批组装及校验成功后才执行。[Ask AI smoke](../scripts/ask-ai-runtime-smoke.cjs)通过本地样本验证 Markdown 围栏交接、阻塞式提问、blocked 结果、双语提示词、真实 IPC/MCP、准入隔离及双语 320/640/1200px 布局、重启及强制结束进程后的 checkpoint 恢复。
 
 [SessionSidebar](../src/pages/ai/SessionSidebar.tsx)确认后通过 App 注入的 Data IPC 复制调试 JSON；完整持久化快照留在 Main，回读剪贴板一致后才成功，详见[数据架构](data-architecture.zh-CN.md#copy-debug-json)。
 

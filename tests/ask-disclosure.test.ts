@@ -44,7 +44,7 @@ test('real HTTP and first-party MCP expand Scope, execute and answer without aut
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => { server.closeAllConnections(); server.close() })
   const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, models: ['test'] }, model: 'test', key: null }, {  })
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => withPreparation(model), capabilities: async () => capabilities })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => withPreparation(model), capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'Find my saved jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   const tools = await f.mcp.session('ask-ai', new AbortController().signal, ids.sessionId)
@@ -85,7 +85,7 @@ test('Ask Profile discovery and model requests expose only read interfaces', asy
     }
     return 'I can read saved profiles.'
   })
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => withPreparation(fixture.model), capabilities: async () => capabilities })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => withPreparation(fixture.model), capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'What profile tools can you use?', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
@@ -97,7 +97,7 @@ test('Ask Profile discovery and model requests expose only read interfaces', asy
 
 test('repeated Scopes keep the Run alive without producing activation diagnostics', async t => {
   const f = await firstPartyFixture(t), fixture = scriptedModel((_body, ordinal) => ordinal <= 3 ? [expansion()] : 'Done')
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => withPreparation(fixture.model), capabilities: async () => capabilities })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => withPreparation(fixture.model), capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'List jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
@@ -107,7 +107,7 @@ test('repeated Scopes keep the Run alive without producing activation diagnostic
 for (const sink of ['saveModelRequest'] as const) test(`${sink} failure ends the Run without dispatching or executing later work`, async t => {
   const f = await firstPartyFixture(t), fixture = scriptedModel(() => [expansion()])
   t.mock.method(f.backend.chats, sink, () => { throw new DataError('STORAGE_UNAVAILABLE') })
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => withPreparation(fixture.model), capabilities: async () => capabilities })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => withPreparation(fixture.model), capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'List jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))

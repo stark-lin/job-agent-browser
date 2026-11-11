@@ -18,13 +18,14 @@ export function reply(calls: Omit<AgentToolCall, 'id'>[] | string, ordinal: numb
   const delta = typeof calls === 'string' ? { content: calls } : { tool_calls: calls.map((call, index) => ({ index, id: `call-${ordinal}-${index}`, type: 'function', function: { name: stableName(call.name), arguments: JSON.stringify(call.arguments) } })) }
   return new Response(frame(delta, typeof calls === 'string' ? 'stop' : 'tool_calls'), { headers: { 'content-type': 'text/event-stream' } })
 }
-export function scriptedModel(script: (request: WireRequest, ordinal: number) => Omit<AgentToolCall, 'id'>[] | string) {
+type ScriptReply = Omit<AgentToolCall, 'id'>[] | string
+export function scriptedModel(script: (request: WireRequest, ordinal: number) => ScriptReply | Promise<ScriptReply>) {
   const requests: WireRequest[] = []
   const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://127.0.0.1/v1', models: ['test'] }, model: 'test', key: null }, {
      transport: async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as WireRequest
       requests.push(body)
-      const result = script(body, requests.length)
+      const result = await script(body, requests.length)
       return body.stream ? reply(result, requests.length) : new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: result } }] }), { headers: { 'content-type': 'application/json' } })
     }
   })

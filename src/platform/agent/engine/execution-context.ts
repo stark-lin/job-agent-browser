@@ -12,7 +12,7 @@ type History = Pick<ConstructorParameters<typeof ContextManager>[0], 'checkpoint
 export type RunHistory = History & { protectedState: string[] }
 
 export function createRunExecution(deps: {
-  model: StreamingAgentModel; budget: ContextBudget; tools: AgentTools; signal: AbortSignal; userSignal: AbortSignal
+  model: StreamingAgentModel; budget: ContextBudget; signal: AbortSignal; userSignal: AbortSignal
   maxModelRequests: number; maxToolCalls: number; protectedState: string[]
   emit(event: AgentRuntimeEvent): void; status(value: AskRuntimeStatus): void; protect?(record: string): void; onToolTurn?(): void
 }) {
@@ -26,10 +26,10 @@ export function createRunExecution(deps: {
     },
     get cycleIndex() { return progress.cycleIndex },
     async stage(input: {
-      phase: AgentPhase; system: string; message: string; tools?: AgentTools; allow: readonly string[]
+      phase: AgentPhase; system: string; message: string; tools: AgentTools; allow: readonly string[]
       memory?: string; history?: History; status: AskRuntimeStatus
     }) {
-      const tools = input.tools ?? deps.tools
+      const { tools } = input
       const model = observeAgentModel(deps.model, deps.emit, deps.maxModelRequests, modelProgress, input.phase)
       const context = new ContextManager({ ...input.history, protectedState, budget: deps.budget, model, memory: input.memory ?? '',
         compacting: () => deps.status('context.compacting') })

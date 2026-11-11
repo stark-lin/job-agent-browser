@@ -8,9 +8,13 @@
 
 [Agent Engine](../src/platform/agent/engine/index.ts)用唯一的 Pi 运行时执行受信任的 [ask 和 resume 定义](../src/platform/agent/engine/definitions.ts)。聊天和智能粘贴使用 Ask 定义。桌面 Resume 只运行 Execute，使用 Scope 工具、隔离上下文、可读写 Memory 和只读 Knowledge。其 Agent Run 关联独立的 GenerationRun。其[定义](../src/platform/agent/engine/definitions.ts)跳过本次生成任务中已经改写的要点，相同重试使用请求回执。[Resume 业务状态](data-architecture.zh-CN.md#三生成成品与删除)
 
-[Ask Workflow](../src/platform/agent/engine/ask-workflow.ts)先执行只读 Prepare，可查询业务资料、Knowledge、Memory 和历史，也可通过 human.ask 等待用户回答。Prepare 输出严格校验的 ready 或 blocked。ready 将原始请求和自包含的交接内容传给 Execute。Execute 使用独立上下文和 Scope 展开，并负责最终业务操作和长期 Memory 决策。blocked 正常结束并显示原因，协议错误使 Run 失败。两阶段共享模型能力、一个 MCP 授权会话、RunGuard、Protected State、编号及预算。每 Run 最多 64 次模型请求（含摘要）和 256 次工具调用。
+[Ask Workflow](../src/platform/agent/engine/ask-workflow.ts)先执行只读 Prepare。Prepare 查询相关来源，解决必要的歧义并返回自包含的交接任务。Execute 以用户消息接收原始请求和交接任务，通过独立的[系统提示词](../src/platform/agent/prompts/execute.ts)、Context Manager 和 Scope 展开执行已授权操作。两阶段共享 Run ID、MCP 授权会话、RunGuard、受保护状态、模型能力、Cycle 编号及预算。每 Run 最多 64 次模型请求（含摘要）和 256 次工具调用。
 
-仅聊天入口的[系统指令](../src/platform/agent/ask.ts)要求在用户意图、所需信息或下一步操作存在疑问时，必须调用 `human.ask` 并等待回答，禁止猜测或仅在最终回复中提问。用户取消问题后，不得继续依赖该答案的操作。这是模型指令，不是运行时疑问检测；智能粘贴和 Resume 保持现有指令。
+[解析器](../src/platform/agent/prepare.ts)接收单个 JSON 对象，允许首尾空白或一层完整的 Markdown 围栏，围栏可带 `json` 标签。必填的非空 `prompt` 或 `reason` 会去除首尾空白，额外顶层字段会被丢弃。`ready` 启动 Execute。`blocked` 正常结束 Run 并展示原因。格式无效或缺少必填字段时返回 `AGENT_PROTOCOL_ERROR`。
+
+Ask 两阶段均通过 `human.ask` 处理需要等待用户决定的业务问题。[Prepare 指令](../src/platform/agent/prompts/prepare.ts)关注必要业务问题和已确认的答案。跳过可选问题后可继续准备，必要答案无法取得时可返回 `blocked`。Execute 可以询问新的必要决定，并从交接任务中使用已确认的答案。
+
+[Main](../src/platform/electron/ask-agent-tasks.ts)在创建聊天或智能粘贴 Run 时固定 Preferences 中的语言，包括等待准入的 Run。两个阶段使用该快照对应的英文或简体中文提示词。用户明确指定的语言优先用于可见回复和提问，协议字段与工具 Schema 保持固定。
 
 Ask AI 仅获得 Profile 和已有成品的只读操作。其[提示词](../src/platform/agent/ask.ts)、工具列表、Scope 目录及模型 Schema 均不列出 Profile 和 Resume 写入接口。工具发现与执行遵守 [Ask 能力策略](mcp-architecture.zh-CN.md#二注册与流程契约)。
 
@@ -53,7 +57,7 @@ stateDiagram-v2
     [*] --> Execute: Resume admitted
     Prepare --> Prepare: CONTINUE / WARNING / RECOVERING
     Prepare --> Execute: SUCCESS and ready
-    Prepare --> [*]: blocked / FAILED / CANCELLED
+    Prepare --> [*]: SUCCESS and blocked / FAILED / CANCELLED
     Execute --> Execute: CONTINUE / WARNING / RECOVERING
     Execute --> [*]: SUCCESS / FAILED / CANCELLED
 ```
@@ -89,7 +93,7 @@ stateDiagram-v2
 
 ## 四、收尾与诊断
 
-Main 在启动 Execute 前提交交接结果及成功的 Prepare Cycle。Run 结束时，Main 在同一事务中结算最后一个未关闭的 Cycle，并保存宿主 Run 生命周期和最终会话内容。事务提交后发布终态事件。终态持久化失败时，Main 保持该 Session 的队列屏障，重试保存失败结论。已确认写入继续有效，不确定写入会停止执行且不会自动重放。见 [Main 记录器](../src/platform/electron/agent-recorder.ts)。
+Main 在启动 Execute 前提交交接结果及成功的 Prepare Cycle。Run 结束时，Main 在同一事务中结算最后一个未关闭的 Cycle，并保存宿主 Run 生命周期和最终会话内容。事务提交后发布终态事件。终态持久化失败时，Main 保持该 Session 的队列屏障，重试保存失败结论。业务写入即时持久化，独立于 Run 收尾事务。已确认写入继续有效，不确定写入会停止执行且不会自动重放。见 [Main 记录器](../src/platform/electron/agent-recorder.ts)。
 
 宿主生命周期管理放行、资源、恢复和界面投影。首轮开始前初始化失败或取消时，Cycle 列表为空。两轮之间失败或取消时，保留上一条已结算 Cycle。进程中断后宿主可以标记 `interrupted`，而最后一个 Cycle 保持 `RUNNING`，即崩溃前最后写入的状态。工作不会恢复执行。
 

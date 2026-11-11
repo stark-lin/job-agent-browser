@@ -82,7 +82,7 @@ test('Human waiting status is persisted while the model pauses and clears on sub
     assert(request.messages[1].content.includes('The user chose Backend.'))
     return 'Thanks'
   })
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model.model, capabilities: async () => capabilities })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => model.model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'Ask me', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   await until(() => f.human.list().length === 1)
@@ -91,4 +91,44 @@ test('Human waiting status is persisted while the model pauses and clears on sub
   await until(() => tasks.getRun(1, { runId: ids.runId }).run.state !== 'running')
   assert.equal(tasks.getRun(1, { runId: ids.runId }).run.state, 'completed')
   assert.equal(model.requests.length, 3)
+})
+
+for (const scenario of ['optional', 'essential', 'run'] as const) test(`Ask handles a cancelled ${scenario} wait`, async t => {
+  const f = await firstPartyFixture(t)
+  const blockedReason = '缺少必要信息。'
+  const model = scriptedModel((request, round) => {
+    if (round === 1) return [{ name: 'human.ask', arguments: { question: '你想使用哪个档案？', options: ['档案 A', '档案 B'] } }]
+    assert.notEqual(scenario, 'run', 'No new model request after Run cancellation')
+    if (round === 2) {
+      assert.deepEqual(JSON.parse(request.messages.at(-1)!.content), { status: 'cancelled' })
+      return scenario === 'essential' ? JSON.stringify({ status: 'blocked', reason: blockedReason })
+        : '{"status":"ready","prompt":"Use the confirmed facts."}'
+    }
+    assert.equal(scenario, 'optional')
+    assert.match(request.messages[0].content, /遇到新的必要业务决定时，调用 human.ask/)
+    if (round === 3) return [{ name: 'human.ask', arguments: { question: '要显示哪些内容？' } }]
+    assert.deepEqual(JSON.parse(request.messages.at(-1)!.content), { status: 'submitted', selectedOption: null, text: '仅显示项目' })
+    return '已汇总项目。'
+  })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'zh-CN',
+    model: () => model.model, capabilities: async () => capabilities })
+  t.after(() => tasks.dispose())
+  const ids = tasks.start(1, { requestId: randomUUID(), message: '帮我整理资料', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
+  const current = () => tasks.getRun(1, { runId: ids.runId }).run
+  await until(() => f.human.list().length === 1)
+  assert.equal(current().runtimeStatus, 'human.waiting')
+  const first = f.human.list()[0]
+  if (scenario === 'run') tasks.cancel(1, { runId: ids.runId })
+  else f.human.cancel(first.id)
+  if (scenario === 'optional') {
+    await until(() => f.human.list().some(question => question.id !== first.id))
+    assert.equal(current().runtimeStatus, 'human.waiting')
+    f.human.answer(f.human.list()[0].id, { selectedOption: null, text: '仅显示项目' })
+  }
+  await until(() => current().state !== 'running')
+  assert.equal(current().state, scenario === 'run' ? 'cancelled' : 'completed', current().error ?? '')
+  assert.equal(current().blockedReason, scenario === 'essential' ? blockedReason : undefined)
+  assert.equal(current().writeStarted, false)
+  assert.equal(model.requests.length, scenario === 'run' ? 1 : scenario === 'essential' ? 2 : 4)
+  assert.equal(f.human.list().length, 0)
 })

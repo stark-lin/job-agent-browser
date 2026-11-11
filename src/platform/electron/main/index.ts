@@ -129,7 +129,7 @@ app.whenReady().then(async () => {
   const engine = createAgentEngine(backend.chats.agentSnapshot)
   resumes = createResumeTasks({ backend, mcp: firstParty, engine, settings: () => preferences.get({}).ai, key: secrets.readProviderKey,
     directory: join(directory, 'artifacts'), fonts: join(__dirname, 'fonts') })
-  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, engine,
+  askAgent = createAskAgentTasks({ chats: backend.chats, mcp: firstParty, engine, language: () => preferences.get({}).language,
     capabilities: (choice, signal) => resolveAskCapabilities(preferences.get({}).ai, choice, secrets.readProviderKey(choice.providerId), signal), model: choice => models(choice) })
   registerAskAgentIPC(askAgent, join(__dirname, '../renderer/index.html'))
   applicationTasks = createApplicationTasks({ mcp: firstParty, model: () => models() })

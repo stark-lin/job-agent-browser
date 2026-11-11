@@ -63,7 +63,7 @@ test('new prompts start at Cycle 1, deduplication preserves identity, and summar
     snapshot.run.state = 'completed'; snapshot.run.finishedAt = 'end'; repo.finish(snapshot)
   }
   let summaries = 0, requests = 0
-  const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, capabilities: async () => capability, model: () => withPreparation({
+  const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, language: () => 'en', capabilities: async () => capability, model: () => withPreparation({
     async complete(request) {
       request.onRequestPrepared?.({ ...prepared, tools: [] })
       summaries++
@@ -95,7 +95,7 @@ test('preflight failure creates no Cycle and active cancellation settles only it
   const f = await firstPartyFixture(t), debug = chatDebugExportRepository(f.database.connection)
   let entered!: () => void
   const started = new Promise<void>(resolve => { entered = resolve })
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp,
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en',
     capabilities: async ({ modelId }) => { if (modelId === 'missing') throw new AgentError('AI_NOT_CONFIGURED'); return capability },
     model: () => ({ ...answer, async *stream(request) {
       entered()
@@ -115,7 +115,7 @@ test('preflight failure creates no Cycle and active cancellation settles only it
 test('terminal transaction rolls back Cycle and Run together, then retries persistence without inference', async t => {
   const f = await firstPartyFixture(t), db = f.database.connection, repo = f.backend.chats, debug = chatDebugExportRepository(db)
   let requests = 0, attempts = 0
-  const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, capabilities: async () => capability,
+  const tasks = createAskAgentTasks({ chats: repo, mcp: f.mcp, language: () => 'en', capabilities: async () => capability,
     model: () => withPreparation({ ...answer, stream(request) { requests++; return answer.stream(request) } }) })
   t.after(() => tasks.dispose())
   const finish = repo.finish.bind(repo)
@@ -156,7 +156,7 @@ test('failure preparing the next Pi turn leaves the previous Cycle settled witho
     return run
   })
   let requests = 0
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => capability, model: () => ({
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', capabilities: async () => capability, model: () => ({
     ...answer, async *stream() {
       requests++
       const call = { id: 'discover', name: 'scope.job', arguments: {} }

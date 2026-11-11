@@ -55,7 +55,13 @@ export class MCPAgentTools implements AgentTools {
       throw new ToolError(toolErrorCodes.find(value => value === code) ?? 'TOOL_EXECUTION_FAILED')
     }
     if (!Object.hasOwn(result, 'structuredContent')) toolFail('MCP_INVALID_RESPONSE')
-    return toolOutput({ content: result.content, structuredContent: result.structuredContent }).structuredContent
+    const output = toolOutput({ content: result.content, structuredContent: result.structuredContent }).structuredContent
+    if (!name.startsWith('scope.')) return output
+    if (!output || typeof output !== 'object' || Array.isArray(output) || !Array.isArray(output.tools)) toolFail('MCP_INVALID_RESPONSE')
+    const scope = name.slice('scope.'.length)
+    const allowed = new Set(this.descriptors.map(tool => tool.name).filter(tool => tool.startsWith(`${scope}.`)))
+    return { scope, tools: output.tools.filter(tool => tool && typeof tool === 'object' && !Array.isArray(tool)
+      && typeof tool.name === 'string' && allowed.has(tool.name)) }
   }
 }
 

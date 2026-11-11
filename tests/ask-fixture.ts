@@ -1,8 +1,27 @@
 import { toolSnapshot } from '../src/platform/ai/agent-request'
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
+import type { FirstPartyRuntime } from '../src/platform/mcp/first-party-client'
 import type { AgentModelEvent, StreamingAgentModel } from '../src/shared/agent'
 
 export const fixtureCapabilities = { contextWindow: 262144, maxOutputTokens: 8192, source: 'manual' as const }
+
+/** Inject a fault after a real business call, inside whichever stage view dispatches it. */
+export function afterAskToolCall(mcp: FirstPartyRuntime, name: string, after: () => void | Promise<void>) {
+  const open = mcp.openAgentRun.bind(mcp)
+  mcp.openAgentRun = async input => {
+    const run = await open(input), view = run.tools.view.bind(run.tools)
+    run.tools.view = (...args) => {
+      const tools = view(...args), call = tools.call.bind(tools)
+      tools.call = async (toolName, toolInput, signal) => {
+        const result = await call(toolName, toolInput, signal)
+        if (toolName === name) await after()
+        return result
+      }
+      return tools
+    }
+    return run
+  }
+}
 /** Existing business scenarios model Scope expansion explicitly while retaining their business scripts. */
 export function discoveringModel(model: StreamingAgentModel): StreamingAgentModel {
   let pending: AgentModelEvent[] | undefined, serial = 0
@@ -35,7 +54,7 @@ export function withPreparation(model: StreamingAgentModel): StreamingAgentModel
   } }
 }
 export function createFixtureAskTasks(deps: Pick<Parameters<typeof createAskAgentTasks>[0], 'chats' | 'mcp' | 'model'>, discover = true) {
-  return createAskAgentTasks({ ...deps, model: choice => {
+  return createAskAgentTasks({ ...deps, language: () => 'en', model: choice => {
     const model = deps.model(choice)
     return withPreparation(discover ? discoveringModel(model) : model)
   }, capabilities: async () => fixtureCapabilities })

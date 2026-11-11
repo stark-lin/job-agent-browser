@@ -40,7 +40,8 @@ app.on('browser-window-created', (_event, window) => {
         console.log('Ask AI recovery smoke passed: abrupt process exit retains checkpoint and recovers only abandoned running work.')
       } else {
         const metadata = stage === 'restart' ? JSON.parse(readFileSync(metadataPath, 'utf8')) : {}
-        let jobId = metadata.jobId, releases = {}, failCount = 0
+        let jobId = metadata.jobId, releases = {}, failCount = 0, localizedExecute = 0
+        const localizedRequest = '帮我整理偏好', blockedRequest = 'blocked fixture'
         const sse = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason }] })}\n\n`
         const toolResult = content => { try { return JSON.parse(content.split('\nRunGuard guidance:')[0]) } catch { return { notExecuted: true } } }
         const finish = (response, text) => response.end(sse({ content: text }, 'stop') + 'data: [DONE]\n\n')
@@ -50,11 +51,43 @@ app.on('browser-window-created', (_event, window) => {
             const body = JSON.parse(raw)
             assert.equal(body.stream, true, 'Ordinary Ask smoke must not run automatic model tasks')
             const current = body.messages.findLast(m => m.role === 'user').content
-            if (body.messages[0].content.startsWith('Prepare a self-contained handoff')) {
+            const system = body.messages[0].content
+            const prepare = system.startsWith('Prepare a self-contained handoff') || system.startsWith('你是 Job Agent Browser 的 Prepare 阶段')
+            if (prepare) {
               response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-              finish(response, JSON.stringify({ status: 'ready', prompt: 'Fixture prepared context.' })); return
+              if (current === blockedRequest) {
+                assert.match(system, /Use English for user-facing content and human.ask/)
+                finish(response, '{"status":"blocked","reason":"This fixture needs a confirmed value."}'); return
+              }
+              if (current === localizedRequest) {
+                assert.match(system, /用户可见内容以及 human.ask 的问题和选项默认使用简体中文/)
+                const answer = body.messages.findLast(message => message.role === 'tool')
+                if (!answer) {
+                  const human = body.tools.find(tool => tool.function.description.startsWith('[human.ask] '))
+                  assert(human)
+                  const call = { index: 0, id: 'confirmed-preference', type: 'function', function: {
+                    name: human.function.name, arguments: JSON.stringify({ question: '你偏好哪种安排？' })
+                  } }
+                  response.end(sse({ tool_calls: [call] }, 'tool_calls') + 'data: [DONE]\n\n'); return
+                }
+                assert.equal(toolResult(answer.content).text, '远程优先')
+                finish(response, '```json\r\n{"status":"ready","prompt":"用户已确认远程优先。","confirmed_facts":{"preference":"远程优先"}}\r\n```')
+                return
+              }
+              assert.match(system, /Use English for user-facing content and human.ask/)
+              finish(response, '```json\n{"status":"ready","prompt":"Fixture prepared context.","goal":"Smoke"}\n```'); return
             }
             const user = current.slice('Original Request:\n'.length).split('\n\nPrepared Task:\n')[0], lastUser = body.messages.findLastIndex(m => m.role === 'user')
+            assert.notEqual(user, blockedRequest, 'Blocked Prepare must never reach Execute')
+            if (user === localizedRequest) {
+              localizedExecute++
+              assert.match(system, /你是 Job Agent Browser 的 Execute 阶段/)
+              assert.equal(current, `Original Request:\n${localizedRequest}\n\nPrepared Task:\n用户已确认远程优先。`)
+              assert.deepEqual(body.messages.map(message => message.role), ['system', 'user'])
+              response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+              finish(response, '已确认远程优先。'); return
+            }
+            assert.match(system, /You are the Execute stage of Job Agent Browser/)
             for (const previous of body.messages.filter(m => m.role === 'assistant' && m.tool_calls?.length)) {
               assert.equal(previous.reasoning_content, 'Full provider reasoning 中文')
               assert.equal(previous.reasoning_details.find(d => d.type === 'reasoning.encrypted').data, 'OPAQUE_PROVIDER_STATE')
@@ -254,6 +287,23 @@ app.on('browser-window-created', (_event, window) => {
         await waitFor(async () => (await data('chats', 'listSessions', {})).value.items.some(s=>s.title==='Renamed chat'), 'renamed session')
         await openActions('Renamed chat'); await click('Delete chat'); await frame(); await click('Delete chat')
         await waitFor(async () => (await data('chats', 'listSessions', {})).value.total===beforeIme, 'deleted session')
+        await click('New chat'); await send(blockedRequest)
+        await waitFor(() => evaluate('document.body.innerText.includes("This fixture needs a confirmed value.")'), 'blocked reason')
+        const blocked = (await data('chats', 'listSessions', {})).value.items.find(s => s.title === blockedRequest)
+        const blockedRun = (await data('chats', 'listRuns', { sessionId: blocked.id })).value.items[0]
+        assert.equal(blockedRun.state, 'completed')
+        assert.equal(blockedRun.writeStarted, false)
+        assert(!(await api('getRun', { runId: blockedRun.id })).value.items.some(item => item.phase === 'execute' && item.content.type !== 'user_message'))
+        await click('New chat')
+        assert((await data('settings', 'savePreferences', { language: 'zh-CN' })).ok)
+        await send(localizedRequest)
+        await waitFor(() => evaluate('document.querySelector("dialog[open]")?.innerText.includes("你偏好哪种安排？")'), 'Prepare Human Ask')
+        assert((await api('listActive', {})).value.some(active => active.run.runtimeStatus === 'human.waiting'))
+        await evaluate(`(() => { const field = document.querySelector('dialog[open] textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, '远程优先'); field.dispatchEvent(new Event('input', { bubbles: true })); })()`)
+        await frame(); await click('提交')
+        await waitFor(() => evaluate('document.body.innerText.includes("已确认远程优先。")'), 'localized Execute result')
+        assert.equal(localizedExecute, 1)
+        assert((await data('settings', 'savePreferences', { language: 'en' })).ok)
         assert.equal((await data('jobs', 'getJob', {id:jobId})).value.applicationStatus,'APPLIED')
         await select('workflow')
         await evaluate(`document.querySelectorAll('[data-item-type=tool_call] .ui-collapsible > button, [data-item-type=reasoning] .ui-collapsible > button').forEach(b=>{if(b.getAttribute('aria-expanded')==='false')b.click()})`)
@@ -280,7 +330,7 @@ app.on('browser-window-created', (_event, window) => {
         await outsider.loadURL('data:text/html,<p>Untrusted</p>')
         assert.deepEqual(await outsider.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('ask-agent:call','start',{})"), { ok: false, error: 'FORBIDDEN' }); outsider.destroy()
         writeFileSync(metadataPath, JSON.stringify(metadata))
-        console.log('Ask AI smoke passed: real SSE/IPC/MCP read and write, full provider reasoning/summary/opaque markers and continuation, full tool details, interleaved tools, A/B concurrency, targeted Stop, page remount, drafts, IME, rename/delete, retry, confirmed full persisted debug JSON, running export, clipboard failure/retry, zero-call cancellation, keyboard copy, Markdown, pinned scrolling, bilingual themes, 320/640/1200px and rejected untrusted IPC.')
+        console.log('Ask AI smoke passed: fenced handoff, Human Ask, blocked Prepare, bilingual prompts, real SSE/IPC/MCP reads and writes, RunGuard, persisted debug JSON, concurrency, cancellation, layouts and untrusted IPC rejection.')
       }
       server?.closeAllConnections(); server?.close()
       app.once('will-quit', () => { clearTimeout(watchdog); app.exit(0) }); app.quit()

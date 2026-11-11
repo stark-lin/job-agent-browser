@@ -116,10 +116,10 @@ for (const limit of ['model', 'tools'] as const) test(`the ${limit} budget spans
   const model = fixtureModel(limit === 'model' ? [final('Prepared')] : [scope, final('Prepared'), scope, final('Executed')])
   const tools = scopedFixture({ list: async () => [descriptor], call: async () => ({}) })
   const live = signal(), budget = new ContextBudget({ contextWindow: 32768, maxOutputTokens: 8192, source: 'runtime' }, 'fixture')
-  const run = createRunExecution({ model, tools, budget, signal: live, userSignal: live,
+  const run = createRunExecution({ model, budget, signal: live, userSignal: live,
     maxModelRequests: limit === 'model' ? 1 : 64, maxToolCalls: limit === 'tools' ? 1 : 256,
     protectedState: [], status() {}, emit() {} })
-  const common = { system: 'Test', message: 'List jobs', allow: ['job.list'], status: 'idle' as const }
+  const common = { system: 'Test', message: 'List jobs', tools, allow: ['job.list'], status: 'idle' as const }
   assert.equal(await run.stage({ ...common, phase: 'prepare' }), 'Prepared')
   await assert.rejects(run.stage({ ...common, phase: 'execute' }), { code: 'AGENT_STEP_LIMIT' })
 })

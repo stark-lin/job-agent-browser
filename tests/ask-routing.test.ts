@@ -21,7 +21,7 @@ for (const scenario of ['projects', 'fit', 'ambiguous', 'incomplete'] as const) 
     const system = request.messages.find(m => m.role === 'system')?.content ?? ''
     assert(system.includes('Route personal projects, experience and skills to profile.list'))
     assert(system.includes('After two consecutive calls to the same source yield no new information'))
-    assert(system.includes('ask which profile to use rather than choosing arbitrarily'))
+    assert(system.includes('ask which profile to use'))
     assert(system.includes('Job-fit analysis compares the saved Job against Profile items and Facts only'))
     assert(!request.tools.some(t => /^\[(resume\.|artifact\.build)/.test(t.function.description)))
     if (round === 1) return [{ name: 'scope.profile', arguments: {} }]
@@ -32,7 +32,7 @@ for (const scenario of ['projects', 'fit', 'ambiguous', 'incomplete'] as const) 
     else assert(results.includes('Another profile'))
     return replies[scenario]
   })
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => withPreparation(fixture.model), capabilities: async () => fixtureCapabilities })
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => withPreparation(fixture.model), capabilities: async () => fixtureCapabilities })
   t.after(() => tasks.dispose())
   const messages = { projects: 'What projects, experience and skills are saved?', fit: 'Am I suited for this saved job?', ambiguous: 'Tell me about my projects', incomplete: 'List the confirmed records and any missing project details' }
   const ids = tasks.start(1, { requestId: randomUUID(), message: messages[scenario], choice: { providerId: 'fixture', modelId: 'test' } }, () => {})

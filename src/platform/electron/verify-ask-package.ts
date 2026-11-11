@@ -11,9 +11,14 @@ export async function verifyAskPackage(backend: ReturnType<typeof createBackend>
   const model: StreamingAgentModel = {
     complete: async () => { throw new Error('Unexpected automatic model task') },
     async *stream(input) {
-      if (step === 0 && !input.tools.some(t => t.name === 'scope.job') || step === 0 && input.tools.some(t => !t.name.startsWith('scope.') && t.name !== 'human.ask')) throw new Error('PACKAGE_ASK_INITIAL_TOOLS')
-      if (step < 2) {
-        const call = step++ === 0 ? { id: 'package-activation', name: 'scope.job', arguments: {} }
+      if (step < 2 && (!input.tools.some(t => t.name === 'scope.job') || input.tools.some(t => !t.name.startsWith('scope.') && t.name !== 'human.ask'))) throw new Error('PACKAGE_ASK_INITIAL_TOOLS')
+      if (step === 0) {
+        step++
+        const content = '{"status":"ready","prompt":"List saved jobs."}'
+        yield { type: 'content.delta', text: content }
+        yield { type: 'completed', response: { content, toolCalls: [] } }
+      } else if (step < 3) {
+        const call = step++ === 1 ? { id: 'package-activation', name: 'scope.job', arguments: {} }
           : { id: 'package-jobs', name: 'job.list', arguments: {} }
         yield { type: 'tool_call.ready', call }; yield { type: 'completed', response: { content: '', toolCalls: [call] } }
       } else {
@@ -24,13 +29,13 @@ export async function verifyAskPackage(backend: ReturnType<typeof createBackend>
       }
     }
   }
-  const tasks = createAskAgentTasks({ chats: backend.chats, mcp, model: () => model,
+  const tasks = createAskAgentTasks({ chats: backend.chats, mcp, language: () => 'en', model: () => model,
     capabilities: async () => ({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }) })
   const result = tasks.start(1, { requestId: randomUUID(), choice, message: 'Verify the installed Ask runtime.' }, () => {})
   try {
     const end = Date.now() + 15000
     while (tasks.getRun(1, { runId: result.runId }).run.state === 'running' && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 20))
     const snapshot = tasks.getRun(1, { runId: result.runId })
-    if (snapshot.run.state !== 'completed' || step !== 2) throw new Error('PACKAGE_ASK_RUNTIME_FAILED')
+    if (snapshot.run.state !== 'completed' || step !== 3) throw new Error('PACKAGE_ASK_RUNTIME_FAILED')
   } finally { await tasks.dispose(); backend.chats.deleteSession(result.sessionId) }
 }

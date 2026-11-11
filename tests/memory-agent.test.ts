@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { firstPartyFixture } from './first-party-fixture'
 import { createAskAgentTasks } from '../src/platform/electron/ask-agent-tasks'
-import { discoveringModel, fixtureCapabilities, withPreparation } from './ask-fixture'
+import { afterAskToolCall, discoveringModel, fixtureCapabilities, withPreparation } from './ask-fixture'
 import type { AgentModelEvent, AgentModelInput, StreamingAgentModel } from '../src/shared/agent'
 
 const choice = { providerId: 'fixture', modelId: 'test' }, signal = new AbortController().signal
@@ -29,7 +29,7 @@ function result(input: AgentModelInput): Record<string, string> {
   return JSON.parse(last!.content.split('\nRunGuard guidance:')[0])
 }
 function setup(f: Awaited<ReturnType<typeof firstPartyFixture>>, model: () => StreamingAgentModel) {
-  return createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => withPreparation(model()), capabilities: async () => fixtureCapabilities })
+  return createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', model: () => withPreparation(model()), capabilities: async () => fixtureCapabilities })
 }
 const noTask = async (): Promise<never> => { throw new Error('Unexpected automatic Memory model request') }
 
@@ -37,7 +37,7 @@ test('ordinary chat only loads Core, refreshes it every admitted turn, and never
   const f = await firstPartyFixture(t), core = f.workspace.spaces.memory.files
   const initial = await core.write('CORE.md', 'Core version one', null)
   let expected = 'Core version one', requests = 0
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => fixtureCapabilities,
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', capabilities: async () => fixtureCapabilities,
     model: () => ({ complete: noTask, async *stream(input) {
       const preparing = input.messages[0].content.startsWith('Prepare a self-contained handoff')
       assert.equal(JSON.stringify(input.messages).includes(expected), preparing)
@@ -97,7 +97,7 @@ test('a UI Memory edit causes a deterministic CAS conflict which the single Agen
 test('FIFO skips a cancelled queued turn without letting its successor overtake; capabilities wait too', async t => {
   const f = await firstPartyFixture(t), blocked = gate(), entered = gate(), order: string[] = []
   let capabilities = 0
-  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, capabilities: async () => { capabilities++; return fixtureCapabilities }, model: () => ({ complete: noTask, async *stream(input) {
+  const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, language: () => 'en', capabilities: async () => { capabilities++; return fixtureCapabilities }, model: () => ({ complete: noTask, async *stream(input) {
     if (!input.messages[0].content.startsWith('Prepare a self-contained handoff')) { yield* answer(); return }
     const current = input.messages.filter(m => m.role === 'user').at(-1)!.content; order.push(current)
     if (current === 'First') { entered.release(); await blocked.ready }
@@ -130,19 +130,13 @@ test('terminal persistence failure holds the next turn and retries records witho
 for (const failure of ['lost-response', 'stop'] as const) test(`Memory ${failure} retains uncertain state and never retries the write`, async t => {
   const f = await firstPartyFixture(t)
   let writes = 0, step = 0
-  const open = f.mcp.openAgentRun.bind(f.mcp), blocked = gate(), entered = gate()
-  f.mcp.openAgentRun = async (...args) => {
-    const run = await open(...args), tools = run.tools, original = tools.call.bind(tools)
-    tools.call = async (name, input, callSignal) => {
-      if (name !== 'memory.write') return original(name, input, callSignal)
-      writes++
-      const output = await original(name, input, callSignal)
-      if (failure === 'lost-response') throw new Error('Response lost after commit')
-      if (failure === 'stop') { entered.release(); await blocked.ready }
-      return output
-    }
-    return run
-  }
+  const blocked = gate(), entered = gate()
+  afterAskToolCall(f.mcp, 'memory.write', async () => {
+    writes++
+    if (failure === 'lost-response') throw new Error('Response lost after commit')
+    entered.release()
+    await blocked.ready
+  })
   const tasks = setup(f, () => discoveringModel({ complete: noTask, async *stream() {
     if (!step++) { yield* call('write', 'memory.write', { path: 'uncertain.md', content: 'Committed once', expectedRevision: null }); return }
     assert.fail('An uncertain write must stop before another model inference')

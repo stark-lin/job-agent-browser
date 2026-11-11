@@ -64,12 +64,12 @@ export function createAgentEngine(readRun?: (id: string) => AgentSnapshot) {
           session = await execution.open(signal)
           const live = AbortSignal.any([signal, session.signal]), { tools } = session
           const history = invocation.agent === 'ask' ? execution.history?.() : undefined
-          const run = createRunExecution({ model, budget, tools, signal: live, userSignal: signal, emit,
+          const run = createRunExecution({ model, budget, signal: live, userSignal: signal, emit,
             ...definition.limits, protectedState: history?.protectedState ?? [], status: execution.status,
             protect: execution.protect, onToolTurn: execution.onToolTurn })
           outcome.finalText = invocation.agent === 'ask'
-            ? await runAskWorkflow({ run, invocation, tools, allow: definition.tools.allow, signal: live, history, system: definition.system, emit, status: execution.status })
-            : await run.stage({ phase: 'execute', system: definition.system, status: 'idle', allow: definition.tools.allow,
+            ? await runAskWorkflow({ run, invocation, tools, allow: definitions.ask.tools.allow, signal: live, history, emit, status: execution.status })
+            : await run.stage({ phase: 'execute', tools, system: definitions.resume.system, status: 'idle', allow: definitions.resume.tools.allow,
               memory: await run.loadCore(tools),
               message: `Tailor the resume for generation run ${invocation.generationRunId}. Use this runId for resume tools.` })
           live.throwIfAborted()
