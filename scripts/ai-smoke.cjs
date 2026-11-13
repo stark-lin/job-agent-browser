@@ -109,9 +109,20 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     try {
       for (const width of [320, 640, 1200]) {
         window.setContentSize(width, 820)
-        await waitFor(() => evaluate(`innerWidth === ${width}`), `AI viewport ${width}`)
-        assert.equal(await evaluate('document.querySelector(".ai-page").scrollWidth > document.querySelector(".ai-page").clientWidth'), false)
-        assert.equal(await evaluate('getComputedStyle(document.querySelector(".ui-textarea")).minHeight'), '96px')
+        const sessionsControl = width <= 959 ? '.ai-session-toggle' : '.ai-session-sidebar'
+        // The viewport can report its new width before React commits the sessions layout.
+        await waitFor(() => evaluate(`innerWidth === ${width} && !!document.querySelector('.ai-page ${sessionsControl}')`), `AI sessions layout at ${width}px`)
+        await frame()
+        const layout = await evaluate(`(() => {
+          const page = document.querySelector('.ai-page')
+          const composer = page.querySelector('.ai-composer')
+          return { page: [page.scrollWidth, page.clientWidth], composer: [composer.scrollWidth, composer.clientWidth],
+            textareaMinHeight: getComputedStyle(composer.querySelector('.ui-textarea')).minHeight }
+        })()`)
+        for (const [name, [scrollWidth, clientWidth]] of [['page', layout.page], ['composer', layout.composer]]) {
+          assert(scrollWidth <= clientWidth, `AI ${name} overflows at ${width}px (${scrollWidth}px > ${clientWidth}px)`)
+        }
+        assert.equal(layout.textareaMinHeight, '96px')
       }
     } finally { window.setContentSize(...originalSize); window.setMinimumSize(...minimum) }
     await field('.ai-page textarea', 'cancel', 'textarea')
