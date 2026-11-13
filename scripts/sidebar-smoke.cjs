@@ -92,7 +92,7 @@ module.exports = async function sidebarSmoke({ window, call, active, evaluate, w
     assert(await evaluate(`document.querySelector('${openTooltip}').getBoundingClientRect().bottom <= innerHeight`))
     move(1, 1)
     await select('Settings'); await current('Settings')
-    await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings reachable in compact sidebar')
+    await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-connection]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings reachable in compact sidebar')
     await select('Ask AI')
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
 

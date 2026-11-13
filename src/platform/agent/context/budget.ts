@@ -9,12 +9,14 @@ export class ContextBudget {
   readonly input: number
   readonly tokens: TokenCounter
   constructor(readonly capabilities: ModelCapabilities, modelId: string) {
-    if (!capabilities.verified || !Number.isSafeInteger(capabilities.contextWindow) || !Number.isSafeInteger(capabilities.maxOutputTokens)
-      || capabilities.maxOutputTokens <= 0) throw new AgentError('ASK_CONTEXT_UNKNOWN')
-    if (capabilities.contextWindow < defaults.minContextWindow) throw new AgentError('ASK_CONTEXT_TOO_SMALL')
-    this.output = Math.min(defaults.outputReserveTokens, capabilities.maxOutputTokens)
-    this.safety = Math.max(4096, Math.ceil(defaults.safetyRatio * capabilities.contextWindow))
-    this.input = capabilities.contextWindow - this.output - this.safety
+    if (!Number.isSafeInteger(capabilities.contextWindow) || !Number.isSafeInteger(capabilities.maxOutputTokens)
+      || capabilities.contextWindow <= 0 || capabilities.maxOutputTokens <= 0) throw new AgentError('ASK_CONTEXT_UNKNOWN')
+    this.safety = Math.max(Math.min(4096, Math.floor(capabilities.contextWindow / 4)), Math.ceil(defaults.safetyRatio * capabilities.contextWindow))
+    const available = capabilities.contextWindow - this.safety
+    if (available < 2) throw new AgentError('ASK_CONTEXT_TOO_SMALL')
+    // Keep at least half the usable window for input when the output limit approaches the full window.
+    this.output = Math.min(capabilities.maxOutputTokens, Math.floor(available / 2))
+    this.input = available - this.output
     this.tokens = new TokenCounter(modelId)
   }
   estimate(messages: readonly AgentMessage[], tools: readonly AgentToolDescriptor[]) {

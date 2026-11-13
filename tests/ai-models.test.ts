@@ -13,14 +13,14 @@ async function server(t: TestContext, handler: (request: IncomingMessage, respon
   const address = http.address(); assert(address && typeof address !== 'string')
   return `http://127.0.0.1:${address.port}`
 }
-function fixture(t: TestContext, baseURL: string, requiresKey = false, timeoutMs = 1000) {
-  const settings: AISettings = { providers: [{ id: 'local', name: 'LM Studio', baseURL, requiresKey, models: [], defaultModel: '' }], default: null }
+function fixture(t: TestContext, baseURL: string, savedKey = false, timeoutMs = 1000) {
+  const settings: AISettings = { providers: [{ id: 'local', name: 'LM Studio', baseURL, models: [] }], default: null }
   let keys = 0
-  const ai = createAIService({ settings: () => settings, key: () => { keys++; return 'PRIVATE_KEY' }, timeoutMs })
+  const ai = createAIService({ settings: () => settings, key: () => { keys++; return savedKey ? 'PRIVATE_KEY' : null }, timeoutMs })
   t.after(() => ai.dispose())
   return { ai, settings, keys: () => keys }
 }
-const input = { providerId: 'local' }
+const input = (baseURL: string) => ({ baseURL })
 
 test('bare endpoints and explicit API roots share GET model discovery and POST chat URL handling', async t => {
   const requests: string[] = []
@@ -32,7 +32,7 @@ test('bare endpoints and explicit API roots share GET model discovery and POST c
   })
   for (const [suffix, path] of [['', '/v1'], ['/', '/v1'], ['/v1', '/v1'], ['/v1/', '/v1'], ['/gateway/v1/', '/gateway/v1'], ['/custom/api', '/custom/api']]) {
     const f = fixture(t, root + suffix)
-    assert.deepEqual(await f.ai.listModels(1, input), ['a-model', 'z/model'])
+    assert.deepEqual(await f.ai.listModels(1, { ...input(root + suffix), authMode: 'none' }), ['a-model', 'z/model'])
     assert.deepEqual(f.settings.providers[0].models, [])
     assert.equal(f.keys(), 0)
     const response = await postChat({ provider: f.settings.providers[0], key: null, model: 'a-model' }, { messages: [] }, new AbortController().signal, false)
@@ -47,76 +47,85 @@ test('discovery snapshots saved configuration and credentials without requiring 
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"data":[{"id":"local/model"}]}')
   })
   const f = fixture(t, root, true)
-  const pending = f.ai.listModels(1, input)
+  const pending = f.ai.listModels(1, { ...input(root), providerId: 'local' })
   f.settings.providers[0].baseURL = 'http://127.0.0.1:1'
-  f.settings.providers[0].requiresKey = false
   assert.deepEqual(await pending, ['local/model'])
   assert.equal(f.keys(), 1)
 })
 
-test('invalid inputs and missing provider/key fail before network access', async t => {
-  const f = fixture(t, 'http://127.0.0.1:1')
-  for (const value of [null, {}, { providerId: '__proto__' }, { ...input, baseURL: 'https://untrusted.example' }, { ...input, apiKey: 'FORGED' }]) {
+test('unsaved endpoints discover models without reading a key from a different endpoint', async t => {
+  const root = await server(t, (req, res) => {
+    assert.equal(req.headers.authorization, undefined)
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"data":[{"id":"model"}]}')
+  })
+  const f = fixture(t, 'http://127.0.0.1:1', true)
+  assert.deepEqual(await f.ai.listModels(1, { ...input(root), providerId: 'local' }), ['model'])
+  assert.equal(f.keys(), 0)
+  assert.throws(() => f.ai.listModels(1, { ...input(root), providerId: 'local', authMode: 'bearer' }), { code: 'AI_AUTH_FAILED' })
+  assert.throws(() => f.ai.listModels(1, { ...input('http://127.0.0.1:1'), providerId: 'local', authMode: 'bearer', clearKey: true }), { code: 'AI_AUTH_FAILED' })
+})
+
+test('invalid inputs fail before network access', t => {
+  const root = 'http://127.0.0.1:1', f = fixture(t, root)
+  for (const value of [null, {}, { ...input(root), providerId: '__proto__' }, { baseURL: 'http://untrusted.example' },
+    { ...input(root), apiKey: 'two words' }, { ...input(root), modelsSeconds: 0 }]) {
     assert.throws(() => f.ai.listModels(1, value), { code: 'INVALID_INPUT' })
   }
-  assert.throws(() => f.ai.listModels(1, { providerId: 'missing' }), { code: 'AI_NOT_CONFIGURED' })
-  const ai = createAIService({ settings: () => ({ ...f.settings, providers: [{ ...f.settings.providers[0], requiresKey: true }] }), key: () => null,  })
-  t.after(() => ai.dispose())
-  assert.throws(() => ai.listModels(1, input), { code: 'AI_NOT_CONFIGURED' })
 })
 
 test('HTTP model failures use existing sanitized error codes', async t => {
   for (const [status, code] of [[401, 'AI_AUTH_FAILED'], [403, 'AI_AUTH_FAILED'], [429, 'AI_RATE_LIMITED'], [404, 'AI_PROVIDER_FAILED'], [500, 'AI_PROVIDER_FAILED']] as const) {
     const root = await server(t, (_req, res) => { res.writeHead(status); res.end('PRIVATE_PROVIDER_BODY') })
-    await assert.rejects(fixture(t, root).ai.listModels(1, input), { code })
+    await assert.rejects(fixture(t, root).ai.listModels(1, input(root)), { code })
   }
 })
 
-test('model discovery rejects malformed, oversized and non-JSON responses; an empty model list is valid', async t => {
+test('model discovery rejects malformed, oversized and non-JSON responses; empty model lists', async t => {
   let body = '', contentType = 'application/json'
   const root = await server(t, (_req, res) => { res.writeHead(200, { 'Content-Type': contentType }); res.end(body) })
   const { ai } = fixture(t, root)
   for (const invalid of ['{', 'null', '{}', '{"error":{"message":"PRIVATE"}}', '{"data":[null]}', '{"data":[{"id":""}]}', '{"data":[{"id":"two words"}]}', '{"data":[{"id":3}]}', JSON.stringify({ data: Array.from({ length: 10001 }, () => ({ id: 'model' })) }), ' '.repeat(1000001)]) {
     body = invalid
-    await assert.rejects(ai.listModels(1, input), { code: 'AI_PROTOCOL_ERROR' })
+    await assert.rejects(ai.listModels(1, input(root)), { code: 'AI_PROTOCOL_ERROR' })
   }
   body = '{"data":[]}'; contentType = 'text/html'
-  await assert.rejects(ai.listModels(1, input), { code: 'AI_PROTOCOL_ERROR' })
+  await assert.rejects(ai.listModels(1, input(root)), { code: 'AI_PROTOCOL_ERROR' })
   contentType = 'application/json'
-  assert.deepEqual(await ai.listModels(1, input), [])
+  await assert.rejects(ai.listModels(1, input(root)), { code: 'AI_PROTOCOL_ERROR' })
   body = JSON.stringify({ data: Array.from({ length: 150 }, (_, i) => ({ id: `model-${i}` })) })
-  assert.equal((await ai.listModels(1, input)).length, 150)
+  assert.equal((await ai.listModels(1, input(root))).length, 150)
 })
 
 test('model requests time out, cancel only for their owner, enforce per-owner limits and stop on service disposal', async t => {
   const root = await server(t, (_req, res) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.flushHeaders() })
   const f = fixture(t, root, false, 50)
-  const pending = f.ai.listModels(1, input)
+  const pending = f.ai.listModels(1, input(root))
   const timedOut = assert.rejects(pending, { code: 'AI_TIMEOUT' })
-  assert.throws(() => f.ai.listModels(1, input), { code: 'AI_PROVIDER_FAILED' })
+  assert.throws(() => f.ai.listModels(1, input(root)), { code: 'AI_PROVIDER_FAILED' })
   f.ai.disposeOwner(2)
   await timedOut
-  const cancelled = f.ai.listModels(1, input)
+  const cancelled = f.ai.listModels(1, input(root))
   const stopped = assert.rejects(cancelled, { code: 'AI_CANCELLED' })
   f.ai.disposeOwner(1); await stopped
-  const disposing = f.ai.listModels(2, input)
+  const disposing = f.ai.listModels(2, input(root))
   const rejected = assert.rejects(disposing, { code: 'AI_CANCELLED' })
   await f.ai.dispose(); await rejected
-  assert.throws(() => f.ai.listModels(1, input), { code: 'AI_PROVIDER_FAILED' })
+  assert.throws(() => f.ai.listModels(1, input(root)), { code: 'AI_PROVIDER_FAILED' })
 })
 
 test('model discovery rejects redirects without forwarding credentials', async t => {
   let forwarded = false
   const target = await server(t, (_req, res) => { forwarded = true; res.end() })
   const source = await server(t, (_req, res) => { res.writeHead(307, { Location: target + '/v1/models' }); res.end() })
-  await assert.rejects(fixture(t, source, true).ai.listModels(1, input))
+  await assert.rejects(fixture(t, source).ai.listModels(1, { ...input(source), apiKey: 'PRIVATE_KEY' }))
   assert.equal(forwarded, false)
 })
 
 test('preload model discovery invokes only the dedicated operation and returns the typed result', async () => {
+  const args = input('http://127.0.0.1:1234/v1')
   const bridge = createAIBridge(async (operation, value) => {
-    assert.equal(operation, 'models'); assert.deepEqual(value, input)
+    assert.equal(operation, 'models'); assert.deepEqual(value, args)
     return { ok: true, value: ['local/model'] }
   }, () => () => {})
-  assert.deepEqual(await bridge.listModels(input), { ok: true, value: ['local/model'] })
+  assert.deepEqual(await bridge.listModels(args), { ok: true, value: ['local/model'] })
 })

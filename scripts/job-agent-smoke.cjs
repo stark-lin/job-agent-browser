@@ -66,7 +66,7 @@ module.exports = async function jobAgentSmoke({ window, call, evaluate, waitFor 
     await waitFor(() => evaluate(`document.querySelector('dialog[open]').innerText.includes(${JSON.stringify(expected)}) && !document.querySelector('[name=applicationInstruction]').disabled`), instruction)
   }
   try {
-    await preferences({ language: 'en', theme: 'light', ai: { providers: [{ id: 'agent-fixture', name: 'Agent fixture', baseURL: `http://127.0.0.1:${server.address().port}/v1`, requiresKey: false, models: ['fixture'], defaultModel: 'fixture' }], default: { providerId: 'agent-fixture', modelId: 'fixture' } } })
+    await preferences({ language: 'en', theme: 'light', ai: { providers: [{ id: 'agent-fixture', name: 'Agent fixture', baseURL: `http://127.0.0.1:${server.address().port}/v1`, models: ['fixture'] }], default: { providerId: 'agent-fixture', modelId: 'fixture' } } })
     const baseline = (await jobs()).total
     await call('navigate', 'app://find')
     await waitFor(() => evaluate('!!document.querySelector("[name=captureSource]")'), 'capture source selector')

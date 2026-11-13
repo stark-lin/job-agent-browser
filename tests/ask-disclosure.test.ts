@@ -13,22 +13,25 @@ import { fingerprint } from '../src/platform/ai/agent-request'
 
 test('real HTTP and first-party MCP expand Scope, execute and answer without automatic fixture activation', async t => {
   const f = await firstPartyFixture(t), requests: WireRequest[] = []
-  let authorizedSchema: Record<string, unknown> | undefined
+  const authorizedSchemas = new Map<string, Record<string, unknown>>()
+  const businessNames = ['job.list', 'application.get']
   const server = createServer((request, response) => {
     let raw = ''
     request.on('data', chunk => { raw += chunk })
     request.on('end', async () => {
       const body = JSON.parse(raw) as WireRequest, ordinal = requests.push(body)
       assert.equal(request.url, '/v1/chat/completions')
-      const business = body.tools.find(tool => tool.function.name === stableName('job.list'))
-      if (ordinal === 1) {
-        assert.equal(business, undefined)
-        assert(body.tools.every(tool => tool.function.description.startsWith('[scope.') || tool.function.description.startsWith('[human.ask]')))
-      } else {
-        assert(business); assert.deepEqual(business.function.parameters, authorizedSchema)
+      assert(!body.tools.some(tool => tool.function.name === stableName('scope.application')))
+      for (const name of businessNames) {
+        const business = body.tools.find(tool => tool.function.name === stableName(name))
+        if (ordinal === 1) assert.equal(business, undefined)
+        else { assert(business); assert.deepEqual(business.function.parameters, authorizedSchemas.get(name)) }
       }
+      if (ordinal === 1) assert(body.tools.every(tool => tool.function.description.startsWith('[scope.') || tool.function.description.startsWith('[human.ask]')))
       if (ordinal === 2) {
-        assert(JSON.parse(body.messages.at(-1)!.content).tools.some((entry: { name: string }) => entry.name === 'job.list'))
+        const directory = JSON.parse(body.messages.at(-1)!.content) as { scope: string; tools: { name: string }[] }
+        assert.equal(directory.scope, 'job')
+        assert(businessNames.every(name => directory.tools.some(tool => tool.name === name)))
         const history = body.messages.filter(message => message.role === 'assistant').flatMap(message => message.tool_calls ?? [])
         assert.deepEqual(history.map(call => call.function.name), [stableName('scope.job')])
       }
@@ -42,12 +45,12 @@ test('real HTTP and first-party MCP expand Scope, execute and answer without aut
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(() => { server.closeAllConnections(); server.close() })
-  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {  })
+  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, models: ['test'] }, model: 'test', key: null }, {  })
   const tasks = createAskAgentTasks({ chats: f.backend.chats, mcp: f.mcp, model: () => model, capabilities: async () => capabilities })
   t.after(() => tasks.dispose())
   const ids = tasks.start(1, { requestId: randomUUID(), message: 'Find my saved jobs', choice: { providerId: 'fixture', modelId: 'test' } }, () => {})
   const tools = await f.mcp.session('ask-ai', new AbortController().signal, ids.sessionId)
-  authorizedSchema = (await tools.list()).find(tool => tool.name === 'job.list')!.inputSchema
+  for (const tool of await tools.list()) if (businessNames.includes(tool.name)) authorizedSchemas.set(tool.name, tool.inputSchema)
   for (let tries = 0; tries < 1000 && tasks.getRun(1, { runId: ids.runId }).run.state === 'running'; tries++) await new Promise(resolve => setTimeout(resolve, 10))
   const snapshot = tasks.getRun(1, { runId: ids.runId })
   assert.equal(snapshot.run.state, 'completed', snapshot.run.error ?? '')

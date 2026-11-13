@@ -11,11 +11,15 @@ import { providerTools } from '../src/platform/ai/agent-protocol'
 import { resourceRecord, updateResourceRecords } from '../src/platform/agent/context/resources'
 import type { AgentModel, AgentMessage, AgentToolDescriptor } from '../src/shared/agent'
 import type { ContextCheckpoint } from '../src/shared/ask'
-const capability = (contextWindow = 65536) => ({ contextWindow, maxOutputTokens: 8192, source: 'manual' as const, verified: true })
+const capability = (contextWindow = 65536) => ({ contextWindow, maxOutputTokens: 8192, source: 'manual' as const })
 const live: AgentMessage[] = [{ role: 'system', content: 'Application instructions' }, { role: 'user', content: 'Current task' }]
-test('model capability gates and budgets use actual limits, including windows above 128K', () => {
-  assert.throws(() => new ContextBudget({ ...capability(), verified: false }, 'unknown'), { code: 'ASK_CONTEXT_UNKNOWN' })
-  assert.throws(() => new ContextBudget(capability(32768), 'unknown'), { code: 'ASK_CONTEXT_TOO_SMALL' })
+test('context budgets use actual limits for both small and large windows', () => {
+  assert.throws(() => new ContextBudget(capability(0), 'unknown'), { code: 'ASK_CONTEXT_UNKNOWN' })
+  for (const window of [1024, 16384, 32768]) {
+    const budget = new ContextBudget(capability(window), 'unknown')
+    assert(budget.input > 0 && budget.output > 0 && budget.safety > 0)
+    assert.equal(budget.input + budget.output + budget.safety, window)
+  }
   assert.equal(new ContextBudget(capability(), 'unknown').input, 53248)
   assert(new ContextBudget(capability(262144), 'unknown').input > 131072)
   assert.throws(() => new ContextBudget(capability(), 'unknown').assert([{ role: 'user', content: 'x'.repeat(65536) }], []), { code: 'ASK_CONTEXT_OVERFLOW' })
@@ -62,11 +66,11 @@ test('Core uses a local bounded Unicode view, never recalls or writes, and only 
   await assert.rejects(loadCoreMemory({ ...tools, call: async () => { throw new ToolError('TOOL_UNAVAILABLE') } }, budget, signal), { code: 'TOOL_UNAVAILABLE' })
 })
 test('LM Studio deployment context overrides a larger manual or theoretical model window', async () => {
-  const choice = { providerId: 'local', modelId: 'model' }, settings = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234', requiresKey: false, models: ['model'], defaultModel: 'model', capabilities: { model: capability(262144) } }], default: choice }
+  const choice = { providerId: 'local', modelId: 'model' }, settings = { providers: [{ id: 'local', name: 'Local', baseURL: 'http://127.0.0.1:1234', models: ['model'], overrides: { model: { contextWindow: 262144 } } }], default: choice }
   const transport: typeof fetch = async () => new Response(JSON.stringify({ models: [{ key: 'model', max_context_length: 262144, loaded_instances: [{ id: 'model', config: { context_length: 32768 } }] }] }), { headers: { 'Content-Type': 'application/json' } })
-  const actual = await resolveAskCapabilities(settings, choice, null, new AbortController().signal, transport)
+  const actual = await resolveAskCapabilities(settings, choice, () => null, new AbortController().signal, transport)
   assert.equal(actual.contextWindow, 32768); assert.equal(actual.source, 'runtime')
-  assert.throws(() => new ContextBudget(actual, 'model'), { code: 'ASK_CONTEXT_TOO_SMALL' })
+  assert.equal(new ContextBudget(actual, 'model').input, 20480)
 })
 
 test('resource checkpoints replace completed state while retaining uncertain writes and exact recovery paths', () => {
@@ -100,4 +104,18 @@ for (const outcome of ['success', 'failure', 'cancel'] as const) test(`compactio
   release(); await checked
   if (outcome === 'success') assert.equal(inferences, 1)
   else { assert.equal(saves, 0); assert.equal(inferences, 0) }
+})
+
+test('context and output limits independently use overrides, provider metadata and fallback', async () => {
+  const choice = { providerId: 'hosted', modelId: 'unknown-model' }
+  const provider = { id: 'hosted', name: 'Hosted', baseURL: 'https://fixture.invalid/v1', models: [choice.modelId] }
+  const signal = new AbortController().signal
+  const transport: typeof fetch = async () => Response.json({ data: [{ id: choice.modelId, context_window: 32768, max_output_tokens: 4096 }] })
+  const resolve = (selected = provider, fetcher = transport) =>
+    resolveAskCapabilities({ providers: [selected], default: choice }, choice, () => null, signal, fetcher)
+  assert.deepEqual(await resolve(), { contextWindow: 32768, maxOutputTokens: 4096, source: 'provider' })
+  const overridden = { ...provider, overrides: { [choice.modelId]: { contextWindow: 16384 } } }
+  assert.deepEqual(await resolve(overridden), { contextWindow: 16384, maxOutputTokens: 4096, source: 'manual' })
+  assert.deepEqual(await resolve(provider, async () => Response.json({ data: [{ id: choice.modelId }] })),
+    { contextWindow: 131072, maxOutputTokens: 8192, source: 'fallback' })
 })

@@ -2,12 +2,13 @@ const assert = require('node:assert/strict')
 const { app, dialog, safeStorage, session } = require('electron')
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs')
 const { resolve } = require('node:path')
+const { createServer } = require('node:http')
 const openSectionCards = require('./open-section-cards.cjs')
 
 module.exports = async function settingsSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin }) {
   const frames = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-  const formsReady = () => waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-config]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms ready')
-  const openForms = () => openSectionCards(evaluate, '[data-settings-general], [data-ai-config], [data-settings-mailbox-form]')
+  const formsReady = () => waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-connection]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms ready')
+  const openForms = () => openSectionCards(evaluate, '[data-settings-general], [data-ai-connection], [data-settings-mailbox-form]')
   const assertCardGaps = async () => {
     const gaps = await evaluate(`(() => {
       const cards = [...document.querySelectorAll('.settings-sections > details')];
@@ -24,7 +25,7 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
     await frames()
   }
   const data = async (group, method, input) => evaluate(`window.data.${group}.${method}(${JSON.stringify(input)})`)
-  const submit = index => evaluate(`document.querySelector(${JSON.stringify(['[data-settings-general]', '[data-ai-config]', '[data-ai-key]', '[data-settings-mailbox-form]'][index])}).requestSubmit()`)
+  const submit = index => evaluate(`document.querySelector(${JSON.stringify(['[data-settings-general]', '[data-ai-connection]', '[data-ai-connection]', '[data-settings-mailbox-form]'][index])}).requestSubmit()`)
   const capture = async name => {
     mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     await frames()
@@ -155,17 +156,34 @@ module.exports = async function settingsSmoke({ window, call, read, active, eval
   await call('navigate', 'app://settings'); await formsReady(); await openForms()
   const status = (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value
   if (status.available) {
-    await field('.settings-page input[type=password]', 'smoke-key-disposable')
-    await submit(2)
-    await waitFor(async () => (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'encrypted key save')
-    await waitFor(() => evaluate('document.querySelector("input[type=password]").value === ""'), 'key cleared from UI')
-    const file = readFileSync(resolve(process.env.JOB_BROWSER_SMOKE_DATA, 'secrets.enc'), 'utf8')
-    assert.equal(file.includes('smoke-key-disposable'), false)
-    assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).providers.openai, 'base64')), 'smoke-key-disposable')
-    await evaluate('[...document.querySelectorAll("button")].find(button => button.textContent === "Delete key").click()')
-    await waitFor(() => evaluate('document.querySelector("dialog:has(.ui-button--danger)").open'), 'delete confirmation dialog')
-    await evaluate('document.querySelector("dialog .ui-button--danger").click()')
-    await waitFor(async () => !(await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'key deletion')
+    const initial = (await data('settings', 'get', {})).value.ai
+    const authorizations = []
+    const server = createServer((request, response) => {
+      assert.equal(request.url, '/v1/models')
+      authorizations.push(request.headers.authorization)
+      response.writeHead(200, { 'Content-Type': 'application/json' }).end('{"data":[{"id":"fixture"}]}')
+    })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    try {
+      await field('[data-ai-connection] input[type=url]', `http://127.0.0.1:${server.address().port}`)
+      await field('[data-ai-connection] input[type=password]', 'smoke-key-disposable')
+      await submit(2)
+      await waitFor(async () => (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'encrypted key save')
+      await waitFor(() => evaluate('document.querySelector("input[type=password]").value === ""'), 'key cleared from UI')
+      const file = readFileSync(resolve(process.env.JOB_BROWSER_SMOKE_DATA, 'secrets.enc'), 'utf8')
+      assert.equal(file.includes('smoke-key-disposable'), false)
+      assert.equal(safeStorage.decryptString(Buffer.from(JSON.parse(file).providers.openai, 'base64')), 'smoke-key-disposable')
+      await evaluate('document.querySelector("[data-ai-advanced] > summary").click()')
+      await waitFor(() => evaluate('document.querySelector("[data-ai-advanced]").innerText.includes("Delete saved key")'), 'saved key removal action')
+      await evaluate('[...document.querySelectorAll("[data-ai-advanced] button")].find(button => button.textContent === "Delete saved key").click()')
+      await submit(2)
+      await waitFor(async () => !(await data('secrets', 'hasProviderKey', { provider: 'openai' })).value.configured, 'key deletion')
+      assert.deepEqual(authorizations, ['Bearer smoke-key-disposable', undefined])
+    } finally {
+      server.closeAllConnections()
+      await new Promise(resolve => server.close(resolve))
+    }
+    await data('settings', 'savePreferences', { ai: initial })
   }
   await call('navigate', 'app://ai')
   // Leave a disposable fixture for the next process's startup-recovery smoke.

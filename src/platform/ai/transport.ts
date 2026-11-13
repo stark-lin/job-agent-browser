@@ -1,19 +1,24 @@
 import { fail } from '../../domain/common/errors'
-import { defaultAITimeouts, type AIChoice, type AISettings } from '../../shared/ai'
+import { AI_DEFAULTS, type AIChoice, type AIProvider, type AISettings } from '../../shared/ai'
 import type { ChatRequest, Fetch } from './compatible'
+
+export function authenticatedKey(mode: AIProvider['authMode'], read: () => string | null): string | null {
+  if (mode === 'none') return null
+  const secret = read()
+  if (mode === 'bearer' && !secret) fail('AI_AUTH_FAILED')
+  return secret
+}
 
 export function providerConfig(settings: AISettings, key: (id: string) => string | null, providerId: string) {
   const provider = settings.providers.find(provider => provider.id === providerId)
   if (!provider) fail('AI_NOT_CONFIGURED')
-  const secret = provider.requiresKey ? key(provider.id) : null
-  if (provider.requiresKey && !secret) fail('AI_NOT_CONFIGURED')
-  return { provider: structuredClone(provider), key: secret }
+  return { provider: structuredClone(provider), key: authenticatedKey(provider.authMode, () => key(provider.id)) }
 }
 export function requestConfig(settings: AISettings, key: (id: string) => string | null, choice: AIChoice | null) {
   if (!choice) fail('AI_NOT_CONFIGURED')
   const config = providerConfig(settings, key, choice.providerId)
   if (!config.provider.models.includes(choice.modelId)) fail('AI_NOT_CONFIGURED')
-  return { ...config, model: choice.modelId, timeoutMs: (settings.timeouts ?? defaultAITimeouts).requestSeconds * 1000 }
+  return { ...config, model: choice.modelId, timeoutMs: (settings.timeoutOverrides?.requestSeconds ?? AI_DEFAULTS.requestTimeoutMs / 1000) * 1000 }
 }
 /** Bare server endpoints use /v1; explicit API roots retain their path prefix. */
 export function openAIURL(endpoint: string, resource: 'chat/completions' | 'models' | 'embeddings'): string {
@@ -30,6 +35,7 @@ export async function checkResponse(response: Response): Promise<Response> {
   return response
 }
 export async function postChat(request: Omit<ChatRequest, 'messages'>, body: object, signal: AbortSignal, stream: boolean, transport: Fetch = fetch) {
+  signal.throwIfAborted()
   const response = await transport(openAIURL(request.provider.baseURL, 'chat/completions'), {
     method: 'POST', redirect: 'error', signal,
     headers: { 'Content-Type': 'application/json', Accept: stream ? 'text/event-stream' : 'application/json', ...(request.key ? { Authorization: `Bearer ${request.key}` } : {}) },
@@ -41,8 +47,18 @@ export function outputTokenParameters(request: Omit<ChatRequest, 'messages'>, li
   if (!limit) return {}
   return new URL(request.provider.baseURL).hostname === 'api.openai.com' ? { max_completion_tokens: limit } : { max_tokens: limit }
 }
-export function requestTimeout(parent: AbortSignal, ms = defaultAITimeouts.requestSeconds * 1000) {
+export function requestTimeout(parent: AbortSignal, ms: number = AI_DEFAULTS.requestTimeoutMs) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), ms)
-  return { signal: AbortSignal.any([parent, controller.signal]), timedOut: () => controller.signal.aborted, dispose: () => clearTimeout(timer) }
+  const expire = () => controller.abort()
+  let timer = setTimeout(expire, ms)
+  const signal = AbortSignal.any([parent, controller.signal])
+  return {
+    signal, timedOut: () => controller.signal.aborted,
+    refresh() {
+      if (signal.aborted) return
+      clearTimeout(timer)
+      timer = setTimeout(expire, ms)
+    },
+    dispose: () => clearTimeout(timer)
+  }
 }

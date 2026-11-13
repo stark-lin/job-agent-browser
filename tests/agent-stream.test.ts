@@ -8,7 +8,7 @@ import { ContextBudget } from '../src/platform/agent/context/budget'
 import { ContextManager } from '../src/platform/agent/context/manager'
 import type { AgentModelEvent, StreamingAgentModel, AgentTools } from '../src/shared/agent'
 import { ToolError } from '../src/shared/tools/errors'
-const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }
+const config = { provider: { id: 'test', name: 'Test', baseURL: 'http://localhost/v1', models: ['test'] }, model: 'test', key: null }
 const signal = () => new AbortController().signal
 const descriptor = { name: 'job.list', description: 'List', inputSchema: { type: 'object' as const } }
 const frame = (delta: unknown, finish_reason: string | null = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\r\n\r\n`
@@ -50,7 +50,7 @@ test('Pi preserves interleaving, complete call batches, recoverable errors, fata
   const tools: AgentTools = { list: async () => [descriptor], call: async () => { throw new ToolError('TOOL_FORBIDDEN') } }
   const first: AgentModelEvent[] = [{ type: 'reasoning.delta', text: 'Summary' }, { type: 'content.delta', text: 'Reading' }, { type: 'reasoning.delta', text: 'More' }, { type: 'tool_call.ready', call }, { type: 'completed', response: { content: 'Reading', toolCalls: [call] } }]
   const run = (model: StreamingAgentModel, tools: AgentTools, emit: (event: AgentRuntimeEvent) => void) => {
-    const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+    const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
     const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save(value) { return value } })
     return runPiAgent({ model, tools: scopedFixture(tools), system: 'Test instructions', message: 'Test task', budget, context, emit, signal: signal(), status() {}, protect() {} })
   }
@@ -88,7 +88,7 @@ test('Pi executes a batch one tool at a time and waits for all results before mo
     if (path === 'a.md') { entered(); await block }
     active--; return { revision: path }
   } }
-  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
   const context = new ContextManager({ budget, model, checkpoint: { summary: '', revision: 0, compactedThroughSequence: 0 }, turns: [], memory: '', protectedState: [], compacting() {}, save: value => value })
   const pending = runPiAgent({ model, tools: scopedFixture(tools), system: 'Test', message: 'Save', budget, context, emit() {}, signal: signal(), status() {}, protect() {} })
   await first; assert.equal(requests, 2); assert.deepEqual(order, ['a.md']); assert.equal(active, 1)

@@ -2,9 +2,7 @@
 .settings-content { width: min(var(--content-width), 100%); margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-3); }
 .settings-sections { display: flex; flex-direction: column; gap: var(--space-2); }
 .settings-stack { display: flex; flex-direction: column; gap: var(--space-2); }
-.settings-fields[hidden] { display: none; }
-.settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.settings-ai-layout { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
 @media (max-width: 640px) {
   .settings-page { padding: var(--space-3) var(--space-2) var(--space-6); }
-  .settings-fields { grid-template-columns: 1fr; gap: var(--space-2); }
 }

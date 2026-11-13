@@ -2,7 +2,7 @@ import type { AgentMessage } from './agent'
 import type { ModelCapabilities } from './ai'
 
 export const askContextDefaults = {
-  minContextWindow: 65536, outputReserveTokens: 8192, safetyRatio: 0.05,
+  safetyRatio: 0.05,
   compactionTriggerRatio: 0.8, compactionTargetRatio: 0.6,
   summaryMaxTokens: 4096, coreMemoryMaxTokens: 2048, memoryRecallTokens: 2048, toolSchemaMaxTokens: 8192
 } as const

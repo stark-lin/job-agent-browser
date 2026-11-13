@@ -25,7 +25,7 @@ export async function verifyAskPackage(backend: ReturnType<typeof createBackend>
     }
   }
   const tasks = createAskAgentTasks({ chats: backend.chats, mcp, model: () => model,
-    capabilities: async () => ({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }) })
+    capabilities: async () => ({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }) })
   const result = tasks.start(1, { requestId: randomUUID(), choice, message: 'Verify the installed Ask runtime.' }, () => {})
   try {
     const end = Date.now() + 15000

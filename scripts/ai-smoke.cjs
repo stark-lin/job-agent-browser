@@ -53,39 +53,33 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   const button = text => evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent === ${JSON.stringify(text)}).click()`)
   try {
     await call('navigate', 'app://settings')
-    await waitFor(() => evaluate('!!document.querySelector("form[data-ai-config]")'), 'AI provider form')
-    await openSectionCards(evaluate, '[data-ai-config]')
+    const form = '[data-ai-connection]'
+    const submit = () => evaluate(`document.querySelector('${form}').requestSubmit()`)
+    const byLabel = async (label, value, type) => {
+      const selector = await evaluate(`'#' + CSS.escape([...document.querySelectorAll('${form} label')].find(el => el.textContent === ${JSON.stringify(label)}).htmlFor)`)
+      await field(selector, value, type)
+    }
+    await waitFor(() => evaluate(`!!document.querySelector('${form}')`), 'AI connection form')
+    await openSectionCards(evaluate, form)
+    await button('New connection')
+    await field(`${form} input[type=url]`, root)
+    await evaluate('document.querySelector("[data-ai-advanced] > summary").click()')
+    await byLabel('Connection Name', 'Fixture provider')
+    await byLabel('Page Fetch Timeout', '0')
+    await submit()
+    await waitFor(() => evaluate('document.body.innerText.includes("Enter whole tokens")'), 'invalid timeout feedback')
+    await byLabel('Page Fetch Timeout', '60')
+    await byLabel('AI Request Timeout', '300')
+    await byLabel('Model Discovery Timeout', '30')
     const timeouts = { requestSeconds: 300, pageSeconds: 60, modelsSeconds: 30 }
-    for (const [name, value] of Object.entries(timeouts)) await field(`form[data-ai-config] input[name=${name}]`, String(value))
-    await field('form[data-ai-config] input[name=pageSeconds]', '0')
-    assert.equal(await evaluate('document.querySelector("form[data-ai-config]").checkValidity()'), false)
-    await field('form[data-ai-config] input[name=pageSeconds]', '60')
-    await button('Add provider')
-    await field('form[data-ai-config] input:not([type])', 'Fixture provider')
-    await field('form[data-ai-config] input[type=url]', root)
-    // Associated labels select the intended control regardless of form layout.
-    await evaluate(`(() => {
-      const label = [...document.querySelectorAll('label')].find(label => label.textContent === 'Authentication');
-      const control = document.getElementById(label.htmlFor);
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(control, 'false');
-      control.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`)
-    await evaluate('document.querySelector("form[data-ai-config]").requestSubmit()')
-    await waitFor(async () => (await data('settings', 'get', {})).value.ai.providers.some(provider => provider.baseURL === root), 'saved endpoint without models')
-    assert.deepEqual((await data('settings', 'get', {})).value.ai.timeouts, timeouts)
-    await waitFor(() => evaluate('[...document.querySelectorAll("button")].some(button => button.textContent === "Detect models" && !button.disabled)'), 'model detection enabled')
-    await button('Detect models')
-    await waitFor(() => evaluate('document.body.innerText.includes("Detected 2 models.")'), 'discovered models through production IPC')
-    const detected = await evaluate('(() => { const label = [...document.querySelectorAll("label")].find(label => label.textContent === "Available models"); return "[id=" + JSON.stringify(label.htmlFor) + "]" })()')
-    await field(detected, 'fixture-model', 'select')
-    assert.equal(await evaluate('document.querySelector("form[data-ai-config] textarea").value'), 'fixture-model')
-    assert.equal((await data('settings', 'get', {})).value.ai.providers.find(provider => provider.baseURL === root).models.length, 0)
-    await button('Use as global default')
-    await evaluate('document.querySelector("form[data-ai-config]").requestSubmit()')
+    await submit()
+    await waitFor(() => evaluate('document.body.innerText.includes("Choose a model to continue.")'), 'discovered models through production IPC')
+    assert.deepEqual((await data('settings', 'get', {})).value.ai, original, 'selection precedes persistence')
+    await byLabel('Model', 'fixture-model', 'select')
+    await submit()
     await waitFor(async () => (await data('settings', 'get', {})).value.ai.default?.modelId === 'fixture-model', 'saved custom provider/default')
-    assert.deepEqual((await data('settings', 'get', {})).value.ai.timeouts, timeouts)
-    await button('Test connection')
-    await waitFor(() => evaluate('document.body.innerText.includes("Connection and streaming response verified.")'), 'real connection test')
+    assert.deepEqual((await data('settings', 'get', {})).value.ai.timeoutOverrides, timeouts)
+    assert.equal(requests.length, 0, 'model discovery makes no completion request')
     const settingsSize = window.getContentSize(), settingsMinimum = window.getMinimumSize()
     window.setMinimumSize(320, 320)
     try {
@@ -94,7 +88,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
         await waitFor(() => evaluate(`innerWidth === ${width}`), `model settings viewport ${width}`)
         assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
       }
-      await evaluate('document.querySelector("form[data-ai-config]").scrollIntoView()')
+      await evaluate('document.querySelector("[data-ai-connection]").scrollIntoView()')
       mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
       writeFileSync(resolve(__dirname, '../.cache/ai-settings-models.png'), (await window.capturePage()).toPNG())
     } finally { window.setContentSize(...settingsSize); window.setMinimumSize(...settingsMinimum) }
@@ -115,9 +109,20 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     try {
       for (const width of [320, 640, 1200]) {
         window.setContentSize(width, 820)
-        await waitFor(() => evaluate(`innerWidth === ${width}`), `AI viewport ${width}`)
-        assert.equal(await evaluate('document.querySelector(".ai-page").scrollWidth > document.querySelector(".ai-page").clientWidth'), false)
-        assert.equal(await evaluate('getComputedStyle(document.querySelector(".ui-textarea")).minHeight'), '96px')
+        const sessionsControl = width <= 959 ? '.ai-session-toggle' : '.ai-session-sidebar'
+        // The viewport can report its new width before React commits the sessions layout.
+        await waitFor(() => evaluate(`innerWidth === ${width} && !!document.querySelector('.ai-page ${sessionsControl}')`), `AI sessions layout at ${width}px`)
+        await frame()
+        const layout = await evaluate(`(() => {
+          const page = document.querySelector('.ai-page')
+          const composer = page.querySelector('.ai-composer')
+          return { page: [page.scrollWidth, page.clientWidth], composer: [composer.scrollWidth, composer.clientWidth],
+            textareaMinHeight: getComputedStyle(composer.querySelector('.ui-textarea')).minHeight }
+        })()`)
+        for (const [name, [scrollWidth, clientWidth]] of [['page', layout.page], ['composer', layout.composer]]) {
+          assert(scrollWidth <= clientWidth, `AI ${name} overflows at ${width}px (${scrollWidth}px > ${clientWidth}px)`)
+        }
+        assert.equal(layout.textareaMinHeight, '96px')
       }
     } finally { window.setContentSize(...originalSize); window.setMinimumSize(...minimum) }
     await field('.ai-page textarea', 'cancel', 'textarea')
@@ -128,7 +133,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     await call('navigate', 'app://browser'); await call('navigate', 'app://ai')
     await waitFor(() => evaluate('!!document.querySelector(".ai-page textarea")'), 'return to chat')
     assert((await evaluate('document.querySelectorAll("[data-item-type]").length')) > 0)
-    console.log('AI smoke passed: configurable timeouts and validation, bare endpoints, model detection/selection, saved defaults, connection test, actual SSE through production IPC, cancellation and responsive settings/chat.')
+    console.log('AI smoke passed: configurable timeouts and validation, bare endpoints, model detection/selection, saved defaults, actual SSE through production IPC, cancellation and responsive settings/chat.')
   } finally {
     await call('navigate', 'app://browser')
     await data('settings', 'savePreferences', { ai: original })

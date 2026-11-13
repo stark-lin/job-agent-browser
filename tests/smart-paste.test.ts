@@ -32,6 +32,8 @@ test('a Smart Paste connection lists read tools, rejects write calls, and releas
     assert(tools.some(tool => tool.name === 'profile.list'))
     assert(tools.every(tool => tool.risk === 'READ' || tool.risk === 'COMPUTE'))
     assert(!tools.some(tool => tool.name === 'job.set_archived'))
+    const directory = await run.tools.call('scope.job', {}, signal) as { tools: { name: string }[] }
+    assert.deepEqual(directory.tools.map(tool => tool.name).sort(), ['application.get', 'application.list_events', 'job.get', 'job.list'])
     await assert.rejects(run.tools.call('job.set_archived', {}, signal), { code: 'TOOL_FORBIDDEN' })
     assert(await run.tools.call('profile.list', {}, signal))
   } finally { await run.close() }

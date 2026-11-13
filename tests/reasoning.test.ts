@@ -48,7 +48,7 @@ test('complete and streaming responses preserve continuation fields without maki
   assert.deepEqual(providerMessages(messages, new Map())[0], { role: 'assistant', content: 'Answer', ...wire })
   const frame = (delta: unknown, finish_reason: string | null = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\r\n\r\n`
   const bytes = new TextEncoder().encode(frame(wire) + frame({ content: 'Answer' }, 'stop') + 'data: [DONE]\n\n')
-  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://localhost', requiresKey: false, models: ['test'], defaultModel: 'test' }, model: 'test', key: null }, {
+  const model = compatibleAgentModel({ provider: { id: 'fixture', name: 'Fixture', baseURL: 'http://localhost', models: ['test'] }, model: 'test', key: null }, {
      transport: async () => new Response(new ReadableStream({ start(c) { for (const byte of bytes) c.enqueue(new Uint8Array([byte])); c.close() } }), { headers: { 'content-type': 'text/event-stream' } })
   })
   const events: AgentModelEvent[] = []
@@ -58,7 +58,7 @@ test('complete and streaming responses preserve continuation fields without maki
 })
 
 test('Pi retains provider state across activation/tool turns and segments reasoning by metadata', async () => {
-  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
   let step = 0
   const seen: AgentMessage[][] = [], events: AgentRuntimeEvent[] = []
   const model: StreamingAgentModel = { complete: async () => ({ content: 'Summary', toolCalls: [] }), async *stream(input) {
@@ -92,7 +92,7 @@ test('transcript redaction preserves business text and removes nested credential
 })
 
 test('compaction inputs exclude Host continuation metadata', async () => {
-  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true }, 'fixture')
+  const budget = new ContextBudget({ contextWindow: 65536, maxOutputTokens: 8192, source: 'manual' }, 'fixture')
   const model = { async complete(input: { messages: readonly AgentMessage[] }) {
     assert(!JSON.stringify(input.messages).includes('opaque'))
     assert(JSON.stringify(input.messages).includes('Business text'))

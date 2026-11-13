@@ -142,7 +142,7 @@ export function createResumeTasks(deps: {
             requestId, model: choice, signal: controller.signal, onEvent: recorder.receive
           }, {
             runId: agentRunId, model: () => model,
-            capabilities: (selected, live) => resolveAskCapabilities(settings, selected, deps.key(selected.providerId), live),
+            capabilities: (selected, live) => resolveAskCapabilities(settings, selected, () => deps.key(selected.providerId), live),
             open: live => deps.mcp.openAgentRun({ agent: 'resume', agentRunId, sessionId: requestId, generationRunId: work.runId, signal: live }),
             started: recorder.started, status: recorder.status, failure: () => recorderFailure, error: resumeError,
             finish: outcome => finishAgentRecord(recorder.finish, outcome, resumeError, () => disposed)

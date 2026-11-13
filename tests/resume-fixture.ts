@@ -11,6 +11,11 @@ export async function resumeFixture(batchSize = 1) {
       response.end(JSON.stringify({ models: [{ key: 'fixture', loaded_instances: [{ id: 'fixture', config: { context_length: 65536 } }] }] }))
       return
     }
+    if (request.url === '/v1/models') {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ data: [{ id: 'fixture', max_output_tokens: 8192 }] }))
+      return
+    }
     let body = ''
     request.on('data', chunk => { body += chunk })
     request.on('end', () => {

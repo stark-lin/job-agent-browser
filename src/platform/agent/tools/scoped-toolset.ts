@@ -1,5 +1,6 @@
 import { AgentError, type AgentToolDescriptor, type AgentTools } from '../../../shared/agent'
 import { allowedAskTool } from '../../../shared/agent/ask-policy'
+import { agentScopeForTool, allowsAgentControl } from '../../../shared/agent/context-policy'
 import type { AgentToolset } from './toolset'
 import type { ContextBudget } from '../context/budget'
 import { fingerprint } from '../../ai/agent-request'
@@ -13,12 +14,13 @@ export class ScopedToolset implements AgentToolset {
   constructor(private readonly tools: AgentTools, private readonly budget: ContextBudget, private readonly allows = allowedAskTool) {}
   async refresh() {
     const listed = await this.tools.list()
-    this.catalog = listed.filter(tool => this.allows(tool.name) || tool.name === 'human.ask' || tool.name.startsWith('scope.') && listed.some(business => this.allows(business.name) && business.name.startsWith(`${tool.name.slice(6)}.`)))
+    const allowed = listed.filter(tool => this.allows(tool.name)).map(tool => tool.name)
+    this.catalog = listed.filter(tool => allowed.includes(tool.name) || allowsAgentControl(tool.name, allowed))
   }
   snapshot() { return { version: this.version, tools: structuredClone(this.current) } }
   confirmRequest(_names: readonly string[]) {}
   loadout() {
-    const next = this.catalog.filter(tool => tool.name.startsWith('scope.') || tool.name === 'human.ask' || this.expanded.has(tool.name.split('.')[0]))
+    const next = this.catalog.filter(tool => tool.name.startsWith('scope.') || tool.name === 'human.ask' || this.expanded.has(agentScopeForTool(tool.name)))
     if (this.budget.tokens.count(next) > this.budget.input) throw new AgentError('ASK_CONTEXT_OVERFLOW')
     if (fingerprint(next) !== fingerprint(this.current)) this.version++
     this.current = next

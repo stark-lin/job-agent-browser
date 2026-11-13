@@ -16,7 +16,7 @@ import { createResumeBridge } from './resume-bridge'
 import { RESUME_CALL, RESUME_EVENT, type ResumeEvent } from '../resume-contract'
 import { createDataBridge } from './data-bridge'
 import { DATA_CALL } from '../../../shared/ipc'
-import { AI_START, AI_CANCEL, AI_EVENT, AI_MODELS, type AIEvent } from '../../../shared/ai'
+import { AI_START, AI_CANCEL, AI_EVENT, AI_MODELS, AI_SAVE_CONNECTION, type AIEvent } from '../../../shared/ai'
 import { createAIBridge } from './ai-bridge'
 import type { JobImportAPI, JobImportEvent } from '../job-import-contract'
 import { JOB_IMPORT_START, JOB_IMPORT_CANCEL, JOB_IMPORT_EVENT, JOB_IMPORT_RETRY, JOB_IMPORT_SELECT, JOB_IMPORT_SAVE, JOB_IMPORT_GET } from '../../../shared/job-import'
@@ -107,7 +107,7 @@ const profileImport: ProfileImportAPI = {
 contextBridge.exposeInMainWorld('profileImport', profileImport)
 contextBridge.exposeInMainWorld('data', createDataBridge((group, method, input) => ipcRenderer.invoke(DATA_CALL, group, method, input)))
 contextBridge.exposeInMainWorld('ai', createAIBridge(
-  (operation, input) => ipcRenderer.invoke(operation === 'start' ? AI_START : operation === 'models' ? AI_MODELS : AI_CANCEL, input),
+  (operation, input) => ipcRenderer.invoke({ start: AI_START, models: AI_MODELS, cancel: AI_CANCEL, saveConnection: AI_SAVE_CONNECTION }[operation], input),
   callback => {
     const listener = (_event: Electron.IpcRendererEvent, message: AIEvent) => callback(message)
     ipcRenderer.on(AI_EVENT, listener)

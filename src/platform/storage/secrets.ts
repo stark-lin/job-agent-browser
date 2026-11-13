@@ -1,6 +1,6 @@
 import { fail } from '../../domain/common/errors'
 import { object } from './validation'
-import { providerId } from './ai-preferences'
+import { apiKey, providerId } from './ai-preferences'
 import { readJSON, writeJSON } from './files'
 
 export interface KeyProtection {
@@ -37,10 +37,10 @@ export function createSecrets(path: string, protection: KeyProtection) {
     hasProviderKey(input: unknown) { return status(provider(input).provider) },
     saveProviderKey(input: unknown) {
       const value = provider(input, ['provider', 'apiKey'])
-      if (typeof value.apiKey !== 'string' || !value.apiKey.trim() || value.apiKey.length > 4096 || /\s/.test(value.apiKey.trim())) return fail('INVALID_INPUT')
+      const key = apiKey(value.apiKey)
       if (!protection.available()) return fail('ENCRYPTION_UNAVAILABLE')
       const providers = load()
-      providers[value.provider] = protection.encrypt(value.apiKey.trim()).toString('base64')
+      providers[value.provider] = protection.encrypt(key).toString('base64')
       writeJSON(path, { version: 2, providers })
       return status(value.provider)
     },
@@ -49,6 +49,25 @@ export function createSecrets(path: string, protection: KeyProtection) {
       delete providers[id]
       writeJSON(path, { version: 2, providers })
       return status(id)
+    },
+    // Update ciphertext and roll back if the synchronous Preferences write fails.
+    withProviderKey(id: string, key: string | null, write: () => void): void {
+      providerId(id)
+      const providers = load(), previous = providers[id]
+      if (key === null && previous === undefined) return write()
+      if (key === null) delete providers[id]
+      else {
+        if (!protection.available()) return fail('ENCRYPTION_UNAVAILABLE')
+        providers[id] = protection.encrypt(apiKey(key)).toString('base64')
+      }
+      writeJSON(path, { version: 2, providers })
+      try { return write() }
+      catch (error) {
+        if (previous === undefined) delete providers[id]
+        else providers[id] = previous
+        writeJSON(path, { version: 2, providers })
+        throw error
+      }
     },
     // Main-only: explicitly excluded from the data-contract allowlist and preload bridge.
     readProviderKey(id: string): string | null {

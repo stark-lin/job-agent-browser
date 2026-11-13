@@ -137,8 +137,8 @@ module.exports = async function smartPasteSmoke({ window, call, read, active, ev
     await applyDraft('Saved from UI')
     await evaluate(`document.querySelector(${JSON.stringify(settingsSelector)}).requestSubmit()`)
     await waitFor(() => evaluate(`document.querySelector(${JSON.stringify(settingsSelector)}).textContent.includes('Changes saved.')`), 'Smart Paste Settings saved')
-    const ai = { providers: [{ id: model, name: 'Smart Paste fixture', baseURL: origin, requiresKey: false, models: [model],
-      defaultModel: model, capabilities: { [model]: { contextWindow: 65536, maxOutputTokens: 8192, source: 'manual', verified: true } } }],
+    const ai = { providers: [{ id: model, name: 'Smart Paste fixture', baseURL: origin, models: [model],
+      overrides: { [model]: { contextWindow: 65536, maxOutputTokens: 8192 } } }],
     default: { providerId: model, modelId: model } }
     assert((await data('settings', 'savePreferences', { ai, theme: 'light', mailbox: { provider: 'custom', url: 'https://smart-paste.fixture.invalid/inbox' } })).ok)
     assert((await setConfig('Original title', 'First prompt.')).ok)
