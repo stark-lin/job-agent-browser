@@ -2,7 +2,7 @@
 
 Language [English](design-system.md) · [简体中文](design-system.zh-CN.md)
 
-Astryx 0.7.7 is the desktop renderer's general-purpose UI system. Phase 1 preserves page structure and order, copy and interactions. Phase 2 plans page rearrangement and copy improvements.
+Astryx 0.7.7 is the desktop renderer's general-purpose UI system. Phase 1 preserves page structure and order, copy and interactions. Phase 2.1 reorganizes [Settings](../src/pages/settings/SettingsPage.tsx) into seven visible sections in a single scrollable column with a 640px content limit. Settings uses Astryx Layout, Section and FormLayout, with disclosures for AI advanced fields and individual external agents. Further page reorganizations are planned.
 
 ## Component ownership
 

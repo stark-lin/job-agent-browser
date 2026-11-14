@@ -1,4 +1,4 @@
-import { Button, Heading, Section, Stack, Text, TextArea, TextInput } from '@astryxdesign/core'
+import { Button, Divider, FormLayout, Heading, Section, Stack, Text, TextArea, TextInput } from '@astryxdesign/core'
 import { useTranslation } from 'react-i18next'
 import { SMART_PASTE_CONFIG_LIMIT, SMART_PASTE_PROMPT_LIMIT, SMART_PASTE_TITLE_LIMIT, smartPasteSettings, type SmartPasteConfig } from '../../shared/smart-paste'
 import type { useSettings } from './useSettings'
@@ -9,30 +9,46 @@ export function SmartPasteSettings({ settings }: { settings: ReturnType<typeof u
   const { configs } = smartPasteSettings(settings.draft)
   const { saving, smartPasteDirty } = settings
   const notice = settings.notices.smartPaste
+  const error = notice === 'saveFailed' || notice === 'invalidSmartPaste'
   const change = (id: string, patch: Partial<SmartPasteConfig>) => settings.changeSmartPaste({
     configs: configs.map(config => config.id === id ? { ...config, ...patch } : config)
   })
-  return <Section className="feature-section" padding={0}><details onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{t($ => $.smartPaste.title)}</Heading></summary>
-      <div className="feature-section-body">{t($ => $.smartPaste.description) && <p>{t($ => $.smartPaste.description)}</p>}
-    <form className="settings-stack" data-settings-smart-paste onSubmit={event => { event.preventDefault(); void settings.save('smartPaste') }}>
-      {configs.map(config => <div className="settings-stack" key={config.id}>
-        <TextInput label={t($ => $.smartPaste.configTitle)}
-          value={config.title} ref={input => { if (input) { input.required = true; input.maxLength = SMART_PASTE_TITLE_LIMIT } }} isDisabled={Boolean(saving)}
-          onChange={event => change(config.id, { title: event })} />
-        <TextArea label={t($ => $.smartPaste.prompt)} ref={input => { if (input) { input.required = true; input.maxLength = SMART_PASTE_PROMPT_LIMIT } }}
-          value={config.prompt}  isDisabled={Boolean(saving)}
-          onChange={event => change(config.id, { prompt: event })} />
-        <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button type="button" variant="ghost" isDisabled={Boolean(saving)}
-          onClick={() => settings.changeSmartPaste({ configs: configs.filter(item => item.id !== config.id) })} label={t($ => $.smartPaste.remove)} /></Stack>
-      </div>)}
-      <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
-        {notice ? <Text as="p" type="supporting" role="status">{t($ => $.settings[notice])}</Text>
-          : smartPasteDirty && <Text as="p" type="supporting" role="status">{t($ => $.settings.unsaved)}</Text>}
-        <Button type="button" isDisabled={Boolean(saving) || configs.length >= SMART_PASTE_CONFIG_LIMIT}
-          onClick={() => settings.changeSmartPaste({ configs: [...configs, { id: crypto.randomUUID(), title: '', prompt: '' }] })} label={t($ => $.smartPaste.add)} />
-        <Button variant="primary" type="submit" isDisabled={!smartPasteDirty || Boolean(saving)} label={saving === 'smartPaste' ? t($ => $.settings.saving) : t($ => $.settings.save)} />
-      </Stack>
-    </form>
-  </div></details></Section>
+
+  return <Section variant="transparent" padding={0}>
+    <Stack gap={4}>
+      <Heading level={2}>{t($ => $.smartPaste.title)}</Heading>
+      <Text as="p" type="supporting" color="secondary">{t($ => $.smartPaste.description)}</Text>
+      <form data-settings-smart-paste onSubmit={event => { event.preventDefault(); void settings.save('smartPaste') }}>
+        <Stack gap={4}>
+          {configs.length > 0 && <Stack as="ul" className="settings-list" role="list" gap={4}>
+            {configs.map((config, index) => <Stack as="li" gap={4} key={config.id}>
+              {index > 0 && <Divider />}
+              <FormLayout>
+                <TextInput label={t($ => $.smartPaste.configTitle)}
+                  value={config.title} isRequired ref={input => { if (input) { input.required = true; input.maxLength = SMART_PASTE_TITLE_LIMIT } }}
+                  isDisabled={Boolean(saving)} onChange={title => change(config.id, { title })} />
+                <TextArea label={t($ => $.smartPaste.prompt)}
+                  value={config.prompt} isRequired ref={input => { if (input) { input.required = true; input.maxLength = SMART_PASTE_PROMPT_LIMIT } }}
+                  isDisabled={Boolean(saving)} onChange={prompt => change(config.id, { prompt })} />
+                <Stack direction="horizontal">
+                  <Button type="button" variant="ghost" isDisabled={Boolean(saving)} label={t($ => $.smartPaste.remove)}
+                    onClick={() => settings.changeSmartPaste({ configs: configs.filter(item => item.id !== config.id) })} />
+                </Stack>
+              </FormLayout>
+            </Stack>)}
+          </Stack>}
+          <Stack direction="horizontal" align="center" gap={2} wrap="wrap">
+            <Button variant="primary" type="submit" isDisabled={!smartPasteDirty || Boolean(saving)}
+              label={saving === 'smartPaste' ? t($ => $.settings.saving) : t($ => $.settings.save)} />
+            <Button type="button" isDisabled={Boolean(saving) || configs.length >= SMART_PASTE_CONFIG_LIMIT}
+              onClick={() => settings.changeSmartPaste({ configs: [...configs, { id: crypto.randomUUID(), title: '', prompt: '' }] })}
+              label={t($ => $.smartPaste.add)} />
+            {(notice || smartPasteDirty) && <Text as="p" type="supporting" role={error ? 'alert' : 'status'} className={error ? 'error-message' : undefined}>
+              {notice ? t($ => $.settings[notice]) : t($ => $.settings.unsaved)}
+            </Text>}
+          </Stack>
+        </Stack>
+      </form>
+    </Stack>
+  </Section>
 }

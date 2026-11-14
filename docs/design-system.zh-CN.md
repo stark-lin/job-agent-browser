@@ -2,7 +2,7 @@
 
 语言 [English](design-system.md) · [简体中文](design-system.zh-CN.md)
 
-Astryx 0.7.7 是桌面渲染端的通用 UI 系统。Phase 1 保留页面结构与顺序、文案和交互。Phase 2 计划进行页面重排与文案优化。
+Astryx 0.7.7 是桌面渲染端的通用 UI 系统。Phase 1 保留页面结构与顺序、文案和交互。Phase 2.1 将[设置](../src/pages/settings/SettingsPage.tsx)调整为单列可滚动页面，内容上限为 640px，七个设置分组直接显示。设置页使用 Astryx Layout、Section 和 FormLayout，AI 高级字段和各外部 Agent 的详情可以展开。其余页面的重排仍在计划中。
 
 ## 组件归属
 

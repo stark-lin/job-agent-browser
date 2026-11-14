@@ -1,8 +1,26 @@
-.settings-page { height: 100%; overflow-y: auto; background: var(--color-background-body); padding: var(--spacing-8) var(--spacing-6) 4rem; }
-.settings-content { width: min(760px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: var(--spacing-6); }
-.settings-sections { display: flex; flex-direction: column; gap: var(--spacing-4); }
-.settings-stack { display: flex; flex-direction: column; gap: var(--spacing-4); }
-.settings-ai-layout { display: flex; flex-direction: column; gap: var(--spacing-6); min-width: 0; }
-@media (max-width: 640px) {
-  .settings-page { padding: var(--spacing-6) var(--spacing-4) 3rem; }
+.settings-page {
+  overflow-wrap: anywhere;
+}
+
+.settings-provider-row > :first-child {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.settings-agent-detail {
+  padding-block: var(--spacing-4);
+}
+
+.settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-agent-row {
+  padding-block: var(--spacing-2);
+}
+
+.settings-agent-row > :first-child {
+  flex: 1 1 8rem;
 }
