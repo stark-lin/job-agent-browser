@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict')
-const { BrowserWindow, clipboard, Menu } = require('electron')
+const { app, BrowserWindow, clipboard, Menu } = require('electron')
 
 module.exports = async function browserCopySmoke({ window, call, read, evaluate, waitFor, pageFor, origin }) {
   const selector = JSON.stringify('button[aria-label="Copy Webpage"]')
@@ -13,27 +13,37 @@ module.exports = async function browserCopySmoke({ window, call, read, evaluate,
   try {
     await call('createTab')
     await clipboard.writeText(sentinel)
-    await waitFor(() => evaluate(`${toolbarButton}?.disabled`), 'copy disabled in a new tab')
+    await waitFor(() => evaluate(`${toolbarButton}?.matches(':disabled, [aria-disabled=true]')`), 'copy disabled in a new tab')
     await assert.rejects(call('copyWebpage'), /Could not copy webpage text/)
     assert.equal(await clipboard.readText(), sentinel)
 
     const firstTab = (await read()).activeTabId
     await call('navigate', `${origin}/copy-fixture`)
     const view = pageFor(`${origin}/copy-fixture`), contents = view.webContents
-    await waitFor(() => view.getVisible() && evaluate(`${toolbarButton}?.disabled === false`), 'copy fixture presented')
+    await waitFor(() => view.getVisible() && evaluate(`${toolbarButton}?.matches(':disabled, [aria-disabled=true]') === false`), 'copy fixture presented')
     await waitFor(() => contents.executeJavaScript("document.querySelector('#dynamic-copy')?.textContent === 'Dynamic text'"), 'dynamic fixture text')
     assert.equal(await contents.executeJavaScript("getComputedStyle(document.querySelector('h1')).userSelect"), 'none')
     assert.equal(await contents.executeJavaScript("document.dispatchEvent(new Event('copy', {cancelable:true}))"), false)
     await clickToolbar()
-    await waitFor(() => evaluate('document.querySelector(".browser-controls [role=status]")?.textContent === "Copied"'), 'toolbar copy feedback')
+    await waitFor(() => evaluate('document.querySelector(".browser-controls p[role=status]")?.textContent === "Copied"'), 'toolbar copy feedback')
     assert.equal(await clipboard.readText(), [
       'Menu', 'Lead', 'Copy test', 'Between', 'First line', 'Second line', 'Item', 'Tail',
       'Role Engineer', 'Hidden text', 'Dynamic text', 'Footer'
     ].join('\n'))
     assert.equal(await evaluate(`${toolbarButton}.previousElementSibling.matches('.address-form')`), true)
 
+    window.show()
+    if (process.platform === 'darwin') app.focus({ steal: true })
+    window.focus()
     contents.focus()
-    for (const type of ['mouseDown', 'mouseUp']) contents.sendInputEvent({ type, button: 'right', x: 300, y: 150, clickCount: 1 })
+    await waitFor(() => contents.executeJavaScript('document.hasFocus()'), 'copy source focused')
+    contents.setBackgroundThrottling(false)
+    const point = await contents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const rect = document.querySelector('h1').getBoundingClientRect();
+      resolve({ x: Math.round(rect.x + 8), y: Math.round(rect.y + 8) });
+    })))`)
+    contents.sendInputEvent({ type: 'mouseMove', ...point })
+    for (const type of ['mouseDown', 'mouseUp']) contents.sendInputEvent({ type, button: 'right', ...point, clickCount: 1 })
     await waitFor(() => !!menu, 'copy menu')
     const menuCopy = menu.getMenuItemById('browser-copy-webpage')
     assert.equal(menuCopy.label, 'Copy Webpage')
@@ -43,7 +53,7 @@ module.exports = async function browserCopySmoke({ window, call, read, evaluate,
     const secondView = pageFor(`${origin}/other-copy-tab`)
     await waitFor(() => secondView.getVisible(), 'second copy tab presented')
     menuCopy.click(menuCopy, window, {})
-    await waitFor(() => evaluate('document.querySelector(".browser-controls [role=status]")?.textContent === "Copied"'), 'menu copy feedback on the current tab')
+    await waitFor(() => evaluate('document.querySelector(".browser-controls p[role=status]")?.textContent === "Copied"'), 'menu copy feedback on the current tab')
     assert.equal(await clipboard.readText(), '/other-copy-tab')
 
     const outsider = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } })
@@ -66,12 +76,12 @@ module.exports = async function browserCopySmoke({ window, call, read, evaluate,
 
     await clipboard.writeText(sentinel)
     await call('navigate', `${origin}/copy-empty`)
-    await waitFor(() => evaluate(`${toolbarButton}?.disabled === false`), 'loaded textless page')
+    await waitFor(() => evaluate(`${toolbarButton}?.matches(':disabled, [aria-disabled=true]') === false`), 'loaded textless page')
     await clickToolbar()
     await waitFor(() => evaluate('document.querySelector(".browser-controls [role=alert]")?.textContent === "Could not copy webpage text."'), 'empty page copy error')
     assert.equal(await clipboard.readText(), sentinel)
     await assert.rejects(call('navigate', `${origin}/failure`))
-    await waitFor(() => evaluate(`${toolbarButton}?.disabled`), 'failed load disables copy')
+    await waitFor(() => evaluate(`${toolbarButton}?.matches(':disabled, [aria-disabled=true]')`), 'failed load disables copy')
     await assert.rejects(call('copyWebpage'), /Could not copy webpage text/)
     assert.equal(await clipboard.readText(), sentinel)
     await call('closeTab', firstTab)

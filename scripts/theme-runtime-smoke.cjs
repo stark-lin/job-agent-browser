@@ -1,7 +1,6 @@
 const { app, nativeTheme } = require('electron')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
-const { mkdirSync, writeFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 
 assert(process.env.JOB_BROWSER_SMOKE_DATA, 'Theme runner requires disposable storage')
@@ -42,17 +41,13 @@ app.once('browser-window-created', (_event, window) => {
         await frames()
       }
       const data = (group, method, input) => evaluate(`window.data.${group}.${method}(${JSON.stringify(input)})`)
-      const capture = async name => {
-        await frames(); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
-        writeFileSync(resolve(__dirname, '../.cache', name), (await window.capturePage()).toPNG())
-      }
       // Match the persisted-preference fixture used by the full smoke suite.
       // Defaults/first-write normalization are covered by settings unit tests.
       assert.equal((await data('settings', 'savePreferences', {})).ok, true)
       await call('navigate', 'app://settings'); await formsReady()
       await require('./theme-smoke.cjs')({ window, call, read, active, evaluate, waitFor, waitState,
         views: () => require('./native-views.cjs').views(window), origin, field,
-        submit: index => evaluate(`document.querySelectorAll('.settings-page form')[${index}].requestSubmit()`), formsReady, capture, data })
+        submit: index => evaluate(`document.querySelectorAll('.settings-page form')[${index}].requestSubmit()`), formsReady, data })
       await data('settings', 'savePreferences', { language: 'zh-CN', theme: 'dark', mailbox: { provider: 'custom', url: 'https://example.invalid/mail' } })
       const status = (await data('secrets', 'hasProviderKey', { provider: 'openai' })).value
       if (status.available) await data('secrets', 'saveProviderKey', { provider: 'openai', apiKey: 'smoke-key-restart' })

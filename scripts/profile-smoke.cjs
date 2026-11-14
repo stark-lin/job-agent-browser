@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { dialog } = require('electron')
-const { writeFileSync, mkdirSync } = require('node:fs')
+const { writeFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 const { pdfFixture } = require('./profile-fixtures.cjs')
 
@@ -18,18 +18,18 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
   }
   const field = async (label, text, scope = 'document') => {
     await evaluate(`(() => {
-      const label = [...${scope}.querySelectorAll('.ui-field-label')].find(label => label.textContent === ${JSON.stringify(label)});
+      const label = [...${scope}.querySelectorAll('label')].find(label => label.textContent === ${JSON.stringify(label)});
       const input = document.getElementById(label.htmlFor);
       const prototype = input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, ${JSON.stringify(text)});
       input.dispatchEvent(new Event('input', {bubbles:true}));
     })()`); await frame()
   }
-  const section = title => `[...document.querySelectorAll('details.ui-section-card')].find(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === ${JSON.stringify(title)})`
+  const section = title => `[...document.querySelectorAll('.feature-section > .astryx-section > details')].find(section => section.querySelector(':scope > summary h2')?.textContent === ${JSON.stringify(title)})`
   const workGroup = `document.querySelector('section[aria-label="Work experience"]')`
-  const factCard = text => `[...document.querySelectorAll('dd')].find(dd => dd.textContent === ${JSON.stringify(text)}).closest('details.ui-section-card')`
+  const factCard = text => `[...document.querySelectorAll('dd')].find(dd => dd.textContent === ${JSON.stringify(text)}).closest('.feature-section > .astryx-section > details')`
   const checkbox = async (label, scope = 'document') => {
-    await evaluate(`[...${scope}.querySelectorAll('.ui-checkbox')].find(label => label.textContent === ${JSON.stringify(label)}).querySelector('input').click()`); await frame()
+    await evaluate(`[...${scope}.querySelectorAll('label')].find(label => label.textContent === ${JSON.stringify(label)}).control.click()`); await frame()
   }
   const body = { contact: { name: 'Imported candidate', email: 'imported@example.com', introduction: 'Imported introduction.\nOriginal wording.' }, links: [],
     items: [{ source: { page: 1, line: 1 }, type: 'PROJECT', title: 'Imported project', degree: 'BSc', major: 'Computing', gpa: '3.8', employmentType: 'Contract', technologies: ['SQL'], url: 'https://example.com', startDateText: '2021', endDateText: '', isCurrent: true,
@@ -54,19 +54,18 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'first-profile import draft')
     assert.equal(await evaluate('!!document.querySelector(".profile-page details details details")'), false)
-    window.setMinimumSize(320, 320); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
+    window.setMinimumSize(320, 320)
     for (const width of [320, 1200]) {
       window.setContentSize(width, 820); await waitFor(() => evaluate(`innerWidth === ${width}`), 'import review viewport'); await frame()
       await evaluate(`${section('Imported project')}.scrollIntoView()`); await frame()
       assert.equal(await evaluate('document.querySelector(".profile-page").scrollWidth > document.querySelector(".profile-page").clientWidth'), false, `nested review overflow ${width}`)
-      writeFileSync(resolve(__dirname, `../.cache/profile-review-${width}.png`), (await window.capturePage()).toPNG())
     }
     window.setContentSize(...originalSize)
     await field('Name', '')
     await field('URL', 'example.com', section('Imported project'))
     assert.equal(await evaluate('[...document.querySelectorAll("[data-import-id] [required]")].length'), 0)
     for (const [label, value] of [['Degree', 'BSc'], ['Major', 'Computing'], ['GPA', '3.8'], ['Employment type', 'Contract'], ['Technologies', 'SQL']]) {
-      assert.equal(await evaluate(`(() => { const label = [...${section('Imported project')}.querySelectorAll('.ui-field-label')].find(label => label.textContent === ${JSON.stringify(label)}); return document.getElementById(label.htmlFor).value })()`), value)
+      assert.equal(await evaluate(`(() => { const label = [...${section('Imported project')}.querySelectorAll('label')].find(label => label.textContent === ${JSON.stringify(label)}); return document.getElementById(label.htmlFor).value })()`), value)
     }
     await evaluate(`${section('Imported project')}.querySelector('summary').click()`)
     await button('Save imported content')
@@ -102,28 +101,24 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     assert.deepEqual(await evaluate(`(() => {
       const card = ${section('Manual experience')};
       card.querySelector('summary').click();
-      const button = card.nextElementSibling;
+      const button = card.closest('.feature-section').nextElementSibling;
       const cardRect = card.getBoundingClientRect(), buttonRect = button.getBoundingClientRect();
-      const result = [buttonRect.width - cardRect.width, buttonRect.height - cardRect.height,
-        buttonRect.top - cardRect.bottom, getComputedStyle(button).borderTopStyle];
+      const result = [buttonRect.width > 0 && Math.abs(buttonRect.width - cardRect.width) < 3, buttonRect.top >= cardRect.bottom];
       card.querySelector('summary').click();
       return result;
-    })()`), [0, 0, 24, 'dashed'])
+    })()`), [true, true])
     assert.deepEqual(await evaluate(`(() => {
       const card = ${section('Manual experience')};
-      const nested = card.querySelector('.ui-button--add-card');
-      const { paddingTop, paddingRight, paddingBottom, paddingLeft, borderLeftWidth } = getComputedStyle(card);
+      const nested = card.querySelector('.add-record');
       const outer = card.getBoundingClientRect(), inner = nested.getBoundingClientRect();
-      const border = parseFloat(borderLeftWidth);
-      return [paddingTop, paddingRight, paddingBottom, paddingLeft, inner.left - outer.left - border,
-        outer.right - inner.right - border, outer.bottom - inner.bottom - border];
-    })()`), ['16px', '16px', '16px', '16px', 16, 16, 16])
+      return [inner.left >= outer.left, inner.right <= outer.right, inner.bottom <= outer.bottom];
+    })()`), [true, true, true])
     for (const content of ['Manual first', 'Manual second']) {
       await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'editor closed')
       await button('Add fact', section('Manual experience')); await field('Fact', content, 'document.querySelector("dialog[open]")')
       await field('Tags (comma separated)', 'SQL, ', 'document.querySelector("dialog[open]")')
       assert.equal(await evaluate('document.querySelector("dialog[open]").innerText.includes("Source excerpt and page")'), false)
-      assert.equal(await evaluate(`(() => { const label = [...document.querySelectorAll('dialog[open] .ui-field-label')].find(label => label.textContent === 'Tags (comma separated)'); return document.getElementById(label.htmlFor).value })()`), 'SQL, ')
+      assert.equal(await evaluate(`(() => { const label = [...document.querySelectorAll('dialog[open] label')].find(label => label.textContent === 'Tags (comma separated)'); return document.getElementById(label.htmlFor).value })()`), 'SQL, ')
       await field('Tags (comma separated)', 'SQL, TypeScript', 'document.querySelector("dialog[open]")')
       await button('Save', 'document.querySelector("dialog[open]")')
       await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'fact saved')
@@ -140,8 +135,8 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await checkbox('Append to current profile')
     await button('Upload PDF and parse')
     await waitFor(() => evaluate('!!document.querySelector("[data-import-id]")'), 'built PDF worker and SSE parsed draft')
-    await checkbox('Ignore', '[...document.querySelectorAll("[data-import-id=contact-name] .ui-checkbox")][0].parentElement')
-    const importedFact = text => `[...document.querySelectorAll('textarea')].find(input => input.value === ${JSON.stringify(text)}).closest('details.ui-section-card')`
+    await checkbox('Ignore', '[...document.querySelectorAll("[data-import-id=contact-name] input[type=checkbox]")][0].closest("[data-import-id]")')
+    const importedFact = text => `[...document.querySelectorAll('textarea')].find(input => input.value === ${JSON.stringify(text)}).closest('.feature-section > .astryx-section > details')`
     await checkbox('Ignore', importedFact('Improved latency'))
     await field('Fact', 'Reviewed first', importedFact('Built services'))
     await button('Save imported content')
@@ -163,7 +158,7 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Save imported content'); await waitFor(async () => (await data('listItems', { profileId: profile.id })).value.total === 3, 'duplicate upload adds a new entry')
     await waitFor(() => evaluate('!document.querySelector("dialog[open]")'), 'second draft discarded')
     assert.equal(requests, 5)
-    const duplicateSection = `[...document.querySelectorAll('details.ui-section-card')].filter(section => section.querySelector(':scope > .ui-section-heading h2')?.textContent === 'Imported project').at(-1)`
+    const duplicateSection = `[...document.querySelectorAll('.feature-section > .astryx-section > details')].filter(section => section.querySelector(':scope > summary h2')?.textContent === 'Imported project').at(-1)`
     await button('Delete', duplicateSection)
     assert(await evaluate('document.querySelector("dialog[open]").innerText.includes("0 descendant entries and 2 attached facts")'))
     await button('Delete', 'document.querySelector("dialog[open]")')
@@ -177,19 +172,12 @@ module.exports = async function profileSmoke({ window, call, read, active, evalu
     await button('Delete', factCard('Pagination 0')); await button('Delete', 'document.querySelector("dialog[open]")')
     await waitFor(async () => (await data('listFacts', { profileId: profile.id })).value.total === 103, 'individual fact deletion')
     window.setMinimumSize(320, 320)
-    mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {
       await settings({ language, theme }); await waitFor(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)} && document.documentElement.dataset.theme === ${JSON.stringify(theme)}`), 'profile locale and theme')
       for (const width of [320, 640, 1200]) {
         window.setContentSize(width, 820); await waitFor(() => evaluate(`innerWidth === ${width}`), 'profile responsive viewport'); await frame()
         assert.equal(await evaluate('document.querySelector(".profile-page").scrollWidth > document.querySelector(".profile-page").clientWidth'), false, `profile overflow ${language}/${theme}/${width}`)
-        assert.equal(await evaluate('[...document.querySelectorAll(".profile-page input:not([type=checkbox]), .profile-page textarea, .profile-page select")].every(input => document.querySelector(`label[for="${input.id}"]`))'), true)
-        if (language === 'zh-CN') {
-          writeFileSync(resolve(__dirname, `../.cache/profile-${theme}-${width}.png`), (await window.capturePage()).toPNG())
-          await evaluate('document.querySelector(".profile-page form textarea").scrollIntoView({block:"center"})'); await frame()
-          writeFileSync(resolve(__dirname, `../.cache/profile-introduction-${theme}-${width}.png`), (await window.capturePage()).toPNG())
-          await evaluate('document.querySelector(".profile-page").scrollIntoView()'); await frame()
-        }
+        assert.equal(await evaluate('[...document.querySelectorAll(".profile-page input:not([type=checkbox]):not([type=hidden]), .profile-page textarea, .profile-page select")].every(input => document.querySelector(`label[for="${input.id}"]`))'), true)
       }
     }
     await settings({ language: 'en' }); await frame()

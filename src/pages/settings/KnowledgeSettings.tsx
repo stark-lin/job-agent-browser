@@ -1,9 +1,9 @@
+import { Button, CheckboxInput, Heading, Section, Selector, Stack, Text, TextInput } from '@astryxdesign/core'
 import { RemoteSyncDialog } from '../../app/knowledge/RemoteSyncDialog'
 import type { SpaceId } from '../../shared/smart-note'
 import { LocalModelSettings } from './LocalModelSettings'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, Checkbox, FormField, SectionCard, StatusMessage, TextInput, Select } from '../../shared/ui'
 import { defaultKnowledgePreferences } from '../../shared/knowledge-settings'
 export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => void }) {
   const { t } = useTranslation(),
@@ -68,48 +68,35 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
     setNotice(result.ok ? result.value.error ?? result.value.state : result.error)
   }
   return (
-    <SectionCard defaultCollapsed title={t(($) => $.knowledge.settingsTitle)} description={t(($) => $.knowledge.settingsHelp)}>
+    <Section className="feature-section" padding={0}><details onInvalidCapture={event => { event.currentTarget.open = true }}>
+      <summary><Heading level={2}>{t(($) => $.knowledge.settingsTitle)}</Heading></summary>
+      <div className="feature-section-body">{t(($) => $.knowledge.settingsHelp) && <p>{t(($) => $.knowledge.settingsHelp)}</p>}
       <div className="settings-stack">
-        <FormField label={t(($) => $.knowledge.remote)}>
-          {(props) => (
-            <TextInput
-              {...props}
+        <TextInput
+              label={t(($) => $.knowledge.remote)}
               type="url"
               value={draft.remote}
-              disabled={!ready || busy}
-              onChange={(e) => setDraft({ ...draft, remote: e.target.value })}
+              isDisabled={!ready || busy}
+              onChange={e => setDraft({ ...draft, remote: e })}
               placeholder="https://github.com/owner/repository.git"
             />
-          )}
-        </FormField>
-        <FormField label={t(($) => $.knowledge.branch)}>
-          {(props) => (
-            <TextInput
-              {...props}
+        <TextInput
+              label={t(($) => $.knowledge.branch)}
               value={draft.branch}
-              disabled={!ready || busy}
-              onChange={(e) => setDraft({ ...draft, branch: e.target.value })}
+              isDisabled={!ready || busy}
+              onChange={e => setDraft({ ...draft, branch: e })}
             />
-          )}
-        </FormField>
-        <FormField
-          label={t(($) => $.knowledge.token)}
-          help={configured ? t(($) => $.knowledge.tokenConfigured) : t(($) => $.knowledge.tokenHelp)}
-        >
-          {(props) => (
-            <TextInput
-              {...props}
+        <TextInput
+              label={t(($) => $.knowledge.token)} description={configured ? t(($) => $.knowledge.tokenConfigured) : t(($) => $.knowledge.tokenHelp)}
               type="password"
               autoComplete="off"
               value={key}
-              disabled={!ready || busy}
-              onChange={(e) => setKey(e.target.value)}
+              isDisabled={!ready || busy}
+              onChange={e => setKey(e)}
             />
-          )}
-        </FormField>
-        <ActionRow>
+        <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
           <Button
-            disabled={!key || busy}
+            isDisabled={!key || busy}
             onClick={() =>
               void run(async () => {
                 const r = await api.token({ token: key })
@@ -122,11 +109,9 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
                 } else setNotice(r.error)
               })
             }
-          >
-            {t(($) => $.knowledge.saveToken)}
-          </Button>
+           label={t(($) => $.knowledge.saveToken)} />
           <Button
-            disabled={!configured || busy}
+            isDisabled={!configured || busy}
             onClick={() =>
               void run(async () => {
                 const r = await api.token({ token: null })
@@ -136,29 +121,22 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
                 } else setNotice(r.error)
               })
             }
-          >
-            {t(($) => $.knowledge.removeToken)}
-          </Button>
-        </ActionRow>
-        <Checkbox
+           label={t(($) => $.knowledge.removeToken)} />
+        </Stack>
+        <CheckboxInput
           label={t(($) => $.knowledge.semanticEnable)}
-          checked={draft.semanticEnabled}
-          disabled={!ready || busy}
-          onChange={(e) => setDraft({ ...draft, semanticEnabled: e.target.checked })}
+          value={draft.semanticEnabled}
+          isDisabled={!ready || busy}
+          onChange={e => setDraft({ ...draft, semanticEnabled: e })}
         />
-        <StatusMessage>{t(($) => $.knowledge.semanticHelp)}</StatusMessage>
+        <Text as="p" type="supporting" role="status">{t(($) => $.knowledge.semanticHelp)}</Text>
         <LocalModelSettings />
-        {draft.semanticEnabled && indexError && <StatusMessage tone="error">{t(($) => $.knowledge.semanticUnavailable)}</StatusMessage>}
-        <FormField label={t($ => $.knowledge.indexSpace)}>
-          {props => <Select {...props} value={indexSpace} onChange={e => setIndexSpace(e.target.value as SpaceId)} disabled={!ready || busy}>
-            <option value="knowledge">{t($ => $.knowledge.knowledgeSpace)}</option>
-            <option value="memory">{t($ => $.knowledge.memory)}</option>
-          </Select>}
-        </FormField>
-        <ActionRow>
+        {draft.semanticEnabled && indexError && <Text as="p" type="supporting" role="alert" className="error-message">{t(($) => $.knowledge.semanticUnavailable)}</Text>}
+        <Selector label={t($ => $.knowledge.indexSpace)} value={indexSpace} onChange={value => { if (value === 'knowledge' || value === 'memory') setIndexSpace(value) }} isDisabled={!ready || busy}  options={[({ value: "knowledge", label: t($ => $.knowledge.knowledgeSpace) }), ({ value: "memory", label: t($ => $.knowledge.memory) })]} />
+        <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
           <Button
             variant="primary"
-            disabled={!ready || busy}
+            isDisabled={!ready || busy}
             onClick={() =>
               void run(async () => {
                 const r = await api.configure(draft)
@@ -171,37 +149,31 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
                 } else setNotice(r.error)
               })
             }
-          >
-            {t(($) => $.knowledge.saveSettings)}
-          </Button>
+           label={t(($) => $.knowledge.saveSettings)} />
           <Button
-            disabled={!ready || busy}
+            isDisabled={!ready || busy}
             onClick={() =>
               void run(async () => {
                 await synchronize()
               })
             }
-          >
-            {t(($) => $.knowledge.sync)}
-          </Button>
+           label={t(($) => $.knowledge.sync)} />
           <Button
-            disabled={!ready || busy}
+            isDisabled={!ready || busy}
             onClick={() =>
               void run(async () => {
                 const r = await api.rebuild({ space: indexSpace })
                 setNotice(r.ok ? 'rebuilt' : r.error)
               })
             }
-          >
-            {t(($) => $.knowledge.rebuild)}
-          </Button>
-        </ActionRow>
+           label={t(($) => $.knowledge.rebuild)} />
+        </Stack>
         {notice && (
-          <StatusMessage tone={['saved', 'synced', 'local', 'rebuilt'].includes(notice) ? 'success' : 'error'}>
+          <Text as="p" type="supporting" role="status">
             {['saved', 'synced', 'local', 'rebuilt', 'conflict', 'failed'].includes(notice)
               ? t(($) => $.knowledge[notice as 'saved' | 'synced' | 'local' | 'rebuilt' | 'conflict' | 'failed'])
               : notice === 'SYNC_CONSENT_REQUIRED' ? t($ => $.knowledge.syncConsentRequired) : t(($) => $.knowledge.error) + ` (${notice})`}
-          </StatusMessage>
+          </Text>
         )}
         <RemoteSyncDialog remote={consent} busy={busy} onCancel={() => setConsent(null)} onConfirm={() => {
           if (!consent) return
@@ -212,6 +184,6 @@ export function KnowledgeSettings({ onDirty }: { onDirty: (dirty: boolean) => vo
           })
         }} />
       </div>
-    </SectionCard>
+    </div></details></Section>
   )
 }

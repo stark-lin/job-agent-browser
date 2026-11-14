@@ -1,12 +1,11 @@
 const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
-const { BrowserWindow, dialog, nativeTheme } = require('electron')
-const { chmodSync, mkdirSync, statSync, writeFileSync } = require('node:fs')
-const { resolve } = require('node:path')
+const { dialog, nativeTheme } = require('electron')
+const { chmodSync, statSync } = require('node:fs')
 
-module.exports = async function themeSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, capture, data }) {
-  const selector = '[data-settings-general] .ui-segmented:first-of-type button[aria-pressed=true]'
-  const appearance = '[data-settings-general] .ui-field:nth-child(2) .ui-segmented'
+module.exports = async function themeSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, origin, field, submit, formsReady, data }) {
+  const selector = '[data-settings-general] [role=radiogroup] [role=radio][aria-checked=true]'
+  const appearance = '[data-settings-general] [role=radiogroup]:has([data-value=system])'
   const chooseTheme = theme => evaluate(`document.querySelector('${appearance}').querySelectorAll('button')[${['system', 'light', 'dark'].indexOf(theme)}].click()`)
   const applied = theme => waitFor(() => evaluate(`document.documentElement.dataset.theme === '${theme}' && getComputedStyle(document.documentElement).colorScheme === '${theme}'`), `applied ${theme}`)
   const save = async theme => {
@@ -18,7 +17,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   }
   const geometry = () => evaluate(`(() => {
     const properties = ['padding', 'margin', 'gap', 'fontFamily', 'fontSize', 'lineHeight', 'fontWeight', 'borderRadius', 'borderWidth', 'transitionDuration', 'animationDuration'];
-    return [...document.querySelectorAll('.ui-select, .ui-input, .ui-section-card, .ui-icon-box, .ai-composer, .ui-navigation-item, .tab-strip, .browser-controls, .address-form')].map(node => {
+    return [...document.querySelectorAll('[role=combobox], input, .feature-section, .ai-composer, .workspace-sidebar button, .tab-strip, .browser-controls, .address-form')].map(node => {
       const style = getComputedStyle(node), rect = node.getBoundingClientRect();
       // Closed details can retain stale native-select bounds; only rendered boxes have layout.
       const visible = node.checkVisibility();
@@ -35,7 +34,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   }
 
   await openSectionCards(evaluate, appearance)
-  assert.equal(await evaluate(`document.querySelector('${selector}').lang`), 'en')
+  assert.equal(await evaluate(`document.querySelector('${selector}').textContent`), 'English')
   assert.equal(await evaluate(`document.querySelector('${appearance} button').disabled`), false)
   // Draft selection neither changes the saved theme nor applies a preview; leave protection still works.
   await chooseTheme('dark')
@@ -52,7 +51,7 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
     assert.equal(active(await read()).destination.page, 'ai', 'Theme notifications do not invalidate confirmed navigation')
   } finally { dialog.showMessageBox = originalDialog }
   await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
-  assert.equal(await evaluate(`document.querySelector('${appearance} button[aria-pressed=true]').textContent`), 'Light')
+  assert.equal(await evaluate(`document.querySelector('${appearance} [role=radio][aria-checked=true]').textContent`), 'Light')
 
   if (process.platform !== 'win32' && process.getuid?.() !== 0) {
     const directory = process.env.JOB_BROWSER_SMOKE_DATA, permissions = statSync(directory).mode & 0o777
@@ -66,7 +65,6 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   }
 
   await save('dark')
-  await capture('settings-dark.png')
   const originalSize = window.getContentSize(), originalMinimum = window.getMinimumSize()
   window.setMinimumSize(320, 320)
   try {
@@ -78,7 +76,6 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
       await save('dark')
       assert.deepEqual(await geometry(), light, `Settings color-only geometry at ${width}px`)
       assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
-      if (width === 320) await capture('settings-dark-narrow.png')
     }
     await call('navigate', 'app://ai')
     await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'theme Ask AI composer')
@@ -92,7 +89,6 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
       assert.deepEqual(await geometry(), light, `Ask AI color-only geometry at ${width}px`)
       assert.equal(await evaluate('document.querySelector(".ai-page").scrollWidth > document.querySelector(".ai-page").clientWidth'), false)
     }
-    await capture('ask-ai-dark.png')
   } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
 
   // Existing/new remote views follow native color preference without injected CSS or scripts.
@@ -106,7 +102,6 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   assert.deepEqual(await geometry(), chrome, 'Browser chrome geometry unchanged')
   assert.deepEqual(view.getBounds(), bounds, 'Native bounds unchanged')
   assert.equal(await view.webContents.executeJavaScript("matchMedia('(prefers-color-scheme: dark)').matches"), true)
-  await capture('browser-dark.png')
   await call('navigate', 'app://settings'); await formsReady(); await openSectionCards(evaluate, appearance)
   await save('system')
   const target = active(await read()).targetId
@@ -117,30 +112,11 @@ module.exports = async function themeSmoke({ window, call, read, active, evaluat
   await applied('dark')
   assert.equal((await data('settings', 'get', {})).value.theme, 'system')
   assert.equal(active(await read()).targetId, target)
-  assert.equal(await evaluate(`document.querySelector('${appearance} button[aria-pressed=true]').textContent`), 'System')
+  assert.equal(await evaluate(`document.querySelector('${appearance} [role=radio][aria-checked=true]').textContent`), 'System')
   await save('light')
   assert.equal(nativeTheme.themeSource, 'light')
   nativeTheme.emit('updated')
   await applied('light')
 
-  // The unchanged standalone gallery follows the system by CSS; explicit attributes allow QA of both palettes.
-  const gallery = new BrowserWindow({ show: false, width: 1200, height: 820 })
-  gallery.webContents.setBackgroundThrottling(false)
-  try {
-    await gallery.loadFile(resolve(__dirname, '../docs/components/job-browser-component-library-8px.html'))
-    const inspect = theme => gallery.webContents.executeJavaScript(`(async () => {
-      document.documentElement.dataset.theme = '${theme}';
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return [...document.querySelectorAll('body *')].map(node => {
-        const rect = node.getBoundingClientRect(), style = getComputedStyle(node);
-        return [rect.x, rect.y, rect.width, rect.height, style.padding, style.margin, style.gap, style.fontSize, style.lineHeight, style.borderRadius, style.borderWidth, style.animationDuration];
-      });
-    })()`)
-    assert.deepEqual(await inspect('dark'), await inspect('light'), 'All gallery elements keep identical geometry')
-    await inspect('dark')
-    await gallery.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 200))')
-    mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
-    writeFileSync(resolve(__dirname, '../.cache/gallery-dark.png'), (await gallery.capturePage()).toPNG())
-  } finally { gallery.destroy() }
-  console.log('Theme smoke passed: saved/draft themes, system updates, unchanged navigation, 320/640/1200px geometry, native color preference and gallery geometry.')
+  console.log('Theme smoke passed: saved/draft themes, system updates, unchanged navigation, responsive geometry and native color preference.')
 }

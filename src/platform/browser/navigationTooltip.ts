@@ -1,6 +1,7 @@
-import { WebContentsView, type BrowserWindow } from 'electron'
+import { nativeTheme, WebContentsView, type BrowserWindow } from 'electron'
 import type { SidebarTooltip } from '../../shared/browser'
-import { navigationTooltipStyles } from '../../shared/ui/navigation-tooltip-styles'
+import palette from '../electron/nativeTheme.css?raw'
+import styles from './navigation-tooltip.css?raw'
 
 // Native web content is above the renderer's top layer. Mirror the label in a
 // small sibling view so the tooltip can stay above the active web surface.
@@ -15,7 +16,8 @@ export function mountNavigationTooltip(window: BrowserWindow) {
   contents.on('will-frame-navigate', event => event.preventDefault())
   const loaded = contents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
 <meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>Navigation tooltip</title><style>${navigationTooltipStyles}
+<title>Navigation tooltip</title><style>${palette}
+${styles}
 html, body { margin: 0; overflow: hidden; background: transparent; }
 body { box-sizing: border-box; }
 </style><body class="ui-navigation-tooltip" aria-hidden="true"></body>`)}`).then(() => true, () => false)
@@ -39,7 +41,7 @@ body { box-sizing: border-box; }
     if (x < 0 || y < 0 || tipWidth < 1 || tipHeight < 1 || x + tipWidth > width || y + tipHeight > height) return
     if (!await loaded || current !== revision || contents.isDestroyed()) return
     try {
-      await contents.executeJavaScript(`document.body.textContent = ${JSON.stringify(tooltip.label)}`)
+      await contents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(nativeTheme.shouldUseDarkColors ? 'dark' : 'light')}; document.body.textContent = ${JSON.stringify(tooltip.label)}`)
       if (current !== revision || contents.isDestroyed()) return
       view.setBounds({ x, y, width: tipWidth, height: tipHeight })
       window.contentView.addChildView(view)

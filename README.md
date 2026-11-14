@@ -51,7 +51,6 @@ npm run test:integrations
 npm run test:agent
 npm run test:profile
 npm run test:ask-ai
-npm run design:check
 npm run release:npm:check
 ```
 
@@ -108,7 +107,7 @@ Integrate changes into `dev`, then promote it to `main` through a passing PR. Ma
 | [npm user guide](packages/npm/README.md) · [简体中文](packages/npm/README.zh-CN.md) | Published-package commands and user-data behavior |
 | [Shared Mermaid ER diagram](docs/diagrams/data-model.md) | Implemented model shared by both data architecture editions |
 | [Design brief](DESIGN.md) · [简体中文](DESIGN.zh-CN.md) | Visual direction, interaction principles, and starting point for UI design |
-| [Component library and design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | 8px UI rules, reference HTML, downloadable CSS/Tokens and validation |
+| [Design system](docs/design-system.md) · [简体中文](docs/design-system.zh-CN.md) | Astryx components, themes, native surfaces and verification |
 
 ## Smart Note knowledge
 

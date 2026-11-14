@@ -1,7 +1,5 @@
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
-const { mkdirSync, writeFileSync } = require('node:fs')
-const { resolve } = require('node:path')
 
 module.exports = async function browserSmoke(window) {
   const server = createServer((request, response) => {
@@ -68,7 +66,7 @@ module.exports = async function browserSmoke(window) {
   const pageFor = (url) => views().find((view) => view.webContents.getURL() === url)
   async function submit(value) {
     await evaluate(`(() => {
-      const input = document.querySelector('[aria-label="Search or enter URL"]');
+      const input = document.querySelector('.address-form input');
       input.focus();
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)});
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -93,7 +91,7 @@ module.exports = async function browserSmoke(window) {
     assert(views().every((view) => !view.getVisible()))
     assert.deepEqual(active(state).destination, { kind: 'internal', page: 'ai' })
     await waitFor(() => evaluate('!!document.querySelector(".ai-composer")'), 'Ask AI at startup')
-    const sidebar = label => evaluate(`document.querySelector('.ui-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
+    const sidebar = label => evaluate(`document.querySelector('.workspace-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
     await sidebar('Browser')
     await waitFor(() => evaluate('!!document.querySelector(".new-tab-page")'), 'blank tab UI')
     await submit(`${origin.replace('http://', '')}/one`)
@@ -102,7 +100,7 @@ module.exports = async function browserSmoke(window) {
     const firstContents = firstView.webContents
     assert(firstView.getVisible())
     assert.equal(require('./native-views.cjs').bounds(window, firstView).y, 96)
-    const sidebarWidth = 64
+    const sidebarWidth = 72
     assert.equal(require('./native-views.cjs').bounds(window, firstView).x, sidebarWidth)
     assert.equal(require('./native-views.cjs').bounds(window, firstView).width, window.getContentSize()[0] - sidebarWidth)
     const chrome = await evaluate(`(() => {
@@ -217,13 +215,10 @@ module.exports = async function browserSmoke(window) {
     await waitState((state) => active(state).title === '/other' && !active(state).error, 'load error recovery')
     await assert.rejects(call('activateTab', 'missing-tab'))
     await assert.rejects(call('closeTab', 123))
-    const screenshotDirectory = resolve(__dirname, '../.cache')
-    mkdirSync(screenshotDirectory, { recursive: true })
     await call('createTab')
     await call('navigate', 'app://browser')
-    await waitFor(() => evaluate('!!document.querySelector(".new-tab-page") && document.querySelectorAll("[role=tab]").length === 2'), 'capture tab UI')
+    await waitFor(() => evaluate('!!document.querySelector(".new-tab-page") && document.querySelectorAll("[role=tab]").length === 2'), 'two tabs in the browser UI')
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100))))')
-    writeFileSync(resolve(screenshotDirectory, 'browser-tabs.png'), (await window.capturePage()).toPNG())
     await call('closeTab', (await read()).activeTabId)
     await call('closeTab', secondId)
     state = await read()

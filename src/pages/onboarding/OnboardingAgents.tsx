@@ -1,7 +1,8 @@
+import { useCopyFeedback } from '../../shared/use-copy-feedback'
+import { Button, CheckboxInput, Dialog, DialogHeader, Section, Stack, Text } from '@astryxdesign/core'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ExternalMCPInspection, ExternalMCPStatus, ExternalMCPTarget } from '../../shared/external-mcp'
-import { ActionRow, Button, Checkbox, CopyButton, Dialog, QuietPanel, StatusMessage } from '../../shared/ui'
 import { useExternalSkills } from '../settings/useExternalSkills'
 import { ExternalSkillsConfirmation } from '../settings/ExternalSkillsSettings'
 
@@ -42,6 +43,7 @@ export function useOnboardingAgents() {
 }
 export function OnboardingAgents({ state: s }: { state: ReturnType<typeof useOnboardingAgents> }) {
   const { t } = useTranslation()
+  const mcpClipboard = useCopyFeedback(), skillsClipboard = useCopyFeedback()
   async function copyMCP() {
     try {
       const result = await window.externalMCP.copy({ target: 'other' })
@@ -58,30 +60,35 @@ export function OnboardingAgents({ state: s }: { state: ReturnType<typeof useOnb
       const selected = s.selected.includes(id), status = s.inspection?.clients.find(client => client.target === id)
       const skill = s.skills.inspection?.clients.find(client => client.target === id)
       const installed = skill?.skills.every(item => item.state === 'installed')
-      return <QuietPanel key={id}>
-        <div className="onboarding-agent-label"><Checkbox disabled={s.busy} label={id === 'other' ? t($ => $.externalMCP.other) : agentNames[id as ExternalMCPTarget]}
-          checked={selected} onChange={event => s.setSelected(current => event.target.checked ? [...current, id] : current.filter(target => target !== id))} />
+      return <Section key={id} variant="muted" padding={3}>
+        <div className="onboarding-agent-label"><CheckboxInput isDisabled={s.busy} label={id === 'other' ? t($ => $.externalMCP.other) : agentNames[id as ExternalMCPTarget]}
+          value={selected} onChange={event => s.setSelected(current => event ? [...current, id] : current.filter(target => target !== id))} />
           <span>{s.verified.includes(id) ? t($ => $.onboarding.verified) : status ? t($ => $.externalMCP.states[status.state]) : t($ => $.onboarding.notConfigured)}</span>
         </div>
-        {selected && <div className="onboarding-agent-tools"><ActionRow align="start">
-          {id === 'other' ? <><CopyButton size="sm" disabled={s.busy} onCopy={copyMCP} copyLabel={t($ => $.onboarding.copyMCP)} copiedLabel={t($ => $.externalMCP.copied)} />
-            <CopyButton size="sm" disabled={s.busy} onCopy={copySkills} copyLabel={t($ => $.onboarding.copySkills)} copiedLabel={t($ => $.externalMCP.copied)} /></>
-            : <><Button size="sm" disabled={s.busy || !status || Boolean(status.error)} onClick={() => status && void s.connect(status)}>{status?.state === 'configured' ? t($ => $.externalMCP.reconnect) : t($ => $.onboarding.installMCP)}</Button>
-              <Button size="sm" disabled={s.busy || !skill || Boolean(skill.error)} onClick={() => skill && s.skills.requestInstall(skill, installed ? 'reconnect' : 'install')}>{installed ? t($ => $.externalSkills.update) : t($ => $.externalSkills.install)}</Button>
-              {installed && <StatusMessage tone="success">{t($ => $.externalSkills.installed)}</StatusMessage>}</>}
-        </ActionRow>
-          {s.verified.includes(id) && <StatusMessage>{t($ => $.externalSkills.reconnectHelp)}</StatusMessage>}
-          {id !== 'other' && s.skills.outcomes[id as ExternalMCPTarget]?.error && <StatusMessage tone="error">{t($ => $.externalSkills.errors[s.skills.outcomes[id as ExternalMCPTarget]!.error!])}</StatusMessage>}
+        {selected && <div className="onboarding-agent-tools"><Stack  className="action-row" direction="horizontal" justify="start" align="center" gap={2} wrap="wrap">
+          {id === 'other' ? <><Button size="sm" label={mcpClipboard.copied ? t($ => $.externalMCP.copied) : t($ => $.onboarding.copyMCP)}
+        isDisabled={s.busy || mcpClipboard.copying || mcpClipboard.copied} aria-busy={mcpClipboard.copying} aria-live="polite" onClick={() => void mcpClipboard.copy(copyMCP)} />
+            <Button size="sm" label={skillsClipboard.copied ? t($ => $.externalMCP.copied) : t($ => $.onboarding.copySkills)}
+        isDisabled={s.busy || skillsClipboard.copying || skillsClipboard.copied} aria-busy={skillsClipboard.copying} aria-live="polite" onClick={() => void skillsClipboard.copy(copySkills)} /></>
+            : <><Button size="sm" isDisabled={s.busy || !status || Boolean(status.error)} onClick={() => status && void s.connect(status)} label={status?.state === 'configured' ? t($ => $.externalMCP.reconnect) : t($ => $.onboarding.installMCP)} />
+              <Button size="sm" isDisabled={s.busy || !skill || Boolean(skill.error)} onClick={() => skill && s.skills.requestInstall(skill, installed ? 'reconnect' : 'install')} label={installed ? t($ => $.externalSkills.update) : t($ => $.externalSkills.install)} />
+              {installed && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.externalSkills.installed)}</Text>}</>}
+        </Stack>
+          {s.verified.includes(id) && <Text as="p" type="supporting" role="status">{t($ => $.externalSkills.reconnectHelp)}</Text>}
+          {id !== 'other' && s.skills.outcomes[id as ExternalMCPTarget]?.error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[s.skills.outcomes[id as ExternalMCPTarget]!.error!])}</Text>}
         </div>}
-      </QuietPanel>
+      </Section>
     })}
-    {s.error && <StatusMessage tone="error">{s.error}</StatusMessage>}
-    {s.skills.error && <><StatusMessage tone="error">{t($ => $.externalSkills.errors[s.skills.error!])}</StatusMessage><Button disabled={s.busy} onClick={() => void s.skills.refresh()}>{t($ => $.settings.retry)}</Button></>}
-    {s.skills.openError && <StatusMessage tone="error">{t($ => $.externalSkills.errors[s.skills.openError!])}</StatusMessage>}
-    {!s.inspection && <Button disabled={s.busy} onClick={() => void s.refresh().catch(() => s.setError(t($ => $.settings.loadFailed)))}>{t($ => $.settings.retry)}</Button>}
-    <Dialog open={Boolean(s.confirm)} title={t($ => $.externalMCP.replaceTitle)} description={t($ => $.externalMCP.replaceHelp, { agent: s.confirm ? agentNames[s.confirm.target] : '' })} onClose={() => s.setConfirm(null)}>
-      <Button autoFocus onClick={() => s.setConfirm(null)}>{t($ => $.settings.cancel)}</Button>
-      <Button variant="danger" onClick={() => s.confirm && void s.connect(s.confirm, true)}>{t($ => $.externalMCP.confirmReplace)}</Button>
+    {s.error && <Text as="p" type="supporting" role="alert" className="error-message">{s.error}</Text>}
+    {s.skills.error && <><Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[s.skills.error!])}</Text><Button isDisabled={s.busy} onClick={() => void s.skills.refresh()} label={t($ => $.settings.retry)} /></>}
+    {s.skills.openError && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[s.skills.openError!])}</Text>}
+    {!s.inspection && <Button isDisabled={s.busy} onClick={() => void s.refresh().catch(() => s.setError(t($ => $.settings.loadFailed)))} label={t($ => $.settings.retry)} />}
+    <Dialog  isOpen={Boolean(s.confirm)} onOpenChange={() => s.setConfirm(null)} aria-label={t($ => $.externalMCP.replaceTitle)} width={448} purpose="form">
+      <DialogHeader title={t($ => $.externalMCP.replaceTitle)} subtitle={t($ => $.externalMCP.replaceHelp, { agent: s.confirm ? agentNames[s.confirm.target] : '' })} />
+      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
+      <Button data-autofocus="true" onClick={() => s.setConfirm(null)} label={t($ => $.settings.cancel)} />
+      <Button variant="destructive" onClick={() => s.confirm && void s.connect(s.confirm, true)} label={t($ => $.externalMCP.confirmReplace)} />
+    </Stack>
     </Dialog>
     <ExternalSkillsConfirmation skills={s.skills} />
   </div>

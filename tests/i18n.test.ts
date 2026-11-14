@@ -4,7 +4,8 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider } from 'react-i18next'
 import { createTranslationInstance } from '../src/shared/i18n'
-import { PlaceholderPage } from '../src/shared/ui/PlaceholderPage'
+import { useTranslation } from 'react-i18next'
+import { Button, Text } from '@astryxdesign/core'
 import { TabStrip } from '../src/pages/browser/TabStrip'
 import type { BrowserTabState } from '../src/shared/browser'
 
@@ -23,12 +24,15 @@ test('React and isolated translation instances consume their own resource values
   const other = createTranslationInstance()
   instance.addResource('en', 'translation', 'navigation.openSettings', 'Configure workspace')
   instance.addResource('en', 'translation', 'features.notImplemented', 'Feature under construction')
-  const markup = renderToStaticMarkup(createElement(I18nextProvider, { i18n: instance },
-    createElement(PlaceholderPage, {
-      title: 'Example', description: 'Example description',
-      actions: createElement('button', { type: 'button' }, instance.t($ => $.navigation.openSettings))
-    })))
-  assert.match(markup, />Configure workspace<\/button>/)
+  function TranslatedControls() {
+    const { t } = useTranslation()
+    return [
+      createElement(Button, { key: 'settings', label: t($ => $.navigation.openSettings) }),
+      createElement(Text, { key: 'status', as: 'p', children: t($ => $.features.notImplemented) })
+    ]
+  }
+  const markup = renderToStaticMarkup(createElement(I18nextProvider, { i18n: instance }, createElement(TranslatedControls)))
+  assert.match(markup, />Configure workspace</)
   assert.match(markup, />Feature under construction<\/p>/)
   assert.equal(other.t($ => $.navigation.openSettings), 'Open Settings')
 })

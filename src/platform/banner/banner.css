@@ -1,0 +1,31 @@
+.ui-banner {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow);
+  color: var(--text);
+  font: 14px/20px system-ui, sans-serif;
+}
+.ui-banner-body, .ui-banner-close {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+}
+.ui-banner-body { display: block; width: 100%; min-width: 0; text-align: start; }
+.ui-banner-body[aria-disabled="false"], .ui-banner-close { cursor: pointer; }
+.ui-banner-body:focus-visible, .ui-banner-close:focus-visible { outline: 2px solid var(--accent); }
+.ui-banner-title, .ui-banner-detail { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ui-banner-title { font-weight: 600; }
+.ui-banner-detail { color: var(--secondary); }
+.ui-banner-close { width: 32px; height: 32px; font-size: 20px; }

@@ -1,6 +1,6 @@
+import { Badge, Button, Dialog, DialogHeader, MetadataList, MetadataListItem, Stack, Text } from '@astryxdesign/core'
 import { useTranslation } from 'react-i18next'
 import type { ExternalSkillName, ExternalSkillsOutcome, ExternalSkillsStatus } from '../../shared/external-skills'
-import { ActionRow, Badge, Button, DetailsList, Dialog, StatusMessage } from '../../shared/ui'
 import type { useExternalSkills } from './useExternalSkills'
 
 type Skills = ReturnType<typeof useExternalSkills>
@@ -12,59 +12,63 @@ export function ExternalSkillsControls({ status, outcome, disabled, busy, onInst
   const installed = status.skills.every(skill => skill.state === 'installed')
   const different = status.skills.some(skill => skill.state === 'different')
   return <div data-agent-skills={status.target} className="settings-stack" aria-busy={busy}>
-    <DetailsList items={[{ label: t($ => $.externalSkills.path), value: status.path }, ...status.skills.map(skill => ({
-      label: skill.name, value: <ActionRow>
-        <Badge tone={skill.state === 'installed' ? 'success' : skill.state === 'unavailable' ? 'error' : 'neutral'}>{t($ => $.externalSkills.states[skill.state])}</Badge>
-        <Button data-skill-remove={skill.name} size="sm" variant="danger" disabled={disabled || skill.state === 'missing' || Boolean(status.error)}
-          aria-label={t($ => $.externalSkills.removeOne, { name: skill.name })} onClick={() => onRemove([skill.name])}>{t($ => $.externalSkills.remove)}</Button>
-      </ActionRow>
-    }))]} />
-    {status.error && <StatusMessage tone="error">{t($ => $.externalSkills.errors[status.error!])}</StatusMessage>}
-    <ActionRow><Button data-skills-install disabled={disabled || installed || Boolean(status.error)} onClick={onInstall}>
-      {installed ? t($ => $.externalSkills.installed) : different ? t($ => $.externalSkills.update) : t($ => $.externalSkills.install)}
-    </Button>
-      <Button data-skills-reconnect disabled={disabled || Boolean(status.error) || status.skills.every(skill => skill.state === 'missing')} onClick={onReconnect}>{t($ => $.externalSkills.reconnect)}</Button>
-      <Button data-skills-remove variant="danger" disabled={disabled || Boolean(status.error) || status.skills.every(skill => skill.state === 'missing')}
-        onClick={() => onRemove(status.skills.filter(skill => skill.state !== 'missing').map(skill => skill.name))}>{t($ => $.externalSkills.removeAll)}</Button>
-    </ActionRow>
-    {busy && <StatusMessage>{t($ => $.externalSkills.working)}</StatusMessage>}
-    <StatusMessage>{t($ => $.externalSkills.reconnectHelp)}</StatusMessage>
-    {outcome?.error && <StatusMessage tone="error">{t($ => $.externalSkills.errors[outcome.error!])}</StatusMessage>}
-    {outcome?.completed.length ? <StatusMessage>{t($ => outcome.operation === 'remove' ? $.externalSkills.removedItems : $.externalSkills.completed, { names: outcome.completed.join(', ') })}</StatusMessage> : null}
-    {outcome?.pending.length ? <StatusMessage>{t($ => outcome.operation === 'remove' ? $.externalSkills.pendingRemoval : $.externalSkills.pending, { names: outcome.pending.join(', ') })}</StatusMessage> : null}
-    {outcome && !outcome.error && outcome.pending.length === 0 && <StatusMessage tone="success">{t($ => outcome.operation === 'remove' ? $.externalSkills.removed : $.externalSkills.saved)}</StatusMessage>}
+    <MetadataList>{([{ label: t($ => $.externalSkills.path), value: status.path }, ...status.skills.map(skill => ({
+      label: skill.name, value: <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
+        <Badge  variant={skill.state === 'installed' ? 'success' : skill.state === 'unavailable' ? 'error' : 'neutral'} label={t($ => $.externalSkills.states[skill.state])} />
+        <Button data-skill-remove={skill.name} size="sm" variant="destructive" isDisabled={disabled || skill.state === 'missing' || Boolean(status.error)}
+          aria-label={t($ => $.externalSkills.removeOne, { name: skill.name })} onClick={() => onRemove([skill.name])} label={t($ => $.externalSkills.removeOne, { name: skill.name })}>{t($ => $.externalSkills.remove)}</Button>
+      </Stack>
+    }))]).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>
+    {status.error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[status.error!])}</Text>}
+    <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button data-skills-install isDisabled={disabled || installed || Boolean(status.error)} onClick={onInstall} label={installed ? t($ => $.externalSkills.installed) : different ? t($ => $.externalSkills.update) : t($ => $.externalSkills.install)} />
+      <Button data-skills-reconnect isDisabled={disabled || Boolean(status.error) || status.skills.every(skill => skill.state === 'missing')} onClick={onReconnect} label={t($ => $.externalSkills.reconnect)} />
+      <Button data-skills-remove variant="destructive" isDisabled={disabled || Boolean(status.error) || status.skills.every(skill => skill.state === 'missing')}
+        onClick={() => onRemove(status.skills.filter(skill => skill.state !== 'missing').map(skill => skill.name))} label={t($ => $.externalSkills.removeAll)} />
+    </Stack>
+    {busy && <Text as="p" type="supporting" role="status">{t($ => $.externalSkills.working)}</Text>}
+    <Text as="p" type="supporting" role="status">{t($ => $.externalSkills.reconnectHelp)}</Text>
+    {outcome?.error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[outcome.error!])}</Text>}
+    {outcome?.completed.length ? <Text as="p" type="supporting" role="status">{t($ => outcome.operation === 'remove' ? $.externalSkills.removedItems : $.externalSkills.completed, { names: outcome.completed.join(', ') })}</Text> : null}
+    {outcome?.pending.length ? <Text as="p" type="supporting" role="status">{t($ => outcome.operation === 'remove' ? $.externalSkills.pendingRemoval : $.externalSkills.pending, { names: outcome.pending.join(', ') })}</Text> : null}
+    {outcome && !outcome.error && outcome.pending.length === 0 && <Text as="p" type="supporting" role="status" className="success-message">{t($ => outcome.operation === 'remove' ? $.externalSkills.removed : $.externalSkills.saved)}</Text>}
   </div>
 }
 
 export function ExternalSkillsBundle({ skills, disabled }: { skills: Skills; disabled: boolean }) {
   const { t } = useTranslation()
   return <div className="settings-stack">
-    <StatusMessage>{t($ => $.externalSkills.otherHelp)}</StatusMessage>
-    <ActionRow><Button data-skills-open disabled={disabled} onClick={() => void skills.openBundle()}>{t($ => $.externalSkills.open)}</Button></ActionRow>
-    {skills.openError && <StatusMessage tone="error">{t($ => $.externalSkills.errors[skills.openError!])}</StatusMessage>}
-    {skills.opened && <StatusMessage tone="success">{t($ => $.externalSkills.opened)}</StatusMessage>}
+    <Text as="p" type="supporting" role="status">{t($ => $.externalSkills.otherHelp)}</Text>
+    <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button data-skills-open isDisabled={disabled} onClick={() => void skills.openBundle()} label={t($ => $.externalSkills.open)} /></Stack>
+    {skills.openError && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[skills.openError!])}</Text>}
+    {skills.opened && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.externalSkills.opened)}</Text>}
   </div>
 }
 
 export function ExternalSkillsConfirmation({ skills }: { skills: Skills }) {
   const { t } = useTranslation(), { confirm } = skills
-  return <><Dialog open={Boolean(confirm)} title={t($ => $.externalSkills.replaceTitle)} description={t($ => $.externalSkills.replaceHelp)}
-    onClose={() => skills.setConfirm(null)} content={confirm && <DetailsList items={[
+  return <><Dialog  isOpen={Boolean(confirm)} onOpenChange={() => skills.setConfirm(null)} aria-label={t($ => $.externalSkills.replaceTitle)} width={448} purpose="form">
+      <DialogHeader title={t($ => $.externalSkills.replaceTitle)} subtitle={t($ => $.externalSkills.replaceHelp)} />
+      <div className="dialog-content">{confirm && <MetadataList>{([
       { label: t($ => $.externalSkills.path), value: confirm.path },
       { label: t($ => $.externalSkills.conflicts), value: confirm.skills.filter(skill => skill.state === 'different').map(skill => skill.name).join(', ') }
-    ]} />}>
-    <Button autoFocus onClick={() => skills.setConfirm(null)}>{t($ => $.settings.cancel)}</Button>
-    <Button data-skills-confirm variant="danger" onClick={() => { if (confirm) void skills.mutate(confirm, skills.confirmOperation, true); skills.setConfirm(null) }}>{t($ => $.externalSkills.confirmReplace)}</Button>
-  </Dialog>
-    <Dialog open={Boolean(skills.removal)} title={t($ => $.externalSkills.removeTitle)} description={t($ => $.externalSkills.removeHelp)}
-      onClose={() => skills.setRemoval(null)} content={skills.removal && <DetailsList items={[
+    ]).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>}</div>
+      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
+    <Button data-autofocus="true" onClick={() => skills.setConfirm(null)} label={t($ => $.settings.cancel)} />
+    <Button data-skills-confirm variant="destructive" onClick={() => { if (confirm) void skills.mutate(confirm, skills.confirmOperation, true); skills.setConfirm(null) }} label={t($ => $.externalSkills.confirmReplace)} />
+  </Stack>
+    </Dialog>
+    <Dialog  isOpen={Boolean(skills.removal)} onOpenChange={() => skills.setRemoval(null)} aria-label={t($ => $.externalSkills.removeTitle)} width={448} purpose="form">
+      <DialogHeader title={t($ => $.externalSkills.removeTitle)} subtitle={t($ => $.externalSkills.removeHelp)} />
+      <div className="dialog-content">{skills.removal && <MetadataList>{([
         { label: t($ => $.externalSkills.path), value: skills.removal.status.path },
         { label: t($ => $.externalSkills.toRemove), value: skills.removal.names.join(', ') }
-      ]} />}>
-      <Button autoFocus onClick={() => skills.setRemoval(null)}>{t($ => $.settings.cancel)}</Button>
-      <Button data-skills-remove-confirm variant="danger" onClick={() => {
+      ]).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>}</div>
+      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
+      <Button data-autofocus="true" onClick={() => skills.setRemoval(null)} label={t($ => $.settings.cancel)} />
+      <Button data-skills-remove-confirm variant="destructive" onClick={() => {
         if (skills.removal) void skills.mutate(skills.removal.status, 'remove', false, skills.removal.names)
         skills.setRemoval(null)
-      }}>{t($ => $.externalSkills.confirmRemove)}</Button>
+      }} label={t($ => $.externalSkills.confirmRemove)} />
+    </Stack>
     </Dialog></>
 }

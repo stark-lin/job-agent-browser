@@ -168,8 +168,6 @@ app.on('browser-window-created', (_event, window) => {
         assert((await call('read', { path: 'interview/ctrip.md' })).value.content.includes('Restored final'))
         await click('Preview')
         await new Promise((r) => setTimeout(r, 700))
-        // Capture the actual production renderer for visual inspection outside the repository.
-        writeFileSync(join(require('node:os').tmpdir(), 'jab-smart-note.png'), (await window.webContents.capturePage()).toPNG())
         await evaluate("window.browser.navigate('app://settings')")
         await wait(
           () => evaluate('document.body.textContent.includes("Smart Note backup and retrieval")'),

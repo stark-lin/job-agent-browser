@@ -14,13 +14,11 @@ Organize product code by Page, business rules by Domain and technical adapters b
 | Pages | UI, local components/hooks/state and page workflows | [Ask AI](../src/pages/ai/AskAIPage.tsx), [Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | Entities, validation, use cases and capability/repository interfaces | [Job use cases](../src/domain/job/job.service.ts) |
 | Platform | Electron, browser, database, filesystem, AI and settings adapters | [Browser manager](../src/platform/browser/browserManager.ts), [SQLite](../src/platform/database/sqlite.ts) |
-| Shared | Framework-free contracts and business-free UI/utilities/hooks | [Navigation contract](../src/shared/navigation.ts), [placeholder UI](../src/shared/ui/PlaceholderPage.tsx) |
+| Shared | Framework-independent contracts and generic utilities | [Navigation contract](../src/shared/navigation.ts) |
 
 [Build configuration](../electron.vite.config.ts) now starts Main/Preload in `src/platform/electron/`. `src/renderer/` contains HTML, React mounting, environment types and global styles. The single root lives in `src/app/`; original Main/Preload/Renderer App implementations have been removed. The package entry remains `out/main/index.js`; additional Node MCP and Electron output-worker entries are built alongside it. A separate sandboxed `browser-gestures` preload owns webpage wheel input without exposing the trusted application bridge.
 
-All UI components must compose primitives from the [central library entry](../src/shared/ui/index.ts); add missing variants centrally before page use. Pages keep layout and event behavior. The [design specification](design-system.md#2-mandatory-central-component-reuse) owns the full reuse rule.
-
-Shared UI also owns [canonical design tokens](../src/shared/ui/design-tokens.json), [dark color overrides](../src/shared/ui/design-tokens.dark.json), generated CSS/native colors/geometry and reference component styles; Renderer/Page styles consume them. The [design specification](design-system.md) owns visual rules, assets and regeneration.
+Pages import general-purpose components directly from Astryx. Features own purpose-built UI. See the [design-system specification](design-system.md).
 
 ## 2. Directory boundaries
 
@@ -72,7 +70,6 @@ src/
 └── shared/
     ├── i18n/
     │   └── locales/
-    ├── ui/
     ├── hooks/
     ├── utils/
     ├── types/
@@ -116,7 +113,7 @@ Cross-page business rules stay in Domain; navigation and context switching remai
 - App owns the persistent workspace sidebar and feature navigation metadata; Pages own their workflow buttons, placement, enabled/loading state and handlers. The sidebar uses the same navigation API and leave guard, without a global Back/Next/Forward bar.
 - Workspace destinations belong to the persistent sidebar. Browser owns the Back, Forward and Refresh toolbar for webpage navigation.
 - Page-local workflow buttons, including step Back/Next when a workflow is implemented, must operate on that page’s state and validation rather than browser history. Business actions and links remain page-owned.
-- Shared UI may offer presentation and action slots, but must not choose buttons, import navigation hooks or bind history behavior. [PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) accepts page-provided `actions`; [AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) owns job creation and [InboxPage](../src/pages/inbox/InboxPage.tsx) owns its Settings action. Use the shared i18n catalog for button labels and accessible names.
+- Pages own workflow actions and use the shared i18n catalog for visible and accessible names.
 
 ## 5. Data and capability placement
 
@@ -133,7 +130,7 @@ Cross-page business rules stay in Domain; navigation and context switching remai
 
 Domain defines repository and [snapshot reader/extractor interfaces](../src/domain/job/job.extractor.ts). The [URL reader](../src/platform/job-import/url-reader.ts), HTML parsing and AI extraction belong to `platform/job-import/`; future Browser adapters share the same plain-data snapshot, never DOM/Electron objects. Pages coordinate tasks through the [asynchronous bridge](../src/platform/electron/job-import-contract.ts); database methods still handle only confirmed saves.
 
-The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, and timeout; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused. Shared placeholder layout has no business semantics.
+The [Shared AI contract](../src/shared/ai.ts) exposes provider-independent types. [Platform AI](../src/platform/ai/) owns protocol adaptation, credential/configuration resolution, SSE, cancellation, and timeout; Main composes it without putting network waits inside database transactions. [AI Preload](../src/platform/electron/preload/ai-bridge.ts) is separate from synchronous DataContract dispatch. Pages only coordinate input and presentation. AI contracts must not expose provider SDK types to pages. Business-specific contracts belong to the consuming Domain; generic contracts belong in Shared. Business UI such as ResumePreview stays in Pages even if reused.
 
 [Shared Agent contracts](../src/shared/agent/index.ts) own AgentModel/AgentTools. [Platform Tools](../src/platform/tools/index.ts) is the sole public MCP registry; ToolScope is Server-only. Only platform/mcp and platform/mcp-server import the MCP SDK. Agent modules may import pure Domain workflow/validation, but never services, repositories, registries or database adapters, including indirectly. [MCP architecture](mcp-architecture.md) owns capabilities and session behavior.
 

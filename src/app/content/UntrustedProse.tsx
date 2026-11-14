@@ -1,5 +1,9 @@
 import { createElement, useEffect, useState, type ReactNode } from 'react'
-import { Button } from './Button'
+import { Button, CodeBlock, Link, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from '@astryxdesign/core'
+import { parseHttpUrl } from '../../shared/http-url'
+import { useTranslation } from 'react-i18next'
+import { useCopyFeedback } from '../../shared/use-copy-feedback'
+
 interface Node {
   type: string
   value?: string
@@ -12,61 +16,12 @@ interface Node {
   lang?: string
   children?: Node[]
 }
-function safeLink(href: string) {
-  try {
-    const url = new URL(href)
-    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null
-  } catch {
-    return null
-  }
-}
-export function CodeBlock({
-  text,
-  language,
-  copyLabel,
-  copiedLabel,
-  wrap = false
-}: {
-  text: string
-  language: string
-  copyLabel: string
-  copiedLabel: string
-  wrap?: boolean
-}) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <div className={`ui-code-block${wrap ? ' ui-code-block--wrap' : ''}`}>
-      <div className="ui-code-heading">
-        <span>{language}</span>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            void navigator.clipboard
-              .writeText(text)
-              .then(() => setCopied(true))
-              .catch(() => setCopied(false))
-          }}
-        >
-          {copied ? copiedLabel : copyLabel}
-        </Button>
-      </div>
-      <pre tabIndex={0}>
-        <code>{text}</code>
-      </pre>
-    </div>
-  )
-}
 /** MDAST rendered as React text/elements. Raw HTML and image URLs are never executed or loaded. */
-export function Markdown({
+export function UntrustedProse({
   text,
-  copyLabel,
-  copiedLabel,
   onOpenLink
 }: {
   text: string
-  copyLabel: string
-  copiedLabel: string
   onOpenLink?: (path: string) => void
 }) {
   const [ast, setAst] = useState<Node>({
@@ -107,13 +62,7 @@ export function Markdown({
         return <code key={key}>{n.value}</code>
       case 'code':
         return (
-          <CodeBlock
-            key={key}
-            text={n.value ?? ''}
-            language={n.lang ?? ''}
-            copyLabel={copyLabel}
-            copiedLabel={copiedLabel}
-          />
+          <MarkdownFence key={key} code={n.value ?? ''} language={n.lang ?? undefined} />
         )
       case 'blockquote':
         return <blockquote key={key}>{children}</blockquote>
@@ -134,18 +83,16 @@ export function Markdown({
       case 'link':
       case 'linkReference': {
         const url = n.url ?? definitions.get(n.identifier ?? '') ?? '',
-          href = safeLink(url)
+          href = parseHttpUrl(url)?.href
         if (href)
           return (
-            <a key={key} href={href} target="_blank" rel="noopener noreferrer">
+            <Link key={key} href={href} target="_blank" rel="noopener noreferrer">
               {children}
-            </a>
+            </Link>
           )
-        if (onOpenLink && !/^[a-z][\w+.-]*:|^\/\/|^\//i.test(url))
+        if (onOpenLink && url && !/^(?:[a-z][\w+.-]*:|[\/\\])/i.test(url.trim()))
           return (
-            <Button key={key} variant="ghost" size="sm" onClick={() => onOpenLink(url)}>
-              {children}
-            </Button>
+            <Link key={key} onClick={() => onOpenLink(url)}>{children}</Link>
           )
         return <span key={key}>{children}</span>
       }
@@ -154,25 +101,25 @@ export function Markdown({
         return <span key={key}>{n.alt ?? ''}</span>
       case 'table':
         return (
-          <div key={key} className="ui-markdown-table" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
+          <div key={key} className="untrusted-prose-table" tabIndex={0}>
+            <Table density="compact">
+              <TableHeader>
+                <TableRow isHeaderRow>
                   {n.children?.[0]?.children?.map((c, i) => (
-                    <th key={i}>{c.children?.map(render)}</th>
+                    <TableHeaderCell key={i}>{c.children?.map(render)}</TableHeaderCell>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {n.children?.slice(1).map((r, i) => (
-                  <tr key={i}>
+                  <TableRow key={i}>
                     {r.children?.map((c, j) => (
-                      <td key={j}>{c.children?.map(render)}</td>
+                      <TableCell key={j}>{c.children?.map(render)}</TableCell>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )
       case 'definition':
@@ -181,5 +128,14 @@ export function Markdown({
         return <span key={key}>{children ?? n.value}</span>
     }
   }
-  return <div className="ui-markdown">{ast.children?.map(render)}</div>
+  return <div className="untrusted-prose">{ast.children?.map(render)}</div>
+}
+
+function MarkdownFence({ code, language }: { code: string; language?: string }) {
+  const { t } = useTranslation()
+  const clipboard = useCopyFeedback(code)
+  return <CodeBlock code={code} language={language} hasLanguageLabel={Boolean(language)} width="100%" hasCopyButton={false}
+    endContent={<Button size="sm" variant="ghost" isDisabled={clipboard.copying || clipboard.copied} aria-live="polite" aria-busy={clipboard.copying}
+      label={t($ => clipboard.copied ? $.ask.copied : $.ask.copy)}
+      onClick={() => void clipboard.copy(async () => { await navigator.clipboard.writeText(code); return true })} />} />
 }

@@ -16,14 +16,14 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
     return original(event, group, method, input)
   })
   const open = async () => {
-    await waitFor(() => evaluate(`[...document.querySelectorAll('.ui-session-title')].some(row=>row.textContent===${JSON.stringify(session.title)})`), 'debug target session listed')
-    await evaluate(`[...document.querySelectorAll('.ui-session-entry')].find(row=>row.querySelector('.ui-session-title').textContent===${JSON.stringify(session.title)}).querySelector('button[aria-label]').click()`)
+    await waitFor(() => evaluate(`[...document.querySelectorAll('.ai-session-title')].some(row=>row.textContent===${JSON.stringify(session.title)})`), 'debug target session listed')
+    await evaluate(`[...document.querySelectorAll('.ai-session-entry')].find(row=>row.querySelector('.ai-session-title').textContent===${JSON.stringify(session.title)}).querySelector('button[aria-label]:not(.ai-session-select)').click()`)
     await frame()
-    const labels = await evaluate("[...document.querySelector('dialog[open] .ui-dialog-actions').children].map(b=>b.textContent)")
+    const labels = await evaluate("[...document.querySelector('dialog.astryx-dialog[open] .action-row').querySelectorAll('button')].map(b=>b.textContent)")
     assert.deepEqual(labels.slice(0, 3), ['Rename', 'Copy Debug JSON', 'Delete chat'])
     await click('Copy Debug JSON'); await frame()
-    assert(await evaluate("document.querySelector('dialog[open]').innerText.includes('Copy full debug data?')"))
-    assert.equal(await evaluate("document.querySelector('dialog[open] input[type=checkbox]')!==null"), false)
+    assert(await evaluate("document.querySelector('dialog.astryx-dialog[open]').innerText.includes('Copy full debug data?')"))
+    assert.equal(await evaluate("document.querySelector('dialog.astryx-dialog[open] input[type=checkbox]')!==null"), false)
     assert.equal(await evaluate('document.activeElement.textContent'), 'Cancel')
   }
   const db = new DatabaseSync(resolve(directory, 'database.sqlite'), { readOnly: true })
@@ -35,13 +35,13 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
     await open(); assert.equal(calls, 0)
     await click('Cancel'); await frame(); assert.equal(calls, 0); assert.equal(await clipboard.readText(), 'DEBUG_COPY_SENTINEL')
     await open(); window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
-    await waitFor(() => evaluate('!document.querySelector(".ui-dialog[open]")'), 'debug Escape closes'); assert.equal(calls, 0)
+    await waitFor(() => evaluate('!document.querySelector("dialog.astryx-dialog[open]")'), 'debug Escape closes'); assert.equal(calls, 0)
     await open(); block = true
-    await evaluate("(() => { const b=[...document.querySelectorAll('dialog[open] button')].find(b=>b.textContent==='Copy JSON'); b.click(); b.click(); })()")
+    await evaluate("(() => { const b=[...document.querySelectorAll('dialog.astryx-dialog[open] button')].find(b=>b.textContent==='Copy JSON'); b.click(); b.click(); })()")
     await waitFor(() => Boolean(release), 'pending copy call')
-    assert.equal(calls, 1); assert(await evaluate("[...document.querySelectorAll('dialog[open] button')].every(b=>b.disabled)"))
+    assert.equal(calls, 1); assert(await evaluate("[...document.querySelectorAll('dialog.astryx-dialog[open] button')].every(b=>b.disabled)"))
     release(); block = false
-    await waitFor(() => evaluate('[...document.querySelectorAll(".ui-dialog[open] button")].some(b=>b.textContent==="Copied to clipboard" && b.disabled)'), 'debug button success')
+    await waitFor(() => evaluate('[...document.querySelectorAll("dialog.astryx-dialog[open] button")].some(b=>b.textContent==="Copied to clipboard" && b.disabled)'), 'debug button success')
     assert.equal(await evaluate('[...document.querySelectorAll(".ai-session-content > [role=status]")].some(n=>n.textContent.includes("Copied to clipboard"))'), false)
     await click('Copied to clipboard'); assert.equal(calls, 1, 'success cannot copy again without confirmation')
     await click('Cancel'); await frame()
@@ -74,12 +74,12 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
     try {
       clipboard.writeText = async () => { throw new Error('PRIVATE_CLIPBOARD_FAILURE') }
       await open(); await click('Copy JSON')
-      await waitFor(() => evaluate('!!document.querySelector("dialog[open] [role=alert]")'), 'clipboard error remains in dialog')
-      assert(await evaluate('document.querySelector("dialog[open]").innerText.includes("Could not verify the copied text")'))
+      await waitFor(() => evaluate('!!document.querySelector("dialog.astryx-dialog[open] [role=alert]")'), 'clipboard error remains in dialog')
+      assert(await evaluate('document.querySelector("dialog.astryx-dialog[open]").innerText.includes("Could not verify the copied text")'))
       assert.equal(calls, 2)
     } finally { clipboard.writeText = write }
     await click('Copy JSON')
-    await waitFor(() => evaluate('[...document.querySelectorAll(".ui-dialog[open] button")].some(b=>b.textContent==="Copied to clipboard" && b.disabled)'), 'copy retry button success'); assert.equal(calls, 3)
+    await waitFor(() => evaluate('[...document.querySelectorAll("dialog.astryx-dialog[open] button")].some(b=>b.textContent==="Copied to clipboard" && b.disabled)'), 'copy retry button success'); assert.equal(calls, 3)
     await click('Cancel'); await frame()
     // The same handler refuses wrong frame/URL and webContents without an owned window.
     const expected = { ok: false, error: 'FORBIDDEN' }
@@ -98,12 +98,12 @@ exports.chatDebugSmoke = async ({ window, evaluate, data, click, frame, waitFor,
 
 exports.chatDebugLayoutSmoke = async ({ window, evaluate, click, frame, waitFor, language, width, session }) => {
   if (width < 960) { await evaluate('document.querySelector(".ai-session-toggle button").click()'); await frame() }
-  await evaluate(`[...document.querySelectorAll('.ui-session-entry')].find(row=>row.querySelector('.ui-session-title').textContent===${JSON.stringify(session.title)}).querySelector('button[aria-label]').click()`); await frame()
+  await evaluate(`[...document.querySelectorAll('.ai-session-entry')].find(row=>row.querySelector('.ai-session-title').textContent===${JSON.stringify(session.title)}).querySelector('button[aria-label]:not(.ai-session-select)').click()`); await frame()
   await click(language === 'en' ? 'Copy Debug JSON' : '复制调试 JSON'); await frame()
   const copyLabel = language === 'en' ? 'Copy JSON' : '复制 JSON', cancelLabel = language === 'en' ? 'Cancel' : '取消'
   assert.equal(await evaluate('document.activeElement.textContent'), cancelLabel)
-  if (language === 'zh-CN') assert(await evaluate("document.querySelector('dialog[open]').textContent.includes('此操作会将当前对话的完整已保存调试数据复制到系统剪贴板。')"))
-  const rect = await evaluate("(() => { const d=document.querySelector('.ui-dialog[open]'), r=d.getBoundingClientRect(); return { left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:d.scrollWidth,width:d.clientWidth,height:innerHeight } })()")
+  if (language === 'zh-CN') assert(await evaluate("document.querySelector('dialog.astryx-dialog[open]').textContent.includes('此操作会将当前对话的完整已保存调试数据复制到系统剪贴板。')"))
+  const rect = await evaluate("(() => { const d=document.querySelector('dialog.astryx-dialog[open]'), r=d.getBoundingClientRect(); return { left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:d.scrollWidth,width:d.clientWidth,height:innerHeight } })()")
   assert(rect.left >= 0 && rect.right <= width && rect.top >= 0 && rect.bottom <= rect.height)
   assert(rect.scroll <= rect.width)
   // Native Tab/Space activation verifies confirmation is keyboard reachable at narrow widths.
@@ -111,9 +111,9 @@ exports.chatDebugLayoutSmoke = async ({ window, evaluate, click, frame, waitFor,
   assert.equal(await evaluate('document.activeElement.textContent'), copyLabel)
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' })
   const copiedLabel = language === 'en' ? 'Copied to clipboard' : '已复制到剪贴板'
-  await waitFor(() => evaluate(`[...document.querySelectorAll('.ui-dialog[open] button')].some(b=>b.textContent===${JSON.stringify(copiedLabel)} && b.disabled)`), 'keyboard copy button success')
-  assert.equal(await evaluate("document.querySelector('.ui-dialog[open]').scrollWidth > document.querySelector('.ui-dialog[open]').clientWidth"), false)
+  await waitFor(() => evaluate(`[...document.querySelectorAll('dialog.astryx-dialog[open] button')].some(b=>b.textContent===${JSON.stringify(copiedLabel)} && b.disabled)`), 'keyboard copy button success')
+  assert.equal(await evaluate("document.querySelector('dialog.astryx-dialog[open]').scrollWidth > document.querySelector('dialog.astryx-dialog[open]').clientWidth"), false)
   await click(cancelLabel); await frame()
   assert.equal(JSON.parse(await clipboard.readText()).session.id, session.id)
-  if (width < 960) { await evaluate('document.querySelector(".ui-drawer-heading button").click()'); await frame() }
+  if (width < 960) { await evaluate('document.querySelector(".ai-session-drawer-heading button").click()'); await frame() }
 }

@@ -63,7 +63,7 @@ app.on('browser-window-created', (_event, window) => {
           const submit = button('Submit')
           assert(await evaluate(`!!${dialog}?.querySelector('textarea')`))
           assert.equal(await evaluate(`(${submit})?.disabled`), true)
-          if (selectedOption) await evaluate(`[...${dialog}.querySelectorAll('label')].find(label => label.textContent === ${JSON.stringify(selectedOption)}).querySelector('input').click()`)
+          if (selectedOption) await evaluate(`[...${dialog}.querySelectorAll('label')].find(label => label.textContent === ${JSON.stringify(selectedOption)}).control.click()`)
           if (text) await evaluate(`(() => { const field = ${dialog}.querySelector('textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, ${JSON.stringify(text)}); field.dispatchEvent(new Event('input', { bubbles: true })) })()`)
           await waitFor(() => evaluate(`(${submit})?.disabled === false`), 'answer enables Submit')
           await evaluate(`(${submit}).click()`)

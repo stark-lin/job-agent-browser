@@ -1,3 +1,4 @@
+import { Layout, LayoutPanel, Text } from '@astryxdesign/core'
 import { KnowledgePage } from '../pages/knowledge'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
@@ -31,7 +32,7 @@ export function AppRouter() {
     const Page = featurePages[destination.page]
     page = <Page key={active.targetId} />
   }
-  return <div className="app-shell"><WorkspaceSidebar /><div className="app-content">
-    {page}{error && !isBrowserDestination(destination) && !isInboxDestination(destination) ? <div className="app-error" role="alert">{error}</div> : null}
-  </div></div>
+  return <Layout className="app-shell" height="fill" padding={0} start={<LayoutPanel width="var(--sidebar-width)" padding={0}><WorkspaceSidebar /></LayoutPanel>} content={<div className="app-content">
+    {page}{error && !isBrowserDestination(destination) && !isInboxDestination(destination) ? <Text as="div" className="app-error" role="alert">{error}</Text> : null}
+  </div>} />
 }

@@ -2,10 +2,23 @@ import { join } from 'node:path'
 import { nativeTheme, WebContentsView, type BrowserWindow } from 'electron'
 import { t, i18n } from '../../shared/i18n'
 import { BANNER_INTERACTION, BANNER_STATE, type BannerEvent } from '../../shared/banner'
-import { bannerDocument } from '../../shared/ui'
-import { BANNER_HEIGHT, BANNER_INSET, BANNER_WIDTH } from '../../shared/ui/geometry'
+import palette from '../electron/nativeTheme.css?raw'
+import styles from './banner.css?raw'
+import { BANNER_HEIGHT, BANNER_INSET, BANNER_WIDTH } from '../../shared/geometry'
 import { resolvedTheme } from '../electron/main/theme'
 import type { BannerService } from './bannerService'
+
+function bannerDocument(): string {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Banner</title><style>${palette}
+${styles}
+html, body { margin: 0; overflow: hidden; background: transparent; }
+</style></head><body><aside class="ui-banner">
+<button type="button" class="ui-banner-body" aria-disabled="true" tabindex="-1">
+<span class="ui-banner-title"></span><span class="ui-banner-detail" aria-live="polite"></span></button>
+<button type="button" class="ui-banner-close">×</button></aside></body></html>`
+}
 
 export function mountBanner(window: BrowserWindow, service: BannerService, openSession: (id: string, current: () => boolean) => Promise<boolean>) {
   const view = new WebContentsView({ webPreferences: {

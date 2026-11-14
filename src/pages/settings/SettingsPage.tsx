@@ -1,8 +1,8 @@
+import { Button, Heading, Section, SegmentedControl, SegmentedControlItem, Selector, Stack, Text, TextInput } from '@astryxdesign/core'
 import { KnowledgeSettings } from './KnowledgeSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionRow, Button, FormField, LanguageBackground, SectionCard, Select, StatusMessage, TextInput } from '../../shared/ui'
-import { mailURLs, type MailProvider } from '../../shared/settings'
+import { mailURLs } from '../../shared/settings'
 import { useOnboarding } from '../../app/onboarding'
 import { useSettings, type Notice } from './useSettings'
 import { AISettingsSection } from './AISettingsSection'
@@ -16,8 +16,8 @@ export function SettingsPage() {
   const onboarding = useOnboarding(), [restarting, setRestarting] = useState(false), [restartError, setRestartError] = useState(false)
   const { draft, saving, notices } = settings
   const feedback = (notice: Notice, dirty: boolean) => notice
-    ? <StatusMessage tone={notice !== 'saved' ? 'error' : 'success'}>{t($ => $.settings[notice])}</StatusMessage>
-    : dirty ? <StatusMessage>{t($ => $.settings.unsaved)}</StatusMessage> : null
+    ? <Text as="p" type="supporting" role="status">{t($ => $.settings[notice])}</Text>
+    : dirty ? <Text as="p" type="supporting" role="status">{t($ => $.settings.unsaved)}</Text> : null
   const submitMailbox = () => {
     if (!draft) return
     let valid = draft.mailbox.provider === 'none'
@@ -30,35 +30,55 @@ export function SettingsPage() {
   }
   return <main className="settings-page" aria-label={t($ => $.navigation.pages.settings)}>
     <div className="settings-content">
-      {settings.loading ? <StatusMessage>{t($ => $.settings.loading)}</StatusMessage> : settings.loadFailed || !draft ? <ActionRow>
-        <StatusMessage tone="error">{t($ => $.settings.loadFailed)}</StatusMessage><Button onClick={settings.retry}>{t($ => $.settings.retry)}</Button>
-      </ActionRow> : <div className="settings-sections">
-        <SectionCard defaultCollapsed title={t($ => $.onboarding.appearance)} description={t($ => $.settings.generalDescription)}>
+      {settings.loading ? <Text as="p" type="supporting" role="status">{t($ => $.settings.loading)}</Text> : settings.loadFailed || !draft ? <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
+        <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.settings.loadFailed)}</Text><Button onClick={settings.retry} label={t($ => $.settings.retry)} />
+      </Stack> : <div className="settings-sections">
+        <Section className="feature-section" padding={0}><details onInvalidCapture={event => { event.currentTarget.open = true }}>
+      <summary><Heading level={2}>{t($ => $.onboarding.appearance)}</Heading></summary>
+      <div className="feature-section-body">{t($ => $.settings.generalDescription) && <p>{t($ => $.settings.generalDescription)}</p>}
           <form data-settings-general className="settings-stack" onSubmit={event => { event.preventDefault(); void settings.save('general') }}>
-            <LanguageBackground language={draft.language} theme={draft.theme} disabled={Boolean(saving)}
-              labels={{ language: t($ => $.onboarding.language), background: t($ => $.onboarding.background), system: t($ => $.onboarding.system), light: t($ => $.onboarding.light), dark: t($ => $.onboarding.dark) }}
-              onLanguageChange={settings.changeLanguage} onThemeChange={settings.changeTheme} />
-            <ActionRow>{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" disabled={!settings.generalDirty || Boolean(saving)}>{saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></ActionRow>
+            <Stack gap={4}>
+            <Stack gap={1}>
+              <Text type="label">{t($ => $.onboarding.language)}</Text>
+              <SegmentedControl label={t($ => $.onboarding.language)} value={draft.language} isDisabled={Boolean(saving)}
+                onChange={value => { if (value === 'zh-CN' || value === 'en') settings.changeLanguage(value) } }>
+                <SegmentedControlItem value="zh-CN" label="简体中文" />
+                <SegmentedControlItem value="en" label="English" />
+              </SegmentedControl>
+            </Stack>
+            <Stack gap={1}>
+              <Text type="label">{t($ => $.onboarding.background)}</Text>
+              <SegmentedControl label={t($ => $.onboarding.background)} value={draft.theme} isDisabled={Boolean(saving)}
+                onChange={value => { if (value === 'light' || value === 'dark' || value === 'system') settings.changeTheme(value) } }>
+                {(['system', 'light', 'dark'] as const).map(mode =>
+                  <SegmentedControlItem key={mode} value={mode} label={t($ => $.onboarding[mode])} />)}
+              </SegmentedControl>
+            </Stack>
+          </Stack>
+            <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">{feedback(notices.general, settings.generalDirty)}<Button variant="primary" type="submit" isDisabled={!settings.generalDirty || Boolean(saving)} label={saving === 'general' ? t($ => $.settings.saving) : t($ => $.settings.save)} /></Stack>
           </form>
-          <StatusMessage>{t($ => $.onboarding.restartHelp)}</StatusMessage>
-          <ActionRow><Button data-restart-onboarding disabled={settings.dirty || Boolean(saving) || restarting} onClick={() => {
+          <Text as="p" type="supporting" role="status">{t($ => $.onboarding.restartHelp)}</Text>
+          <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button data-restart-onboarding isDisabled={settings.dirty || Boolean(saving) || restarting} onClick={() => {
             setRestarting(true); setRestartError(false)
             void onboarding.restart().catch(() => setRestartError(true)).finally(() => setRestarting(false))
-          }}>{t($ => $.onboarding.restart)}</Button></ActionRow>
-          {restartError && <StatusMessage tone="error">{t($ => $.settings.saveFailed)}</StatusMessage>}
-        </SectionCard>
+          }} label={t($ => $.onboarding.restart)} /></Stack>
+          {restartError && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.settings.saveFailed)}</Text>}
+        </div></details></Section>
         <AISettingsSection aiSettings={draft.ai} onSaved={settings.acceptAI} onDirty={settings.setAIDirty} disabled={Boolean(saving)} />
         <SmartPasteSettings settings={settings} />
-        <SectionCard defaultCollapsed data-settings-mailbox title={t($ => $.settings.mailbox)} description={t($ => $.settings.mailboxDescription)}>
+        <Section className="feature-section" padding={0}><details data-settings-mailbox  onInvalidCapture={event => { event.currentTarget.open = true }}>
+      <summary><Heading level={2}>{t($ => $.settings.mailbox)}</Heading></summary>
+      <div className="feature-section-body">{t($ => $.settings.mailboxDescription) && <p>{t($ => $.settings.mailboxDescription)}</p>}
           <form data-settings-mailbox-form className="settings-stack" noValidate onSubmit={event => { event.preventDefault(); submitMailbox() }}>
-            <FormField label={t($ => $.settings.mailProvider)}>{props => <Select {...props} value={draft.mailbox.provider} disabled={Boolean(saving)} onChange={event => {
-              const provider = event.target.value as MailProvider
+            <Selector label={t($ => $.settings.mailProvider)} value={draft.mailbox.provider} isDisabled={Boolean(saving)} onChange={event => {
+              const provider = event
+              if (provider !== 'none' && provider !== 'custom' && provider !== 'gmail' && provider !== 'outlook') return
               settings.changeMailbox({ provider, url: provider === 'none' ? '' : provider === 'custom' ? draft.mailbox.url : mailURLs[provider] }); setMailError(false)
-            }}><option value="none">{t($ => $.settings.none)}</option><option value="gmail">Gmail</option><option value="outlook">Outlook</option><option value="custom">{t($ => $.settings.custom)}</option></Select>}</FormField>
-            {draft.mailbox.provider !== 'none' && <FormField label={t($ => $.settings.mailURL)} help={t($ => $.settings.mailHelp)} error={mailError ? t($ => $.settings.mailInvalid) : undefined}>{props => <TextInput {...props} type="url" maxLength={2048} value={draft.mailbox.url} disabled={Boolean(saving)} onChange={event => { settings.changeMailbox({ ...draft.mailbox, url: event.target.value }); setMailError(false) }} />}</FormField>}
-            <ActionRow>{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" disabled={!settings.mailDirty || Boolean(saving)}>{saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)}</Button></ActionRow>
+            }}  options={[({ value: "none", label: t($ => $.settings.none) }), ({ value: "gmail", label: "Gmail" }), ({ value: "outlook", label: "Outlook" }), ({ value: "custom", label: t($ => $.settings.custom) })]} />
+            {draft.mailbox.provider !== 'none' && <TextInput label={t($ => $.settings.mailURL)} description={t($ => $.settings.mailHelp)} status={(mailError ? t($ => $.settings.mailInvalid) : undefined) ? { type: 'error', message: mailError ? t($ => $.settings.mailInvalid) : undefined } : undefined} type="url" ref={input => { if (input) { input.maxLength = 2048 } }} value={draft.mailbox.url} isDisabled={Boolean(saving)} onChange={event => { settings.changeMailbox({ ...draft.mailbox, url: event }); setMailError(false) }} />}
+            <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">{feedback(notices.mailbox, settings.mailDirty)}<Button variant="primary" type="submit" isDisabled={!settings.mailDirty || Boolean(saving)} label={saving === 'mailbox' ? t($ => $.settings.saving) : t($ => $.settings.save)} /></Stack>
           </form>
-        </SectionCard>
+        </div></details></Section>
         <KnowledgeSettings onDirty={settings.setKnowledgeDirty} />
         <ExternalMCPSettings />
       </div>}

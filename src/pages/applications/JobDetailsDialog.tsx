@@ -1,7 +1,8 @@
+import { parseHttpUrl } from '../../shared/http-url'
+import { Button, Dialog, DialogHeader, Link, MetadataList, MetadataListItem, Stack, Text } from '@astryxdesign/core'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useServices } from '../../app/providers'
-import { Button, DetailsList, Dialog, ExternalLink, StatusMessage } from '../../shared/ui'
 import { ApplicationAgentPanel } from './ApplicationAgentPanel'
 import { ApplicationEvents } from './ApplicationEvents'
 import type { Job, JobSource } from '../../domain/job/job.types'
@@ -28,10 +29,12 @@ export function JobDetailsDialog({ id, onClose, onChanged }: { id: string | null
     })().catch(() => { if (!disposed) setError(true) })
     return () => { disposed = true }
   }, [data, id, reload])
-  return <Dialog open={Boolean(id)} title={t($ => $.jobs.details)} description={job ? job.title : t($ => $.jobs.detailsHelp)} onClose={onClose} content={<div className="job-stack">
+  return <Dialog  isOpen={Boolean(id)} onOpenChange={() => onClose()} aria-label={t($ => $.jobs.details)} width={448} purpose="form">
+      <DialogHeader title={t($ => $.jobs.details)} subtitle={job ? job.title : t($ => $.jobs.detailsHelp)} />
+      <div className="dialog-content">{<div className="job-stack">
       {id && <ApplicationAgentPanel key={id} jobId={id} onChanged={() => { setReload(value => value + 1); onChanged() }} />}
-    {error ? <><StatusMessage tone="error">{t($ => $.jobs.loadFailed)}</StatusMessage><Button onClick={() => setReload(value => value + 1)}>{t($ => $.jobs.retry)}</Button></>
-      : !job ? <StatusMessage>{t($ => $.jobs.loading)}</StatusMessage> : <DetailsList items={[
+    {error ? <><Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.jobs.loadFailed)}</Text><Button onClick={() => setReload(value => value + 1)} label={t($ => $.jobs.retry)} /></>
+      : !job ? <Text as="p" type="supporting" role="status">{t($ => $.jobs.loading)}</Text> : <MetadataList>{([
         ...(['title', 'companyNameRaw', 'locationText', 'employmentType', 'description', 'notes'] as const).map(key => ({ label: t($ => $.jobs.fields[key]), value: job[key] || '—' })),
         { label: t($ => $.jobs.status), value: t($ => $.jobs.statuses[job.applicationStatus]) },
         { label: t($ => $.jobs.savedAt), value: new Date(job.savedAt).toLocaleString(i18n.language) },
@@ -40,8 +43,17 @@ export function JobDetailsDialog({ id, onClose, onChanged }: { id: string | null
         { label: t($ => $.jobs.salary), value: job.salary ? [job.salary.text, [job.salary.min ?? '', job.salary.max ?? ''].join(' – '), job.salary.currency, t($ => $.jobs.periods[job.salary!.period])].filter(Boolean).join(' · ') : '—' },
         ...job.requirements.map((requirement, index) => ({ label: t($ => $.jobs.requirementEntry, { number: index + 1 }),
           value: [t($ => $.jobs.requirementTypes[requirement.type]), requirement.text, requirement.keywords.join(', ')].filter(Boolean).join('\n') })),
-        { label: t($ => $.jobs.sources), value: sources.length ? <div className="job-stack">{sources.map(source => <div key={source.id}><ExternalLink href={source.url}>{source.pageTitle || source.url}</ExternalLink><div>{source.url}</div></div>)}</div> : t($ => $.jobs.noSource) }
-      ]} />}
+        { label: t($ => $.jobs.sources), value: sources.length ? <div className="job-stack">{sources.map(source => {
+          const title = source.pageTitle || source.url
+          const url = parseHttpUrl(source.url)
+          return <div key={source.id}>
+            {url ? <Link href={url.href} target="_blank" rel="noopener noreferrer">{title}</Link> : <span>{title}</span>}
+            <div>{source.url}</div>
+          </div>
+        })}</div> : t($ => $.jobs.noSource) }
+      ]).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>}
       {id && <ApplicationEvents jobId={id} version={reload} />}
-    </div>}><Button autoFocus onClick={onClose}>{t($ => $.jobs.close)}</Button></Dialog>
+    </div>}</div>
+      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row"><Button data-autofocus="true" onClick={onClose} label={t($ => $.jobs.close)} /></Stack>
+    </Dialog>
 }

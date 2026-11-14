@@ -4,7 +4,6 @@ import { type AIChoice, type AISettings } from '../../shared/ai'
 import type { ApplyImport, ImportDraft } from '../../domain/candidate/import.types'
 import type { Profile } from '../../domain/candidate/candidate.types'
 import type { ImportEvent, ImportTask, PdfSelection } from '../../platform/electron/profile-import-contract'
-import { revealSectionCards } from '../../shared/ui'
 import { importError, importSelection } from './import-state'
 
 export function useProfileImport(profile: Profile | null, onSaved: (profile: Profile) => Promise<void>, preferredChoice?: AIChoice | null) {
@@ -85,7 +84,11 @@ export function useProfileImport(profile: Profile | null, onSaved: (profile: Pro
       const control = editor?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? editor?.querySelector<HTMLElement>('input, textarea, select')
       const target = control ?? editor
       if (target) {
-        revealSectionCards(target)
+        let section = target.closest<HTMLDetailsElement>('details')
+        while (section) {
+          section.open = true
+          section = section.parentElement?.closest<HTMLDetailsElement>('details') ?? null
+        }
         target.scrollIntoView({ block: 'center' })
         control?.focus()
       }

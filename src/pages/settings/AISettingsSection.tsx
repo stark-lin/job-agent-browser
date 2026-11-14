@@ -1,10 +1,11 @@
+import { Button, Dialog, DialogHeader, Heading, Section, Selector, Stack, Text } from '@astryxdesign/core'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AIConnectionEditor } from '../../app/ai/AIConnectionEditor'
 import { useServices } from '../../app/providers'
 import type { AIError, AISettings } from '../../shared/ai'
 import type { Preferences } from '../../shared/settings'
-import { ActionRow, Button, Dialog, FormField, SectionCard, Select, StatusMessage } from '../../shared/ui'
+
 
 const newId = () => `provider-${crypto.randomUUID()}`
 
@@ -32,27 +33,27 @@ export function AISettingsSection({ aiSettings, onSaved, onDirty, disabled }: {
     finally { setDeleting(false); setConfirm(false) }
   }
 
-  return <SectionCard defaultCollapsed data-settings-ai title={t($ => $.connection.title)}>
+  return <Section className="feature-section" padding={0}><details data-settings-ai  onInvalidCapture={event => { event.currentTarget.open = true }}>
+      <summary><Heading level={2}>{t($ => $.connection.title)}</Heading></summary>
+      <div className="feature-section-body">
     <div className="settings-ai-layout">
       <div className="settings-stack">
-        <FormField label={t($ => $.connection.savedConnection)}>{props =>
-          <Select {...props} disabled={locked} value={selected} onChange={event => select(event.target.value)}>
-            {aiSettings.providers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            {!provider && <option value={selected}>{t($ => $.connection.newConnection)}</option>}
-          </Select>}</FormField>
-        {provider && <ActionRow>
-          <Button disabled={locked || aiSettings.providers.length >= 20} onClick={() => select(newId())}>{t($ => $.connection.newConnection)}</Button>
-          <Button variant="danger" disabled={locked} onClick={() => setConfirm(true)}>{t($ => $.connection.deleteConnection)}</Button>
-        </ActionRow>}
-        {error && <StatusMessage tone="error">{t($ => $.ai.errors[error])}</StatusMessage>}
+        <Selector label={t($ => $.connection.savedConnection)} isDisabled={locked} value={selected} onChange={event => select(event)}  options={[...(aiSettings.providers.map(item => ({ value: item.id, label: item.name }))), ...(!provider  ? [({ value: selected, label: t($ => $.connection.newConnection) })] : [])]} />
+        {provider && <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
+          <Button isDisabled={locked || aiSettings.providers.length >= 20} onClick={() => select(newId())} label={t($ => $.connection.newConnection)} />
+          <Button variant="destructive" isDisabled={locked} onClick={() => setConfirm(true)} label={t($ => $.connection.deleteConnection)} />
+        </Stack>}
+        {error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.ai.errors[error])}</Text>}
       </div>
       <AIConnectionEditor key={selected} settings={aiSettings} providerId={selected} onBusy={setBusy} onDirty={onDirty}
         onSaved={onSaved} submitLabel={t($ => $.settings.save)} disabled={disabled || deleting} />
     </div>
-    <Dialog open={confirm} title={t($ => $.connection.deleteConnection)} description={t($ => $.connection.deleteDescription, { name: provider?.name ?? '' })}
-      onClose={() => { if (!deleting) setConfirm(false) }}>
-      <Button autoFocus disabled={deleting} onClick={() => setConfirm(false)}>{t($ => $.settings.cancel)}</Button>
-      <Button variant="danger" disabled={deleting} onClick={() => void remove()}>{t($ => $.connection.deleteConnection)}</Button>
+    <Dialog  isOpen={confirm} onOpenChange={() => { if (!deleting) setConfirm(false) }} aria-label={t($ => $.connection.deleteConnection)} width={448} purpose="form">
+      <DialogHeader title={t($ => $.connection.deleteConnection)} subtitle={t($ => $.connection.deleteDescription, { name: provider?.name ?? '' })} />
+      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
+      <Button data-autofocus="true" isDisabled={deleting} onClick={() => setConfirm(false)} label={t($ => $.settings.cancel)} />
+      <Button variant="destructive" isDisabled={deleting} onClick={() => void remove()} label={t($ => $.connection.deleteConnection)} />
+    </Stack>
     </Dialog>
-  </SectionCard>
+  </div></details></Section>
 }

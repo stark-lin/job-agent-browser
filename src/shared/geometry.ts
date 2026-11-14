@@ -1,8 +1,7 @@
-// Generated from design-tokens.json: npm run design:tokens
 export const TAB_STRIP_HEIGHT = 48
 export const TOOLBAR_HEIGHT = 48
 export const BROWSER_CHROME_HEIGHT = TAB_STRIP_HEIGHT + TOOLBAR_HEIGHT
-export const SIDEBAR_WIDTH = 64
+export const SIDEBAR_WIDTH = 72
 export const HISTORY_DRAG_SLOP = 8
 export const HISTORY_DRAG_THRESHOLD = 96
 export const HISTORY_INDICATOR_SIZE = 64

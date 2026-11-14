@@ -15,6 +15,7 @@ module.exports = async function gestureSmoke({ window, call, read, active, evalu
     const view = views().find(view => view.webContents.getURL() === `${origin}/gesture-two`), contents = view.webContents
     contents.setBackgroundThrottling(false)
     await waitFor(() => view.getVisible(), 'gesture content visible')
+    await waitState(state => !active(state).isLoading && active(state).canGoBack, 'gesture history available')
     const surface = native.parent(window, view), fixed = surface.getBounds()
     const chrome = await evaluate('document.querySelector(".browser-controls").getBoundingClientRect().bottom')
     const indicator = surface.children.find(child => child !== view && child.webContents)
@@ -43,6 +44,8 @@ module.exports = async function gestureSmoke({ window, call, read, active, evalu
     async function rightDrag(distance, available = true) {
       window.focus(); contents.focus()
       await waitFor(() => contents.executeJavaScript('document.hasFocus()'), 'gesture page focused')
+      await contents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+      await waitFor(() => contents.executeJavaScript('document.hasFocus()'), 'gesture page focus settled')
       contents.emit('before-mouse-event', { preventDefault() {} }, { type: 'mouseDown', button: 'right', x: 320, y: 300, clickCount: 1 })
       contents.emit('before-mouse-event', { preventDefault() {} }, { type: 'mouseMove', x: 320 + distance, y: 300, modifiers: ['rightbuttondown'] })
       await arrow(distance > 0 ? 'back' : 'forward', available && Math.abs(distance) >= Math.min(96, fixed.width / 4), available)
@@ -147,6 +150,6 @@ module.exports = async function gestureSmoke({ window, call, read, active, evalu
     console.log('History gesture smoke passed: right-button and trackpad navigation, edge arrows, readiness, fixed content/chrome, gray first-frame reveal, toolbar/menu refresh, scroll priority, cancellation and isolated preload.')
   } finally {
     Menu.prototype.popup = originalPopup
-    await call('closeTab', tabId)
+    if (!window.isDestroyed()) await call('closeTab', tabId)
   }
 }

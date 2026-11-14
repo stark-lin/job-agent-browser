@@ -1,6 +1,8 @@
 import { nativeTheme } from 'electron'
 import type { ResolvedTheme, ThemePreference } from '../../../shared/settings'
-import { themeBackgrounds, browserTransitionBackgrounds, browserCanvasBackgrounds } from '../../../shared/ui/theme-colors'
+// Neutral theme body and browser canvas colors for native view transitions.
+const themeBackgrounds = { light: '#f1f1f1', dark: '#1b1b1b' }
+const browserCanvasBackgrounds = { light: '#e2e2e2', dark: '#303030' }
 
 export function applyTheme(preference: ThemePreference): void {
   nativeTheme.themeSource = preference
@@ -15,7 +17,7 @@ export function themeBackground(): string {
 }
 
 export function browserTransitionBackground(): string {
-  return browserTransitionBackgrounds[resolvedTheme()]
+  return browserCanvasBackgrounds[resolvedTheme()]
 }
 
 export function browserCanvasBackground(): string {

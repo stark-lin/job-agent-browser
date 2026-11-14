@@ -1,8 +1,6 @@
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { dialog } = require('electron')
-const { mkdirSync, writeFileSync } = require('node:fs')
-const { resolve } = require('node:path')
 
 module.exports = async function jobSmoke({ window, call, read, active, evaluate, waitFor }) {
   const data = (method, input = {}) => evaluate(`window.data.jobs.${method}(${JSON.stringify(input)})`)
@@ -114,7 +112,7 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
     await button('Previous')
     const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.webContents.reload(); await loaded
     await waitFor(() => evaluate('document.querySelectorAll("tbody tr").length === 25'), 'persisted job list after renderer reload')
-    window.setMinimumSize(320, 320); mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
+    window.setMinimumSize(320, 320)
     for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {
       await preferences({ language, theme }); await frame()
       for (const page of ['find', 'applications']) {
@@ -123,7 +121,6 @@ module.exports = async function jobSmoke({ window, call, read, active, evaluate,
         for (const width of [320, 640, 1200]) {
           window.setContentSize(width, 820); await frame()
           assert.equal(await evaluate('document.querySelector(".job-page").scrollWidth > document.querySelector(".job-page").clientWidth'), false, `job overflow ${page}/${language}/${theme}/${width}`)
-          if (language === 'zh-CN' && width === 1200) writeFileSync(resolve(__dirname, `../.cache/job-${page}-${theme}.png`), (await window.capturePage()).toPNG())
         }
       }
     }

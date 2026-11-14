@@ -1,8 +1,8 @@
+import { Button, Text } from '@astryxdesign/core'
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useServices } from './providers'
 import { useNativePresentation } from './navigation/useNativePresentation'
-import { Button, StatusMessage } from '../shared/ui'
 import { OnboardingPage } from '../pages/onboarding/OnboardingPage'
 import type { Preferences } from '../shared/settings'
 
@@ -30,8 +30,8 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       setPreferences(result.value)
     } finally { lock.current = false }
   }
-  if (!preferences) return <main className="feature-page"><StatusMessage tone={error ? 'error' : 'neutral'}>{t($ => error ? $.settings.loadFailed : $.settings.loading)}</StatusMessage>
-    {error && <Button onClick={() => setAttempt(value => value + 1)}>{t($ => $.settings.retry)}</Button>}</main>
+  if (!preferences) return <main className="feature-page"><Text as="p" type="supporting" role="status">{t($ => error ? $.settings.loadFailed : $.settings.loading)}</Text>
+    {error && <Button onClick={() => setAttempt(value => value + 1)} label={t($ => $.settings.retry)} />}</main>
   return <OnboardingContext.Provider value={{ restart }}>{preferences.onboardingCompleted ? children
     : <Setup preferences={preferences} onComplete={setPreferences} />}</OnboardingContext.Provider>
 }

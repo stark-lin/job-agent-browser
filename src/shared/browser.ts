@@ -74,4 +74,4 @@ export const BROWSER_ACTIVATE_TAB = 'browser:activate-tab'
 export const BROWSER_CLOSE_TAB = 'browser:close-tab'
 export const BROWSER_FOCUS_ADDRESS = 'browser:focus-address'
 
-export { TAB_STRIP_HEIGHT, TOOLBAR_HEIGHT, BROWSER_CHROME_HEIGHT, getSidebarWidth } from './ui/geometry'
+export { TAB_STRIP_HEIGHT, TOOLBAR_HEIGHT, BROWSER_CHROME_HEIGHT, getSidebarWidth } from './geometry'
