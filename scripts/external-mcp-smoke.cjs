@@ -4,7 +4,7 @@ const { clipboard } = require('electron')
 const { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } = require('node:fs')
 const { dirname, resolve } = require('node:path')
 
-module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, data }) {
+module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, data, capture }) {
   const api = (method, input) => evaluate(`window.externalMCP.${method}(${JSON.stringify(input)})`)
   const selector = target => `[data-agent-target="${target}"]`
   const click = (target, action) => evaluate(`document.querySelector('${selector(target)} [data-mcp-${action}]').click()`)
@@ -14,7 +14,7 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   await openSectionCards(evaluate, '[data-external-mcp]')
   assert.equal(await evaluate('document.querySelectorAll("[data-agent-target][open]").length'), 0)
   assert.deepEqual(await evaluate(`(() => {
-    const cards = [...document.querySelectorAll('[data-agent-target]')].map(card => card.closest('.feature-section'));
+    const cards = [...document.querySelectorAll('[data-agent-target]')];
     return cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom);
   })()`), [16, 16, 16])
   await openSectionCards(evaluate, selector('codex'))
@@ -86,7 +86,7 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
   }
   const size = window.getContentSize(), minimum = window.getMinimumSize()
   await require('./external-skills-smoke.cjs')({ window, evaluate, waitFor })
-  await require('./external-integrations-lifecycle-smoke.cjs')({ evaluate, waitFor })
+  await require('./external-integrations-lifecycle-smoke.cjs')({ evaluate, waitFor, capture })
   window.setMinimumSize(320, 320)
   try {
     for (const language of ['en', 'zh-CN']) for (const theme of ['light', 'dark']) {
@@ -98,6 +98,7 @@ module.exports = async function externalMCPSmoke({ window, evaluate, waitFor, da
         assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false, `${language}/${theme}/${width} overflow`)
       }
       await evaluate('document.querySelector("[data-external-mcp]").scrollIntoView()')
+      await capture(`external-mcp-${language}-${theme}.png`)
     }
   } finally {
     window.setContentSize(...size); window.setMinimumSize(...minimum)

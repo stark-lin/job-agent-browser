@@ -1,5 +1,4 @@
-import { Plus } from 'lucide-react'
-import { Button, Icon, IconButton } from '@astryxdesign/core'
+import { Button, IconButton } from '../../shared/ui'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type { BrowserTabState } from '../../shared/browser'
@@ -37,24 +36,24 @@ export function TabStrip({ tabs, activeTabId, onCreate, onActivate, onClose }: T
         {tabs.map((tab, index) => (
           <div className={`browser-tab${tab.id === activeTabId ? ' is-active' : ''}`} key={tab.id} role="presentation">
             <Button
-              variant="ghost"
+              variant="tab"
               className="tab-select"
               type="button"
               role="tab"
               aria-selected={tab.id === activeTabId}
               tabIndex={tab.id === activeTabId ? 0 : -1}
-              label={tab.browserTitle} size="sm"
+              title={tab.browserTitle}
               onClick={() => onActivate(tab.id)}
               onKeyDown={(event) => moveFocus(event, index)}
             >
               <span className={`tab-indicator${tab.isLoading ? ' is-loading' : ''}`} aria-hidden="true">{tab.isLoading ? '' : '○'}</span>
               <span className="tab-title">{tab.browserTitle}</span>
             </Button>
-            <IconButton variant="ghost" size="sm" className="tab-close" label={t($ => $.browser.closeNamedTab, { title: tab.browserTitle })} tooltip={t($ => $.browser.closeTab)} icon={<Icon icon="close" />} onClick={() => onClose(tab.id)} />
+            <Button variant="tab-close" size="sm" className="tab-close" type="button" aria-label={t($ => $.browser.closeNamedTab, { title: tab.browserTitle })} title={t($ => $.browser.closeTab)} onClick={() => onClose(tab.id)}>×</Button>
           </div>
         ))}
       </div>
-      <IconButton className="icon-button new-tab-button" size="sm" variant="ghost" label={t($ => $.browser.newTab)} tooltip={t($ => $.browser.newTab)} icon={<Icon icon={Plus} />} onClick={onCreate} />
+      <IconButton className="icon-button new-tab-button" type="button" aria-label={t($ => $.browser.newTab)} title={t($ => $.browser.newTab)} onClick={onCreate}>+</IconButton>
     </div>
   )
 }

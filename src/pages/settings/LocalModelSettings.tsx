@@ -1,6 +1,6 @@
-import { Button, Dialog, DialogHeader, MetadataList, MetadataListItem, ProgressBar, Stack, Text } from '@astryxdesign/core'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ActionRow, Button, DetailsList, Dialog, Progress, StatusMessage } from '../../shared/ui'
 import type { ModelStatus } from '../../shared/models'
 export function LocalModelSettings() {
   const { t } = useTranslation()
@@ -34,31 +34,30 @@ export function LocalModelSettings() {
   if (!model) return null
   const code = error || model.error
   const working = ['installing', 'verifying', 'removing'].includes(model.state)
-  return <Stack gap={2} data-local-model>
-    <MetadataList>
-      <MetadataListItem label={t($ => $.knowledge.localModel)}>{model.id} · {model.dimensions}</MetadataListItem>
-      <MetadataListItem label={t($ => $.knowledge.modelState)}>{t($ => $.knowledge.modelStates[model.state])}</MetadataListItem>
-      <MetadataListItem label={t($ => $.knowledge.modelStorage)}>{Math.ceil(model.total / 1000000)} MB · {model.directory}</MetadataListItem>
-    </MetadataList>
-    {working && <ProgressBar label={t($ => $.knowledge.modelProgress)} max={model.total} value={model.completed} isLabelHidden />}
-    {model.state !== 'removing' && <Stack direction="horizontal" align="center" gap={2} wrap="wrap">
-      {model.state !== 'ready' && !working && <Button isDisabled={busy} onClick={() => void run('modelInstall')} label={model.state === 'missing' ? t($ => $.knowledge.downloadModel) : t($ => $.knowledge.repairModel)} />}
+  return <div className="settings-stack" data-local-model>
+    <DetailsList items={[
+      { label: t($ => $.knowledge.localModel), value: `${model.id} · ${model.dimensions}` },
+      { label: t($ => $.knowledge.modelState), value: t($ => $.knowledge.modelStates[model.state]) },
+      { label: t($ => $.knowledge.modelStorage), value: `${Math.ceil(model.total / 1000000)} MB · ${model.directory}` }
+    ]} />
+    {working && <Progress aria-label={t($ => $.knowledge.modelProgress)} max={model.total} value={model.completed} />}
+    <ActionRow>
+      {model.state !== 'ready' && !working && <Button variant="primary" disabled={busy} onClick={() => void run('modelInstall')}>
+        {model.state === 'missing' ? t($ => $.knowledge.downloadModel) : t($ => $.knowledge.repairModel)}
+      </Button>}
       {!working && model.state !== 'missing' && <>
-        <Button isDisabled={busy} onClick={() => void run('modelVerify')} label={t($ => $.knowledge.verifyModel)} />
-        <Button variant="destructive" isDisabled={busy} onClick={() => setRemove(true)} label={t($ => $.knowledge.removeModel)} />
+        <Button disabled={busy} onClick={() => void run('modelVerify')}>{t($ => $.knowledge.verifyModel)}</Button>
+        <Button disabled={busy} onClick={() => setRemove(true)}>{t($ => $.knowledge.removeModel)}</Button>
       </>}
-      {working && <Button onClick={() => void run('modelCancel')} label={t($ => $.knowledge.cancel)} />}
-    </Stack>}
-    {code && <Text as="p" type="supporting" role="status">
+      {working && model.state !== 'removing' && <Button onClick={() => void run('modelCancel')}>{t($ => $.knowledge.cancel)}</Button>}
+    </ActionRow>
+    {code && <StatusMessage tone={code === 'MODEL_CANCELLED' ? 'neutral' : 'error'}>
       {code === 'MODEL_CANCELLED' ? t($ => $.knowledge.modelCancelled) : code === 'MODEL_BUSY' ? t($ => $.knowledge.modelBusy) : t($ => $.knowledge.modelError)}
       {code !== 'MODEL_CANCELLED' && ` (${code})`}
-    </Text>}
-    <Dialog isOpen={remove} onOpenChange={() => setRemove(false)} aria-label={t($ => $.knowledge.removeModel)} width={448} purpose="form">
-      <DialogHeader title={t($ => $.knowledge.removeModel)} subtitle={t($ => $.knowledge.removeModelHelp)} />
-      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
-      <Button data-autofocus="true" onClick={() => setRemove(false)} label={t($ => $.knowledge.cancel)} />
-      <Button variant="destructive" onClick={() => { setRemove(false); void run('modelRemove') }} label={t($ => $.knowledge.removeModel)} />
-    </Stack>
+    </StatusMessage>}
+    <Dialog open={remove} title={t($ => $.knowledge.removeModel)} description={t($ => $.knowledge.removeModelHelp)} onClose={() => setRemove(false)}>
+      <Button autoFocus onClick={() => setRemove(false)}>{t($ => $.knowledge.cancel)}</Button>
+      <Button onClick={() => { setRemove(false); void run('modelRemove') }}>{t($ => $.knowledge.removeModel)}</Button>
     </Dialog>
-  </Stack>
+  </div>
 }

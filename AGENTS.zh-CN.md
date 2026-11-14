@@ -13,7 +13,7 @@
 | [docs/product-architecture.md](docs/product-architecture.md) · [中文](docs/product-architecture.zh-CN.md) | 产品目标、范围与开发顺序；明确标为规划。 |
 | [docs/code-architecture.md](docs/code-architecture.md) · [中文](docs/code-architecture.zh-CN.md) | 目标代码组织、依赖边界与迁移约束；区分现状与目标。 |
 | [DESIGN.md](DESIGN.md) · [中文](DESIGN.zh-CN.md) | 视觉方向、交互原则与设计入口；具体组件规则仍归设计规范。 |
-| [docs/design-system.md](docs/design-system.md) · [中文](docs/design-system.zh-CN.md) | Astryx 组件、主题、原生界面与验证。 |
+| [docs/design-system.md](docs/design-system.md) · [中文](docs/design-system.zh-CN.md) | 共享 UI 规范、组件参考展示库、Design Tokens 与设计验证。 |
 | [docs/data-architecture.md](docs/data-architecture.md) · [中文](docs/data-architecture.zh-CN.md) | 当前及规划的 V1 数据模型、业务数据 API、生成、溯源与存储；拥有共享 [ER 图](docs/diagrams/data-model.md)。 |
 | [docs/agent-runtime.md](docs/agent-runtime.md) · [中文](docs/agent-runtime.zh-CN.md) | Ask AI 的 Prompt/Run 边界、Cycle 执行状态及收尾规则。 |
 | [docs/mcp-architecture.md](docs/mcp-architecture.md) · [中文](docs/mcp-architecture.zh-CN.md) | 工具注册、Agent Scope、受保护能力绑定、MCP Provider/Client 行为及生命周期。 |
@@ -45,9 +45,9 @@
 
 ## UI 设计规范
 
-- 遵循[设计系统规范](docs/design-system.zh-CN.md)。通用 UI 组件直接从 Astryx 导入，并使用 Astryx 的语义 Token。
-- 专用 UI 归属相应业务模块，原生界面归属 Platform。渲染端与 Electron 共用几何常量。
-
+- UI 新增和修改遵循[组件库规范](docs/design-system.zh-CN.md)，间距、尺寸、排版、圆角和语义色使用共享 Tokens。
+- 所有 UI 组件必须通过 `src/shared/ui/index.ts` 引用中央组件库；页面和业务组件由中央基础组件组合，缺失的基础组件或变体必须先加入中央库。页面可定义布局与行为，不得重复编写控件结构/样式或通过内联样式覆盖中央外观。
+- 修改权威 Tokens 时同步生成共享 CSS/浏览器尺寸，运行设计验证和相关运行检查；参考展示库与两个语言版本的规范保持一致。
 
 ## Agent 能力边界
 

@@ -1,9 +1,18 @@
-import { Button, Dialog, DialogHeader, EmptyState, Icon, IconButton, LayoutPanel, Stack, Text, TextInput } from '@astryxdesign/core'
-import { FileText, Plus } from 'lucide-react'
-import { UntrustedProse } from '../../app/content/UntrustedProse'
-import { KnowledgeSourceEditor } from './KnowledgeSourceEditor'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  ActionRow,
+  Button,
+  IconButton,
+  Glyph,
+  Dialog,
+  FormField,
+  TextInput,
+  Markdown,
+  MarkdownEditor,
+  ResizableExplorer,
+  StatusMessage
+} from '../../shared/ui'
 import type { SpaceId } from '../../shared/smart-note'
 import type { KnowledgeNode, BackupVersion, KnowledgeHit } from '../../domain/knowledge'
 import { defaultKnowledgePreferences, type KnowledgePreferences } from '../../shared/knowledge-settings'
@@ -31,10 +40,6 @@ export function KnowledgePage() {
     [restore, setRestore] = useState<BackupVersion | null>(null),
     [consent, setConsent] = useState<string | null>(null)
   const searchGeneration = useRef(0)
-  const resizeStart = useRef<{ x: number; width: number } | null>(null)
-  const resize = (width: number) => setPreferences(p => ({
-    ...p, explorerWidth: Math.max(192, Math.min(480, Math.round(width / 8) * 8))
-  }))
   useEffect(() => { searchGeneration.current++; setHits(null); setQuery(''); setHistory(null); setRestore(null) }, [space])
   useEffect(() => {
     void api.configuration({}).then((r) => {
@@ -192,13 +197,27 @@ export function KnowledgePage() {
   }
   return (
     <main className="knowledge-page" aria-label={t($ => $.navigation.pages.knowledge)} data-knowledge-page>
-      <LayoutPanel width={preferences.explorerWidth} padding={0} role="complementary" isScrollable>
+      <ResizableExplorer
+        width={preferences.explorerWidth}
+        onWidth={(explorerWidth) => setPreferences((p) => ({ ...p, explorerWidth }))}
+        label={t(($) => $.knowledge.resize)}
+      >
         <div className="knowledge-explorer-heading">
           <strong>{t(($) => $.knowledge.explorer)}</strong>
-          <IconButton size="sm" variant="ghost" label={t($ => $.knowledge.newFile)} tooltip={t($ => $.knowledge.newFile)}
-            icon={<Icon icon={FileText} />} onClick={() => begin('file')} />
-          <IconButton size="sm" variant="ghost" label={t($ => $.knowledge.newFolder)} tooltip={t($ => $.knowledge.newFolder)}
-            icon={<Icon icon={Plus} />} onClick={() => begin('folder')} />
+          <IconButton
+            aria-label={t(($) => $.knowledge.newFile)}
+            title={t(($) => $.knowledge.newFile)}
+            onClick={() => begin('file')}
+          >
+            <Glyph name="document" />
+          </IconButton>
+          <IconButton
+            aria-label={t(($) => $.knowledge.newFolder)}
+            title={t(($) => $.knowledge.newFolder)}
+            onClick={() => begin('folder')}
+          >
+            <Glyph name="plus" />
+          </IconButton>
         </div>
         <form
           className="knowledge-search"
@@ -213,21 +232,26 @@ export function KnowledgePage() {
           }}
         >
           <TextInput
-            label={t(($) => $.knowledge.search)}
+            aria-label={t(($) => $.knowledge.search)}
             placeholder={t(($) => $.knowledge.search)}
             value={query}
-            onChange={e => setQuery(e)} isLabelHidden
+            onChange={(e) => setQuery(e.target.value)}
           />
-          <IconButton type="submit" size="sm" variant="ghost" label={t($ => $.knowledge.search)}
-            icon={<Icon icon="search" />} isDisabled={!query.trim()} />
+          <IconButton type="submit" aria-label={t(($) => $.knowledge.search)} disabled={!query.trim()}>
+            <Glyph name="search" />
+          </IconButton>
         </form>
         {hits && (
           <div className="knowledge-results">
-            <Button variant="ghost" size="sm" onClick={() => { searchGeneration.current++; setHits(null) }} label={t(($) => $.knowledge.close)} />
+            <Button variant="ghost" size="sm" onClick={() => { searchGeneration.current++; setHits(null) }}>
+              {t(($) => $.knowledge.close)}
+            </Button>
             {hits.map((hit) => (
-              <Button key={hit.id} variant="ghost" label={`${hit.path}:${hit.startLine}`} onClick={() => void k.open(hit.path, space)} />
+              <Button key={hit.id} variant="ghost" onClick={() => void k.open(hit.path, space)}>
+                {hit.path}:{hit.startLine}
+              </Button>
             ))}
-            {!hits.length && <Text as="p" type="supporting" role="status">{t(($) => $.knowledge.noResults)}</Text>}
+            {!hits.length && <StatusMessage>{t(($) => $.knowledge.noResults)}</StatusMessage>}
           </div>
         )}
         {(['memory', 'knowledge'] as const).map(treeSpace => k.trees[treeSpace] ? (
@@ -240,31 +264,14 @@ export function KnowledgePage() {
             onSelect={node => k.select(node, treeSpace)}
             onAction={(kind, node) => begin(kind, node, treeSpace)}
           />
-        ) : <Text key={treeSpace} as="p" type="supporting" role="status">{t(($) => $.knowledge.loading)}</Text>)}
-      </LayoutPanel>
-      <div className="knowledge-resize-handle" role="separator" aria-label={t($ => $.knowledge.resize)}
-        aria-orientation="vertical" aria-valuenow={preferences.explorerWidth} aria-valuemin={192} aria-valuemax={480}
-        tabIndex={0}
-        onPointerDown={event => {
-          resizeStart.current = { x: event.clientX, width: preferences.explorerWidth }
-          event.currentTarget.setPointerCapture(event.pointerId)
-        }}
-        onPointerMove={event => {
-          const start = resizeStart.current
-          if (start) resize(start.width + event.clientX - start.x)
-        }}
-        onLostPointerCapture={() => { resizeStart.current = null }}
-        onKeyDown={event => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-          event.preventDefault()
-          resize(preferences.explorerWidth + (event.key === 'ArrowLeft' ? -8 : 8))
-        }} />
+        ) : <StatusMessage key={treeSpace}>{t(($) => $.knowledge.loading)}</StatusMessage>)}
+      </ResizableExplorer>
       <section className="knowledge-workspace">
         <header className="knowledge-toolbar">
           <div className="knowledge-breadcrumb">
             {k.file ? `${t($ => $.knowledge[k.file?.space === 'memory' ? 'memory' : 'knowledgeSpace'])} › ${k.file.path.split('/').join(' › ')}` : t(($) => $.navigation.pages.knowledge)}
           </div>
-          <Stack className="knowledge-toolbar-actions" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
+          <ActionRow className="knowledge-toolbar-actions">
             {(['edit', 'split', 'preview'] as const).map((mode) => (
               <Button
                 key={mode}
@@ -275,11 +282,17 @@ export function KnowledgePage() {
                   setPreferences((p) => ({ ...p, mode }))
                   void api.view({ mode, explorerWidth: preferences.explorerWidth })
                 }}
-               label={t(($) => $.knowledge[mode])} />
+              >
+                {t(($) => $.knowledge[mode])}
+              </Button>
             ))}
-            <Button size="sm" onClick={() => void historyPage()} label={t(($) => $.knowledge.history)} />
-            <Button size="sm" isDisabled={busy} onClick={() => void synchronize()} label={t(($) => $.knowledge.sync)} />
-          </Stack>
+            <Button size="sm" onClick={() => void historyPage()}>
+              {t(($) => $.knowledge.history)}
+            </Button>
+            <Button size="sm" disabled={busy} onClick={() => void synchronize()}>
+              {t(($) => $.knowledge.sync)}
+            </Button>
+          </ActionRow>
         </header>
         <div className="knowledge-save-status" aria-live="polite">
           {k.saving
@@ -293,23 +306,23 @@ export function KnowledgePage() {
           {syncDetail && ` · ${syncDetail === 'SYNC_CONSENT_REQUIRED' ? t($ => $.knowledge.syncConsentRequired) : syncDetail}`}
         </div>
         {k.error && (
-          <Text as="p" type="supporting" role="alert" className="error-message">
+          <StatusMessage tone="error">
             {t(($) => $.knowledge.error)} ({k.error})
-          </Text>
+          </StatusMessage>
         )}
         {k.conflict && (
           <div className="knowledge-conflict">
-            <Text as="p" type="supporting" role="alert" className="error-message">{t(($) => $.knowledge.externalConflict)}</Text>
-            <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
-              <Button onClick={() => void k.reload()} label={t(($) => $.knowledge.reload)} />
-              <Button onClick={() => begin('saveAs')} label={t(($) => $.knowledge.saveAs)} />
-            </Stack>
+            <StatusMessage tone="error">{t(($) => $.knowledge.externalConflict)}</StatusMessage>
+            <ActionRow>
+              <Button onClick={() => void k.reload()}>{t(($) => $.knowledge.reload)}</Button>
+              <Button onClick={() => begin('saveAs')}>{t(($) => $.knowledge.saveAs)}</Button>
+            </ActionRow>
           </div>
         )}
         {k.file ? (
           <div className={`knowledge-document knowledge-document--${preferences.mode}`}>
             {preferences.mode !== 'preview' && (
-              <KnowledgeSourceEditor
+              <MarkdownEditor
                 key={`${k.file.space}:${k.file.path}`}
                 label={t(($) => $.knowledge.editor)}
                 value={k.content}
@@ -319,15 +332,25 @@ export function KnowledgePage() {
             )}
             {preferences.mode !== 'edit' && (
               <div className="knowledge-preview" data-knowledge-preview>
-                <UntrustedProse text={k.content} onOpenLink={relativeLink} />
+                <Markdown
+                  text={k.content}
+                  copyLabel={t(($) => $.ask.copy)}
+                  copiedLabel={t(($) => $.ask.copied)}
+                  onOpenLink={relativeLink}
+                />
               </div>
             )}
           </div>
         ) : (
-          <EmptyState className="knowledge-empty" title={t($ => $.knowledge.empty)} />
+          <div className="knowledge-empty">
+            <p>{t(($) => $.knowledge.empty)}</p>
+          </div>
         )}
       </section>
-      <Dialog  isOpen={Boolean(action)} onOpenChange={() => setAction(null)} aria-label={action
+      <Dialog
+        open={Boolean(action)}
+        title={
+          action
             ? t(
                 ($) =>
                   $.knowledge[
@@ -344,33 +367,21 @@ export function KnowledgePage() {
                               : 'saveAs'
                   ]
               )
-            : ''} width={448} purpose="form">
-      <DialogHeader title={action
-            ? t(
-                ($) =>
-                  $.knowledge[
-                    action.kind === 'menu'
-                      ? 'actions'
-                      : action.kind === 'file'
-                        ? 'newFile'
-                        : action.kind === 'folder'
-                          ? 'newFolder'
-                          : action.kind === 'rename'
-                            ? 'rename'
-                            : action.kind === 'delete'
-                              ? 'delete'
-                              : 'saveAs'
-                  ]
-              )
-            : ''} subtitle={action?.kind === 'delete' ? t(($) => $.knowledge.deleteHelp) : (action?.node.path ?? '')} />
-      <div className="dialog-content">{action?.kind === 'menu' ? (
-            <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
+            : ''
+        }
+        description={action?.kind === 'delete' ? t(($) => $.knowledge.deleteHelp) : (action?.node.path ?? '')}
+        onClose={() => setAction(null)}
+        content={
+          action?.kind === 'menu' ? (
+            <ActionRow>
               {(['file', 'folder', 'rename', 'delete'] as const).map((kind) => (
                 <Button
                   key={kind}
-                  isDisabled={!action.node.path && (kind === 'rename' || kind === 'delete')}
+                  disabled={!action.node.path && (kind === 'rename' || kind === 'delete')}
                   onClick={() => begin(kind, action.node, action.space)}
-                 label={t(($) => $.knowledge[kind === 'file' ? 'newFile' : kind === 'folder' ? 'newFolder' : kind])} />
+                >
+                  {t(($) => $.knowledge[kind === 'file' ? 'newFile' : kind === 'folder' ? 'newFolder' : kind])}
+                </Button>
               ))}
               {action.node.type === 'directory' && !action.node.readme && (
                 <Button
@@ -378,50 +389,67 @@ export function KnowledgePage() {
                     setName((action.node.path ? action.node.path + '/' : '') + 'README.md')
                     setAction({ ...action, kind: 'file' })
                   }}
-                 label={t(($) => $.knowledge.createReadme)} />
+                >
+                  {t(($) => $.knowledge.createReadme)}
+                </Button>
               )}
-            </Stack>
+            </ActionRow>
           ) : action?.kind !== 'delete' ? (
-            <TextInput
-                  label={t(($) => $.knowledge.path)}
-                  hasAutoFocus
+            <FormField label={t(($) => $.knowledge.path)}>
+              {(props) => (
+                <TextInput
+                  {...props}
+                  autoFocus
                   value={name}
-                  onChange={e => setName(e)}
+                  onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void run()
                   }}
                 />
-          ) : undefined}</div>
-      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
-        <Button onClick={() => setAction(null)} label={t(($) => $.knowledge.cancel)} />
+              )}
+            </FormField>
+          ) : undefined
+        }
+      >
+        <Button onClick={() => setAction(null)}>{t(($) => $.knowledge.cancel)}</Button>
         {action?.kind !== 'menu' && (
-          <Button variant={action?.kind === 'delete' ? 'destructive' : 'primary'} isDisabled={busy} onClick={() => void run()} label={t(($) => $.knowledge.confirm)} />
+          <Button variant={action?.kind === 'delete' ? 'danger' : 'primary'} disabled={busy} onClick={() => void run()}>
+            {t(($) => $.knowledge.confirm)}
+          </Button>
         )}
-      </Stack>
-    </Dialog>
-      <Dialog  isOpen={history !== null} onOpenChange={() => setHistory(null)} aria-label={t(($) => $.knowledge.history)} width={448} purpose="form">
-      <DialogHeader title={t(($) => $.knowledge.history)} subtitle={`${t($ => $.knowledge[space === 'memory' ? 'memory' : 'knowledgeSpace'])} · ${t(($) => $.knowledge.historyHelp)}`} />
-      <div className="dialog-content">{<div className="knowledge-history">
+      </Dialog>
+      <Dialog
+        open={history !== null}
+        title={t(($) => $.knowledge.history)}
+        description={`${t($ => $.knowledge[space === 'memory' ? 'memory' : 'knowledgeSpace'])} · ${t(($) => $.knowledge.historyHelp)}`}
+        onClose={() => setHistory(null)}
+        content={
+          <div className="knowledge-history">
             {history?.map((version) => (
               <article key={version.commit}>
                 <strong>{new Date(version.timestamp).toLocaleString()}</strong>
                 <p>{version.reason}</p>
                 <pre>{version.files.join('\n')}</pre>
-                <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button size="sm" onClick={() => setRestore(version)} label={t(($) => $.knowledge.restore)} /></Stack>
+                <ActionRow><Button size="sm" onClick={() => setRestore(version)}>
+                  {t(($) => $.knowledge.restore)}
+                </Button></ActionRow>
               </article>
             ))}
-          </div>}</div>
-      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
-        <Button onClick={() => void historyPage(true)} label={t(($) => $.knowledge.more)} />
-        <Button onClick={() => setHistory(null)} label={t(($) => $.knowledge.close)} />
-      </Stack>
-    </Dialog>
-      <Dialog  isOpen={Boolean(restore)} onOpenChange={() => setRestore(null)} aria-label={t(($) => $.knowledge.restore)} width={448} purpose="form">
-      <DialogHeader title={t(($) => $.knowledge.restore)} subtitle={`${t($ => $.knowledge[space === 'memory' ? 'memory' : 'knowledgeSpace'])} · ${t(($) => $.knowledge.restoreHelp)}`} />
-      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
-        <Button onClick={() => setRestore(null)} label={t(($) => $.knowledge.cancel)} />
+          </div>
+        }
+      >
+        <Button onClick={() => void historyPage(true)}>{t(($) => $.knowledge.more)}</Button>
+        <Button onClick={() => setHistory(null)}>{t(($) => $.knowledge.close)}</Button>
+      </Dialog>
+      <Dialog
+        open={Boolean(restore)}
+        title={t(($) => $.knowledge.restore)}
+        description={`${t($ => $.knowledge[space === 'memory' ? 'memory' : 'knowledgeSpace'])} · ${t(($) => $.knowledge.restoreHelp)}`}
+        onClose={() => setRestore(null)}
+      >
+        <Button onClick={() => setRestore(null)}>{t(($) => $.knowledge.cancel)}</Button>
         <Button
-          isDisabled={busy}
+          disabled={busy}
           onClick={() => {
             if (!restore || !k.tree) return
             setBusy(true)
@@ -441,9 +469,10 @@ export function KnowledgePage() {
               })
               .finally(() => setBusy(false))
           }}
-         label={t(($) => $.knowledge.confirm)} />
-      </Stack>
-    </Dialog>
+        >
+          {t(($) => $.knowledge.confirm)}
+        </Button>
+      </Dialog>
       <RemoteSyncDialog remote={consent} busy={busy} onCancel={() => setConsent(null)} onConfirm={() => {
         if (!consent) return
         setBusy(true)

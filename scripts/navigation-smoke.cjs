@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict')
+const { mkdirSync, writeFileSync } = require('node:fs')
+const { resolve } = require('node:path')
 
 module.exports = async function navigationSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, pageFor, origin, shortcut }) {
   const routes = [
@@ -6,6 +8,12 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     ['Applications', 'applications'], ['Inbox', 'inbox'], ['My Profile', 'profile'],
     ['Ask AI', 'ai'], ['Settings', 'settings']
   ]
+  const capture = async (name) => {
+    const directory = resolve(__dirname, '../.cache')
+    mkdirSync(directory, { recursive: true })
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+    writeFileSync(resolve(directory, name), (await window.capturePage()).toPNG())
+  }
   const reloadRenderer = async () => {
     const loaded = new Promise((resolve) => window.webContents.once('did-finish-load', resolve))
     window.webContents.reload()
@@ -17,7 +25,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     assert(views().every((view) => !view.getVisible()))
     assert.equal(await evaluate('document.body.innerText.includes("app://")'), false)
   }
-  const select = label => evaluate(`document.querySelector('.workspace-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
+  const select = label => evaluate(`document.querySelector('.ui-sidebar button[aria-label=${JSON.stringify(label)}]').click()`)
   await call('navigate', 'app://ai')
   await internal('ai')
   for (const [title, page] of routes) {
@@ -28,7 +36,8 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
     assert.equal(await evaluate('document.body.innerText.includes("not implemented yet")'), !['settings', 'inbox', 'ai', 'profile', 'find', 'applications', 'resume', 'knowledge'].includes(page))
     if (page === 'settings') await waitFor(() => evaluate('!!document.querySelector("[data-settings-general]") && !!document.querySelector("[data-ai-connection]") && !!document.querySelector("[data-settings-mailbox-form]")'), 'Settings forms')
     assert.equal(await evaluate('[...document.querySelectorAll("button")].some(button => ["Go home", "Home"].includes(button.getAttribute("aria-label") || button.textContent.trim()))'), false)
-    if (page === 'inbox') assert.deepEqual(await evaluate('[...document.querySelectorAll(".action-row button")].map(button => button.textContent)'), ['Open Settings'])
+    if (page === 'inbox') assert.deepEqual(await evaluate('[...document.querySelectorAll(".ui-action-row button")].map(button => button.textContent)'), ['Open Settings'])
+    if (page === 'profile') await capture('internal-page.png')
     if (page === 'inbox') {
       await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent === 'Open Settings').click()")
       await internal('settings')
@@ -36,6 +45,7 @@ module.exports = async function navigationSmoke({ window, call, read, active, ev
   }
   await select('Ask AI')
   await internal('ai')
+  await capture('react-ask-ai.png')
   // Workspace navigation never becomes part of a Browser tab's native history.
   await call('createTab')
   const journeyId = (await read()).activeTabId

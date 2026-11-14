@@ -14,11 +14,13 @@
 | Pages | UI、局部组件/hooks/状态与页面流程 | [Ask AI](../src/pages/ai/AskAIPage.tsx)、[Browser](../src/pages/browser/BrowserPage.tsx) |
 | Domain | 实体、校验、用例与能力/Repository 接口 | [Job 用例](../src/domain/job/job.service.ts) |
 | Platform | Electron、浏览器、数据库、文件系统、AI 与配置适配 | [浏览器管理](../src/platform/browser/browserManager.ts)、[SQLite](../src/platform/database/sqlite.ts) |
-| Shared | 无框架契约和通用工具 | [导航契约](../src/shared/navigation.ts) |
+| Shared | 无框架契约及不含业务语义的 UI/工具/hooks | [导航契约](../src/shared/navigation.ts)、[占位布局](../src/shared/ui/PlaceholderPage.tsx) |
 
 [构建配置](../electron.vite.config.ts) 现在从 `src/platform/electron/` 启动 Main/Preload。`src/renderer/` 保留 HTML、React 挂载、环境类型和全局样式。唯一根组件位于 `src/app/`，旧 Main/Preload/Renderer App 实现已移除。包入口保持 `out/main/index.js`；同时构建独立 Node MCP 及 Electron 输出 Worker 入口。独立沙箱中的 `browser-gestures` Preload 管理网页滚动输入，不暴露可信应用桥接。
 
-页面直接导入 Astryx 通用组件。专用 UI 由业务模块管理。详见[设计系统规范](design-system.zh-CN.md)。
+所有 UI 组件必须组合[中央组件库入口](../src/shared/ui/index.ts)提供的基础组件；缺少变体时先扩展中央库再用于页面。页面保留布局与事件行为。[设计规范](design-system.zh-CN.md#二必须复用中央组件库)管理完整复用规则。
+
+Shared UI 同时拥有[权威 Design Tokens](../src/shared/ui/design-tokens.json)、[暗色颜色覆盖](../src/shared/ui/design-tokens.dark.json)、生成的 CSS/原生颜色/尺寸及参考组件样式，由 Renderer/Page 样式消费。[设计规范](design-system.zh-CN.md)管理视觉规则、资源和重新生成方式。
 
 ## 二、目录边界
 
@@ -70,6 +72,7 @@ src/
 └── shared/
     ├── i18n/
     │   └── locales/
+    ├── ui/
     ├── hooks/
     ├── utils/
     ├── types/
@@ -113,7 +116,7 @@ Browser 拥有标签栏/地址栏/控件；其他内部页面隐藏整个浏览�
 - App 管理常驻工作区侧栏和功能导航元数据；Pages 管理各自流程按钮、位置、启用/加载状态及处理函数。侧栏复用相同导航 API 和离开保护，不提供全局 Back/Next/Forward 栏。
 - 工作区目标由常驻侧栏提供。Browser 自行管理用于网页导航的后退、前进和刷新工具栏。
 - 页面内流程按钮，包括流程实现后的步骤 Back/Next，必须操作该页面的状态和校验，不使用浏览器历史。业务操作和链接仍由所属页面管理。
-- 业务操作、按钮文本和无障碍名称由页面及共享 i18n 资源管理。
+- Shared UI 可以提供展示和操作插槽，但不得决定按钮、导入导航 hook 或绑定历史行为。[PlaceholderPage](../src/shared/ui/PlaceholderPage.tsx) 接收页面提供的 `actions`；[AddJobPage](../src/pages/find-jobs/AddJobPage.tsx) 管理新增工作操作，[InboxPage](../src/pages/inbox/InboxPage.tsx) 管理自己的 Settings 操作。按钮文案和无障碍名称使用共享 i18n 资源。
 
 ## 五、数据与能力归属
 

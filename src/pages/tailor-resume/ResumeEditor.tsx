@@ -1,11 +1,10 @@
-import { Button, Heading, Section, Stack } from '@astryxdesign/core'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ItemInput } from '../../domain/candidate/candidate.types'
 import type { ResumeDocument, ResumeEntry, ResumeStatement } from '../../domain/resume/resume.types'
 import { EditorDialog, ItemCard } from '../../app/profile-editor/EditorComponents'
 import { ContactFields, ItemFields, StatementField } from '../../app/profile-editor/ProfileFields'
-
+import { ActionRow, Button, SectionCard } from '../../shared/ui'
 
 const sections = { experience: 'EXPERIENCE', projects: 'PROJECT', education: 'EDUCATION' } as const
 type Group = keyof typeof sections
@@ -49,27 +48,21 @@ export function ResumeEditor({ value, disabled, onChange, onEditing }: {
   }
   function renderStatements(group: TextEdit['group'], blocks: ResumeStatement[], label: string, parent?: string) {
     return <div className="profile-facts">
-      {blocks.map(block => <Section key={block.id} className="feature-section" padding={0}><details open onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{block.text}</Heading></summary>
-      <div className="feature-section-body">
-        <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">
-          <Button isDisabled={disabled} onClick={() => editText({ group, parent, id: block.id, text: block.text })} label={t($ => $.profile.edit)} />
-          <Button isDisabled={disabled} variant="destructive" onClick={() => setStatements(group, parent, rows => rows.filter(row => row.id !== block.id))} label={t($ => $.profile.remove)} />
-        </Stack>
-      </div></details></Section>)}
-      {(group !== 'summary' || !blocks.length) && <Button variant="secondary" isDisabled={disabled}
-        onClick={() => editText({ group, parent, text: '' })} className="add-record" label={label} />}
+      {blocks.map(block => <SectionCard key={block.id} title={block.text}>
+        <ActionRow>
+          <Button disabled={disabled} onClick={() => editText({ group, parent, id: block.id, text: block.text })}>{t($ => $.profile.edit)}</Button>
+          <Button disabled={disabled} variant="danger" onClick={() => setStatements(group, parent, rows => rows.filter(row => row.id !== block.id))}>{t($ => $.profile.remove)}</Button>
+        </ActionRow>
+      </SectionCard>)}
+      {(group !== 'summary' || !blocks.length) && <Button variant="add-card" disabled={disabled}
+        onClick={() => editText({ group, parent, text: '' })}>{label}</Button>}
     </div>
   }
   return <div className="profile-stack">
-    <Section className="feature-section" padding={0}><details open onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{t($ => $.profile.basic)}</Heading></summary>
-      <div className="feature-section-body"><div className="profile-stack">
+    <SectionCard title={t($ => $.profile.basic)}><div className="profile-stack">
       <ContactFields value={value.basics} disabled={disabled} onChange={basics => onChange({ ...value, basics })} />
-    </div></div></details></Section>
-    <Section className="feature-section" padding={0}><details open onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{t($ => $.profile.introduction)}</Heading></summary>
-      <div className="feature-section-body">{renderStatements('summary', value.summary ? [value.summary] : [], t($ => $.profile.add))}</div></details></Section>
+    </div></SectionCard>
+    <SectionCard title={t($ => $.profile.introduction)}>{renderStatements('summary', value.summary ? [value.summary] : [], t($ => $.profile.add))}</SectionCard>
     {(Object.keys(sections) as Group[]).map(group => value[group].length > 0 && <section key={group} className="profile-stack" aria-label={t($ => $.profile.types[sections[group]])}>
       <h2 className="profile-group-heading">{t($ => $.profile.types[sections[group]])}</h2>
       {value[group].map(entry => {
@@ -79,9 +72,7 @@ export function ResumeEditor({ value, disabled, onChange, onEditing }: {
         </ItemCard>
       })}
     </section>)}
-    <Section className="feature-section" padding={0}><details open onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{t($ => $.profile.kinds.SKILL)}</Heading></summary>
-      <div className="feature-section-body">{renderStatements('skills', value.skills, t($ => $.profile.add))}</div></details></Section>
+    <SectionCard title={t($ => $.profile.kinds.SKILL)}>{renderStatements('skills', value.skills, t($ => $.profile.add))}</SectionCard>
     <EditorDialog open={Boolean(item || text)} disabled={disabled} onClose={close} onSave={save}>
       {item && <ItemFields resume value={item.value} disabled={disabled} onChange={value => setItem({ ...item, value })} />}
       {text && <StatementField value={text.text} disabled={disabled} onChange={value => setText({ ...text, text: value })} />}

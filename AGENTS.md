@@ -13,7 +13,7 @@ Applies to documentation additions and edits in this repository; bring existing 
 | [docs/product-architecture.md](docs/product-architecture.md) · [Chinese](docs/product-architecture.zh-CN.md) | Product goals, scope, and delivery sequence, explicitly marked as planned. |
 | [docs/code-architecture.md](docs/code-architecture.md) · [Chinese](docs/code-architecture.zh-CN.md) | Target code organization, dependency boundaries, and migration constraints, distinguishing current from target state. |
 | [DESIGN.md](DESIGN.md) · [Chinese](DESIGN.zh-CN.md) | Visual direction, interaction principles, and design entry point; detailed component rules remain in the design-system specification. |
-| [docs/design-system.md](docs/design-system.md) · [Chinese](docs/design-system.zh-CN.md) | Astryx components, theme, native surfaces, and verification. |
+| [docs/design-system.md](docs/design-system.md) · [Chinese](docs/design-system.zh-CN.md) | Shared UI rules, component reference gallery, design tokens, and design validation. |
 | [docs/data-architecture.md](docs/data-architecture.md) · [Chinese](docs/data-architecture.zh-CN.md) | Current and planned V1 data model, business data API, generation, provenance, and storage; owns the shared [ER diagram](docs/diagrams/data-model.md). |
 | [docs/agent-runtime.md](docs/agent-runtime.md) · [Chinese](docs/agent-runtime.zh-CN.md) | Ask AI Prompt/Run boundary, Cycle execution states and finalization rules. |
 | [docs/mcp-architecture.md](docs/mcp-architecture.md) · [Chinese](docs/mcp-architecture.zh-CN.md) | Tool registration, Agent scopes, protected capability bindings, MCP Provider/Client behavior, and lifecycle. |
@@ -45,9 +45,9 @@ Check this table before adding a document; create one only for a distinct topic 
 
 ## UI design rules
 
-- Follow the [design-system specification](docs/design-system.md). Import general UI components directly from Astryx and use its semantic tokens.
-- Keep task-specific UI in its feature and native surfaces in Platform. Use the same shared geometry for the renderer and Electron.
-
+- Follow the [component-library specification](docs/design-system.md) for UI additions and edits; use shared tokens for spacing, sizes, type, corners and semantic colors.
+- All UI components must reuse the central library through `src/shared/ui/index.ts`. Build page/domain components from its primitives; add missing primitives or variants centrally before using them. Pages may define layout and behavior, but must not duplicate control markup/styles or override central presentation with inline styles.
+- Change canonical tokens and regenerate shared CSS/browser geometry together. Run design validation and relevant runtime checks; keep the reference gallery and both specification editions aligned.
 
 ## Agent capability boundaries
 

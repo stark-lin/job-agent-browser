@@ -5,7 +5,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
-export function KnowledgeSourceEditor({
+export function MarkdownEditor({
   value,
   onChange,
   onSave,
@@ -52,16 +52,16 @@ export function KnowledgeSourceEditor({
             if (update.docChanged && !updating.current) callbacks.current.onChange(update.state.doc.toString())
           }),
           EditorView.theme({
-            '&': { height: '100%', backgroundColor: 'var(--color-background-surface)', color: 'var(--color-text-primary)' },
+            '&': { height: '100%', backgroundColor: 'var(--surface)', color: 'var(--text)' },
             '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, monospace' },
-            '.cm-content': { caretColor: 'var(--color-text-primary)', padding: 'var(--spacing-4)' },
-            '.cm-gutters': { backgroundColor: 'var(--color-background-card)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' },
-            '.cm-activeLine': { backgroundColor: 'var(--color-accent-muted)' },
-            '.cm-activeLineGutter': { backgroundColor: 'var(--color-accent-muted)' },
-            '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'var(--color-border-emphasized)' },
-            '.cm-cursor': { borderLeftColor: 'var(--color-text-primary)' },
-            '.cm-searchMatch': { backgroundColor: 'var(--color-background-yellow)' },
-            '.cm-panels': { backgroundColor: 'var(--color-background-card)', color: 'var(--color-text-primary)' }
+            '.cm-content': { caretColor: 'var(--text)', padding: 'var(--space-2)' },
+            '.cm-gutters': { backgroundColor: 'var(--panel-solid)', color: 'var(--muted)', borderColor: 'var(--line)' },
+            '.cm-activeLine': { backgroundColor: 'var(--primary-soft)' },
+            '.cm-activeLineGutter': { backgroundColor: 'var(--primary-soft)' },
+            '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'var(--primary-line)' },
+            '.cm-cursor': { borderLeftColor: 'var(--text)' },
+            '.cm-searchMatch': { backgroundColor: 'var(--warning-bg)' },
+            '.cm-panels': { backgroundColor: 'var(--panel-solid)', color: 'var(--text)' }
           })
         ]
       })
@@ -82,5 +82,5 @@ export function KnowledgeSourceEditor({
       updating.current = false
     }
   }, [value])
-  return <div className="knowledge-source-editor" ref={element} />
+  return <div className="ui-markdown-editor" ref={element} />
 }

@@ -1,4 +1,3 @@
-const chooseOption = require('./choose-option.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const { writeFileSync } = require('node:fs')
@@ -143,7 +142,7 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     await evaluate('window.data.settings.savePreferences({language:"en",theme:"light"})')
     // Switch away and back: stale source must be cleared even though text is retained.
     for (const kind of ['url', 'text']) {
-      await chooseOption(evaluate, '.job-page [role=combobox]', kind === 'url' ? 'Job URL (optional)' : 'Pasted job description'); await tick()
+      await evaluate(`(() => {const select=document.querySelector('[name=captureSource]');select.value='${kind}';select.dispatchEvent(new Event('change',{bubbles:true}))})()`); await tick()
     }
     assert(!(await evaluate('document.querySelector(".job-page").textContent')).includes(`${origin}/job?id=123`))
     await call('navigate', 'app://browser'); await waitFor(() => !!view(), 'restore Browser for sourced import')
@@ -165,8 +164,8 @@ module.exports = async function selectionSmoke({ window, call, read, active, eva
     // The transfer is ordinary user input: only explicit Send starts Ask.
     source = await navigate(); await choose(source)
     assert.equal(aiCalls, 1)
-    await waitFor(() => evaluate('!!document.querySelector(".ai-composer button[aria-label^=Send]") && !document.querySelector(".ai-composer button[aria-label^=Send]").disabled'), 'configured Ask send')
-    await evaluate('document.querySelector(".ai-composer button[aria-label^=Send]").click()')
+    await waitFor(() => evaluate('!!document.querySelector(".ai-composer button[type=submit]") && !document.querySelector(".ai-composer button[type=submit]").disabled'), 'configured Ask send')
+    await evaluate('document.querySelector(".ai-composer").requestSubmit()')
     try { await waitFor(() => evaluate('document.body.textContent.includes("Selection received.")'), 'explicit Ask response') }
     catch (error) { throw new Error(`${error.message}; model requests=${aiCalls}; UI=${await evaluate('document.querySelector(".ai-page")?.textContent')}`) }
     assert.equal(aiCalls, 2)

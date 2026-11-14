@@ -1,4 +1,4 @@
-import { TextInput } from '@astryxdesign/core'
+import { TextInput } from '../../shared/ui'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useServices } from '../../app/providers'
@@ -36,22 +36,20 @@ export function AddressBar({ url, isLoading, error, onNavigate }: AddressBarProp
     <form className="address-form" onSubmit={submit}>
       <span className={`loading-indicator${isLoading ? ' is-loading' : ''}${error ? ' has-error' : ''}`} aria-hidden="true" title={error || undefined} />
       <TextInput
+        variant="bare"
         ref={input}
-        hasAutoFocus
-        size="sm"
-        width="100%"
-        containerClassName="address-input"
-        isLabelHidden
-        label={t($ => $.browser.addressLabel)}
+        autoFocus
+        aria-label={t($ => $.browser.addressLabel)}
         aria-invalid={Boolean(error)}
+        title={error || undefined}
         autoComplete="off"
         autoCapitalize="off"
-        hasSpellCheck={false}
+        spellCheck={false}
         placeholder={t($ => $.browser.addressPlaceholder)}
         value={value}
-        onFocus={() => { setIsEditing(true); input.current?.select() }}
+        onFocus={(event) => { setIsEditing(true); event.target.select() }}
         onBlur={() => setIsEditing(false)}
-        onChange={event => { setIsEditing(true); setValue(event) }}
+        onChange={(event) => { setIsEditing(true); setValue(event.target.value) }}
       />
     </form>
   )

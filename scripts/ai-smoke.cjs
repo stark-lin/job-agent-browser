@@ -1,7 +1,8 @@
-const chooseOption = require('./choose-option.cjs')
 const openSectionCards = require('./open-section-cards.cjs')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
+const { mkdirSync, writeFileSync } = require('node:fs')
+const { resolve } = require('node:path')
 
 module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   const requests = []
@@ -44,12 +45,9 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
   const field = async (selector, text, type = 'input') => {
     await evaluate(`(() => {
       const control = document.querySelector(${JSON.stringify(selector)});
-      control.focus();
       Object.getOwnPropertyDescriptor(${type === 'textarea' ? 'HTMLTextAreaElement' : type === 'select' ? 'HTMLSelectElement' : 'HTMLInputElement'}.prototype, 'value').set.call(control, ${JSON.stringify(text)});
       control.dispatchEvent(new Event(${JSON.stringify(type === 'select' ? 'change' : 'input')}, { bubbles: true }));
     })()`)
-    await frame()
-    await evaluate(`document.querySelector(${JSON.stringify(selector)}).blur()`)
     await frame()
   }
   const button = text => evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent === ${JSON.stringify(text)}).click()`)
@@ -59,8 +57,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
     const submit = () => evaluate(`document.querySelector('${form}').requestSubmit()`)
     const byLabel = async (label, value, type) => {
       const selector = await evaluate(`'#' + CSS.escape([...document.querySelectorAll('${form} label')].find(el => el.textContent === ${JSON.stringify(label)}).htmlFor)`)
-      if (type === 'select') await chooseOption(evaluate, selector, value)
-      else await field(selector, value, type)
+      await field(selector, value, type)
     }
     await waitFor(() => evaluate(`!!document.querySelector('${form}')`), 'AI connection form')
     await openSectionCards(evaluate, form)
@@ -92,17 +89,21 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
         assert.equal(await evaluate('document.querySelector(".settings-page").scrollWidth > document.querySelector(".settings-page").clientWidth'), false)
       }
       await evaluate('document.querySelector("[data-ai-connection]").scrollIntoView()')
+      mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
+      writeFileSync(resolve(__dirname, '../.cache/ai-settings-models.png'), (await window.capturePage()).toPNG())
     } finally { window.setContentSize(...settingsSize); window.setMinimumSize(...settingsMinimum) }
     await call('navigate', 'app://ai')
-    await waitFor(() => evaluate('document.querySelector(".ai-composer [role=combobox]")?.textContent.includes("fixture-model")'), 'chat inherits default provider')
+    await waitFor(() => evaluate('document.querySelector(".ai-composer select")?.value.includes("provider-")'), 'chat inherits default provider')
     await field('.ai-page textarea', 'PRIVATE_CHAT_PROMPT', 'textarea')
-    await evaluate('document.querySelector(".ai-composer button[aria-label^=Send]").click()')
+    await evaluate('document.querySelector(".ai-composer").requestSubmit()')
     await waitFor(() => evaluate('document.querySelector("[data-item-type=assistant_message]") && document.body.innerText.includes("Fixture ")'), 'visible SSE delta')
     await waitFor(() => evaluate('document.body.innerText.includes("reply 中文") && !document.querySelector(".ai-page textarea").disabled'), 'stream completed')
     assert.equal(capabilityRequests, 1, 'Ask resolves the fixture model context before streaming')
     assert.equal(requests.at(-1).path, '/v1/chat/completions')
     assert.equal(requests.at(-1).auth, undefined)
     assert.equal(requests.at(-1).body.model, 'fixture-model')
+    mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
+    writeFileSync(resolve(__dirname, '../.cache/ai-chat.png'), (await window.capturePage()).toPNG())
     const originalSize = window.getContentSize(), minimum = window.getMinimumSize()
     window.setMinimumSize(320, 320)
     try {
@@ -116,7 +117,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
           const page = document.querySelector('.ai-page')
           const composer = page.querySelector('.ai-composer')
           return { page: [page.scrollWidth, page.clientWidth], composer: [composer.scrollWidth, composer.clientWidth],
-            textareaMinHeight: getComputedStyle(composer.querySelector('textarea')).minHeight }
+            textareaMinHeight: getComputedStyle(composer.querySelector('.ui-textarea')).minHeight }
         })()`)
         for (const [name, [scrollWidth, clientWidth]] of [['page', layout.page], ['composer', layout.composer]]) {
           assert(scrollWidth <= clientWidth, `AI ${name} overflows at ${width}px (${scrollWidth}px > ${clientWidth}px)`)
@@ -125,7 +126,7 @@ module.exports = async function aiSmoke({ window, call, evaluate, waitFor }) {
       }
     } finally { window.setContentSize(...originalSize); window.setMinimumSize(...minimum) }
     await field('.ai-page textarea', 'cancel', 'textarea')
-    await evaluate('document.querySelector(".ai-composer button[aria-label^=Send]").click()')
+    await evaluate('document.querySelector(".ai-composer").requestSubmit()')
     await waitFor(async () => (await evaluate('window.askAgent.listActive({})')).value.some(s => s.items.some(i => i.content.type === 'assistant_message' && i.content.text.includes('Fixture '))), 'cancel request started')
     await evaluate('document.querySelector("button[aria-label=Stop]").click()')
     await waitFor(() => evaluate('document.body.innerText.includes("Stopped. The response may be incomplete.")'), 'cancelled UI')

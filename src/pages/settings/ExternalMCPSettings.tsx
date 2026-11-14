@@ -1,7 +1,7 @@
-import { Button, Dialog, DialogHeader, Divider, Heading, MetadataList, MetadataListItem, Section, Stack, StatusDot, Text, TextArea } from '@astryxdesign/core'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ExternalMCPError, ExternalMCPInspection, ExternalMCPStatus, ExternalMCPTarget } from '../../shared/external-mcp'
+import { ActionRow, Badge, Button, DetailsList, Dialog, FormField, SectionCard, StatusMessage, TextArea } from '../../shared/ui'
 import { useExternalSkills } from './useExternalSkills'
 import { ExternalSkillsBundle, ExternalSkillsConfirmation, ExternalSkillsControls } from './ExternalSkillsSettings'
 
@@ -10,9 +10,6 @@ type Feedback = { error?: ExternalMCPError; saved?: boolean; copied?: boolean; r
 export function ExternalMCPSettings() {
   const { t } = useTranslation()
   const skills = useExternalSkills()
-  const detailId = useId()
-  const [expandedAgent, setExpandedAgent] = useState<ExternalMCPTarget | null>(null)
-  const [showGenericConfig, setShowGenericConfig] = useState(false)
   const [inspection, setInspection] = useState<ExternalMCPInspection | null>(null)
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState<ExternalMCPError | null>(null)
   const [busy, setBusy] = useState<string | null>(null), [confirm, setConfirm] = useState<ExternalMCPStatus | null>(null)
@@ -69,115 +66,64 @@ export function ExternalMCPSettings() {
   const messages = (target: ExternalMCPTarget | 'other') => {
     const notice = feedback[target]
     return <>
-      {notice?.error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalMCP.errors[notice.error!])}</Text>}
-      {notice?.saved && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.externalMCP.saved)}</Text>}
-      {notice?.removed && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.externalMCP.removed)}</Text>}
-      {notice?.reconnected && <Text as="p" type="supporting" role="status">{t($ => notice.error ? $.externalMCP.reconnectSaved : $.externalMCP.reconnected)}</Text>}
-      {notice?.copied && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.externalMCP.copied)}</Text>}
-      {notice?.toolCount !== undefined && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.externalMCP.connected, { count: notice.toolCount })}</Text>}
-      {notice?.backupPath && <MetadataList><MetadataListItem label={t($ => $.externalMCP.backup)}>{notice.backupPath}</MetadataListItem></MetadataList>}
+      {notice?.error && <StatusMessage tone="error">{t($ => $.externalMCP.errors[notice.error!])}</StatusMessage>}
+      {notice?.saved && <StatusMessage tone="success">{t($ => $.externalMCP.saved)}</StatusMessage>}
+      {notice?.removed && <StatusMessage tone="success">{t($ => $.externalMCP.removed)}</StatusMessage>}
+      {notice?.reconnected && <StatusMessage tone={notice.error ? 'info' : 'success'}>{t($ => notice.error ? $.externalMCP.reconnectSaved : $.externalMCP.reconnected)}</StatusMessage>}
+      {notice?.copied && <StatusMessage tone="success">{t($ => $.externalMCP.copied)}</StatusMessage>}
+      {notice?.toolCount !== undefined && <StatusMessage tone="success">{t($ => $.externalMCP.connected, { count: notice.toolCount })}</StatusMessage>}
+      {notice?.backupPath && <DetailsList items={[{ label: t($ => $.externalMCP.backup), value: notice.backupPath }]} />}
     </>
   }
-  return <Section variant="transparent" padding={0} data-external-mcp>
-    <Stack gap={4}>
-      <Stack direction="horizontal" justify="between" align="center" gap={2} wrap="wrap">
-        <Heading level={2}>{t($ => $.settings.externalAgents)}</Heading>
-        <Button data-mcp-refresh isDisabled={disabled} label={t($ => $.settings.refresh)}
-          onClick={() => { setFeedback({}); void refresh(); void skills.refresh() }} />
-      </Stack>
-      {(loading || skills.loading) && <Text as="p" type="supporting" role="status">{t($ => $.settings.loading)}</Text>}
-      {loadError && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalMCP.errors[loadError])}</Text>}
-      {skills.error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalSkills.errors[skills.error!])}</Text>}
-      {inspection && <>
-        <Stack as="ul" role="list" className="settings-list">
-          {inspection.clients.map((status, index) => {
-            const expanded = expandedAgent === status.target
-            const id = `${detailId}-${status.target}`
-            const name = names[status.target]
-            const state = t($ => $.externalMCP.states[status.state])
-            const clientSkills = skills.inspection?.clients.find(client => client.target === status.target)
-
-            return <Stack as="li" key={status.target} data-agent-target={status.target}>
-              {index > 0 && <Divider />}
-              <Stack className="settings-agent-row" direction="horizontal" align="center" justify="between" gap={2} wrap="wrap">
-                <Text>{name}</Text>
-                <Stack direction="horizontal" align="center" gap={2}>
-                  <StatusDot aria-hidden="true" label={state}
-                    variant={status.state === 'configured' ? 'success' : status.error ? 'error' : status.state === 'different' ? 'warning' : 'neutral'} />
-                  <Text type="supporting">{state}</Text>
-                </Stack>
-                <Button variant="ghost" aria-expanded={expanded} aria-controls={id}
-                  aria-label={t($ => $.settings.manageAgent, { name })} label={t($ => $.settings.manage)}
-                  onClick={() => setExpandedAgent(expanded ? null : status.target)} />
-              </Stack>
-              <div id={id} hidden={!expanded}>
-                {expanded && <Stack className="settings-agent-detail" gap={4}>
-                  <Stack gap={2}>
-                    <Heading level={3}>MCP</Heading>
-                    <MetadataList>
-                      <MetadataListItem label={t($ => $.externalMCP.path)}>{status.path}</MetadataListItem>
-                    </MetadataList>
-                    {status.error && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.externalMCP.errors[status.error!])}</Text>}
-                    <Stack direction="horizontal" align="center" gap={2} wrap="wrap">
-                      <Button data-mcp-install isDisabled={disabled || status.state === 'configured' || Boolean(status.error)} onClick={() => {
-                        if (status.state === 'different') setConfirm(status)
-                        else void action(status.target, 'install', status)
-                      }} label={busy === `${status.target}:install` ? t($ => $.externalMCP.installing) : status.state === 'different' ? t($ => $.externalMCP.replace) : t($ => $.externalMCP.add)} />
-                      <Button data-mcp-reconnect isDisabled={disabled || status.state !== 'configured'} onClick={() => void action(status.target, 'reconnect', status)}
-                        label={busy === `${status.target}:reconnect` ? t($ => $.externalMCP.reconnecting) : t($ => $.externalMCP.reconnect)} />
-                      <Button data-mcp-test isDisabled={disabled || status.state !== 'configured'} onClick={() => void action(status.target, 'test')}
-                        label={busy === `${status.target}:test` ? t($ => $.settings.testing) : t($ => $.settings.testConnection)} />
-                      <Button data-mcp-copy variant="ghost" isDisabled={disabled} onClick={() => void action(status.target, 'copy')} label={t($ => $.externalMCP.copy)} />
-                      <Button data-mcp-remove variant="destructive" isDisabled={disabled || status.state === 'missing' || Boolean(status.error)}
-                        onClick={() => setRemoval(status)} label={t($ => $.externalMCP.remove)} />
-                    </Stack>
-                    {messages(status.target)}
-                  </Stack>
-                  {clientSkills && <ExternalSkillsControls
-                    status={clientSkills} outcome={skills.outcomes[clientSkills.target]} disabled={disabled} busy={skills.busy === clientSkills.target}
-                    onInstall={() => skills.requestInstall(clientSkills)} onReconnect={() => skills.requestInstall(clientSkills, 'reconnect')}
-                    onRemove={names => skills.setRemoval({ status: clientSkills, names })} />}
-                </Stack>}
-              </div>
-            </Stack>
-          })}
-        </Stack>
-
-        <Stack gap={2} data-agent-target="other">
-          <Heading level={3}>{t($ => $.externalMCP.other)}</Heading>
-          <Stack gap={2}>
-            <Stack direction="horizontal" justify="between" align="center" gap={2} wrap="wrap">
-              <Button variant="ghost" label={t($ => $.externalMCP.genericConfig)} aria-expanded={showGenericConfig}
-                aria-controls={`${detailId}-generic`} onClick={() => setShowGenericConfig(!showGenericConfig)} />
-              <Button data-mcp-copy variant="ghost" label={t($ => $.settings.copy)} aria-label={t($ => $.externalMCP.copy)}
-                isDisabled={disabled} onClick={() => void action('other', 'copy')} />
-            </Stack>
-            <div id={`${detailId}-generic`} hidden={!showGenericConfig}>
-              {showGenericConfig && <TextArea label={t($ => $.externalMCP.genericConfig)} isLabelHidden
-                description={t($ => $.externalMCP.otherHelp)} isReadOnly rows={6} value={inspection.genericConfig} hasSpellCheck={false} />}
-            </div>
-            {messages('other')}
-          </Stack>
+  return <SectionCard defaultCollapsed data-external-mcp title={t($ => $.externalMCP.title)} description={t($ => $.externalMCP.description)}>
+    <div className="settings-stack" aria-busy={disabled}>
+      <ActionRow><Button data-mcp-refresh disabled={disabled} onClick={() => { setFeedback({}); void refresh(); void skills.refresh() }}>{t($ => $.externalMCP.refresh)}</Button></ActionRow>
+      {loading && <StatusMessage>{t($ => $.settings.loading)}</StatusMessage>}
+      {loadError && <StatusMessage tone="error">{t($ => $.externalMCP.errors[loadError])}</StatusMessage>}
+      <StatusMessage>{t($ => $.externalSkills.description)}</StatusMessage>
+      {skills.loading && <StatusMessage>{t($ => $.settings.loading)}</StatusMessage>}
+      {skills.error && <StatusMessage tone="error">{t($ => $.externalSkills.errors[skills.error!])}</StatusMessage>}
+      {inspection?.clients.map(status => <SectionCard defaultCollapsed key={status.target} data-agent-target={status.target} title={names[status.target]}>
+        <div className="settings-stack">
+          <DetailsList items={[{ label: t($ => $.externalMCP.path), value: status.path }]} />
+          <div><Badge tone={status.state === 'configured' ? 'success' : status.error ? 'error' : 'neutral'}>{t($ => $.externalMCP.states[status.state])}</Badge></div>
+          {status.error && <StatusMessage tone="error">{t($ => $.externalMCP.errors[status.error!])}</StatusMessage>}
+          <ActionRow>
+            <Button data-mcp-install variant="primary" disabled={disabled || status.state === 'configured' || Boolean(status.error)} onClick={() => {
+              if (status.state === 'different') setConfirm(status)
+              else void action(status.target, 'install', status)
+            }}>{busy === `${status.target}:install` ? t($ => $.externalMCP.installing) : status.state === 'different' ? t($ => $.externalMCP.replace) : t($ => $.externalMCP.add)}</Button>
+            <Button data-mcp-test disabled={disabled || status.state !== 'configured'} onClick={() => void action(status.target, 'test')}>{busy === `${status.target}:test` ? t($ => $.settings.testing) : t($ => $.settings.testConnection)}</Button>
+            <Button data-mcp-reconnect disabled={disabled || status.state !== 'configured'} onClick={() => void action(status.target, 'reconnect', status)}>{busy === `${status.target}:reconnect` ? t($ => $.externalMCP.reconnecting) : t($ => $.externalMCP.reconnect)}</Button>
+            <Button data-mcp-remove variant="danger" disabled={disabled || status.state === 'missing' || Boolean(status.error)} onClick={() => setRemoval(status)}>{t($ => $.externalMCP.remove)}</Button>
+            <Button data-mcp-copy disabled={disabled} onClick={() => void action(status.target, 'copy')}>{t($ => $.externalMCP.copy)}</Button>
+          </ActionRow>
+          {messages(status.target)}
+          {skills.inspection?.clients.filter(client => client.target === status.target).map(client => <ExternalSkillsControls key={client.target}
+            status={client} outcome={skills.outcomes[client.target]} disabled={disabled} busy={skills.busy === client.target}
+            onInstall={() => skills.requestInstall(client)} onReconnect={() => skills.requestInstall(client, 'reconnect')}
+            onRemove={names => skills.setRemoval({ status: client, names })} />)}
+        </div>
+      </SectionCard>)}
+      {inspection && <SectionCard defaultCollapsed data-agent-target="other" title={t($ => $.externalMCP.other)} description={t($ => $.externalMCP.otherHelp)}>
+        <div className="settings-stack">
+          <FormField label={t($ => $.externalMCP.genericConfig)}>{props => <TextArea {...props} readOnly rows={8} value={inspection.genericConfig} spellCheck={false} />}</FormField>
+          <ActionRow><Button data-mcp-copy disabled={disabled} onClick={() => void action('other', 'copy')}>{t($ => $.externalMCP.copy)}</Button></ActionRow>
+          {messages('other')}
           <ExternalSkillsBundle skills={skills} disabled={disabled} />
-        </Stack>
-      </>}
-    </Stack>
-    <Dialog isOpen={Boolean(confirm)} onOpenChange={() => setConfirm(null)} aria-label={t($ => $.externalMCP.replaceTitle)} width={448} purpose="form">
-      <DialogHeader title={t($ => $.externalMCP.replaceTitle)} subtitle={t($ => $.externalMCP.replaceHelp, { agent: confirm ? names[confirm.target] : '' })} />
-      <div className="dialog-content">{confirm && <MetadataList><MetadataListItem label={t($ => $.externalMCP.path)}>{confirm.path}</MetadataListItem></MetadataList>}</div>
-      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
-      <Button data-autofocus="true" onClick={() => setConfirm(null)} label={t($ => $.settings.cancel)} />
-      <Button data-mcp-confirm variant="destructive" onClick={() => { if (confirm) void action(confirm.target, 'install', confirm, true); setConfirm(null) }} label={t($ => $.externalMCP.confirmReplace)} />
-    </Stack>
+        </div>
+      </SectionCard>}
+    </div>
+    <Dialog open={Boolean(confirm)} title={t($ => $.externalMCP.replaceTitle)} description={t($ => $.externalMCP.replaceHelp, { agent: confirm ? names[confirm.target] : '' })}
+      onClose={() => setConfirm(null)} content={confirm && <DetailsList items={[{ label: t($ => $.externalMCP.path), value: confirm.path }]} />}>
+      <Button autoFocus onClick={() => setConfirm(null)}>{t($ => $.settings.cancel)}</Button>
+      <Button data-mcp-confirm variant="danger" onClick={() => { if (confirm) void action(confirm.target, 'install', confirm, true); setConfirm(null) }}>{t($ => $.externalMCP.confirmReplace)}</Button>
     </Dialog>
-    <Dialog isOpen={Boolean(removal)} onOpenChange={() => setRemoval(null)} aria-label={t($ => $.externalMCP.removeTitle)} width={448} purpose="form">
-      <DialogHeader title={t($ => $.externalMCP.removeTitle)} subtitle={t($ => $.externalMCP.removeHelp, { agent: removal ? names[removal.target] : '' })} />
-      <div className="dialog-content">{removal && <MetadataList><MetadataListItem label={t($ => $.externalMCP.path)}>{removal.path}</MetadataListItem></MetadataList>}</div>
-      <Stack direction="horizontal" justify="end" align="center" gap={2} wrap="wrap" className="action-row">
-      <Button data-autofocus="true" onClick={() => setRemoval(null)} label={t($ => $.settings.cancel)} />
-      <Button data-mcp-remove-confirm variant="destructive" onClick={() => { if (removal) void action(removal.target, 'remove', removal); setRemoval(null) }} label={t($ => $.externalMCP.confirmRemove)} />
-    </Stack>
+    <Dialog open={Boolean(removal)} title={t($ => $.externalMCP.removeTitle)} description={t($ => $.externalMCP.removeHelp, { agent: removal ? names[removal.target] : '' })}
+      onClose={() => setRemoval(null)} content={removal && <DetailsList items={[{ label: t($ => $.externalMCP.path), value: removal.path }]} />}>
+      <Button autoFocus onClick={() => setRemoval(null)}>{t($ => $.settings.cancel)}</Button>
+      <Button data-mcp-remove-confirm variant="danger" onClick={() => { if (removal) void action(removal.target, 'remove', removal); setRemoval(null) }}>{t($ => $.externalMCP.confirmRemove)}</Button>
     </Dialog>
     <ExternalSkillsConfirmation skills={skills} />
-  </Section>
+  </SectionCard>
 }

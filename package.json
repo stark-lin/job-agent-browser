@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node scripts/test.cjs",
     "quality": "node scripts/quality.cjs",
+    "design:tokens": "node scripts/design-system.cjs --write",
+    "design:check": "node scripts/design-system.cjs",
     "test:smoke": "npm run build && node scripts/run-smoke.cjs",
     "test:onboarding": "npm run build && node scripts/run-onboarding-smoke.cjs",
     "test:theme": "npm run build && node scripts/run-smoke.cjs --theme",
@@ -49,8 +51,6 @@
     "test:models": "npm run build && node scripts/run-model-smoke.cjs"
   },
   "dependencies": {
-    "@astryxdesign/core": "0.7.7",
-    "@astryxdesign/theme-neutral": "0.7.7",
     "@codemirror/commands": "6.11.1",
     "@codemirror/lang-markdown": "6.5.2",
     "@codemirror/language": "6.13.1",
@@ -62,7 +62,6 @@
     "@huggingface/transformers": "4.3.1",
     "@modelcontextprotocol/client": "2.3.1",
     "@modelcontextprotocol/server": "2.3.1",
-    "@stylexjs/stylex": "^0.19.2",
     "ajv": "8.20.0",
     "chokidar": "6.0.0",
     "consola": "3.4.2",
@@ -71,7 +70,6 @@
     "isomorphic-git": "1.44.4",
     "js-tiktoken": "1.0.21",
     "jsonc-parser": "^3.3.1",
-    "lucide-react": "1.73.0",
     "pdfjs-dist": "^6.4.299",
     "proper-lockfile": "4.1.2",
     "react": "^19.2.0",
@@ -83,7 +81,6 @@
     "unified": "11.0.5"
   },
   "devDependencies": {
-    "@astryxdesign/cli": "0.7.7",
     "@types/node": "^24.0.0",
     "@types/proper-lockfile": "4.1.4",
     "@types/react": "^19.0.0",

@@ -1,4 +1,5 @@
-import { FileText, Globe, List, Mail, Notebook, Plus, Settings, Sparkles, UserRound } from 'lucide-react'
+import type { GlyphName } from '../../shared/ui'
+import type { InternalPage } from '../../shared/navigation'
 
 export const featureGroups = [
   { section: 'manage', pages: ['profile', 'resume', 'knowledge'] },
@@ -6,6 +7,6 @@ export const featureGroups = [
   { section: 'tools', pages: ['browser'] }
 ] as const
 export const pageIcons = {
-  find: Plus, resume: FileText, knowledge: Notebook, applications: List,
-  inbox: Mail, profile: UserRound, browser: Globe, ai: Sparkles, settings: Settings
-}
+  find: 'plus', resume: 'document', knowledge: 'notebook', applications: 'list',
+  inbox: 'mail', profile: 'person', browser: 'globe', ai: 'sparkles', settings: 'settings'
+} as const satisfies Record<InternalPage, GlyphName>

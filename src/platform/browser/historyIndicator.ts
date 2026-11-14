@@ -1,24 +1,10 @@
 import { join } from 'node:path'
 import { WebContentsView, type View, type MouseInputEvent } from 'electron'
 import { t } from '../../shared/i18n'
-import palette from '../electron/nativeTheme.css?raw'
-import styles from './history-indicator.css?raw'
-import { HISTORY_INDICATOR_SIZE, HISTORY_INDICATOR_INSET } from '../../shared/geometry'
+import { historyIndicatorDocument } from '../../shared/ui'
+import { HISTORY_INDICATOR_SIZE, HISTORY_INDICATOR_INSET } from '../../shared/ui/geometry'
 import { resolvedTheme } from '../electron/main/theme'
 import type { HistoryFeedback } from './historyDrag'
-
-/** Scriptless document for the native overlay above website content. */
-function historyIndicatorDocument(): string {
-  return `<!doctype html><html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>History indicator</title><style>${palette}
-${styles}
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
-body { display: grid; place-items: center; }
-</style></head><body><span class="ui-history-indicator" role="img">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg>
-</span></body></html>`
-}
 
 /** A trusted, scriptless overlay; the website cannot restyle or remove it. */
 export class HistoryIndicator {

@@ -56,11 +56,11 @@ React App → Page → Preload → IPC → Main
 
 ## 三、展示与交互
 
-[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 将 Ask AI 放在常驻图标栏首位，之后是管理、求职、工具分组及底部的设置。悬停和键盘聚焦时显示翻译后的名称。切换目标使用共享导航 API 和离开保护。在任意工作区页面均可从侧栏打开 Ask AI。[Browser 控件](../src/pages/browser/BrowserControls.tsx)提供后退、前进和刷新。参见[设计规范](design-system.zh-CN.md)及[页面按钮归属](code-architecture.zh-CN.md#页面按钮归属)。
+[WorkspaceSidebar](../src/app/WorkspaceSidebar.tsx) 将 Ask AI 放在常驻图标栏首位，之后是管理、求职、工具分组及底部的设置。各组以短横线分隔，悬停时显示翻译后的名称。切换目标使用共享导航 API 和离开保护。在任意工作区页面均可从侧栏打开 Ask AI。[Browser 控件](../src/pages/browser/BrowserControls.tsx)提供后退、前进和刷新。参见[设计规范](design-system.zh-CN.md#五交互与无障碍)及[页面按钮归属](code-architecture.zh-CN.md#页面按钮归属)。
 
-**已实现：**桌面渲染端直接使用 Astryx 通用组件及 Neutral 主题，页面管理业务行为。组件归属见[设计系统规范](design-system.zh-CN.md)。
+**已实现：**页面控件/卡片/图标引用[中央 UI 组件](../src/shared/ui/index.ts)，由[中央运行样式](../src/shared/ui/components.css)提供外观；页面行为仍由页面管理。[共享 Tokens](../src/shared/ui/design-tokens.json)为[应用样式](../src/renderer/styles/global.css)提供 8px 间距、组件尺寸、排版和语义色。[设计规范](design-system.zh-CN.md)管理这些规则和十个分类的 HTML 参考展示库；展示示例不代表业务功能已实现。
 
-只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。在所有窗口宽度下，两种原生视图均使用[共享尺寸](../src/shared/geometry.ts)对齐侧栏右边缘。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标及历史。
+只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/ui/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[生成尺寸](../src/shared/ui/geometry.ts)：所有窗口宽度下均为 64px。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标及历史。
 
 [TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。标签名称使用保留的浏览器标题或翻译后的“新建标签页”，包括上次显示业务页面的后台标签；不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 
@@ -83,11 +83,11 @@ React App → Page → Preload → IPC → Main
 **已实现外部 Agent 接入：**[设置页面](../src/pages/settings/ExternalMCPSettings.tsx)通过独立宿主 IPC 提供全局 MCP 安装、确认替换、剪贴板导出、独立连接检查、MCP 重新连接与删除，以及单独的内置 Skills 安装、重新连接和按项删除。Skills 显示逐项状态，确认后无备份替换，也可打开文件夹以手动复制到其他 Agent；不改变偏好草稿。宿主边界、安装目录与限制归属 [MCP 架构](mcp-architecture.zh-CN.md#五job-agent-browser-mcp)。
 
 
-**已实现主题：**Settings 通过Astryx `SegmentedControl` 提供浅色、暗夜及跟随系统。主题与语言属于通用设置草稿：成功写入后点击保存生效；保存失败及放弃草稿保留当前主题。默认仍为浅色，偏好存储语义归属[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)。
+**已实现主题：**Settings 通过现有中央 `Select` 提供浅色、暗夜及跟随系统。主题与语言属于通用设置草稿：成功写入后点击保存生效；保存失败及放弃草稿保留当前主题。默认仍为浅色，偏好存储语义归属[数据架构](data-architecture.zh-CN.md#六配置密钥与待完成工作)。
 
-[Main](../src/platform/electron/main/index.ts) 在创建窗口前应用保存的主题。[主题适配](../src/platform/electron/main/theme.ts)设置 Electron `nativeTheme.themeSource`；[BrowserManager](../src/platform/browser/browserManager.ts) 在原生外观变化时发布实际 `BrowserState.theme`，不改变导航目标/历史。[App ThemeProvider](../src/app/theme.tsx) 在 React 绘制更新前应用根节点主题，Astryx 在首个快照到达前使用原生颜色偏好。[窗口](../src/platform/electron/main/window.ts)及保留的 [WebSegments](../src/platform/browser/webSegment.ts)使用 Neutral 主题背景；窗口持有一个监听，更新全部保留视图，并在窗口释放时清理。重新创建的窗口继承当前原生主题。
+[Main](../src/platform/electron/main/index.ts) 在创建窗口前应用保存的主题。[主题适配](../src/platform/electron/main/theme.ts)设置 Electron `nativeTheme.themeSource`；[BrowserManager](../src/platform/browser/browserManager.ts) 在原生外观变化时发布实际 `BrowserState.theme`，不改变导航目标/历史。[App ThemeProvider](../src/app/theme.tsx) 在 React 绘制更新前应用根节点主题，生成 CSS 在首个快照到达前使用原生颜色偏好。[窗口](../src/platform/electron/main/window.ts)及保留的 [WebSegments](../src/platform/browser/webSegment.ts)使用生成的主题背景；窗口持有一个监听，更新全部保留视图，并在窗口释放时清理。重新创建的窗口继承当前原生主题。
 
-跟随系统响应原生外观变化；明确选择浅色/暗夜时覆盖系统。Browser/Inbox 远程文档接收 Chromium 颜色偏好，外观由网站自身控制，不注入强制改色。主题样式只修改颜色，规则由[设计规范](design-system.zh-CN.md)管理。[独立主题运行器](../scripts/theme-runtime-smoke.cjs) 验证这些行为，包括 macOS 窗口重建；命令仍归属 README。启动背景匹配减少闪屏；完整逐帧验证和 Windows/Linux 的原生外观检查仍未验证。
+跟随系统响应原生外观变化；明确选择浅色/暗夜时覆盖系统。Browser/Inbox 远程文档接收 Chromium 颜色偏好，外观由网站自身控制，不注入强制改色。主题样式只修改颜色，规则由[设计规范](design-system.zh-CN.md#四语义色规则)管理。[独立主题运行器](../scripts/theme-runtime-smoke.cjs) 验证这些行为，包括 macOS 窗口重建；命令仍归属 README。启动背景匹配减少闪屏；完整逐帧验证和 Windows/Linux 的原生外观检查仍未验证。
 
 [App Context](../src/app/context/appContext.ts) 提供当前页面的标签/标题/目标及可空 Job、Profile、Artifact ID。[引用 store](../src/app/context/contextStore.ts) 初始为空，不复制实体或提取网页内容。Profile 优先加载有效的引用记录，否则选择最近更新的 Profile，并在加载/保存后同步共享 ID。
 
@@ -171,7 +171,7 @@ Main 在创建窗口前打开存储并注册数据处理器，退出时关闭存
 
 [工作区队列](../src/platform/knowledge/workspace-embedding.ts)串行调度唯一共享 Provider，限制排队并优先查询。重建单个索引仅等待自身任务，不取消或释放共享模型；全局配置/移除/退出协调两个视图。[Broker](../src/platform/knowledge/broker.ts)仅依赖共享查询向量生成能力，不依赖任一空间索引。独立 MCP 不加载模型，Main 或模型不可用时保留词法检索。
 
-[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及 Ask Memory 写入授权。Ask V2 Runtime 行为见上文。
+[可信 IPC](../src/platform/electron/knowledge-contract.ts)保留 `window.knowledge`，为文件/搜索/历史/恢复/索引调用增加可选空间（默认 Knowledge）；同步/配置/模型/备份仍为工作区操作。[编辑器 Hook](../src/pages/knowledge/useKnowledge.ts)为每次保存捕获空间与 Revision，选择前先 Flush，失败时保留草稿与原选择。Memory 是固定置顶且默认折叠的 Explorer 根节点，搜索拒绝其他空间迟到结果，相对链接保留当前文件的空间。[UI 规则](design-system.zh-CN.md#智能笔记知识库)负责共享组件，[MCP 架构](mcp-architecture.zh-CN.md#智能笔记知识库)负责启动授权及 Ask Memory 写入授权。Ask V2 Runtime 行为见上文。
 
 [本地 embedding](../src/platform/knowledge/rag/local-embedding.ts) 按需调度单个 CPU [utility process](../src/platform/knowledge/rag/embedding-process.ts)，优先处理查询、限制队列并拒绝取消/超时/崩溃请求。Worker 禁止远程加载和 fetch，只读取用户模型存储中完整校验过的 revision。Main 的 [Model Manager](../src/platform/models/manager.ts) 管理下载/Seed 导入、重试/取消、校验、原子提交和删除；[路径](../src/platform/models/paths.ts) 独立于安装位置和 cwd。GUI 启动不等待模型校验或导入；模型不可用时保留关键词搜索。激活后立即调度缺失向量，删除权重前停止本实例推理。跨进程读取租约阻止替换或删除其他实例正在使用的模型。[打包](ci-cd.zh-CN.md) 负责发行检查。
 

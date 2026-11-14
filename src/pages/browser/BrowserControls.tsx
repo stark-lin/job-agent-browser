@@ -1,7 +1,6 @@
-import { ArrowLeft, ArrowRight, RotateCw } from 'lucide-react'
-import { Icon, IconButton, Text } from '@astryxdesign/core'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon, IconButton, StatusMessage } from '../../shared/ui'
 import type { BrowserAPI, BrowserTabState } from '@shared/browser'
 import { AddressBar } from './AddressBar'
 
@@ -20,12 +19,30 @@ export function BrowserControls({ state, error, onNavigate, onBack, onForward, o
   return (
     <header className="browser-controls">
       <div className="history-controls">
-        <IconButton className="icon-button" size="sm" variant="ghost" label={t($ => $.browser.back)}
-          icon={<Icon icon={ArrowLeft} />} tooltip={t($ => $.browser.back)} isDisabled={!state.canGoBack} onClick={onBack} />
-        <IconButton className="icon-button" size="sm" variant="ghost" label={t($ => $.browser.forward)}
-          icon={<Icon icon={ArrowRight} />} tooltip={t($ => $.browser.forward)} isDisabled={!state.canGoForward} onClick={onForward} />
-        <IconButton className="icon-button" size="sm" variant="ghost" label={t($ => $.browser.refresh)}
-          icon={<Icon icon={RotateCw} />} tooltip={t($ => $.browser.refresh)} isDisabled={!state.url || state.isLoading} onClick={onReload} />
+        <IconButton
+          className="icon-button"
+          type="button"
+          aria-label={t($ => $.browser.back)}
+          title={t($ => $.browser.back)}
+          disabled={!state.canGoBack}
+          onClick={onBack}
+        >
+          <Icon viewBox="0 0 20 20" aria-hidden="true"><path d="m9 4-6 6 6 6M3 10h14" /></Icon>
+        </IconButton>
+        <IconButton
+          className="icon-button"
+          type="button"
+          aria-label={t($ => $.browser.forward)}
+          title={t($ => $.browser.forward)}
+          disabled={!state.canGoForward}
+          onClick={onForward}
+        >
+          <Icon viewBox="0 0 20 20" aria-hidden="true"><path d="m11 4 6 6-6 6M3 10h14" /></Icon>
+        </IconButton>
+        <IconButton className="icon-button" type="button" aria-label={t($ => $.browser.refresh)}
+          title={t($ => $.browser.refresh)} disabled={!state.url || state.isLoading} onClick={onReload}>
+          <Icon viewBox="0 0 20 20" aria-hidden="true"><path d="M16 7a6.5 6.5 0 1 0 .4 5M16 2v5h-5" /></Icon>
+        </IconButton>
       </div>
       <div className="address-controls">
         <AddressBar url={state.url} isLoading={state.isLoading} error={error} onNavigate={onNavigate} />
@@ -69,9 +86,11 @@ function CopyWebpageControl({ state, browser }: Pick<BrowserControlsProps, 'stat
   const label = t($ => $.browser.copyWebpage)
   const failure = t($ => $.browser.copyFailed)
   return <>
-    <IconButton className="icon-button" size="sm" variant="ghost" label={label} tooltip={label} aria-busy={copying}
-      icon={<Icon icon={copied ? 'check' : 'copy'} />} isDisabled={disabled || copying} onClick={() => void copyWebpage()} />
-    <Text as="p" type="supporting" role="status">{copied && t($ => $.browser.copied)}</Text>
+    <IconButton className="icon-button" aria-label={label} title={label} aria-busy={copying}
+      disabled={disabled || copying} onClick={() => void copyWebpage()}>
+      <Icon viewBox="0 0 20 20"><path d={copied ? 'm4 10 4 4 8-8' : 'M6 6V3h11v11h-3M3 6h11v11H3z'} /></Icon>
+    </IconButton>
+    <StatusMessage>{copied && t($ => $.browser.copied)}</StatusMessage>
     {copied === false && <div className="navigation-error" role="alert" title={failure}>{failure}</div>}
   </>
 }

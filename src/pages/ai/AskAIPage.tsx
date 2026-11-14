@@ -1,6 +1,6 @@
-import { Button, Drawer, EmptyState, Icon, IconButton, Stack, Text } from '@astryxdesign/core'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ActionRow, Button, Drawer, StatusMessage } from '../../shared/ui'
 import { useServices } from '../../app/providers'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useAskAgent } from './useAskAgent'
@@ -20,20 +20,16 @@ export function AskAIPage() {
   const runtime = chat.active ?? [...chat.runs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0], status = runtime?.runtimeStatus
   const runtimeKeys = { pending: 'pending', 'context.compacting': 'compacting', 'human.waiting': 'humanWaiting', 'tools.searching': 'searching', 'tools.activating': 'activating' } as const
   return <main className="ai-page">
-    {narrow ? <Drawer className="ai-session-drawer" isOpen={drawer} label={t($ => $.ask.sessions)} onOpenChange={setDrawer} side="start">
-      <Stack className="ai-session-drawer-heading" direction="horizontal" justify="between" align="center">
-        <h2>{t($ => $.ask.sessions)}</h2><IconButton label={t($ => $.ask.close)} icon={<Icon icon="close" />} variant="ghost" onClick={() => setDrawer(false)} />
-      </Stack>{sidebar}
-    </Drawer> : <aside className="ai-session-sidebar">{sidebar}</aside>}
+    {narrow ? <Drawer open={drawer} title={t($ => $.ask.sessions)} closeLabel={t($ => $.ask.close)} onClose={() => setDrawer(false)}>{sidebar}</Drawer> : <aside className="ai-session-sidebar">{sidebar}</aside>}
     <section className={`ai-conversation${!chat.id ? ' ai-conversation--empty' : ''}`} aria-label={t($ => $.ask.conversation)}>
-      {narrow && <div className="ai-session-toggle"><Button variant="ghost" aria-label={t($ => $.ask.openSessions)} aria-expanded={drawer} onClick={() => setDrawer(true)} label={t($ => $.ask.openSessions)}>☰</Button></div>}
-      {chat.state.loading ? <Text as="p" type="supporting" role="status">{t($ => $.app.loadingWorkspace)}</Text> : !chat.id ? <EmptyState className="ai-empty" headingLevel={1} title={t($ => $.ask.empty)} description={t($ => $.ask.emptyHint)} /> :
+      {narrow && <div className="ai-session-toggle"><Button variant="ghost" aria-label={t($ => $.ask.openSessions)} aria-expanded={drawer} onClick={() => setDrawer(true)}>☰</Button></div>}
+      {chat.state.loading ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : !chat.id ? <div className="ai-empty"><h1>{t($ => $.ask.empty)}</h1><p>{t($ => $.ask.emptyHint)}</p></div> :
         <ConversationTimeline key={chat.id} id={chat.id} items={chat.items} runs={chat.runs} total={chat.state.totals[chat.id]} retryEnabled={chat.valid && !chat.state.sending} positions={chat.ask.scroll} loadOlder={() => chat.ask.load(chat.id!, true)} retry={message => { if (chat.valid && chat.choice) void chat.ask.send(chat.choice, message) }} />}
       <div className="ai-composer-dock">
-        {selection.error && <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.selection[selection.error!])}</Text><Button onClick={selection.retry} label={t($ => $.selection.retry)} /></Stack>}
-        {status && status !== 'idle' && <Text as="p" type="supporting" role="status">{t($ => $.ask.runtime[runtimeKeys[status]])}</Text>}
-        {error && <Text as="p" type="supporting" role="alert" className="error-message">{knownError ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.errors.UNKNOWN)}</Text>}
-        {!chat.valid && <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Text as="p" type="supporting" role="status">{t($ => $.ask.configure)}</Text><Button variant="ghost" onClick={() => void openPage('settings')} label={t($ => $.ask.settings)} /></Stack>}
+        {selection.error && <ActionRow><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></ActionRow>}
+        {status && status !== 'idle' && <StatusMessage>{t($ => $.ask.runtime[runtimeKeys[status]])}</StatusMessage>}
+        {error && <StatusMessage tone="error">{knownError ? t($ => $.ask.errors[error as keyof typeof $.ask.errors]) : t($ => $.ask.errors.UNKNOWN)}</StatusMessage>}
+        {!chat.valid && <ActionRow><StatusMessage>{t($ => $.ask.configure)}</StatusMessage><Button variant="ghost" onClick={() => void openPage('settings')}>{t($ => $.ask.settings)}</Button></ActionRow>}
         <Composer text={chat.text} setText={chat.ask.setDraft} busy={Boolean(chat.active)} sending={chat.state.sending} valid={chat.valid} choice={chat.choice} config={chat.config} onChoice={choice => void chat.ask.setChoice(choice)} send={() => { if (chat.choice) void chat.ask.send(chat.choice) }} stop={() => { if (chat.active) void chat.ask.stop(chat.active.id) }} />
       </div>
     </section>

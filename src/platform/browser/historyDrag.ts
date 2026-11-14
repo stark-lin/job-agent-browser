@@ -1,5 +1,5 @@
 import type { MouseInputEvent } from 'electron'
-import { HISTORY_DRAG_SLOP, HISTORY_DRAG_THRESHOLD, UI_MOTION_MS } from '../../shared/geometry'
+import { HISTORY_DRAG_SLOP, HISTORY_DRAG_THRESHOLD, UI_MOTION_MS } from '../../shared/ui/geometry'
 
 export interface HistoryFeedback {
   direction: -1 | 1

@@ -1,9 +1,8 @@
-import { useCopyFeedback } from '../../shared/use-copy-feedback'
-import { Button, Collapsible, Heading, MetadataList, MetadataListItem, Section, Stack, Text } from '@astryxdesign/core'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useServices } from '../../app/providers'
 import { AgentTimelineItem } from '../../app/components/AgentTimelineItem'
+import { ActionRow, Collapsible, CopyButton, DetailsList, SectionCard, StatusMessage } from '../../shared/ui'
 import type { ResumeTrace } from '../../platform/electron/resume-contract'
 import type { AgentRunEvent } from '../../domain/chat/chat.types'
 import { applyResumeTraceEvent } from './resume-trace'
@@ -51,7 +50,6 @@ export function ResumeTraceView({ runId, active }: { runId: string; active: bool
     const timer = active ? setInterval(() => void refresh(), 1000) : undefined
     return () => { current = false; unsubscribe(); clearInterval(timer) }
   }, [open, active, runId, resume])
-  const clipboard = useCopyFeedback(trace?.run.eventSequence)
   async function copyDiagnostics() {
     setCopyFailed(false)
     try {
@@ -64,28 +62,25 @@ export function ResumeTraceView({ runId, active }: { runId: string; active: bool
       return true
     } catch { setCopyFailed(true); return false }
   }
-  return <Section className="feature-section" padding={0}><details onToggle={event => {
+  return <SectionCard title={t($ => $.resume.trace)} defaultCollapsed onToggle={event => {
     if (event.target === event.currentTarget) setOpen(event.currentTarget.open)
-  }}  onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{t($ => $.resume.trace)}</Heading></summary>
-      <div className="feature-section-body">
+  }}>
       <div className="resume-stack">
-        {failed ? <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.resume.traceError)}</Text> : !trace ? <Text as="p" type="supporting" role="status">{t($ => $.app.loadingWorkspace)}</Text> : <>
-          <MetadataList>{([
+        {failed ? <StatusMessage tone="error">{t($ => $.resume.traceError)}</StatusMessage> : !trace ? <StatusMessage>{t($ => $.app.loadingWorkspace)}</StatusMessage> : <>
+          <DetailsList items={[
             { label: t($ => $.ask.guard.runId), value: trace.run.id },
             { label: t($ => $.ask.guard.runState), value: t($ => $.ask.itemStates[trace.run.state]) }
-          ]).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>
-          <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button  label={clipboard.copied ? t($ => $.ask.copied) : t($ => $.resume.copyDiagnostics)}
-        isDisabled={clipboard.copying || clipboard.copied} aria-busy={clipboard.copying} aria-live="polite" onClick={() => void clipboard.copy(copyDiagnostics)} /></Stack>
-          {copyFailed && <Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.resume.copyDiagnosticsError)}</Text>}
-          <Collapsible trigger={t($ => $.resume.cycles)} defaultIsOpen={false} chevronPosition="start">
-            <MetadataList>{(trace.cycles.map(cycle => ({ label: String(cycle.index), value: [cycle.status, cycle.reason, cycle.modelRequestOrdinal].filter(Boolean).join(' · ') }))).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>
+          ]} />
+          <ActionRow><CopyButton resetKey={trace.run.eventSequence} copyLabel={t($ => $.resume.copyDiagnostics)} copiedLabel={t($ => $.ask.copied)} onCopy={copyDiagnostics} /></ActionRow>
+          {copyFailed && <StatusMessage tone="error">{t($ => $.resume.copyDiagnosticsError)}</StatusMessage>}
+          <Collapsible label={t($ => $.resume.cycles)}>
+            <DetailsList items={trace.cycles.map(cycle => ({ label: String(cycle.index), value: [cycle.status, cycle.reason, cycle.modelRequestOrdinal].filter(Boolean).join(' · ') }))} />
           </Collapsible>
-          <Collapsible trigger={t($ => $.resume.requests)} defaultIsOpen={false} chevronPosition="start">
-            <MetadataList>{(trace.requests.map(request => ({ label: String(request.ordinal), value: `${request.modelId} · ${request.purpose} · ${request.verification}` }))).map(({ label, value }, index) => <MetadataListItem key={index} label={label}>{value}</MetadataListItem>)}</MetadataList>
+          <Collapsible label={t($ => $.resume.requests)}>
+            <DetailsList items={trace.requests.map(request => ({ label: String(request.ordinal), value: `${request.modelId} · ${request.purpose} · ${request.verification}` }))} />
           </Collapsible>
           {trace.items.map(item => <AgentTimelineItem key={item.id} item={item} run={trace.run} />)}
         </>}
       </div>
-  </div></details></Section>
+  </SectionCard>
 }

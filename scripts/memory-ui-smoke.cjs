@@ -21,18 +21,9 @@ async function run({ window, evaluate, call, wait, click }) {
   }
   const edit = async text => {
     window.focus(); window.webContents.focus()
-    await wait(() => evaluate(`(() => {
-      const content = document.querySelector('.cm-content');
-      if (!content) return false;
-      content.focus();
-      const selection = getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(content);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      return document.activeElement === content && content.contains(selection.anchorNode) && (content.textContent === '' || !selection.isCollapsed);
-    })()`), 'editor text selected')
-    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+    await evaluate('document.querySelector(".cm-content").focus()')
+    window.webContents.selectAll()
+    await new Promise(resolve => setTimeout(resolve, 30))
     await window.webContents.insertText(text)
   }
   await wait(() => evaluate('document.querySelectorAll("[role=tree]").length===2'), 'two spaces')
@@ -109,7 +100,7 @@ async function run({ window, evaluate, call, wait, click }) {
       window.setContentSize(width, 800)
       await new Promise(resolve => setTimeout(resolve, 30))
       assert(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'), `${language}/${theme}/${width} page overflow`)
-      assert(await evaluate(`!!document.querySelector('[role=tree][aria-label=${JSON.stringify(label)}] [role=treeitem][aria-level="1"] > svg')`), 'Memory root icon')
+      assert(await evaluate('!!document.querySelector(".ui-explorer-row--special svg")'), 'central brain glyph')
     }
   }
   await evaluate('window.data.settings.savePreferences({language:"en",theme:"light"})')

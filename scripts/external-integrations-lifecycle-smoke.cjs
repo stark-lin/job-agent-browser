@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 
-module.exports = async function lifecycleSmoke({ evaluate, waitFor }) {
+module.exports = async function lifecycleSmoke({ evaluate, waitFor, capture }) {
   const targets = ['codex', 'claude-code', 'cursor']
   const names = ['capture-job', 'manage-applications', 'tailor-resume', 'distill-resume', 'distill-project']
   const api = (kind, method, input) => evaluate(`window.${kind}.${method}(${JSON.stringify(input)})`)
@@ -74,6 +74,7 @@ module.exports = async function lifecycleSmoke({ evaluate, waitFor }) {
     mkdirSync(unrelated, { recursive: true }); writeFileSync(join(unrelated, 'SKILL.md'), 'retained')
     await click('[data-mcp-refresh]'); await ready()
     await click(`${selector} [data-skills-remove]`)
+    if (target === 'codex') await capture('external-skills-delete-confirmation.png')
     await confirm('[data-skills-remove-confirm]'); await ready()
     assert(names.every(name => !existsSync(join(before.path, name))))
     assert.equal(readFileSync(join(unrelated, 'SKILL.md'), 'utf8'), 'retained')

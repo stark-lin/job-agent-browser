@@ -1,5 +1,7 @@
 const assert = require('node:assert/strict')
 const { session } = require('electron')
+const { mkdirSync, writeFileSync } = require('node:fs')
+const { resolve } = require('node:path')
 
 module.exports = async function inboxSmoke({ window, call, read, active, evaluate, waitFor, waitState, views, shortcut, origin }) {
   const webSession = session.fromPartition('persist:job-agent-browser')
@@ -15,10 +17,10 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
     view.webContents.setBackgroundThrottling(false)
     await waitFor(() => view.getVisible(), 'full-page mailbox visible')
     const [width, height] = window.getContentSize()
-    const sidebarWidth = 48
+    const sidebarWidth = 64
     assert.deepEqual(require('./native-views.cjs').bounds(window, view), { x: sidebarWidth, y: 0, width: width - sidebarWidth, height })
     const sidebar = await evaluate(`(() => {
-      const nav = document.querySelector('.workspace-sidebar'), rect = nav.getBoundingClientRect();
+      const nav = document.querySelector('.ui-sidebar'), rect = nav.getBoundingClientRect();
       return { width: rect.width, right: rect.right, current: nav.querySelector('[aria-current=page]').getAttribute('aria-label'), count: nav.querySelectorAll('button').length, footer: !!document.querySelector('.inbox-exit') };
     })()`)
     assert.deepEqual(sidebar, { width: sidebarWidth, right: sidebarWidth, current: 'Inbox', count: 9, footer: false })
@@ -39,7 +41,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
     assert.equal(browserView.getVisible(), false)
     const presentation = { tabId: active(await read()).id, targetId: active(await read()).targetId }
     await view.webContents.executeJavaScript('document.querySelector("#draft").value = "Retained mailbox draft"')
-    await evaluate(`document.querySelector('.workspace-sidebar button[aria-label="Ask AI"]').click()`)
+    await evaluate(`document.querySelector('.ui-sidebar button[aria-label="Ask AI"]').click()`)
     await waitState(state => active(state).destination.page === 'ai', 'sidebar Ask AI leaves Inbox')
     await call('setVisible', true, presentation)
     assert.equal(view.getVisible(), false, 'Stale mailbox acknowledgments cannot cover Ask AI')
@@ -90,6 +92,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
         await mailbox(`${origin}/mailbox-two`)
       }
     } finally { window.setContentSize(...originalSize); window.setMinimumSize(...originalMinimum) }
+    mkdirSync(resolve(__dirname, '../.cache'), { recursive: true })
     await mailbox(`${origin}/mailbox-two`)
     assert.equal(await view.webContents.executeJavaScript('document.body.innerText.includes("/mailbox-two")'), true)
     // BrowserWindow.capturePage captures only the trusted renderer, not its native child view.
@@ -98,6 +101,7 @@ module.exports = async function inboxSmoke({ window, call, read, active, evaluat
       new Promise((_, reject) => setTimeout(() => reject(new Error('Mailbox native capture timed out')), 5000))
     ])
     assert.equal(capture.isEmpty(), false)
+    writeFileSync(resolve(__dirname, '../.cache/inbox-no-chrome.png'), capture.toPNG())
 
     const inboxTab = (await read()).activeTabId
     await view.webContents.executeJavaScript(`window.open(${JSON.stringify(`${origin}/mailbox-popup`)}, '_blank')`)

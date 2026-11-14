@@ -1,6 +1,6 @@
-import { Button, Heading, Section, Selector, Stack, Text, TextArea, TextInput } from '@astryxdesign/core'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ActionRow, Button, FormField, SectionCard, StatusMessage, TextInput, Select, TextArea } from '../../shared/ui'
 import { useNavigation } from '../../app/navigation/navigate'
 import { useServices } from '../../app/providers'
 import { useUnsavedGuard } from '../../app/navigation/useUnsavedGuard'
@@ -51,33 +51,33 @@ export function AddJobPage() {
     finally { lock.current = false; if (alive.current) setSaving(false) }
   }
   return <main className="job-page" aria-label={t($ => $.navigation.pages.find)}><div className="job-content">
-    <Section className="feature-section" padding={0}><details open onInvalidCapture={event => { event.currentTarget.open = true }}>
-      <summary><Heading level={2}>{t($ => $.jobs.importTitle)}</Heading></summary>
-      <div className="feature-section-body">{t($ => $.jobs.importHelp) && <p>{t($ => $.jobs.importHelp)}</p>}<div className="job-stack">
-      {selection.error && <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Text as="p" type="supporting" role="alert" className="error-message">{t($ => $.selection[selection.error!])}</Text><Button onClick={selection.retry} label={t($ => $.selection.retry)} /></Stack>}
-      {webSource && <Text as="p" type="supporting" role="status">{t($ => $.selection.source)}: {webSource.title} · {webSource.url}</Text>}
-      <Selector label={t($ => $.jobs.inputKind)} htmlName="captureSource" value={sourceKind} isDisabled={busy || saving || saved} onChange={event => { if (event !== 'url' && event !== 'text' && event !== 'pdf') return; setSourceKind(event); setSource(null); setWebSource(null); importer.clearError() }}  options={[({ value: "url", label: t($ => $.jobs.url) }), ({ value: "text", label: t($ => $.jobs.pastedJD) }), ({ value: "pdf", label: t($ => $.jobs.pdf) })]} />
-      {sourceKind === 'url' && <TextInput label={t($ => $.jobs.url)} htmlName="jobUrl" type="url" value={url} ref={input => { if (input) { input.maxLength = 4096 } }} isDisabled={saving || busy || saved} onChange={event => { setUrl(event); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}
-      {sourceKind === 'text' && <TextArea label={t($ => $.jobs.pastedJD)} htmlName="jobText" value={text} ref={input => { if (input) input.maxLength = 60000 }} isDisabled={busy || saving || saved} onChange={event => { setText(event); importer.clearError() }} />}
-      {sourceKind === 'pdf' && <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap">{pdf && <Text as="p" type="supporting" role="status">{t($ => $.jobs.pdfSelected, { bytes: pdf.bytes })}</Text>}
-        <Button isDisabled={busy || saving || saved} onClick={() => { void importer.selectPdf().then(result => { if (result.ok) setPdf(result.value); else setError(result.error) }).catch(() => setError('PDF_INVALID')) }} label={t($ => $.jobs.selectPdf)} /></Stack>}
+    <SectionCard title={t($ => $.jobs.importTitle)} description={t($ => $.jobs.importHelp)}><div className="job-stack">
+      {selection.error && <ActionRow><StatusMessage tone="error">{t($ => $.selection[selection.error!])}</StatusMessage><Button onClick={selection.retry}>{t($ => $.selection.retry)}</Button></ActionRow>}
+      {webSource && <StatusMessage>{t($ => $.selection.source)}: {webSource.title} · {webSource.url}</StatusMessage>}
+      <FormField label={t($ => $.jobs.inputKind)}>{props => <Select {...props} name="captureSource" value={sourceKind} disabled={busy || saving || saved} onChange={event => { setSourceKind(event.target.value as typeof sourceKind); setSource(null); setWebSource(null); importer.clearError() }}>
+        <option value="url">{t($ => $.jobs.url)}</option><option value="text">{t($ => $.jobs.pastedJD)}</option><option value="pdf">{t($ => $.jobs.pdf)}</option>
+      </Select>}</FormField>
+      {sourceKind === 'url' && <FormField label={t($ => $.jobs.url)}>{props => <TextInput {...props} name="jobUrl" type="url" value={url} maxLength={4096} disabled={saving || busy || saved} onChange={event => { setUrl(event.target.value); setSource(null); setNotice(false); setError(''); importer.clearError() }} />}</FormField>}
+      {sourceKind === 'text' && <FormField label={t($ => $.jobs.pastedJD)}>{props => <TextArea {...props} name="jobText" value={text} maxLength={60000} disabled={busy || saving || saved} onChange={event => { setText(event.target.value); importer.clearError() }} />}</FormField>}
+      {sourceKind === 'pdf' && <ActionRow>{pdf && <StatusMessage>{t($ => $.jobs.pdfSelected, { bytes: pdf.bytes })}</StatusMessage>}
+        <Button disabled={busy || saving || saved} onClick={() => { void importer.selectPdf().then(result => { if (result.ok) setPdf(result.value); else setError(result.error) }).catch(() => setError('PDF_INVALID')) }}>{t($ => $.jobs.selectPdf)}</Button></ActionRow>}
 
-      {importer.configured ? <Text as="p" type="supporting" role="status">{t($ => $.jobs.selectedModel, { provider: importer.provider, model: importer.model })}</Text> : <Text as="p" type="supporting" role="status">{t($ => $.jobs.noAI)}</Text>}
-      <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button isDisabled={!(sourceKind === 'url' ? url.trim() : sourceKind === 'text' ? text.trim() : pdf) || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(sourceKind === 'url' ? { url: url.trim() } : sourceKind === 'text' ? { text } : { fileId: pdf!.fileId }) }} label={t($ => $.jobs.parse)} />
-        {importer.retryable && <Button isDisabled={busy || saving || saved} onClick={() => void importer.start()} label={t($ => $.profile.parseAgain)} />}
-        {busy && <Button onClick={importer.cancel} label={t($ => $.jobs.cancelParse)} />}
-        {!importer.configured && <Button onClick={() => void openPage('settings')} label={t($ => $.navigation.openSettings)} />}
-      </Stack>
-      {busy && <Text as="p" type="supporting" role="status">{t($ => $.jobs[importer.phase === 'reading' ? 'reading' : 'parsing'])}</Text>}
-      {importer.error && <Text as="p" type="supporting" role="alert" className="error-message">{errorText(importer.error)}</Text>}
-      {notice && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.jobs.parsed)}</Text>}
-    </div></div></details></Section>
-    {error && <Text as="p" type="supporting" role="alert" className="error-message">{errorText(error)}</Text>}
+      {importer.configured ? <StatusMessage>{t($ => $.jobs.selectedModel, { provider: importer.provider, model: importer.model })}</StatusMessage> : <StatusMessage>{t($ => $.jobs.noAI)}</StatusMessage>}
+      <ActionRow><Button disabled={!(sourceKind === 'url' ? url.trim() : sourceKind === 'text' ? text.trim() : pdf) || !importer.configured || saving || busy || saved} onClick={() => { setNotice(false); setError(''); void importer.start(sourceKind === 'url' ? { url: url.trim() } : sourceKind === 'text' ? { text } : { fileId: pdf!.fileId }) }}>{t($ => $.jobs.parse)}</Button>
+        {importer.retryable && <Button disabled={busy || saving || saved} onClick={() => void importer.start()}>{t($ => $.profile.parseAgain)}</Button>}
+        {busy && <Button onClick={importer.cancel}>{t($ => $.jobs.cancelParse)}</Button>}
+        {!importer.configured && <Button onClick={() => void openPage('settings')}>{t($ => $.navigation.openSettings)}</Button>}
+      </ActionRow>
+      {busy && <StatusMessage>{t($ => $.jobs[importer.phase === 'reading' ? 'reading' : 'parsing'])}</StatusMessage>}
+      {importer.error && <StatusMessage tone="error">{errorText(importer.error)}</StatusMessage>}
+      {notice && <StatusMessage tone="success">{t($ => $.jobs.parsed)}</StatusMessage>}
+    </div></SectionCard>
+    {error && <StatusMessage tone="error">{errorText(error)}</StatusMessage>}
     <form className="job-stack" onSubmit={event => { event.preventDefault(); void save() }}>
       <JobFields value={details} disabled={saving || saved} onChange={value => { setDetails(value); setError('') }} />
-      <Text as="p" type="supporting" role="status">{t($ => $.jobs.initialStatus)}</Text>
-      <Stack className="action-row" direction="horizontal" justify="end" align="center" gap={2} wrap="wrap"><Button type="submit" variant="primary" isDisabled={saving || busy || saved} label={t($ => $.jobs[saving ? 'saving' : 'save'])} />
-        {saved && <Button onClick={() => void openPage('applications')} label={t($ => $.navigation.pages.applications)} />}</Stack>
+      <StatusMessage>{t($ => $.jobs.initialStatus)}</StatusMessage>
+      <ActionRow><Button type="submit" variant="primary" disabled={saving || busy || saved}>{t($ => $.jobs[saving ? 'saving' : 'save'])}</Button>
+        {saved && <Button onClick={() => void openPage('applications')}>{t($ => $.navigation.pages.applications)}</Button>}</ActionRow>
     </form>
   </div></main>
 }

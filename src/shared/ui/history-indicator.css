@@ -1,0 +1,16 @@
+.ui-history-indicator {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  border: var(--border-width) solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  pointer-events: none;
+}
+.ui-history-indicator svg { width: var(--space-3); height: var(--space-3); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+[data-direction="forward"] .ui-history-indicator svg { transform: rotate(180deg); }
+[data-ready="true"] .ui-history-indicator { color: var(--on-primary); background: var(--primary); border-color: var(--primary); }
+[data-available="false"] .ui-history-indicator { color: var(--muted); background: var(--panel-solid); }

@@ -1,8 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "Node16",
+    "moduleResolution": "Node16",
     "noEmit": false,
     "allowJs": true,
     "allowImportingTsExtensions": false,
@@ -19,7 +19,6 @@
     "src/platform/storage/**/*.ts",
     "src/platform/electron/**/*.ts",
     "src/shared/ipc.ts",
-    "src/shared/asset-imports.d.ts",
     "tests/**/*.ts",
     "src/platform/models/core.cjs",
     "src/platform/browser/**/*.ts",

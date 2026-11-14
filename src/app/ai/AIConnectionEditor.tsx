@@ -1,31 +1,26 @@
-import { Button, Collapsible, FormLayout, Heading, NumberInput, Selector, Stack, Text, TextInput } from '@astryxdesign/core'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AI_DEFAULTS, type AISettings, type ModelOverrides, type AITimeoutOverrides } from '../../shared/ai'
+import { AI_DEFAULTS, type AISettings, type AuthenticationOverride, type ModelOverrides, type AITimeoutOverrides } from '../../shared/ai'
 import type { Preferences } from '../../shared/settings'
+import { ActionRow, Button, FormField, SectionCard, Select, StatusMessage, TextInput, QuietPanel } from '../../shared/ui'
 import { useAIConnection, timeoutDefaults } from './useAIConnection'
 import './ai-connection.css'
 
-export function AIConnectionEditor({ settings, providerId, onSaved, onBusy, onDirty, submitLabel, disabled, secondaryAction }: {
+export function AIConnectionEditor({ settings, providerId, onSaved, onBusy, onDirty, submitLabel, disabled }: {
   settings: AISettings; providerId: string; onSaved(value: Preferences): void
   onBusy?(value: boolean): void; onDirty?(value: boolean): void
-  submitLabel: string; disabled?: boolean; secondaryAction?: ReactNode
+  submitLabel: string; disabled?: boolean
 }) {
   const { t } = useTranslation()
   const connection = useAIConnection(settings, providerId, onSaved)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const { busy, dirty, notice } = connection
   useEffect(() => { onBusy?.(busy) }, [busy, onBusy])
   useEffect(() => { onDirty?.(dirty) }, [dirty, onDirty])
-  useEffect(() => {
-    if (notice === 'invalidModel' || notice === 'invalidLimits') setAdvancedOpen(true)
-  }, [notice])
-
   const locked = Boolean(disabled || busy)
-  const modelOptions = [
-    { value: '', label: t($ => connection.models.length ? $.connection.chooseModel : $.connection.discoverAutomatically) },
-    ...connection.models.map(id => ({ value: id, label: id }))
-  ]
+  const modelOptions = <>
+    <option value="">{t($ => connection.models.length ? $.connection.chooseModel : $.connection.discoverAutomatically)}</option>
+    {connection.models.map(id => <option key={id} value={id}>{id}</option>)}
+  </>
   const limitFields = [
     ['contextWindow', AI_DEFAULTS.contextWindow],
     ['maxOutputTokens', AI_DEFAULTS.maxOutputTokens]
@@ -34,79 +29,54 @@ export function AIConnectionEditor({ settings, providerId, onSaved, onBusy, onDi
     ? t($ => $.connection[notice]) : notice === 'AI_PROTOCOL_ERROR' ? t($ => $.connection.invalidDiscovery)
       : notice && notice !== 'saved' ? t($ => $.ai.errors[notice]) : ''
 
-  return <form className="ai-connection" data-ai-connection noValidate onSubmit={event => {
-    event.preventDefault()
-    if (locked) return
-    if (notice === 'invalidModel' || notice === 'invalidLimits') setAdvancedOpen(true)
-    void connection.submit()
-  }}>
-    <FormLayout>
-      <TextInput label={t($ => $.connection.endpoint)}
-        status={notice === 'invalidEndpoint' ? { type: 'error', message: error } : undefined}
-        type="url" ref={input => { if (input) input.maxLength = 2048 }} isDisabled={locked}
-        value={connection.endpoint} onChange={connection.editEndpoint} />
-      <TextInput label={t($ => $.connection.apiKey)}
-        description={connection.replacingEndpoint ? t($ => $.connection.endpointKeyChange) : undefined}
-        type="password" ref={input => { if (input) input.maxLength = 4096 }} autoComplete="off" hasSpellCheck={false}
-        isDisabled={locked} value={connection.key} onChange={connection.editKey}
-        placeholder={t($ => connection.keyConfigured && !connection.clearKey ? $.connection.keepKey : $.connection.optional)} />
-      <Selector label={t($ => $.connection.model)}
-        status={connection.needsModel ? { type: 'error', message: t($ => $.connection.chooseModel) } : undefined}
-        isDisabled={locked || !connection.models.length} value={connection.model} onChange={connection.selectModel} options={modelOptions} />
-      <Collapsible trigger={t($ => $.connection.advanced)} isOpen={advancedOpen} onOpenChange={setAdvancedOpen} chevronPosition="start"
-        data-ai-advanced>
-        <FormLayout className="ai-connection-advanced">
-          <TextInput label={t($ => $.connection.name)} ref={input => { if (input) input.maxLength = 100 }}
-            isDisabled={locked} value={connection.name} placeholder={connection.generatedName} onChange={connection.editName} />
-          <Selector label={t($ => $.connection.preset)} isDisabled={locked} value={connection.preset}
-            onChange={value => { if (value === 'auto' || value === 'openai' || value === 'local' || value === 'custom') connection.editPreset(value) }}
-            options={[
-              { value: 'auto', label: t($ => $.connection.auto) },
-              { value: 'openai', label: 'OpenAI' },
-              { value: 'local', label: t($ => $.connection.local) },
-              { value: 'custom', label: t($ => $.connection.custom) }
-            ]} />
-          <Selector label={t($ => $.connection.authentication)} isDisabled={locked} value={connection.auth ?? ''}
-            onChange={value => { if (value === '' || value === 'none' || value === 'bearer') connection.editAuth(value || undefined) }}
-            options={[
-              { value: '', label: t($ => $.connection.auto) },
-              { value: 'none', label: t($ => $.connection.none) },
-              { value: 'bearer', label: 'Bearer' }
-            ]} />
-          <Stack className="ai-connection-actions" direction="horizontal" align="end" gap={2} wrap="wrap">
-            <TextInput label={t($ => $.connection.manualId)}
-              status={notice === 'invalidModel' ? { type: 'error', message: error } : undefined}
-              isDisabled={locked} ref={input => { if (input) input.maxLength = 200 }}
-              value={connection.manualId} onChange={connection.editManualId} />
-            <Button isDisabled={locked || !connection.manualId.trim()} onClick={connection.addModel} label={t($ => $.connection.addModel)} />
-          </Stack>
-          <Stack className="ai-connection-actions" direction="horizontal" align="end" gap={2} wrap="wrap">
-            <Selector label={t($ => $.connection.modelList)} isDisabled={locked || !connection.models.length}
-              value={connection.model} onChange={connection.selectModel} options={modelOptions} />
-            <Button isDisabled={locked || !connection.model} onClick={connection.removeModel} label={t($ => $.connection.removeModel)} />
-          </Stack>
-          {limitFields.map(([field, fallback]) => <NumberInput label={t($ => $.connection[field])} key={field} hasClear isIntegerOnly
-            isDisabled={locked || !connection.model} placeholder={t($ => $.connection.fallback, { count: fallback })}
-            value={connection.override?.[field]} onChange={value => connection.editOverride(field, value ?? undefined)} />)}
-          <Heading level={3}>{t($ => $.connection.timeoutOverrides)}</Heading>
-          {(Object.keys(timeoutDefaults) as (keyof AITimeoutOverrides)[]).map(field => <NumberInput label={t($ => $.connection[field])}
-            key={field} hasClear isIntegerOnly isDisabled={locked} placeholder={t($ => $.connection.seconds, { count: timeoutDefaults[field] })}
-            value={connection.timeouts[field]} onChange={value => connection.editTimeout(field, value ?? undefined)} />)}
-          <Stack direction="horizontal" gap={2} wrap="wrap">
-            <Button isDisabled={locked} onClick={connection.restoreDefaults} label={t($ => $.connection.restoreDefaults)} />
-            {connection.keyConfigured && <Button isDisabled={locked} variant={connection.clearKey ? 'ghost' : 'destructive'}
-              onClick={() => connection.removeKey(!connection.clearKey)}
-              label={t($ => connection.clearKey ? $.connection.undoKeyRemoval : $.connection.removeKey)} />}
-          </Stack>
-        </FormLayout>
-      </Collapsible>
-      <Stack direction="horizontal" align="center" gap={2} wrap="wrap">
-        <Button type="submit" variant="primary" isDisabled={locked} data-ai-submit label={busy ? t($ => $.connection.connecting) : submitLabel} />
-        {secondaryAction}
-        {notice === 'saved' && <Text as="p" type="supporting" role="status" className="success-message">{t($ => $.settings.saved)}</Text>}
-        {error && notice !== 'invalidEndpoint' && (notice !== 'invalidModel' || !advancedOpen) &&
-          <Text as="p" type="supporting" role="alert" className="error-message">{error}</Text>}
-      </Stack>
-    </FormLayout>
+  return <form className="ai-connection" data-ai-connection noValidate onSubmit={event => { event.preventDefault(); if (!locked) void connection.submit() }}>
+    <FormField label={t($ => $.connection.endpoint)} error={notice === 'invalidEndpoint' ? error : undefined}>{props =>
+      <TextInput {...props} type="url" maxLength={2048} disabled={locked} value={connection.endpoint} onChange={e => connection.editEndpoint(e.target.value)} />}</FormField>
+    <FormField label={t($ => $.connection.apiKey)} help={connection.replacingEndpoint ? t($ => $.connection.endpointKeyChange) : undefined}>{props =>
+      <TextInput {...props} type="password" maxLength={4096} autoComplete="off" spellCheck={false} disabled={locked} value={connection.key}
+        placeholder={t($ => connection.keyConfigured && !connection.clearKey ? $.connection.keepKey : $.connection.optional)}
+        onChange={e => connection.editKey(e.target.value)} />}</FormField>
+    <FormField label={t($ => $.connection.model)} error={connection.needsModel ? t($ => $.connection.chooseModel) : undefined}>{props =>
+      <Select {...props} disabled={locked || !connection.models.length} value={connection.model} onChange={e => connection.selectModel(e.target.value)}>{modelOptions}</Select>}</FormField>
+    <SectionCard title={t($ => $.connection.advanced)} defaultCollapsed data-ai-advanced>
+      <div className="ai-connection">
+        <FormField label={t($ => $.connection.name)}>{props =>
+          <TextInput {...props} maxLength={100} disabled={locked} value={connection.name} placeholder={connection.generatedName}
+            onChange={e => connection.editName(e.target.value)} />}</FormField>
+        <FormField label={t($ => $.connection.preset)}>{props =>
+          <Select {...props} disabled={locked} value={connection.preset} onChange={e => connection.editPreset(e.target.value as typeof connection.preset)}>
+            <option value="auto">{t($ => $.connection.auto)}</option><option value="openai">OpenAI</option>
+            <option value="local">{t($ => $.connection.local)}</option><option value="custom">{t($ => $.connection.custom)}</option>
+          </Select>}</FormField>
+        <FormField label={t($ => $.connection.authentication)}>{props =>
+          <Select {...props} disabled={locked} value={connection.auth ?? ''} onChange={e => connection.editAuth(e.target.value as AuthenticationOverride || undefined)}>
+            <option value="">{t($ => $.connection.auto)}</option><option value="none">{t($ => $.connection.none)}</option><option value="bearer">Bearer</option>
+          </Select>}</FormField>
+        {connection.keyConfigured && <ActionRow><Button disabled={locked} variant={connection.clearKey ? 'ghost' : 'danger'} onClick={() => connection.removeKey(!connection.clearKey)}>
+          {t($ => connection.clearKey ? $.connection.undoKeyRemoval : $.connection.removeKey)}
+        </Button></ActionRow>}
+        <FormField label={t($ => $.connection.manualId)} error={notice === 'invalidModel' ? error : undefined}>{props =>
+          <div className="ai-connection-actions"><TextInput {...props} disabled={locked} maxLength={200} placeholder={t($ => $.connection.optional)} value={connection.manualId}
+            onChange={e => connection.editManualId(e.target.value)} />
+            <Button disabled={locked || !connection.manualId.trim()} onClick={connection.addModel}>{t($ => $.connection.addModel)}</Button></div>}</FormField>
+        <FormField label={t($ => $.connection.modelList)}>{props =>
+          <QuietPanel className="ai-connection-actions"><Select {...props} disabled={locked || !connection.models.length} value={connection.model}
+            onChange={e => connection.selectModel(e.target.value)}>{modelOptions}</Select>
+            <Button disabled={locked || !connection.model} onClick={connection.removeModel}>{t($ => $.connection.removeModel)}</Button></QuietPanel>}</FormField>
+        {limitFields.map(([field, fallback]) => <FormField key={field} label={t($ => $.connection[field])}>{props =>
+          <TextInput {...props} type="number" min={1} max={100_000_000} disabled={locked || !connection.model}
+            placeholder={t($ => $.connection.fallback, { count: fallback })}
+            value={connection.override?.[field] ?? ''} onChange={e => connection.editOverride(field, e.target.value === '' ? undefined : Number(e.target.value))} />}</FormField>)}
+        {(Object.keys(timeoutDefaults) as (keyof AITimeoutOverrides)[]).map(field => <FormField key={field} label={t($ => $.connection[field])}>{props =>
+          <TextInput {...props} type="number" min={1} max={3600} disabled={locked} placeholder={t($ => $.connection.seconds, { count: timeoutDefaults[field] })}
+            value={connection.timeouts[field] ?? ''} onChange={e => connection.editTimeout(field, e.target.value === '' ? undefined : Number(e.target.value))} />}</FormField>)}
+        <ActionRow><Button disabled={locked} onClick={connection.restoreDefaults}>{t($ => $.connection.restoreDefaults)}</Button></ActionRow>
+      </div>
+    </SectionCard>
+    <ActionRow>
+      {notice === 'saved' && <StatusMessage tone="success">{t($ => $.settings.saved)}</StatusMessage>}
+      {error && notice !== 'invalidEndpoint' && <StatusMessage tone="error">{error}</StatusMessage>}
+      <Button type="submit" variant="primary" disabled={locked} data-ai-submit>{busy ? t($ => $.connection.connecting) : submitLabel}</Button>
+    </ActionRow>
   </form>
 }

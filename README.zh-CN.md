@@ -51,6 +51,7 @@ npm run test:integrations
 npm run test:agent
 npm run test:profile
 npm run test:ask-ai
+npm run design:check
 npm run release:npm:check
 ```
 
@@ -107,7 +108,7 @@ npm 构建在 `dist/npm-artifacts/` 下生成不含模型的 tarball，使用精
 | [npm 用户指南](packages/npm/README.zh-CN.md) · [English](packages/npm/README.md) | 已发布包的命令与用户数据行为 |
 | [共享 Mermaid ER 图](docs/diagrams/data-model.md) | 已实现的模型，由中英文数据架构共用 |
 | [设计纲要](DESIGN.zh-CN.md) · [English](DESIGN.md) | 视觉方向、交互原则与 UI 设计入口 |
-| [设计系统规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | Astryx 组件、主题、原生界面与验证 |
+| [组件库与设计规范](docs/design-system.zh-CN.md) · [English](docs/design-system.md) | 8px UI 规范、参考 HTML、可下载 CSS/Tokens 与验证 |
 
 ## 智能笔记知识库
 
