@@ -12,7 +12,7 @@ The [renderer entry](../src/renderer/main.tsx) loads the reset, component CSS an
 
 ## Native surfaces
 
-The [SideNav](../src/app/WorkspaceSidebar.tsx) has a permanent icon-only layout with tooltips, active page indication and Settings at the bottom. Shared [geometry](../src/shared/geometry.ts) defines its 72px width and the Browser chrome height. The [browser manager](../src/platform/browser/browserManager.ts) places both native web surfaces at the right edge of the rail.
+The permanent icon-only sidebar uses 8px between items within a group and 12px between groups. It shows tooltips and the active page and keeps Settings at the bottom. Its 48px width comes from the same geometry that positions the Browser and Inbox native views. [SideNav](../src/app/WorkspaceSidebar.tsx) · [Shared geometry](../src/shared/geometry.ts) · [Browser manager](../src/platform/browser/browserManager.ts)
 
 Electron owns the [Smart Paste banner](../src/platform/banner/bannerView.ts), [history indicator](../src/platform/browser/historyIndicator.ts) and [native tooltip](../src/platform/browser/navigationTooltip.ts). Their standalone documents use a [Neutral palette](../src/platform/electron/nativeTheme.css) and retain their own event and security boundaries.
 

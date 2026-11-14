@@ -12,7 +12,7 @@ Astryx 0.7.7 是桌面渲染端的通用 UI 系统。Phase 1 保留页面结构�
 
 ## 原生界面
 
-[SideNav](../src/app/WorkspaceSidebar.tsx) 始终只显示图标，提供提示和当前页选中态，设置固定在底部。[共享几何](../src/shared/geometry.ts) 定义 72px 侧栏宽度及 Browser 顶部控件高度。[浏览器管理器](../src/platform/browser/browserManager.ts) 将两个原生网页表面都放在侧栏右边缘。
+常驻侧栏只显示图标，组内条目间距为 8px，组间间距为 12px。侧栏提供提示和当前页选中态，设置固定在底部。48px 的侧栏宽度与 Browser 和 Inbox 的原生视图位置使用同一套尺寸定义。 [SideNav](../src/app/WorkspaceSidebar.tsx) · [共享尺寸](../src/shared/geometry.ts) · [浏览器管理器](../src/platform/browser/browserManager.ts)
 
 Electron 管理 [Smart Paste 横幅](../src/platform/banner/bannerView.ts)、[历史导航指示器](../src/platform/browser/historyIndicator.ts)和[原生提示](../src/platform/browser/navigationTooltip.ts)。这些独立文档使用 [Neutral 调色板](../src/platform/electron/nativeTheme.css)，并保留各自的事件与安全边界。
 

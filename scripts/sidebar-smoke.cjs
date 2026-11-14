@@ -66,7 +66,7 @@ module.exports = async function sidebarSmoke({ window, call, active, evaluate, w
     for (const width of [320, 640, 960, 968, 1200]) {
       window.setContentSize(width, 820)
       await waitFor(() => evaluate(`innerWidth === ${width}`), `sidebar viewport ${width}`)
-      const expected = 72
+      const expected = 48
       const geometry = await evaluate(`(() => {
         const sidebar = document.querySelector('.workspace-sidebar'), content = document.querySelector('.app-content');
         return { width: sidebar.getBoundingClientRect().width, x: content.getBoundingClientRect().x,
@@ -79,6 +79,17 @@ module.exports = async function sidebarSmoke({ window, call, active, evaluate, w
     }
     window.setContentSize(640, 420)
     await waitFor(() => evaluate('innerHeight === 420'), 'short sidebar viewport')
+    const buttons = await evaluate(`(() => {
+      const sidebar = document.querySelector('.workspace-sidebar');
+      const rail = sidebar.getBoundingClientRect();
+      return [...sidebar.querySelectorAll('button')].map(button => {
+        const { left, right, top, bottom } = button.getBoundingClientRect();
+        return { centered: left - rail.left === rail.right - right, top, bottom };
+      });
+    })()`)
+    assert(buttons.every(button => button.centered))
+    assert.deepEqual(buttons.slice(1, -1).map((button, index) => button.top - buttons[index].bottom), [12, 8, 8, 12, 8, 8, 12])
+    assert(buttons.at(-2).bottom <= buttons.at(-1).top)
     assert.equal(await evaluate('document.querySelector(".workspace-sidebar-footer").getBoundingClientRect().bottom <= innerHeight'), true)
     await hover('Settings')
     await waitFor(async () => await tooltipText() === 'Settings', 'footer tooltip in short window')

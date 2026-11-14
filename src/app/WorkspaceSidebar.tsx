@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Icon, SideNav, SideNavItem, SideNavSection } from '@astryxdesign/core'
+import { Icon, SideNav, SideNavItem, SideNavSection, Stack } from '@astryxdesign/core'
 import { useTranslation } from 'react-i18next'
 import { isBrowserDestination, isInboxDestination, type InternalPage } from '../shared/navigation'
 import { useNavigation } from './navigation/navigate'
@@ -48,9 +48,12 @@ export function WorkspaceSidebar() {
 
   return <SideNav ref={rail} className="workspace-sidebar" aria-label={t($ => $.navigation.workspaceNavigation)}
     collapsible={{ isCollapsed: true, hasButton: false }} footer={<div className="workspace-sidebar-footer">{item('settings')}</div>}>
-    {item('ai')}
-    {featureGroups.map(group => <SideNavSection key={group.section} title={t($ => $.navigation.sections[group.section])} isHeaderHidden>
-      {group.pages.map(item)}
-    </SideNavSection>)}
+    <Stack width="100%" gap={3}>
+      {item('ai')}
+      {featureGroups.map(group => <SideNavSection key={group.section} title={t($ => $.navigation.sections[group.section])}
+        isHeaderHidden style={{ paddingBlock: 0 }}>
+        <Stack gap={2}>{group.pages.map(item)}</Stack>
+      </SideNavSection>)}
+    </Stack>
   </SideNav>
 }

@@ -60,7 +60,7 @@ React App → Page → Preload → IPC → Main
 
 **已实现：**桌面渲染端直接使用 Astryx 通用组件及 Neutral 主题，页面管理业务行为。组件归属见[设计系统规范](design-system.zh-CN.md)。
 
-只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。两种原生视图均位于侧栏右侧，使用[共享尺寸](../src/shared/geometry.ts)：所有窗口宽度下均为 72px。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标及历史。
+只有活动网页段可见。Browser 网页段位于 48px 标签栏和 48px 工具栏（总计 96px，来自[共享尺寸](../src/shared/geometry.ts)）下方；Inbox 网页段从 `y = 0` 开始使用整个内容区高度，不显示应用标签、地址控件或顶部条。在所有窗口宽度下，两种原生视图均使用[共享尺寸](../src/shared/geometry.ts)对齐侧栏右边缘。[应用布局](../src/renderer/styles/global.css)使用相同宽度 Token，确保侧栏控件不会被原生视图遮挡。[WebSegment](../src/platform/browser/webSegment.ts) 在重定向、原生导航和弹窗中保留所属视图；Browser 与 Inbox 保留独立网页段；配置未变时重新打开 Inbox 会恢复其当前页面/草稿，加载失败后仍可重试。边界随窗口调整。目标切换先隐藏全部原生视图，直到所属页面通过[原生展示](../src/app/navigation/useNativePresentation.ts)确认标签/目标。过期可见性请求被忽略。Renderer 重载期间隐藏视图，Provider 重新订阅后恢复 Main 的目标及历史。
 
 [TabStrip](../src/pages/browser/TabStrip.tsx) 支持新建、选择、关闭、滚动及方向键/Home/End 选择。标签名称使用保留的浏览器标题或翻译后的“新建标签页”，包括上次显示业务页面的后台标签；不渲染 `app://` 文本。[AddressBar](../src/pages/browser/AddressBar.tsx) 在空闲时跟随状态，聚焦时保留编辑草稿；切换标签会重置输入。
 
